@@ -3,7 +3,7 @@
 		[NoScaleOffset]_MainTex ("Texture", 2D) = "white" {}
 		[NoScaleOffset]_UVMap ("UV", 2D) = "white" {}
 		_PointSize("Point Size", Float) = 4.0
-		_Color ("PointCloud Color", Color) = (1, 1, 1, 1)
+		_Color ("PointCloud Color", Color) = (1, 0, 0, 1)
 		[Toggle(USE_DISTANCE)]_UseDistance ("Scale by distance?", float) = 0
 	}
 
@@ -23,12 +23,14 @@
 			{
 				float4 vertex : POSITION;
 				float2 uv : TEXCOORD0;
+				float4 color : COLOR;
 			};
 
 			struct v2f
 			{
 				float4 vertex : SV_POSITION;
 				float2 uv : TEXCOORD0;
+				float4 color : COLOR;
 			};
 
 			float _PointSize;
@@ -45,6 +47,7 @@
 			{
 				float4 vertex : SV_POSITION;
 				float2 uv : TEXCOORD0;
+				float4 color : COLOR;
 			};
 
 			[maxvertexcount(4)]
@@ -56,9 +59,11 @@
 
 				// TODO: interpolate uvs on quad
 				float2 uv = i[0].uv;
-				float2 p = _PointSize * 0.001;
+				float2 p = _PointSize * 0.01;
 				p.y *= _ScreenParams.x / _ScreenParams.y;
 				
+				o.color = i[0].color;
+
 				o.vertex = UnityObjectToClipPos(v);
 				#ifdef USE_DISTANCE
 				o.vertex += float4(-p.x, p.y, 0, 0);
@@ -75,6 +80,7 @@
 				o.vertex += float4(-p.x, -p.y, 0, 0) * o.vertex.w;
 				#endif
 				o.uv = uv;
+
 				triStream.Append(o);
 
 				o.vertex = UnityObjectToClipPos(v);
@@ -102,14 +108,21 @@
 				v2f o;
 				o.vertex = v.vertex;
 				o.uv = v.uv;
+				o.color = v.color;
 				return o;
 			}
 
 			fixed4 frag (g2f i) : SV_Target
 			{
+				if (i.color.a < 0.5)
+				{
+					//discard;
+				}
 				float2 uv = tex2D(_UVMap, i.uv);
 				if(any(uv <= 0 || uv >= 1))
-					discard;
+				{
+					//discard;
+				}
 				// offset to pixel center
 				uv += 0.5 * _MainTex_TexelSize.xy;
 				return tex2D(_MainTex, uv) * _Color;

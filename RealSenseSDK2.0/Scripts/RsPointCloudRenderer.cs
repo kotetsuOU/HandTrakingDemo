@@ -1,6 +1,7 @@
 ﻿using Intel.RealSense;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,6 +15,12 @@ public class RsPointCloudRenderer : MonoBehaviour
 {
     public RsDeviceController rsDeviceController;
     public RsProcessingPipe processingPipe;
+
+    private Mesh mesh;
+    private Vector2[] uvs;
+    private int[] indices;
+
+    private Color[] colors;
 
     [SerializeField] private ComputeShader pointCloudFilterShader;
     [SerializeField] private ComputeShader pointCloudTransformerShader;
@@ -101,8 +108,41 @@ public class RsPointCloudRenderer : MonoBehaviour
         globalVertices = new Vector3[rsLength];
         newGlobalVerticesBuffer = new Vector3[rsLength];
 
+        if (mesh != null)
+            mesh.Clear();
+        else
+            mesh = new Mesh() { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+
+        indices = Enumerable.Range(0, rsLength).ToArray();
+        uvs = new Vector2[rsLength];
+        for (int j = 0; j < height; j++)
+        {
+            for (int i = 0; i < width; i++)
+            {
+                uvs[i + j * width].x = i / (float)width;
+                uvs[i + j * width].y = j / (float)height;
+            }
+        }
+
+        mesh.MarkDynamic();
+        mesh.vertices = new Vector3[rsLength]; // dummy init
+        mesh.uv = uvs;
+        mesh.SetIndices(indices, MeshTopology.Points, 0, false);
+        mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10f);
+        colors = new Color[rsLength];
+        for (int i = 0; i < rsLength; i++)
+            colors[i] = new Color(1, 0, 0, 1);
+
+        mesh.colors = colors;
+
+        GetComponent<MeshFilter>().sharedMesh = mesh;
+
         ReleaseBuffers();
         InitializeBuffers();
+
+        transform.position = Vector3.zero;
+        transform.rotation = Quaternion.identity;
+        transform.localScale = Vector3.one;
     }
 
     private void InitializeBuffers()
@@ -154,7 +194,7 @@ public class RsPointCloudRenderer : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogException(e);
+            UnityEngine.Debug.LogException(e);
         }
     }
 
@@ -220,6 +260,22 @@ public class RsPointCloudRenderer : MonoBehaviour
         if (newGlobalVerticesCount > 0)
         {
             filteredVerticesBuffer.GetData(newGlobalVerticesBuffer, 0, 0, newGlobalVerticesCount);
+
+            for (int i = 0; i < rsLength; i++) 
+            {
+                colors[i].a = 0f;
+            }   
+            Array.Clear(globalVertices, 0, globalVertices.Length);
+            Array.Copy(newGlobalVerticesBuffer, globalVertices, newGlobalVerticesCount);
+
+            for (int i = 0; i < newGlobalVerticesCount; i++)
+            {
+                colors[i].a = 1f;
+            }
+  
+            mesh.vertices = globalVertices;
+            mesh.colors = colors;
+            mesh.UploadMeshData(false);
         }
     }
 
@@ -245,6 +301,8 @@ public class RsPointCloudRenderer : MonoBehaviour
         if (newGlobalVerticesCount > 0)
         {
             filteredVerticesBuffer.GetData(globalVertices, 0, 0, newGlobalVerticesCount);
+            mesh.vertices = globalVertices.Take(newGlobalVerticesCount).ToArray();
+            mesh.UploadMeshData(false);
         }
     }
 
