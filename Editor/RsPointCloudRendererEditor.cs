@@ -1,5 +1,3 @@
-/* --- RsPointCloudRendererEditor.cs --- */
-
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -16,16 +14,14 @@ public class RsPointCloudRendererEditor : Editor
 
     void OnEnable()
     {
-        // OnEnable でプロパティを初期化
         exportFileNameProp = serializedObject.FindProperty("exportFileName");
     }
 
     public override void OnInspectorGUI()
     {
-        // nullチェックを追加して安全にプロパティを描画
         if (exportFileNameProp == null)
         {
-            OnEnable(); // 初期化が失敗した場合に再試行
+            OnEnable();
         }
 
         serializedObject.Update();
@@ -37,8 +33,7 @@ public class RsPointCloudRendererEditor : Editor
         lineColor = EditorGUILayout.ColorField("Line Color", lineColor);
 
         EditorGUI.BeginChangeCheck();
-        
-        // ここで null チェックを行う
+
         if (exportFileNameProp != null)
         {
             EditorGUILayout.PropertyField(exportFileNameProp);
@@ -74,10 +69,10 @@ public class RsPointCloudRendererEditor : Editor
             isVerticesSaved = false;
 
         EditorGUILayout.Space();
-        string label = renderer.IsLocalRangeFilterEnabled ? "Disable Range Filter" : "Enable Range Filter";
+        string label = renderer.IsGlobalRangeFilterEnabled ? "Disable Range Filter" : "Enable Range Filter";
         if (GUILayout.Button(label))
         {
-            renderer.IsLocalRangeFilterEnabled = !renderer.IsLocalRangeFilterEnabled;
+            renderer.IsGlobalRangeFilterEnabled = !renderer.IsGlobalRangeFilterEnabled;
             SceneView.RepaintAll();
         }
 

@@ -41,7 +41,7 @@ public class RsPointCloudGroupControllerEditor : Editor
         {
             ApplyToAllRenderers(renderer =>
             {
-                renderer.IsLocalRangeFilterEnabled = !renderer.IsLocalRangeFilterEnabled;
+                renderer.IsGlobalRangeFilterEnabled = !renderer.IsGlobalRangeFilterEnabled;
             });
             SceneView.RepaintAll();
             UnityEngine.Debug.Log("Toggle Range Filter on All");

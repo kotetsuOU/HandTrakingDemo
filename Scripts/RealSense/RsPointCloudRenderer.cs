@@ -41,9 +41,6 @@ public class RsPointCloudRenderer : MonoBehaviour
     private int rsLength;
     private int frameCounter = 0;
 
-    [HideInInspector]
-    public bool IsLocalRangeFilterEnabled = true;
-
     [SerializeField]
     public bool IsGlobalRangeFilterEnabled = true;
 
@@ -224,7 +221,7 @@ public class RsPointCloudRenderer : MonoBehaviour
                 {
                     points.CopyVertices(rawVertices);
 
-                    if (IsLocalRangeFilterEnabled)
+                    if (IsGlobalRangeFilterEnabled)
                     {
                         FilterWithComputeShader();
                     }
@@ -308,7 +305,7 @@ public class RsPointCloudRenderer : MonoBehaviour
 
     public Vector3[] GetFilteredVertices()
     {
-        if (!IsLocalRangeFilterEnabled)
+        if (!IsGlobalRangeFilterEnabled)
         {
             return globalVertices;
         }
