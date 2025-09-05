@@ -17,11 +17,15 @@ if (-not (Test-Path ".git")) {
 # 変更をステージング
 git add .
 
-# コミット
+# コミット（変更があれば）
 $commitMessage = "Update: $today"
-git commit -m $commitMessage
+git commit -m $commitMessage 2>$null
+
+# リモートの変更を取り込む（rebaseで自動で履歴を整列）
+git pull --rebase origin main
 
 # プッシュ
 git push origin main
 
 Write-Host "=== Git 更新完了 ($today) ==="
+
