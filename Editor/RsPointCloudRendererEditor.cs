@@ -76,6 +76,49 @@ public class RsPointCloudRendererEditor : Editor
         serializedObject.ApplyModifiedProperties();
     }
 
+    void OnSceneGUI()
+    {
+        RsPointCloudRenderer renderer = (RsPointCloudRenderer)target;
+
+        Vector4 plane = renderer.LastFramePlane;
+
+        if (plane == Vector4.zero) return;
+
+        Vector3 normal = new Vector3(plane.x, plane.y, plane.z).normalized;
+        float d = plane.w;
+
+        // 平面上の点
+        Vector3 pointOnPlane = -d * normal;
+
+        // サイズ（点群に合わせて調整）
+        float size = 0.2f;
+        Vector3 tangent = Vector3.Cross(normal, Vector3.up);
+        if (tangent.sqrMagnitude < 1e-6f)
+            tangent = Vector3.Cross(normal, Vector3.right);
+        tangent.Normalize();
+        Vector3 bitangent = Vector3.Cross(normal, tangent);
+
+        // 四隅
+        Vector3 c1 = pointOnPlane + (tangent + bitangent) * size;
+        Vector3 c2 = pointOnPlane + (tangent - bitangent) * size;
+        Vector3 c3 = pointOnPlane + (-tangent - bitangent) * size;
+        Vector3 c4 = pointOnPlane + (-tangent + bitangent) * size;
+
+        // Handles API で描画
+        Handles.color = Color.green;
+        Handles.DrawLine(c1, c2);
+        Handles.DrawLine(c2, c3);
+        Handles.DrawLine(c3, c4);
+        Handles.DrawLine(c4, c1);
+
+        // 法線を赤で表示
+        Handles.color = Color.red;
+        Handles.DrawLine(pointOnPlane, pointOnPlane + normal * size);
+
+        // ラベル表示
+        Handles.Label(pointOnPlane, $"Plane: {plane}");
+    }
+
     private void SaveToFile(Vector3[] vertices, string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))

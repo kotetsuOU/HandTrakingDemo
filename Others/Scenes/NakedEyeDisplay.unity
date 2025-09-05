@@ -1413,6 +1413,11 @@ PrefabInstance:
       objectReference: {fileID: 1721597328}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: maxPlaneDistance
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: pointCloudMaterial
       value: 
       objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
@@ -1687,6 +1692,11 @@ PrefabInstance:
       propertyPath: processingPipe
       value: 
       objectReference: {fileID: 706773471}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: maxPlaneDistance
+      value: 0.2
+      objectReference: {fileID: 0}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
       propertyPath: pointCloudMaterial
@@ -2858,6 +2868,11 @@ PrefabInstance:
       objectReference: {fileID: 886448309}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: maxPlaneDistance
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: pointCloudMaterial
       value: 
       objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
@@ -3247,6 +3262,11 @@ PrefabInstance:
       propertyPath: processingPipe
       value: 
       objectReference: {fileID: 2122350548}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: maxPlaneDistance
+      value: 0.2
+      objectReference: {fileID: 0}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
       propertyPath: pointCloudMaterial

@@ -49,6 +49,11 @@ public class RsPointCloudRenderer : MonoBehaviour
     [SerializeField, HideInInspector]
     private string exportFileName = "currentGlobalVertices.txt";
 
+    [HideInInspector]
+    private Vector4 lastFramePlane;
+
+    [SerializeField] private float maxPlaneDistance = 0.1f;
+
     public string ExportFileName => exportFileName;
 
     private Matrix4x4 localToWorld;
@@ -248,6 +253,9 @@ public class RsPointCloudRenderer : MonoBehaviour
         pointCloudFilterShader.SetVector("globalThreshold2", globalThreshold2);
         pointCloudFilterShader.SetInt("vertexCount", rawVertices.Length);
 
+        pointCloudFilterShader.SetVector("plane", lastFramePlane);
+        pointCloudFilterShader.SetFloat("maxDistance", maxPlaneDistance);
+
         int threadGroups = Mathf.CeilToInt(rawVertices.Length / 256.0f);
         pointCloudFilterShader.Dispatch(kernel, threadGroups, 1, 1);
 
@@ -275,6 +283,8 @@ public class RsPointCloudRenderer : MonoBehaviour
             mesh.vertices = globalVertices;
             mesh.colors = colors;
             mesh.UploadMeshData(false);
+
+            UpdatePlaneEstimate(globalVertices, newGlobalVerticesCount);
         }
     }
 
@@ -305,6 +315,41 @@ public class RsPointCloudRenderer : MonoBehaviour
         }
     }
 
+    private void UpdatePlaneEstimate(Vector3[] vertices, int count)
+    {
+        if (count < 3) return;
+        System.Random rnd = new System.Random();
+        List<Vector3> sample = new List<Vector3>();
+        for (int i = 0; i < 300 && i < count; i++)
+        {
+            sample.Add(vertices[rnd.Next(count)]);
+        }
+
+        Vector3 centroid = Vector3.zero;
+        foreach (var v in sample) centroid += v;
+        centroid /= sample.Count;
+
+        float xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+        foreach (var v in sample)
+        {
+            Vector3 r = v - centroid;
+            xx += r.x * r.x; xy += r.x * r.y; xz += r.x * r.z;
+            yy += r.y * r.y; yz += r.y * r.z; zz += r.z * r.z;
+        }
+
+        var cov = new float[3, 3] { { xx, xy, xz }, { xy, yy, yz }, { xz, yz, zz } };
+        Vector3 normal = EigenMinVector(cov);
+
+        lastFramePlane = new Vector4(normal.x, normal.y, normal.z, -Vector3.Dot(normal, centroid));
+    }
+
+    private Vector3 EigenMinVector(float[,] cov)
+    {
+        Vector3 approx = new Vector3(cov[0, 2], cov[1, 2], cov[2, 2]);
+        if (approx.sqrMagnitude < 1e-6f) approx = Vector3.up;
+        return approx.normalized;
+    }
+
     public Vector3[] GetFilteredVertices()
     {
         if (!IsGlobalRangeFilterEnabled)
@@ -315,4 +360,6 @@ public class RsPointCloudRenderer : MonoBehaviour
         Array.Copy(newGlobalVerticesBuffer, result, newGlobalVerticesCount);
         return result;
     }
+
+    public Vector4 LastFramePlane => lastFramePlane;
 }

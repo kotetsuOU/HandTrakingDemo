@@ -8,6 +8,8 @@ cbuffer Params
     float3 globalThreshold1;
     float3 globalThreshold2;
     uint vertexCount;
+    float4 plane;
+    float maxDistance;
 };
 
 [numthreads(256, 1, 1)]
@@ -21,10 +23,16 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float4 global4 = mul(localToWorld, float4(local, 1.0));
     float3 global = global4.xyz;
 
-    if (global.x >= globalThreshold1.x && global.x <= globalThreshold2.x &&
-        global.y >= globalThreshold1.y && global.y <= globalThreshold2.y &&
-        global.z >= globalThreshold1.z && global.z <= globalThreshold2.z)
-    {
-        filteredVertices.Append(global);
-    }
+    if (global.x < globalThreshold1.x || global.x > globalThreshold2.x)
+        return;
+    if (global.y < globalThreshold1.y || global.y > globalThreshold2.y)
+        return;
+    if (global.z < globalThreshold1.z || global.z > globalThreshold2.z)
+        return;
+
+    float dist = abs(dot(plane.xyz, global) + plane.w) / length(plane.xyz);
+    if (dist > maxDistance)
+        return;
+
+    filteredVertices.Append(global);
 }
