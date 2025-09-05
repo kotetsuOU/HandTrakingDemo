@@ -9,7 +9,6 @@ using static System.Net.Mime.MediaTypeNames;
 public class RsPointCloudRendererEditor : Editor
 {
     private bool isVerticesSaved = false;
-    private Color lineColor = Color.red;
     private SerializedProperty exportFileNameProp;
 
     void OnEnable()
@@ -29,8 +28,6 @@ public class RsPointCloudRendererEditor : Editor
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Debug Tools", EditorStyles.boldLabel);
-
-        lineColor = EditorGUILayout.ColorField("Line Color", lineColor);
 
         EditorGUI.BeginChangeCheck();
 

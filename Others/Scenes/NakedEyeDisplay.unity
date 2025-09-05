@@ -792,7 +792,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 4ccbf0e43b6b2ac4d878438733539519,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.292
+      value: 0.128
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 4ccbf0e43b6b2ac4d878438733539519,
         type: 3}
@@ -848,6 +848,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalPosition.y
       value: -1559
+      objectReference: {fileID: 0}
+    - target: {fileID: 1151388028547126963, guid: 4ccbf0e43b6b2ac4d878438733539519,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 628
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1378,6 +1383,21 @@ PrefabInstance:
       objectReference: {fileID: 1721597328}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: handColor.b
+      value: 0.5764706
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.g
+      value: 0.73333335
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.r
+      value: 0.94509804
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: sphereRadius
       value: 0.001
       objectReference: {fileID: 0}
@@ -1405,7 +1425,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
-      objectReference: {fileID: 2100000, guid: a88d3559a65c7024fb983e435d846e5e, type: 2}
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1639,6 +1659,21 @@ PrefabInstance:
       objectReference: {fileID: 706773471}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: handColor.b
+      value: 0.5764706
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.g
+      value: 0.73333335
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.r
+      value: 0.94509804
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: sphereRadius
       value: 0.001
       objectReference: {fileID: 0}
@@ -1666,7 +1701,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
-      objectReference: {fileID: 2100000, guid: a88d3559a65c7024fb983e435d846e5e, type: 2}
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2140,7 +2175,7 @@ Transform:
   m_GameObject: {fileID: 744917729}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071068}
-  m_LocalPosition: {x: 0.416, y: 0.749, z: 0.323}
+  m_LocalPosition: {x: 0.352, y: 0.826, z: -0.12}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -2793,6 +2828,21 @@ PrefabInstance:
       objectReference: {fileID: 886448309}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: handColor.b
+      value: 0.5764706
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.g
+      value: 0.73333335
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.r
+      value: 0.94509804
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: sphereRadius
       value: 0.001
       objectReference: {fileID: 0}
@@ -2820,7 +2870,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
-      objectReference: {fileID: 2100000, guid: a88d3559a65c7024fb983e435d846e5e, type: 2}
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2925,7 +2975,7 @@ Transform:
   m_GameObject: {fileID: 1114199458}
   serializedVersion: 2
   m_LocalRotation: {x: 0.008646953, y: -0.000000004584402, z: 0.0011850031, w: 0.9999619}
-  m_LocalPosition: {x: 0.319, y: 0.0186, z: 0.291}
+  m_LocalPosition: {x: 0.319, y: 0.0186, z: 0.351}
   m_LocalScale: {x: 0.41, y: 0.00001, z: 0.23}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3169,6 +3219,21 @@ PrefabInstance:
       objectReference: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: handColor.b
+      value: 0.5764706
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.g
+      value: 0.73333335
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: handColor.r
+      value: 0.94509804
+      objectReference: {fileID: 0}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: sphereRadius
       value: 0.001
       objectReference: {fileID: 0}
@@ -3201,7 +3266,7 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
-      objectReference: {fileID: 2100000, guid: a88d3559a65c7024fb983e435d846e5e, type: 2}
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

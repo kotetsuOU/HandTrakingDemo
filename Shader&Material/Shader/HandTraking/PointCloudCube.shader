@@ -2,8 +2,7 @@ Shader "Custom/PointCloudCube"
 {
     Properties
     {
-        _CubeSize("Cube Size", Float) = 0.001
-        _Color("Cube Color", Color) = (1,1,1,1)
+        _CubeSize("Cube Size", Float) = 0.002
     }
 
     SubShader
@@ -130,7 +129,7 @@ Shader "Custom/PointCloudCube"
             // Fragment Shader
             fixed4 frag(g2f i) : SV_Target
             {
-                return i.color * _Color;
+                return i.color;
             }
             ENDCG
         }

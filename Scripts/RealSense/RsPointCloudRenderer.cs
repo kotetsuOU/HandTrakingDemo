@@ -22,6 +22,8 @@ public class RsPointCloudRenderer : MonoBehaviour
 
     private Color[] colors;
 
+    public Color handColor = new Color(241f / 255f, 187f / 255f, 147f / 255f, 1f);
+
     [SerializeField] private ComputeShader pointCloudFilterShader;
     [SerializeField] private ComputeShader pointCloudTransformerShader;
 
@@ -128,7 +130,7 @@ public class RsPointCloudRenderer : MonoBehaviour
         mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 10f);
         colors = new Color[rsLength];
         for (int i = 0; i < rsLength; i++)
-            colors[i] = new Color(1, 0, 0, 1);
+            colors[i] = handColor;
 
         mesh.colors = colors;
 
@@ -260,14 +262,14 @@ public class RsPointCloudRenderer : MonoBehaviour
 
             for (int i = 0; i < rsLength; i++) 
             {
-                colors[i].a = 0f;
+                colors[i] = new Color(handColor.r, handColor.g, handColor.b, 0f);
             }   
             Array.Clear(globalVertices, 0, globalVertices.Length);
             Array.Copy(newGlobalVerticesBuffer, globalVertices, newGlobalVerticesCount);
 
             for (int i = 0; i < newGlobalVerticesCount; i++)
             {
-                colors[i].a = 1f;
+                colors[i] = handColor;
             }
   
             mesh.vertices = globalVertices;

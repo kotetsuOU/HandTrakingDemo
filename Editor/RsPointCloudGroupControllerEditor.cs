@@ -8,15 +8,12 @@ using UnityEngine;
 public class RsPointCloudGroupControllerEditor : Editor
 {
     private bool isVerticesSaved = false;
-    private Color pointColor = Color.red;
 
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Batch Control for RsPointCloudRenderer Children", EditorStyles.boldLabel);
-
-        pointColor = EditorGUILayout.ColorField("Point Color", pointColor);
 
         if (GUILayout.Button("Export All Current Vertices"))
         {
