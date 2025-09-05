@@ -1393,6 +1393,11 @@ PrefabInstance:
       objectReference: {fileID: 1721597328}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: pointCloudMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: rsDeviceController
       value: 
       objectReference: {fileID: 1053368242}
@@ -1647,6 +1652,11 @@ PrefabInstance:
       propertyPath: processingPipe
       value: 
       objectReference: {fileID: 706773471}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: pointCloudMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
       propertyPath: rsDeviceController
@@ -2130,7 +2140,7 @@ Transform:
   m_GameObject: {fileID: 744917729}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071068}
-  m_LocalPosition: {x: 0.416, y: 0.9, z: 0.269}
+  m_LocalPosition: {x: 0.416, y: 0.749, z: 0.323}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -2798,6 +2808,11 @@ PrefabInstance:
       objectReference: {fileID: 886448309}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
+      propertyPath: pointCloudMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
       propertyPath: rsDeviceController
       value: 
       objectReference: {fileID: 1053368242}
@@ -3167,6 +3182,11 @@ PrefabInstance:
       propertyPath: processingPipe
       value: 
       objectReference: {fileID: 2122350548}
+    - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
+        type: 3}
+      propertyPath: pointCloudMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 342f292f62ff5cb4e90bfd7dd44af1be, type: 2}
     - target: {fileID: 114148710568042142, guid: a2bade7ff40ff92409855b062870dccd,
         type: 3}
       propertyPath: rsDeviceController
@@ -4314,17 +4334,17 @@ PrefabInstance:
     - target: {fileID: 1319328713682447004, guid: cff253bdd9f57f44d9f613f84c186879,
         type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1319328713682447004, guid: cff253bdd9f57f44d9f613f84c186879,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1319328713682447004, guid: cff253bdd9f57f44d9f613f84c186879,
         type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1319328713682447004, guid: cff253bdd9f57f44d9f613f84c186879,
         type: 3}

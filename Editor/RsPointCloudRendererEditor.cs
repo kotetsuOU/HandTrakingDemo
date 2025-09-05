@@ -1,3 +1,5 @@
+/* --- RsPointCloudRendererEditor.cs --- */
+
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -14,11 +16,18 @@ public class RsPointCloudRendererEditor : Editor
 
     void OnEnable()
     {
+        // OnEnable でプロパティを初期化
         exportFileNameProp = serializedObject.FindProperty("exportFileName");
     }
 
     public override void OnInspectorGUI()
     {
+        // nullチェックを追加して安全にプロパティを描画
+        if (exportFileNameProp == null)
+        {
+            OnEnable(); // 初期化が失敗した場合に再試行
+        }
+
         serializedObject.Update();
         base.OnInspectorGUI();
 
@@ -28,7 +37,17 @@ public class RsPointCloudRendererEditor : Editor
         lineColor = EditorGUILayout.ColorField("Line Color", lineColor);
 
         EditorGUI.BeginChangeCheck();
-        EditorGUILayout.PropertyField(exportFileNameProp);
+        
+        // ここで null チェックを行う
+        if (exportFileNameProp != null)
+        {
+            EditorGUILayout.PropertyField(exportFileNameProp);
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("SerializedProperty 'exportFileName' not found.", MessageType.Error);
+        }
+
         if (EditorGUI.EndChangeCheck())
             isVerticesSaved = false;
 
