@@ -123,55 +123,65 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             if (neighborDepth_uint < DEPTH_MAX_UINT && isValidNeighbor)
             {
                 half neighborDepth_h = (half)neighborDepth;
-                 if (currentDepth_h - neighborDepth_h > 0.01h)
-                 {
+                if (currentDepth_h - neighborDepth_h > 0.01h)
+                {
                     half3 neighborPos_h = (half3)neighborPos;
 
-                    if (_OcclusionMode == 1)
-                    {
-                        // 【新規】3D距離の2乗に基づく exp 型カーネル
-                        // ベクトル減算と内積(ノルムの2乗)のみで構成され、平方根・除算は一切不要
-                        half3 diff_h = currentPos_h - neighborPos_h;
-                        half distSq_h = dot(diff_h, diff_h);
-
-                        // exp命令(SFU)を1回実行
-                        half occlusionValue_h = 1 - exp(- (half)_Alpha * distSq_h);
-
-                        occlusionSum += (float)occlusionValue_h;
-                        neighborCount++;
-                    }
-                    else if (_OcclusionMode == 2)
-                    {
-                        // 【新規】3D距離の2乗に基づく 2次関数型カーネル
-                        // ベクトル減算と内積(ノルムの2乗)のみで構成され、平方根・除算は一切不要
-                        half3 diff_h = currentPos_h - neighborPos_h;
-                        half distSq_h = dot(diff_h, diff_h);
-
-                        half occlusionValue_h = 1 - ((half) _Alpha * distSq_h);
-                        if (occlusionValue_h < 0)
-                        {
-                            occlusionValue_h = 0;
-                        }
-
-                        occlusionSum += (float) occlusionValue_h;
-                        neighborCount++;
-                    }
-                    else if(_OcclusionMode == 0)
+                    if (_OcclusionMode == 0)
                     {
                         // 【既存】Bouchibaの内積型カーネル
                         half sqLen2_h = dot(neighborPos_h, neighborPos_h);
                         half dotP_h = dot(currentPos_h, neighborPos_h);
                         half sqLen1_h = sqLen2_h - 2.0h * dotP_h + currentPosSq_h;
-
+                         
                         if (sqLen1_h > 0.0001h && sqLen2_h > 0.0001h)
                         {
                             half d_h = dotP_h - sqLen2_h;
                             half occlusionValue_h = 1.0h - d_h * rsqrt(sqLen1_h * sqLen2_h);
-                            occlusionSum += (float)occlusionValue_h;
+                            occlusionSum += (float) occlusionValue_h;
                             neighborCount++;
                         }
                     }
-                 }
+                    else if (_OcclusionMode == 1)
+                    {
+                        // 【新規比較群】純粋な角度Θ(正射影)に基づく exp 型カーネル (β不使用)
+                        // 定義: Θ を currentPos_h(x) と neighborPos_h(y) のなす角とする                   
+                        half sq_x_h = dot(currentPos_h, currentPos_h);
+                        half sq_y_h = dot(neighborPos_h, neighborPos_h);
+                        half dot_xy_h = dot(currentPos_h, neighborPos_h);
+    
+                        // |y|^2 * sin^2(Θ) に等価な直交成分の抽出
+                        half d_ortho_sq = sq_y_h - ((dot_xy_h * dot_xy_h) / sq_x_h);
+    
+                        // β(平行成分へのペナルティ)を一切排除した純粋な幾何学モデル
+                        half occlusionValue_h = 1.0h - exp(- (half)_Alpha * d_ortho_sq);
+    
+                        occlusionSum += (float)occlusionValue_h;
+                        neighborCount++;
+                    }
+                    else if (_OcclusionMode == 2)
+                    {
+                        // 【新規比較群】純粋な角度Θ(正射影)に基づく 2次関数カーネル (β不使用)
+                        // 定義: Θ を currentPos_h(x) と neighborPos_h(y) のなす角とする                   
+                        half sq_x_h = dot(currentPos_h, currentPos_h);
+                        half sq_y_h = dot(neighborPos_h, neighborPos_h);
+                        half dot_xy_h = dot(currentPos_h, neighborPos_h);
+    
+                        // |y|^2 * sin^2(Θ) に等価な直交成分の抽出
+                        half d_ortho_sq = sq_y_h - ((dot_xy_h * dot_xy_h) / sq_x_h);
+    
+                        // β(平行成分へのペナルティ)を一切排除した純粋な幾何学モデル
+                        half occlusionValue_h = 1.0h - ((half) _Alpha * d_ortho_sq);
+    
+                        if (occlusionValue_h < 0.0h)
+                        {
+                            occlusionValue_h = 0.0h;
+                        }
+    
+                        occlusionSum += (float) occlusionValue_h;
+                        neighborCount++;
+                    }
+                }
             }
         }
     }

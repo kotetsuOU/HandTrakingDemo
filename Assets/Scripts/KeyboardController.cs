@@ -5,16 +5,16 @@ using System;
 public class KeyboardController : MonoBehaviour
 {
     [Header("Control Targets")]
-    [Tooltip("アニメーションの再生/一時停止を切り替えるAnimator (例: キツネ等)")]
-    public Animator targetAnimator;
+    [Tooltip("アニメーションの再生/一時停止を切り替えるAnimator (現在はtoggleObjects内でアクティブなものから自動的に取得されます)")]
+    private Animator targetAnimator;
 
     [Tooltip("Tabキーで順番に表示を切り替える関連オブジェクトの配列")]
     public GameObject[] toggleObjects;
 
     private int currentActiveIndex = 0;
 
-    [Tooltip("キーボード操作で移動させる対象のオブジェクト (例: キツネ等)")]
-    public Transform targetTransform;
+    [Tooltip("キーボード操作で移動させる対象のオブジェクト (現在はtoggleObjects内でアクティブなものから自動的に取得されます)")]
+    private Transform targetTransform;
 
     [Tooltip("カメラキャプチャ用スクリプト (ViewPointのカメラ映像保存用)")]
     public CameraCapture cameraCapture;
@@ -24,6 +24,24 @@ public class KeyboardController : MonoBehaviour
 
     [Tooltip("移動速度")]
     public float moveSpeed = 1.0f;
+
+    private void Start()
+    {
+        UpdateActiveTargetReferences();
+    }
+
+    private void UpdateActiveTargetReferences()
+    {
+        if (toggleObjects != null && toggleObjects.Length > 0 && currentActiveIndex >= 0 && currentActiveIndex < toggleObjects.Length)
+        {
+            GameObject activeObj = toggleObjects[currentActiveIndex];
+            if (activeObj != null)
+            {
+                targetTransform = activeObj.transform;
+                targetAnimator = activeObj.GetComponent<Animator>();
+            }
+        }
+    }
 
     void Update()
     {
@@ -109,6 +127,9 @@ public class KeyboardController : MonoBehaviour
                     toggleObjects[currentActiveIndex].SetActive(true);
                 }
 
+                // アクティブになったオブジェクトからAnimatorとTransformを取得し直す
+                UpdateActiveTargetReferences();
+
                 Debug.Log($"[KeyController] オブジェクトのActiveを {toggleObjects[currentActiveIndex]?.name} ({currentActiveIndex}番目) に切り替えました。");
             }
             else
@@ -130,7 +151,7 @@ public class KeyboardController : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning("[KeyController] Inspectorで targetAnimator が設定されていません。");
+                Debug.LogWarning("[KeyController] 現在アクティブなオブジェクトにAnimatorがアタッチされていません。");
             }
         }
 
