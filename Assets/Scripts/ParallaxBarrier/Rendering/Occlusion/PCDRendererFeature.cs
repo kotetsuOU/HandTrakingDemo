@@ -12,7 +12,9 @@ public class PCDRendererFeature : ScriptableRendererFeature
         Exponential3D = 1,
         Linear = 2,
         BouchibaDirectionalBinning = 3,
-        DirectionalBinning = 4
+        DirectionalBinning = 4,
+        BouchibaHexagonalDecomposition = 5,
+        HexagonalDecomposition = 6
     }
 
     [System.Serializable]

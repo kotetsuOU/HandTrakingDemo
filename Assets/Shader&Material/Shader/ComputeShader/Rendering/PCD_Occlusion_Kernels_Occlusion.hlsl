@@ -96,6 +96,10 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     float sum0 = 0.0, sum1 = 0.0, sum2 = 0.0;
     float wSum0 = 0.0, wSum1 = 0.0, wSum2 = 0.0;
 
+    // 6方向ビンニング専用の変数
+    float sum3 = 0.0, sum4 = 0.0, sum5 = 0.0;
+    float wSum3 = 0.0, wSum4 = 0.0, wSum5 = 0.0;
+
     int2 minBound = max(int2(0, 0), (int2) id.xy - (int) radius);
     int2 maxBound = min((int2) _ScreenParams.xy - 1, (int2) id.xy + (int) radius);
 
@@ -167,19 +171,38 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                         occlusionSum += (float) occlusionValue_h;
                         neighborCount++;
                     }
-                    else if (_OcclusionMode == 3)
+                    else if (_OcclusionMode == 3 || _OcclusionMode == 4)
                     {
-                        // 【新規】3方向ビンニング (AtoZ: D - Directional Binning)
-                        // Bouchibaの内積型カーネルを流用
-                        half sqLen2_h = dot(neighborPos_h, neighborPos_h);
-                        half dotP_h = dot(currentPos_h, neighborPos_h);
-                        half sqLen1_h = sqLen2_h - 2.0h * dotP_h + currentPosSq_h;
+                        // 【新規】3方向ビンニング
+                        half sq_y_h = dot(neighborPos_h, neighborPos_h);
+                        half dot_xy_h = dot(currentPos_h, neighborPos_h);
 
-                        if (sqLen1_h > 0.0001h && sqLen2_h > 0.0001h)
+                        half occlusionValue_h = 0.0h;
+                        bool processNeighbor = true;
+
+                        if (_OcclusionMode == 3)
                         {
-                            half d_h = dotP_h - sqLen2_h;
-                            half occlusionValue_h = max(0.0h, 1.0h - d_h * rsqrt(sqLen1_h * sqLen2_h) / 2.5h);
+                            // Bouchibaの内積型カーネルを流用
+                            half sqLen1_h = sq_y_h - 2.0h * dot_xy_h + currentPosSq_h;
+                            if (sqLen1_h > 0.0001h && sq_y_h > 0.0001h)
+                            {
+                                half d_h = dot_xy_h - sq_y_h;
+                                occlusionValue_h = max(0.0h, 1.0h - d_h * rsqrt(sqLen1_h * sq_y_h) / 2.5h);
+                            }
+                            else
+                            {
+                                processNeighbor = false;
+                            }
+                        }
+                        else
+                        {
+                            // expカーネルを利用
+                            half d_ortho_sq = sq_y_h - (dot_xy_h * dot_xy_h * invCurrentPosSq_h);
+                            occlusionValue_h = max(0.0h, 1.0h - exp(-(half) _Alpha * d_ortho_sq));
+                        }
 
+                        if (processNeighbor)
+                        {
                             // ピクセル相対座標の取得
                             half dx = (half) (searchX - (int) id.x);
                             half dy = (half) (searchY - (int) id.y);
@@ -224,54 +247,79 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                             neighborCount++;
                         }
                     }
-                    else if (_OcclusionMode == 4)
+                    else if (_OcclusionMode == 5 || _OcclusionMode == 6)
                     {
-                        // 【新規】3方向ビンニング(放物面ベース) (AtoZ: D - Directional Binning)
+                        // 【新規】6方向ビンニング
                         half sq_y_h = dot(neighborPos_h, neighborPos_h);
                         half dot_xy_h = dot(currentPos_h, neighborPos_h);
-                        half d_ortho_sq = sq_y_h - (dot_xy_h * dot_xy_h * invCurrentPosSq_h);
-                        half occlusionValue_h = max(0.0h, 1.0h - ((half) _Alpha * d_ortho_sq));
 
-                        // ピクセル相対座標の取得
+                        // 直交成分の抽出 (ループ内除算なし)
+                        half d_ortho_sq = sq_y_h - (dot_xy_h * dot_xy_h * invCurrentPosSq_h);
+
+                        half occlusionValue_h = 0.0h;
+                        if (_OcclusionMode == 5)
+                        {
+                            // Mode 5: Bouchibaの内積方式
+                            half dotP_h = dot_xy_h;
+                            half sqLen1_h = sq_y_h - 2.0h * dotP_h + currentPosSq_h;
+                            if (sqLen1_h > 0.0001h && sq_y_h > 0.0001h)
+                            {
+                                half d_h = dotP_h - sq_y_h;
+                                occlusionValue_h = 1.0h - d_h * rsqrt(sqLen1_h * sq_y_h) / 2.5h;
+                            }
+                        }
+                        else
+                        {
+                            // Mode 6: Expカーネル (極性統一: 距離0で0を出力)
+                            occlusionValue_h = 1.0h - exp(-(half)_Alpha * d_ortho_sq);
+                        }
+
+                        // ピクセル相対座標の取得と定数
                         half dx = (half) (searchX - (int) id.x);
                         half dy = (half) (searchY - (int) id.y);
 
                         half invSqrt3 = 0.57735h;
                         half twoInvSqrt3 = 1.15470h;
 
-                        half w0 = 0.0h, w1 = 0.0h, w2 = 0.0h;
-                        half line0 = dx + invSqrt3 * dy;
-                        half line1 = -dx + invSqrt3 * dy;
+                        half A = dx;
+                        half B = dy * invSqrt3;
+                        half C = dy * twoInvSqrt3;
 
-                        // 三角関数不要の代数セクター判定
-                        if (dy >= 0.0h && line0 >= 0.0h)
+                        half w0=0.0h, w1=0.0h, w2=0.0h, w3=0.0h, w4=0.0h, w5=0.0h;
+
+                        // 三角関数不要の6セクター代数判定
+                        if (dy >= 0.0h)
                         {
-                            w0 = line0;
-                            w1 = twoInvSqrt3 * dy;
-                        }
-                        else if (line0 < 0.0h && line1 >= 0.0h)
-                        {
-                            w1 = line1;
-                            w2 = -line0;
+                            if (A >= B) {
+                                w0 = A - B; w1 = C;
+                            } else if (A >= -B) {
+                                w1 = A + B; w2 = -A + B;
+                            } else {
+                                w2 = C; w3 = -A - B;
+                            }
                         }
                         else
                         {
-                            w2 = -twoInvSqrt3 * dy;
-                            w0 = -line1;
+                            if (A <= B) {
+                                w3 = -A + B; w4 = -C;
+                            } else if (A <= -B) {
+                                w4 = -A - B; w5 = A - B;
+                            } else {
+                                w5 = -C; w0 = A + B;
+                            }
                         }
 
-                        half sumW = w0 + w1 + w2 + 1e-5h;
-                        half norm_w0 = w0 / sumW;
-                        half norm_w1 = w1 / sumW;
-                        half norm_w2 = w2 / sumW;
+                        // スケール不変な正規化
+                        half sumW = w0 + w1 + w2 + w3 + w4 + w5 + 1e-5h;
+                        half n_w0 = w0 / sumW; half n_w1 = w1 / sumW; half n_w2 = w2 / sumW;
+                        half n_w3 = w3 / sumW; half n_w4 = w4 / sumW; half n_w5 = w5 / sumW;
 
-                        sum0 += (float) (occlusionValue_h * norm_w0);
-                        sum1 += (float) (occlusionValue_h * norm_w1);
-                        sum2 += (float) (occlusionValue_h * norm_w2);
-
-                        wSum0 += (float) norm_w0;
-                        wSum1 += (float) norm_w1;
-                        wSum2 += (float) norm_w2;
+                        sum0 += (float) (occlusionValue_h * n_w0); wSum0 += (float) n_w0;
+                        sum1 += (float) (occlusionValue_h * n_w1); wSum1 += (float) n_w1;
+                        sum2 += (float) (occlusionValue_h * n_w2); wSum2 += (float) n_w2;
+                        sum3 += (float) (occlusionValue_h * n_w3); wSum3 += (float) n_w3;
+                        sum4 += (float) (occlusionValue_h * n_w4); wSum4 += (float) n_w4;
+                        sum5 += (float) (occlusionValue_h * n_w5); wSum5 += (float) n_w5;
 
                         neighborCount++;
                     }
@@ -304,9 +352,37 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             // 可視化用には最も強い遮蔽値を出力
             occlusionAverage = max(max(avg0, avg1), avg2);
 
-            if (passCount >= 3)
+            if (passCount >= 2)
             {
                 alpha = 0.0; // 2方向以上が遮蔽と判定した場合のみ真の遮蔽とする
+            }
+        }
+        else if (_OcclusionMode == 5 || _OcclusionMode == 6)
+        {
+            // 各方向ごとの独立した平均値を算出
+            float avg0 = wSum0 > 0.001 ? sum0 / wSum0 : 1.0;
+            float avg1 = wSum1 > 0.001 ? sum1 / wSum1 : 1.0;
+            float avg2 = wSum2 > 0.001 ? sum2 / wSum2 : 1.0;
+            float avg3 = wSum3 > 0.001 ? sum3 / wSum3 : 1.0;
+            float avg4 = wSum4 > 0.001 ? sum4 / wSum4 : 1.0;
+            float avg5 = wSum5 > 0.001 ? sum5 / wSum5 : 1.0;
+
+            // 多数決ロジック (AtoZ: M - Majority Voting)
+            int passCount = 0;
+            if (avg0 < _OcclusionThreshold) passCount++;
+            if (avg1 < _OcclusionThreshold) passCount++;
+            if (avg2 < _OcclusionThreshold) passCount++;
+            if (avg3 < _OcclusionThreshold) passCount++;
+            if (avg4 < _OcclusionThreshold) passCount++;
+            if (avg5 < _OcclusionThreshold) passCount++;
+
+            // 可視化用には最も強い遮蔽値(最小値)を出力
+            occlusionAverage = min(min(min(avg0, avg1), min(avg2, avg3)), min(avg4, avg5));
+
+            // 6方向中6方向以上が遮蔽と判定した場合のみ真の遮蔽とする
+            if (passCount >= 6)
+            {
+                alpha = 0.0;
             }
         }
         else
