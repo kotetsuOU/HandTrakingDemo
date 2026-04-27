@@ -380,7 +380,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             occlusionAverage = min(min(min(avg0, avg1), min(avg2, avg3)), min(avg4, avg5));
 
             // 6方向中6方向以上が遮蔽と判定した場合のみ真の遮蔽とする
-            if (passCount >= 6)
+            if (passCount >= 5)
             {
                 alpha = 0.0;
             }
