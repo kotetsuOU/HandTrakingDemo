@@ -10,7 +10,9 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         Bouchiba = 0,
         Exponential3D = 1,
-        Linear = 2
+        Linear = 2,
+        BouchibaDirectionalBinning = 3,
+        DirectionalBinning = 4
     }
 
     [System.Serializable]

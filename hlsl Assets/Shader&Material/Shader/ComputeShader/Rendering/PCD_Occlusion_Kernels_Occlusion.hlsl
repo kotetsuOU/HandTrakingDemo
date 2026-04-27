@@ -16,19 +16,14 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     {
         if (_RecordOcclusionDebug > 0)
         {
-            if (currentOriginType == 2u)
-                _OcclusionValueMap_RW[id.xy] = float2(-1.0, 0.0);
-            else if (currentOriginType == 0u)
-                _OcclusionValueMap_RW[id.xy] = float2(-3.0, 0.0);
-            else
-                _OcclusionValueMap_RW[id.xy] = float2(-2.0, 0.0);
+            if (currentOriginType == 2u) _OcclusionValueMap_RW[id.xy] = float2(-1.0, 0.0);
+            else if (currentOriginType == 0u) _OcclusionValueMap_RW[id.xy] = float2(-3.0, 0.0);
+            else _OcclusionValueMap_RW[id.xy] = float2(-2.0, 0.0);
         }
 
         _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy];
-        if (currentOriginType == 0u)
-            _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
-        else if (currentOriginType == 1u)
-            _OriginMap_RW[id.xy] = float4(1, 1, 1, 1);
+        if (currentOriginType == 0u) _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+        else if (currentOriginType == 1u) _OriginMap_RW[id.xy] = float4(1, 1, 1, 1);
         return;
     }
 
@@ -67,27 +62,25 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     {
         if (_RecordOcclusionDebug > 0)
         {
-            if (!useTagOptimization && originalCurrentOriginType == 0u)
-                _OcclusionValueMap_RW[id.xy] = float2(-2.0, 0.0);
-            else
-                _OcclusionValueMap_RW[id.xy] = float2(1.0, 0.0);
+            if (!useTagOptimization && originalCurrentOriginType == 0u) _OcclusionValueMap_RW[id.xy] = float2(-2.0, 0.0);
+            else _OcclusionValueMap_RW[id.xy] = float2(1.0, 0.0); 
         }
-        _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy];
+        _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy]; 
         _OriginMap_RW[id.xy] = float4(1, 1, 1, 1);
         _OriginTypeMap_RW[id.xy] = 1u;
         return;
     }
 
     // --- 【ループ外の事前計算】 (AtoZ: L - Loop-Invariant Code Motion) ---
-    half3 currentPos_h = (half3) currentPos;
-    half currentDepth_h = (half) currentDepth;
+    half3 currentPos_h = (half3)currentPos;
+    half currentDepth_h = (half)currentDepth;
     half currentPosSq_h = dot(currentPos_h, currentPos_h);
 
     // 除算をループ外で実行し、乗算用の逆数をキャッシュ
-    half invCurrentPosSq_h = 1.0h / currentPosSq_h;
+    half invCurrentPosSq_h = 1.0h / currentPosSq_h; 
 
     int level = _FinalNeighborhoodSizeMap[id.xy];
-    uint radius = max(1u << (uint) max(0, level), 1u);
+    uint radius = max(1u << (uint)max(0, level), 1u);
 
     float occlusionSum = 0.0;
     uint neighborCount = 0u;
@@ -96,8 +89,8 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     float sum0 = 0.0, sum1 = 0.0, sum2 = 0.0;
     float wSum0 = 0.0, wSum1 = 0.0, wSum2 = 0.0;
 
-    int2 minBound = max(int2(0, 0), (int2) id.xy - (int) radius);
-    int2 maxBound = min((int2) _ScreenParams.xy - 1, (int2) id.xy + (int) radius);
+    int2 minBound = max(int2(0, 0), (int2)id.xy - (int)radius);
+    int2 maxBound = min((int2)_ScreenParams.xy - 1, (int2)id.xy + (int)radius);
 
     for (int searchY = minBound.y; searchY <= maxBound.y; searchY++)
     {
@@ -121,15 +114,15 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                 float4 nViewPos = mul(_InverseProjectionMatrix, nClipPos);
                 neighborPos = normalize(nViewPos.xyz / nViewPos.w) * 100.0;
                 neighborDepth = 100.0;
-                neighborDepth_uint = (uint) (nFarZ * (float) DEPTH_MAX_UINT);
+                neighborDepth_uint = (uint)(nFarZ * (float)DEPTH_MAX_UINT);
             }
 
             if (neighborDepth_uint < DEPTH_MAX_UINT && isValidNeighbor)
             {
-                half neighborDepth_h = (half) neighborDepth;
+                half neighborDepth_h = (half)neighborDepth;
                 if (currentDepth_h - neighborDepth_h > 0.01h)
                 {
-                    half3 neighborPos_h = (half3) neighborPos;
+                    half3 neighborPos_h = (half3)neighborPos;
 
                     if (_OcclusionMode == 0)
                     {
@@ -157,84 +150,27 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                         half occlusionValue_h = 0.0h;
                         if (_OcclusionMode == 1)
                         {
-                            occlusionValue_h = 1.0h - exp(-(half) _Alpha * d_ortho_sq);
+                            occlusionValue_h = 1.0h - exp(- (half)_Alpha * d_ortho_sq);
                         }
                         else
                         {
-                            occlusionValue_h = max(0.0h, 1.0h - ((half) _Alpha * d_ortho_sq));
+                            occlusionValue_h = max(0.0h, 1.0h - ((half)_Alpha * d_ortho_sq));
                         }
 
-                        occlusionSum += (float) occlusionValue_h;
+                        occlusionSum += (float)occlusionValue_h;
                         neighborCount++;
                     }
                     else if (_OcclusionMode == 3)
-                    {
-                        // 【新規】3方向ビンニング (AtoZ: D - Directional Binning)
-                        // Bouchibaの内積型カーネルを流用
-                        half sqLen2_h = dot(neighborPos_h, neighborPos_h);
-                        half dotP_h = dot(currentPos_h, neighborPos_h);
-                        half sqLen1_h = sqLen2_h - 2.0h * dotP_h + currentPosSq_h;
-
-                        if (sqLen1_h > 0.0001h && sqLen2_h > 0.0001h)
-                        {
-                            half d_h = dotP_h - sqLen2_h;
-                            half occlusionValue_h = max(0.0h, 1.0h - d_h * rsqrt(sqLen1_h * sqLen2_h) / 2.5h);
-
-                            // ピクセル相対座標の取得
-                            half dx = (half) (searchX - (int) id.x);
-                            half dy = (half) (searchY - (int) id.y);
-
-                            half invSqrt3 = 0.57735h;
-                            half twoInvSqrt3 = 1.15470h;
-
-                            half w0 = 0.0h, w1 = 0.0h, w2 = 0.0h;
-                            half line0 = dx + invSqrt3 * dy;
-                            half line1 = -dx + invSqrt3 * dy;
-
-                            // 三角関数不要の代数セクター判定
-                            if (dy >= 0.0h && line0 >= 0.0h)
-                            {
-                                w0 = line0;
-                                w1 = twoInvSqrt3 * dy;
-                            }
-                            else if (line0 < 0.0h && line1 >= 0.0h)
-                            {
-                                w1 = line1;
-                                w2 = -line0;
-                            }
-                            else
-                            {
-                                w2 = -twoInvSqrt3 * dy;
-                                w0 = -line1;
-                            }
-
-                            half sumW = w0 + w1 + w2 + 1e-5h;
-                            half norm_w0 = w0 / sumW;
-                            half norm_w1 = w1 / sumW;
-                            half norm_w2 = w2 / sumW;
-
-                            sum0 += (float) (occlusionValue_h * norm_w0);
-                            sum1 += (float) (occlusionValue_h * norm_w1);
-                            sum2 += (float) (occlusionValue_h * norm_w2);
-
-                            wSum0 += (float) norm_w0;
-                            wSum1 += (float) norm_w1;
-                            wSum2 += (float) norm_w2;
-
-                            neighborCount++;
-                        }
-                    }
-                    else if (_OcclusionMode == 4)
                     {
                         // 【新規】3方向ビンニング(放物面ベース) (AtoZ: D - Directional Binning)
                         half sq_y_h = dot(neighborPos_h, neighborPos_h);
                         half dot_xy_h = dot(currentPos_h, neighborPos_h);
                         half d_ortho_sq = sq_y_h - (dot_xy_h * dot_xy_h * invCurrentPosSq_h);
-                        half occlusionValue_h = max(0.0h, 1.0h - ((half) _Alpha * d_ortho_sq));
+                        half occlusionValue_h = max(0.0h, 1.0h - ((half)_Alpha * d_ortho_sq));
 
                         // ピクセル相対座標の取得
-                        half dx = (half) (searchX - (int) id.x);
-                        half dy = (half) (searchY - (int) id.y);
+                        half dx = (half)(searchX - (int)id.x);
+                        half dy = (half)(searchY - (int)id.y);
 
                         half invSqrt3 = 0.57735h;
                         half twoInvSqrt3 = 1.15470h;
@@ -244,18 +180,13 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                         half line1 = -dx + invSqrt3 * dy;
 
                         // 三角関数不要の代数セクター判定
-                        if (dy >= 0.0h && line0 >= 0.0h)
-                        {
+                        if (dy >= 0.0h && line0 >= 0.0h) {
                             w0 = line0;
                             w1 = twoInvSqrt3 * dy;
-                        }
-                        else if (line0 < 0.0h && line1 >= 0.0h)
-                        {
+                        } else if (line0 < 0.0h && line1 >= 0.0h) {
                             w1 = line1;
                             w2 = -line0;
-                        }
-                        else
-                        {
+                        } else {
                             w2 = -twoInvSqrt3 * dy;
                             w0 = -line1;
                         }
@@ -265,13 +196,13 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                         half norm_w1 = w1 / sumW;
                         half norm_w2 = w2 / sumW;
 
-                        sum0 += (float) (occlusionValue_h * norm_w0);
-                        sum1 += (float) (occlusionValue_h * norm_w1);
-                        sum2 += (float) (occlusionValue_h * norm_w2);
+                        sum0 += (float)(occlusionValue_h * norm_w0);
+                        sum1 += (float)(occlusionValue_h * norm_w1);
+                        sum2 += (float)(occlusionValue_h * norm_w2);
 
-                        wSum0 += (float) norm_w0;
-                        wSum1 += (float) norm_w1;
-                        wSum2 += (float) norm_w2;
+                        wSum0 += (float)norm_w0;
+                        wSum1 += (float)norm_w1;
+                        wSum2 += (float)norm_w2;
 
                         neighborCount++;
                     }
@@ -285,7 +216,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
     if (neighborCount > 0)
     {
-        if (_OcclusionMode == 3 || _OcclusionMode == 4)
+        if (_OcclusionMode == 3)
         {
             // 各方向ごとの独立した平均値を算出
             float avg0 = wSum0 > 0.001 ? sum0 / wSum0 : 0.0;
@@ -294,17 +225,14 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
             // 多数決ロジック (AtoZ: M - Majority Voting)
             int passCount = 0;
-            if (avg0 < _OcclusionThreshold)
-                passCount++;
-            if (avg1 < _OcclusionThreshold)
-                passCount++;
-            if (avg2 < _OcclusionThreshold)
-                passCount++;
+            if (avg0 > _OcclusionThreshold) passCount++;
+            if (avg1 > _OcclusionThreshold) passCount++;
+            if (avg2 > _OcclusionThreshold) passCount++;
 
             // 可視化用には最も強い遮蔽値を出力
             occlusionAverage = max(max(avg0, avg1), avg2);
 
-            if (passCount >= 3)
+            if (passCount >= 2)
             {
                 alpha = 0.0; // 2方向以上が遮蔽と判定した場合のみ真の遮蔽とする
             }
@@ -324,20 +252,19 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             else
             {
                 // 従来手法: ハードスレッショルド (完全な二値化)
-                if (occlusionAverage < _OcclusionThreshold)
-                    alpha = 0.0;
+                if (occlusionAverage < _OcclusionThreshold) alpha = 0.0;
             }
         }
     }
 
     // ★【重要】Soft IoU評価用：狐の色や黒塗りに関係なく、純粋な「マスク値(alpha)」をエクスポートする
-    if (_RecordOcclusionDebug > 0)
+    if (_RecordOcclusionDebug > 0) 
     {
         _NeighborCountMap_RW[id.xy] = neighborCount;
 
         if (originalCurrentOriginType == 2u)
         {
-            _OcclusionValueMap_RW[id.xy] = float2(-1.0, occlusionAverage);
+            _OcclusionValueMap_RW[id.xy] = float2(-1.0, occlusionAverage); 
         }
         else if (!useTagOptimization && originalCurrentOriginType == 0u)
         {
@@ -367,15 +294,12 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         float4 col = _ColorMap[id.xy];
         col.a *= alpha;
 
-        if (useTagOptimization && originalCurrentOriginType == 2u)
-            col.a = 1.0;
+        if (useTagOptimization && originalCurrentOriginType == 2u) col.a = 1.0;
 
         _OcclusionResultMap_RW[id.xy] = col;
 
-        if (currentOriginType == 0u)
-            _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
-        else if (currentOriginType == 1u)
-            _OriginMap_RW[id.xy] = float4(1, 1, 1, 1);
+        if (currentOriginType == 0u) _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+        else if (currentOriginType == 1u) _OriginMap_RW[id.xy] = float4(1, 1, 1, 1);
     }
 }
 
