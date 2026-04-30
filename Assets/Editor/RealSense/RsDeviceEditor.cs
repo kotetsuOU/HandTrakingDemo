@@ -59,7 +59,10 @@ public class RsDeviceEditor : Editor
                         var path = EditorUtility.OpenFilePanel("Recorded sequence", "", "bag");
                         if (path.Length != 0)
                         {
+                            serializedObject.Update();
                             prop.stringValue = path;
+                            serializedObject.ApplyModifiedProperties();
+                            GUI.FocusControl(null);
                         }
                         GUIUtility.ExitGUI();
                     }
@@ -111,7 +114,10 @@ public class RsDeviceEditor : Editor
                         var path = EditorUtility.SaveFilePanel("Recorded sequence", "", System.DateTime.Now.ToString("yyyyMMdd_hhmmss"), "bag");
                         if (path.Length != 0)
                         {
+                            serializedObject.Update();
                             prop.stringValue = path;
+                            serializedObject.ApplyModifiedProperties();
+                            GUI.FocusControl(null);
                         }
                         GUIUtility.ExitGUI();
                     }

@@ -5,3 +5,6 @@
 - The project documentation should be consolidated into README.md, as Markdown files under the .github directory are difficult to access.
 - When adding debugging features to this repository, prioritize implementations that minimize processing load.
 - The user is working on adding an 'OcclusionMode 3' with a directional binning model (majority voting mechanism for 3 directions) and optimizations for loop-invariant code motion (e.g., pulling coordinate inverse squared magnitude computations out of the loop).
+
+## Code Functionality
+- Ensure that the RsDeviceEditor.cs script's PlaybackMode Open button correctly updates the selected bag file by including `serializedObject.ApplyModifiedProperties()` in the implementation.
