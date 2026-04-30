@@ -9,6 +9,13 @@
         "com.unity.test-framework": "1.0.0"
       }
     },
+    "com.shinolab.autd3": {
+      "version": "https://github.com/shinolab/AUTD3Sharp.git#upm/latest",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "aaa920db1bc94ee646ffe394e232630dcb412a54"
+    },
     "com.unity.burst": {
       "version": "1.8.28",
       "depth": 2,
