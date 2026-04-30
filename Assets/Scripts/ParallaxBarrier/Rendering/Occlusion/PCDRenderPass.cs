@@ -26,6 +26,8 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int Alpha = Shader.PropertyToID("_Alpha");
         public static readonly int OcclusionThreshold = Shader.PropertyToID("_OcclusionThreshold");
         public static readonly int OcclusionFadeWidth = Shader.PropertyToID("_OcclusionFadeWidth");
+        public static readonly int EnableDepthWeightedOcclusion = Shader.PropertyToID("_EnableDepthWeightedOcclusion");
+        public static readonly int DepthWeightBeta = Shader.PropertyToID("_DepthWeightBeta");
 
         public static readonly int ColorMap = Shader.PropertyToID("_ColorMap");
         public static readonly int DepthMap = Shader.PropertyToID("_DepthMap");

@@ -28,6 +28,8 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public float gradientThreshold_g_th;
         [Range(0f, 1f)] public float occlusionThreshold;
         [Range(0f, 1f)] public float occlusionFadeWidth;
+        public bool enableDepthWeightedOcclusion;
+        public float depthWeightBeta;
         public bool enablePixelTagMap;
         public bool enableOcclusionMap;
         public bool recordOcclusionDebugMap;
@@ -85,6 +87,12 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Tooltip("境界を滑らかにするためのフェード幅（閾値からの減衰範囲）")]
     [Range(0f, 1f)]
     public float occlusionFadeWidth = 0.1f;
+
+    [Tooltip("Mode 0-6 で深度差に基づく重み付き平均を有効化する")]
+    public bool enableDepthWeightedOcclusion = false;
+
+    [Tooltip("深度差重み exp(-beta * dz^2) の減衰係数")]
+    public float depthWeightBeta = 64.0f;
 
     [Header("Display Debug")]
     [Tooltip("点群(黒)と静的メッシュ(白)の由来を示すデバッグマップ(PixelTagMap)を有効にします")]
@@ -151,6 +159,8 @@ public class PCDRendererFeature : ScriptableRendererFeature
             gradientThreshold_g_th = this.gradientThreshold_g_th,
             occlusionThreshold = this.occlusionThreshold,
             occlusionFadeWidth = this.occlusionFadeWidth,
+            enableDepthWeightedOcclusion = this.enableDepthWeightedOcclusion,
+            depthWeightBeta = this.depthWeightBeta,
             enablePixelTagMap = this.enablePixelTagMap,
             enableOcclusionMap = this.enableOcclusionMap,
             recordOcclusionDebugMap = this.recordOcclusionDebugMap,
@@ -309,5 +319,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         float maxFadeWidth = Mathf.Min(occlusionThreshold, 1.0f - occlusionThreshold) * 2.0f;
         occlusionFadeWidth = Mathf.Clamp(occlusionFadeWidth, 0f, maxFadeWidth);
+        depthWeightBeta = Mathf.Max(0f, depthWeightBeta);
     }
 }
