@@ -90,6 +90,8 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     uint radius = max(1u << (uint) max(0, level), 1u);
 
     float occlusionSum = 0.0;
+    float occlusionWeightedSum = 0.0;
+    float occlusionWeightSum = 0.0;
     uint neighborCount = 0u;
 
     // Mode 3専用の変数
@@ -135,6 +137,14 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                 {
                     half3 neighborPos_h = (half3) neighborPos;
 
+                    float dz = currentDepth - neighborDepth;
+                    float depthWeight = 1.0;
+                    bool useDepthWeight = (_EnableDepthWeightedOcclusion > 0);
+                    if (useDepthWeight)
+                    {
+                        depthWeight = max(exp(-_DepthWeightBeta * dz * dz), 1e-5);
+                    }
+
                     if (_OcclusionMode == 0)
                     {
                         // 【既存】Bouchibaの内積型カーネル
@@ -146,7 +156,16 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                         {
                             half d_h = dotP_h - sqLen2_h;
                             half occlusionValue_h = 1.0h - d_h * rsqrt(sqLen1_h * sqLen2_h) / 2.5h;
-                            occlusionSum += (float) occlusionValue_h;
+                            float occlusionValue = (float) occlusionValue_h;
+                            if (useDepthWeight)
+                            {
+                                occlusionWeightedSum += occlusionValue * depthWeight;
+                                occlusionWeightSum += depthWeight;
+                            }
+                            else
+                            {
+                                occlusionSum += occlusionValue;
+                            }
                             neighborCount++;
                         }
                     }
@@ -168,7 +187,16 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                             occlusionValue_h = max(0.0h, 1.0h - ((half) _Alpha * d_ortho_sq));
                         }
 
-                        occlusionSum += (float) occlusionValue_h;
+                        float occlusionValue = (float) occlusionValue_h;
+                        if (useDepthWeight)
+                        {
+                            occlusionWeightedSum += occlusionValue * depthWeight;
+                            occlusionWeightSum += depthWeight;
+                        }
+                        else
+                        {
+                            occlusionSum += occlusionValue;
+                        }
                         neighborCount++;
                     }
                     else if (_OcclusionMode == 3 || _OcclusionMode == 4)
@@ -236,13 +264,17 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                             half norm_w1 = w1 / sumW;
                             half norm_w2 = w2 / sumW;
 
-                            sum0 += (float) (occlusionValue_h * norm_w0);
-                            sum1 += (float) (occlusionValue_h * norm_w1);
-                            sum2 += (float) (occlusionValue_h * norm_w2);
+                            float dirW0 = (float) norm_w0 * (useDepthWeight ? depthWeight : 1.0);
+                            float dirW1 = (float) norm_w1 * (useDepthWeight ? depthWeight : 1.0);
+                            float dirW2 = (float) norm_w2 * (useDepthWeight ? depthWeight : 1.0);
 
-                            wSum0 += (float) norm_w0;
-                            wSum1 += (float) norm_w1;
-                            wSum2 += (float) norm_w2;
+                            sum0 += (float) occlusionValue_h * dirW0;
+                            sum1 += (float) occlusionValue_h * dirW1;
+                            sum2 += (float) occlusionValue_h * dirW2;
+
+                            wSum0 += dirW0;
+                            wSum1 += dirW1;
+                            wSum2 += dirW2;
 
                             neighborCount++;
                         }
@@ -314,12 +346,19 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                         half n_w0 = w0 / sumW; half n_w1 = w1 / sumW; half n_w2 = w2 / sumW;
                         half n_w3 = w3 / sumW; half n_w4 = w4 / sumW; half n_w5 = w5 / sumW;
 
-                        sum0 += (float) (occlusionValue_h * n_w0); wSum0 += (float) n_w0;
-                        sum1 += (float) (occlusionValue_h * n_w1); wSum1 += (float) n_w1;
-                        sum2 += (float) (occlusionValue_h * n_w2); wSum2 += (float) n_w2;
-                        sum3 += (float) (occlusionValue_h * n_w3); wSum3 += (float) n_w3;
-                        sum4 += (float) (occlusionValue_h * n_w4); wSum4 += (float) n_w4;
-                        sum5 += (float) (occlusionValue_h * n_w5); wSum5 += (float) n_w5;
+                        float dw0 = (float) n_w0 * (useDepthWeight ? depthWeight : 1.0);
+                        float dw1 = (float) n_w1 * (useDepthWeight ? depthWeight : 1.0);
+                        float dw2 = (float) n_w2 * (useDepthWeight ? depthWeight : 1.0);
+                        float dw3 = (float) n_w3 * (useDepthWeight ? depthWeight : 1.0);
+                        float dw4 = (float) n_w4 * (useDepthWeight ? depthWeight : 1.0);
+                        float dw5 = (float) n_w5 * (useDepthWeight ? depthWeight : 1.0);
+
+                        sum0 += (float) occlusionValue_h * dw0; wSum0 += dw0;
+                        sum1 += (float) occlusionValue_h * dw1; wSum1 += dw1;
+                        sum2 += (float) occlusionValue_h * dw2; wSum2 += dw2;
+                        sum3 += (float) occlusionValue_h * dw3; wSum3 += dw3;
+                        sum4 += (float) occlusionValue_h * dw4; wSum4 += dw4;
+                        sum5 += (float) occlusionValue_h * dw5; wSum5 += dw5;
 
                         neighborCount++;
                     }
@@ -336,9 +375,9 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         if (_OcclusionMode == 3 || _OcclusionMode == 4)
         {
             // 各方向ごとの独立した平均値を算出
-            float avg0 = wSum0 > 0.001 ? sum0 / wSum0 : 0.0;
-            float avg1 = wSum1 > 0.001 ? sum1 / wSum1 : 0.0;
-            float avg2 = wSum2 > 0.001 ? sum2 / wSum2 : 0.0;
+            float avg0 = wSum0 > 1e-6 ? sum0 / wSum0 : 1.0;
+            float avg1 = wSum1 > 1e-6 ? sum1 / wSum1 : 1.0;
+            float avg2 = wSum2 > 1e-6 ? sum2 / wSum2 : 1.0;
 
             // 多数決ロジック (AtoZ: M - Majority Voting)
             int passCount = 0;
@@ -360,12 +399,12 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         else if (_OcclusionMode == 5 || _OcclusionMode == 6)
         {
             // 各方向ごとの独立した平均値を算出
-            float avg0 = wSum0 > 0.001 ? sum0 / wSum0 : 1.0;
-            float avg1 = wSum1 > 0.001 ? sum1 / wSum1 : 1.0;
-            float avg2 = wSum2 > 0.001 ? sum2 / wSum2 : 1.0;
-            float avg3 = wSum3 > 0.001 ? sum3 / wSum3 : 1.0;
-            float avg4 = wSum4 > 0.001 ? sum4 / wSum4 : 1.0;
-            float avg5 = wSum5 > 0.001 ? sum5 / wSum5 : 1.0;
+            float avg0 = wSum0 > 1e-6 ? sum0 / wSum0 : 1.0;
+            float avg1 = wSum1 > 1e-6 ? sum1 / wSum1 : 1.0;
+            float avg2 = wSum2 > 1e-6 ? sum2 / wSum2 : 1.0;
+            float avg3 = wSum3 > 1e-6 ? sum3 / wSum3 : 1.0;
+            float avg4 = wSum4 > 1e-6 ? sum4 / wSum4 : 1.0;
+            float avg5 = wSum5 > 1e-6 ? sum5 / wSum5 : 1.0;
 
             // 多数決ロジック (AtoZ: M - Majority Voting)
             int passCount = 0;
@@ -393,7 +432,10 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         }
         else
         {
-            occlusionAverage = occlusionSum / (float) neighborCount;
+            if (_EnableDepthWeightedOcclusion > 0 && _OcclusionMode <= 2 && occlusionWeightSum > 1e-6)
+                occlusionAverage = occlusionWeightedSum / occlusionWeightSum;
+            else
+                occlusionAverage = occlusionSum / (float) neighborCount;
 
             // 【新規性②】Soft Occlusion (FadeWidth) のトグル切り替え
             if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)

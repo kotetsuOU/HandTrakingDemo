@@ -85,9 +85,11 @@ int _EnableTagBasedOptimization;
 int _EnableTypeAwareDensity;
 int _EnableSoftOcclusionFade;
 int _EnableJointBilateralHoleFilling;
+int _EnableDepthWeightedOcclusion;
 
 int _OcclusionMode;
 float _Alpha;
+float _DepthWeightBeta;
 
 #define GRID_SIZE 16u
 #define DEPTH_MAX_UINT 0x7FFFFFFFu

@@ -40,6 +40,8 @@ public partial class PCDRenderPass
         cmd.SetComputeFloatParam(cs, ShaderIDs.Alpha, passData.settings.exponentAlpha);
         cmd.SetComputeFloatParam(cs, ShaderIDs.OcclusionThreshold, passData.settings.occlusionThreshold);
         cmd.SetComputeFloatParam(cs, ShaderIDs.OcclusionFadeWidth, passData.settings.occlusionFadeWidth);
+        cmd.SetComputeIntParam(cs, ShaderIDs.EnableDepthWeightedOcclusion, passData.settings.enableDepthWeightedOcclusion ? 1 : 0);
+        cmd.SetComputeFloatParam(cs, ShaderIDs.DepthWeightBeta, passData.settings.depthWeightBeta);
 
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableTagBasedOptimization"), passData.settings.enableTagBasedOptimization ? 1 : 0);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableTypeAwareDensity"), passData.settings.enableTypeAwareDensity ? 1 : 0);
