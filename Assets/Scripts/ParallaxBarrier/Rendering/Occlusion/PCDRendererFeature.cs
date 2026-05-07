@@ -8,13 +8,28 @@ public class PCDRendererFeature : ScriptableRendererFeature
 
     public enum PCDOcclusionMode
     {
+        [InspectorName("Single Direction (Bouchiba)")]
         Bouchiba = 0,
+        [InspectorName("Single Direction (Exponential)")]
         Exponential3D = 1,
+        [InspectorName("Single Direction (Linear)")]
         Linear = 2,
+        [InspectorName("3-Bins Soft Binning (Bouchiba)")]
         BouchibaDirectionalBinning = 3,
+        [InspectorName("3-Bins Soft Binning (Exp)")]
         DirectionalBinning = 4,
+        [InspectorName("6-Bins Soft Binning (Bouchiba)")]
         BouchibaHexagonalDecomposition = 5,
-        HexagonalDecomposition = 6
+        [InspectorName("6-Bins Soft Binning (Exp)")]
+        HexagonalDecomposition = 6,
+        [InspectorName("3-Bins Hard Binning (Bouchiba)")]
+        BouchibaHardBinning3 = 7,
+        [InspectorName("3-Bins Hard Binning (Exp)")]
+        HardBinning3 = 8,
+        [InspectorName("6-Bins Hard Binning (Bouchiba)")]
+        BouchibaHardBinning6 = 9,
+        [InspectorName("6-Bins Hard Binning (Exp)")]
+        HardBinning6 = 10
     }
 
     [System.Serializable]
