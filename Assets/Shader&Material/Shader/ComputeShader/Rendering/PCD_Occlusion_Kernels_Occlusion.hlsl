@@ -195,7 +195,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             // 可視化用には最も強い遮蔽値(最小値)を出力
             occlusionAverage = min(min(avg0, avg1), avg2);
 
-            if (passCount >= 2)
+            if (passCount >= 3)
             {
                 alpha = 0.0; // 2方向以上が遮蔽と判定した場合のみ真の遮蔽とする
             }
