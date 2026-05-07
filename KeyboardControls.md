@@ -16,7 +16,9 @@
 | **PixelTag Map (Material ID Debug)** | `P` | `Enable Pixel Tag Map` を切り替えます。ON のときデバッグ配色ルールで画面上に常時可視化します |
 | **Occlusion Map** | `O` | `Enable Occlusion Map` を切り替えます。内積計算で得た `occlusionAverage(0~1)` を `Record Occlusion Debug Map` と同じ配色ルールで常時可視化します |
 | **滑らかさ幅の強制設定** | `T` | `Occlusion Fade Width` の実数値を `0.2` (滑らか) と `0.0` (くっきり) で設定します |
-| **オクルージョン演算モードの切り替え** | `L` | オクルージョンの演算モード (`内積`, `exp`, `二次関数`) を順に切り替えます |
+| **カーネル関数の切り替え (Kernel)** | `L` | オクルージョン計算に用いるカーネル関数 (`Bouchiba`, `Exponential`, `Linear`) を順に切り替えます |
+| **ビニング手法の切り替え (Binning)** | `K` | 空間分割時の重みの計算手法 (`Soft`, `Hard`) を切り替えます |
+| **空間分割数の切り替え (Direction)** | `J` | 空間の分割方向数 (`Single`, `Bins3`, `Bins6`, `Bins8`) を順に切り替えます |
 | **カラーモードの切り替え (Color)** | `C` | 点群のカラーモード (`Skin`, `Black`, `Blue`, `Custom`) を順に切り替えます (`RsMaterialController` 内の `ChangeColorMode` を使用) |
 | **ゲーム終了 (Quit)** | `Esc` | エディタ再生、またはビルド後のアプリを終了させます (`QuitGame.cs`の統合) |
 

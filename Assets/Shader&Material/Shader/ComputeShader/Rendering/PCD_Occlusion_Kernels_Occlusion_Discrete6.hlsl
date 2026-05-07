@@ -1,7 +1,7 @@
 #ifndef PCD_OCCLUSION_DISCRETE_6BINS_INCLUDED
 #define PCD_OCCLUSION_DISCRETE_6BINS_INCLUDED
 
-// [事実（離散ヒストグラム方式 / 6方向分割）]
+// 空間を6つのビンに分割
 
 struct Discrete6BinResult
 {
@@ -52,12 +52,12 @@ void AccumulateDiscrete6Bin(
     half n_w3 = w3; half n_w4 = w4; half n_w5 = w5;
 
     // Soft/Hard Binningの切り替え
-    if (_OcclusionMode == 5 || _OcclusionMode == 6)
+    if (_BinningMethod == 0)
     {
         n_w0 /= sumW; n_w1 /= sumW; n_w2 /= sumW;
         n_w3 /= sumW; n_w4 /= sumW; n_w5 /= sumW;
     }
-    else if (_OcclusionMode == 9 || _OcclusionMode == 10)
+    else
     {
         half maxW = max(max(max(w0, w1), max(w2, w3)), max(w4, w5));
         n_w0 = (w0 == maxW) ? 1.0h : 0.0h;

@@ -86,7 +86,9 @@ int _EnableTypeAwareDensity;
 int _EnableSoftOcclusionFade;
 int _EnableJointBilateralHoleFilling;
 
-int _OcclusionMode;
+int _KernelType;
+int _BinningMethod;
+int _DirectionCount;
 float _Alpha;
 
 #define GRID_SIZE 16u

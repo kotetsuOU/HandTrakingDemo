@@ -6,36 +6,34 @@ public class PCDRendererFeature : ScriptableRendererFeature
 {
     public static PCDRendererFeature Instance { get; private set; }
 
-    public enum PCDOcclusionMode
+    public enum PCV_OcclusionKernel
     {
-        [InspectorName("Single Direction (Bouchiba)")]
         Bouchiba = 0,
-        [InspectorName("Single Direction (Exponential)")]
-        Exponential3D = 1,
-        [InspectorName("Single Direction (Linear)")]
-        Linear = 2,
-        [InspectorName("3-Bins Soft Binning (Bouchiba)")]
-        BouchibaDirectionalBinning = 3,
-        [InspectorName("3-Bins Soft Binning (Exp)")]
-        DirectionalBinning = 4,
-        [InspectorName("6-Bins Soft Binning (Bouchiba)")]
-        BouchibaHexagonalDecomposition = 5,
-        [InspectorName("6-Bins Soft Binning (Exp)")]
-        HexagonalDecomposition = 6,
-        [InspectorName("3-Bins Hard Binning (Bouchiba)")]
-        BouchibaHardBinning3 = 7,
-        [InspectorName("3-Bins Hard Binning (Exp)")]
-        HardBinning3 = 8,
-        [InspectorName("6-Bins Hard Binning (Bouchiba)")]
-        BouchibaHardBinning6 = 9,
-        [InspectorName("6-Bins Hard Binning (Exp)")]
-        HardBinning6 = 10
+        Exponential = 1,
+        Linear = 2
+    }
+
+    public enum PCV_OcclusionBinning
+    {
+        Soft = 0,
+        Hard = 1
+    }
+
+    public enum PCV_OcclusionDirectionCount
+    {
+        Single = 1,
+        Bins3 = 3,
+        Bins6 = 6,
+        Bins8 = 8 // 8方向分割の追加
     }
 
     [System.Serializable]
     public struct PCDRenderSettings
     {
-        public PCDOcclusionMode occlusionMode;
+        public PCV_OcclusionKernel kernelType;
+        public PCV_OcclusionBinning binningMethod;
+        public PCV_OcclusionDirectionCount directionCount;
+
         public float exponentAlpha;
         public float densityThreshold_e;
         public float neighborhoodParam_p_prime;
@@ -72,10 +70,17 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Header("Required Assets")]
     public ComputeShader pointCloudCompute;
 
-    [Header("Algorithm Parameters")]
-    [Tooltip("オクルージョン演算のモード切り替え")]
-    public PCDOcclusionMode occlusionMode;
+    [Header("Occlusion Core Settings")]
+    [Tooltip("オクルージョン計算に用いるカーネル関数")]
+    public PCV_OcclusionKernel kernelType = PCV_OcclusionKernel.Bouchiba;
 
+    [Tooltip("空間分割時のビニング手法（重みの計算方法）")]
+    public PCV_OcclusionBinning binningMethod = PCV_OcclusionBinning.Soft;
+
+    [Tooltip("空間の分割方向数")]
+    public PCV_OcclusionDirectionCount directionCount = PCV_OcclusionDirectionCount.Single;
+
+    [Header("Algorithm Parameters")]
     [Tooltip("指数関数の減衰係数 (Expモード専用)")]
     public float exponentAlpha;
 
@@ -158,7 +163,9 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         return new PCDRenderSettings
         {
-            occlusionMode = this.occlusionMode,
+            kernelType = this.kernelType,
+            binningMethod = this.binningMethod,
+            directionCount = this.directionCount,
             exponentAlpha = this.exponentAlpha,
             densityThreshold_e = this.densityThreshold_e,
             neighborhoodParam_p_prime = this.neighborhoodParam_p_prime,

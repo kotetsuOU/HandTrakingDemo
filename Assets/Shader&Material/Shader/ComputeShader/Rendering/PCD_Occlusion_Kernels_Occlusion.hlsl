@@ -4,6 +4,7 @@
 #include "PCD_Occlusion_Kernels_Occlusion_SingleDirection.hlsl"
 #include "PCD_Occlusion_Kernels_Occlusion_Discrete3.hlsl"
 #include "PCD_Occlusion_Kernels_Occlusion_Discrete6.hlsl"
+#include "PCD_Occlusion_Kernels_Occlusion_Discrete8.hlsl"
 
 [numthreads(8, 8, 1)]
 void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
@@ -93,10 +94,11 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     int level = _FinalNeighborhoodSizeMap[id.xy];
     uint radius = max(1u << (uint) max(0, level), 1u);
 
+    // --- ループ前の変数宣言部 ---
     float occlusionSum = 0.0;
     uint neighborCount = 0u;
 
-    // Mode 3専用の変数
+    // 3方向ビンニング専用の変数
     Discrete3BinResult res3;
     res3.sum0 = res3.sum1 = res3.sum2 = 0.0;
     res3.wSum0 = res3.wSum1 = res3.wSum2 = 0.0;
@@ -105,6 +107,11 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     Discrete6BinResult res6;
     res6.sum0 = res6.sum1 = res6.sum2 = res6.sum3 = res6.sum4 = res6.sum5 = 0.0;
     res6.wSum0 = res6.wSum1 = res6.wSum2 = res6.wSum3 = res6.wSum4 = res6.wSum5 = 0.0;
+    
+    // 8方向ビンニング専用の変数
+    Discrete8BinResult res8;
+    res8.sum0 = res8.sum1 = res8.sum2 = res8.sum3 = res8.sum4 = res8.sum5 = res8.sum6 = res8.sum7 = 0.0;
+    res8.wSum0 = res8.wSum1 = res8.wSum2 = res8.wSum3 = res8.wSum4 = res8.wSum5 = res8.wSum6 = res8.wSum7 = 0.0;
 
     int2 minBound = max(int2(0, 0), (int2) id.xy - (int) radius);
     int2 maxBound = min((int2) _ScreenParams.xy - 1, (int2) id.xy + (int) radius);
@@ -146,21 +153,28 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
                     if (occlusionValue > 0.0)
                     {
-                        if (_OcclusionMode == 0 || _OcclusionMode == 1 || _OcclusionMode == 2)
+                        if (_DirectionCount == 1)
                         {
                             occlusionSum += occlusionValue;
                         }
-                        else if (_OcclusionMode == 3 || _OcclusionMode == 4 || _OcclusionMode == 7 || _OcclusionMode == 8)
+                        else if (_DirectionCount == 3)
                         {
-                            int dx = searchX - (int)id.x;
-                            int dy = searchY - (int)id.y;
+                            int dx = searchX - (int) id.x;
+                            int dy = searchY - (int) id.y;
                             AccumulateDiscrete3Bin(occlusionValue, dx, dy, res3);
                         }
-                        else if (_OcclusionMode == 5 || _OcclusionMode == 6 || _OcclusionMode == 9 || _OcclusionMode == 10)
+                        else if (_DirectionCount == 6)
                         {
-                            int dx = searchX - (int)id.x;
-                            int dy = searchY - (int)id.y;
+                            int dx = searchX - (int) id.x;
+                            int dy = searchY - (int) id.y;
                             AccumulateDiscrete6Bin(occlusionValue, dx, dy, res6);
+                        }
+                        // [追加] 8方向の分岐
+                        else if (_DirectionCount == 8)
+                        {
+                            int dx = searchX - (int) id.x;
+                            int dy = searchY - (int) id.y;
+                            AccumulateDiscrete8Bin(occlusionValue, dx, dy, res8);
                         }
 
                         neighborCount++;
@@ -175,7 +189,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
     if (neighborCount > 0)
     {
-        if (_OcclusionMode == 3 || _OcclusionMode == 4 || _OcclusionMode == 7 || _OcclusionMode == 8)
+        if (_DirectionCount == 3)
         {
             // 各方向ごとの独立した平均値を算出
             float avg0 = res3.wSum0 > 0.001 ? res3.sum0 / res3.wSum0 : 1.0;
@@ -207,7 +221,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                 alpha = smoothstep(fadeStart, fadeEnd, occlusionAverage);
             }
         }
-        else if (_OcclusionMode == 5 || _OcclusionMode == 6 || _OcclusionMode == 9 || _OcclusionMode == 10)
+        else if (_DirectionCount == 6)
         {
             // 各方向ごとの独立した平均値を算出
             float avg0 = res6.wSum0 > 0.001 ? res6.sum0 / res6.wSum0 : 1.0;
@@ -217,7 +231,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             float avg4 = res6.wSum4 > 0.001 ? res6.sum4 / res6.wSum4 : 1.0;
             float avg5 = res6.wSum5 > 0.001 ? res6.sum5 / res6.wSum5 : 1.0;
 
-            // 多数決ロジック (AtoZ: M - Majority Voting)
+            // 多数決ロジック
             // 可視性(Visibility)が閾値を下回る（＝遮蔽されている）ビンの数をカウント
             int passCount = 0;
             if (avg0 < _OcclusionThreshold) passCount++;
@@ -237,6 +251,57 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                 requiredPassCount = 4;
 
             // levelに応じた閾値以上の方向が遮蔽と判定した場合のみ真の遮蔽とする
+            if (passCount >= requiredPassCount)
+            {
+                alpha = 0.0;
+            }
+            else if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+            {
+                float halfFade = _OcclusionFadeWidth * 0.5;
+                float fadeStart = max(0.0, _OcclusionThreshold - halfFade);
+                float fadeEnd = min(1.0, _OcclusionThreshold + halfFade);
+                alpha = smoothstep(fadeStart, fadeEnd, occlusionAverage);
+            }
+        }
+        else if (_DirectionCount == 8)
+        {
+            float avg0 = res8.wSum0 > 0.001 ? res8.sum0 / res8.wSum0 : 1.0;
+            float avg1 = res8.wSum1 > 0.001 ? res8.sum1 / res8.wSum1 : 1.0;
+            float avg2 = res8.wSum2 > 0.001 ? res8.sum2 / res8.wSum2 : 1.0;
+            float avg3 = res8.wSum3 > 0.001 ? res8.sum3 / res8.wSum3 : 1.0;
+            float avg4 = res8.wSum4 > 0.001 ? res8.sum4 / res8.wSum4 : 1.0;
+            float avg5 = res8.wSum5 > 0.001 ? res8.sum5 / res8.wSum5 : 1.0;
+            float avg6 = res8.wSum6 > 0.001 ? res8.sum6 / res8.wSum6 : 1.0;
+            float avg7 = res8.wSum7 > 0.001 ? res8.sum7 / res8.wSum7 : 1.0;
+
+            int passCount = 0;
+            if (avg0 < _OcclusionThreshold)
+                passCount++;
+            if (avg1 < _OcclusionThreshold)
+                passCount++;
+            if (avg2 < _OcclusionThreshold)
+                passCount++;
+            if (avg3 < _OcclusionThreshold)
+                passCount++;
+            if (avg4 < _OcclusionThreshold)
+                passCount++;
+            if (avg5 < _OcclusionThreshold)
+                passCount++;
+            if (avg6 < _OcclusionThreshold)
+                passCount++;
+            if (avg7 < _OcclusionThreshold)
+                passCount++;
+
+            float min1 = min(min(avg0, avg1), min(avg2, avg3));
+            float min2 = min(min(avg4, avg5), min(avg6, avg7));
+            occlusionAverage = min(min1, min2);
+
+            int requiredPassCount = 8;
+            if (level >= 4)
+                requiredPassCount = 4;
+            else if (level >= 2)
+                requiredPassCount = 6;
+
             if (passCount >= requiredPassCount)
             {
                 alpha = 0.0;

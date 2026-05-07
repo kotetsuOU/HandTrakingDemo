@@ -1,7 +1,7 @@
 #ifndef PCD_OCCLUSION_DISCRETE_3BINS_INCLUDED
 #define PCD_OCCLUSION_DISCRETE_3BINS_INCLUDED
 
-// [事実（離散ヒストグラム方式 / 3方向分割）] 空間を3つのビンに分割
+// 空間を3つのビンに分割
 
 struct Discrete3BinResult
 {
@@ -48,14 +48,14 @@ void AccumulateDiscrete3Bin(
     half norm_w2 = w2;
 
     // Soft/Hard Binningの切り替え
-    if (_OcclusionMode == 3 || _OcclusionMode == 4)
+    if (_BinningMethod == 0)
     {
         // Soft Binning: 線形分配 (線形補間のような平滑化)
         norm_w0 /= sumW;
         norm_w1 /= sumW;
         norm_w2 /= sumW;
     }
-    else if (_OcclusionMode == 7 || _OcclusionMode == 8)
+    else
     {
         // Hard Binning: 最大の重みを持つビンに1.0を割り当て、他は0.0 (Winner-takes-all / 扇形領域判定と同義)
         half maxW = max(max(w0, w1), w2);

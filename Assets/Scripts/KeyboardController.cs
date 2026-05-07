@@ -1,6 +1,7 @@
-using UnityEngine;
-using System.IO;
 using System;
+using System.IO;
+using UnityEngine;
+using static PCDRendererFeature;
 
 public class KeyboardController : MonoBehaviour
 {
@@ -302,19 +303,58 @@ public class KeyboardController : MonoBehaviour
         }
 
         // ----------------------------------------------------
-        // 11. Occlusion Mode の切り替え (Lキー)
+        // 11. Kernel Type の切り替え (Lキー)
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.L))
         {
             if (PCDRendererFeature.Instance != null)
             {
-                PCDRendererFeature.PCDOcclusionMode nextMode = (PCDRendererFeature.PCDOcclusionMode)(((int)PCDRendererFeature.Instance.occlusionMode + 1) % Enum.GetValues(typeof(PCDRendererFeature.PCDOcclusionMode)).Length);
-                PCDRendererFeature.Instance.occlusionMode = nextMode;
-                Debug.Log($"[KeyController] Occlusion Mode: {nextMode}");
+                PCV_OcclusionKernel nextMode = (PCV_OcclusionKernel)(((int)PCDRendererFeature.Instance.kernelType + 1) % Enum.GetValues(typeof(PCV_OcclusionKernel)).Length);
+                PCDRendererFeature.Instance.kernelType = nextMode;
+                Debug.Log($"[KeyController] Kernel Type: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Occlusion Mode.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Kernel Type.");
+            }
+        }
+
+        // ----------------------------------------------------
+        // 12. Binning Method の切り替え (Kキー)
+        // ----------------------------------------------------
+        if (Input.GetKeyDown(KeyCode.K))
+        {
+            if (PCDRendererFeature.Instance != null)
+            {
+                PCV_OcclusionBinning nextMode = (PCV_OcclusionBinning)(((int)PCDRendererFeature.Instance.binningMethod + 1) % Enum.GetValues(typeof(PCV_OcclusionBinning)).Length);
+                PCDRendererFeature.Instance.binningMethod = nextMode;
+                Debug.Log($"[KeyController] Binning Method: {nextMode}");
+            }
+            else
+            {
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Binning Method.");
+            }
+        }
+
+        // ----------------------------------------------------
+        // 13. Direction Count の切り替え (Jキー)
+        // ----------------------------------------------------
+        if (Input.GetKeyDown(KeyCode.J))
+        {
+            if (PCDRendererFeature.Instance != null)
+            {
+                // Enumの値が不連続(1, 3, 6, 8)であるため、インデックスベースで循環させる
+                Array values = Enum.GetValues(typeof(PCV_OcclusionDirectionCount));
+                int currentIndex = Array.IndexOf(values, PCDRendererFeature.Instance.directionCount);
+                int nextIndex = (currentIndex + 1) % values.Length;
+                PCV_OcclusionDirectionCount nextCount = (PCV_OcclusionDirectionCount)values.GetValue(nextIndex);
+
+                PCDRendererFeature.Instance.directionCount = nextCount;
+                Debug.Log($"[KeyController] Direction Count: {nextCount}");
+            }
+            else
+            {
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Direction Count.");
             }
         }
     }

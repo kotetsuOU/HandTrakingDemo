@@ -36,7 +36,9 @@ public partial class PCDRenderPass
         cmd.SetComputeFloatParam(cs, ShaderIDs.DensityThreshold_e, passData.settings.densityThreshold_e);
         cmd.SetComputeFloatParam(cs, ShaderIDs.NeighborhoodParam_p_prime, passData.settings.neighborhoodParam_p_prime);
         cmd.SetComputeFloatParam(cs, ShaderIDs.GradientThreshold_g_th, passData.settings.gradientThreshold_g_th);
-        cmd.SetComputeIntParam(cs, ShaderIDs.OcclusionMode, (int)passData.settings.occlusionMode);
+        cmd.SetComputeIntParam(cs, ShaderIDs.KernelType, (int)passData.settings.kernelType);
+        cmd.SetComputeIntParam(cs, ShaderIDs.BinningMethod, (int)passData.settings.binningMethod);
+        cmd.SetComputeIntParam(cs, ShaderIDs.DirectionCount, (int)passData.settings.directionCount);
         cmd.SetComputeFloatParam(cs, ShaderIDs.Alpha, passData.settings.exponentAlpha);
         cmd.SetComputeFloatParam(cs, ShaderIDs.OcclusionThreshold, passData.settings.occlusionThreshold);
         cmd.SetComputeFloatParam(cs, ShaderIDs.OcclusionFadeWidth, passData.settings.occlusionFadeWidth);
