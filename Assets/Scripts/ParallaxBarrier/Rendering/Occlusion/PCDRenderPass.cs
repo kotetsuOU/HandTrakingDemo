@@ -63,6 +63,10 @@ public partial class PCDRenderPass : ScriptableRenderPass
         
         public static readonly int OriginTypeMap = Shader.PropertyToID("_OriginTypeMap");
         public static readonly int OriginTypeMap_RW = Shader.PropertyToID("_OriginTypeMap_RW");
+        public static readonly int MorphOriginMapPing = Shader.PropertyToID("_MorphOriginMapPing");
+        public static readonly int MorphOriginMapPing_RW = Shader.PropertyToID("_MorphOriginMapPing_RW");
+        public static readonly int MorphDepthMapPing = Shader.PropertyToID("_MorphDepthMapPing");
+        public static readonly int MorphDepthMapPing_RW = Shader.PropertyToID("_MorphDepthMapPing_RW");
         public static readonly int OriginMap_RW = Shader.PropertyToID("_OriginMap_RW");
         public static readonly int NeighborCountMap_RW = Shader.PropertyToID("_NeighborCountMap_RW");
 
@@ -95,7 +99,8 @@ public partial class PCDRenderPass : ScriptableRenderPass
                 _kernelBuildDepthPyramidL3, _kernelBuildDepthPyramidL4,
                 _kernelApplyGradient,
                 _kernelComputeOcclusion, _kernelFillHoles, _kernelInterpolate,
-                _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug;
+                _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug,
+                _kernelCopyBack, _kernelCopyOriginType, _kernelMorphDilate, _kernelMorphErode;
 
     // 出力およびデバッグマップ
     private RTHandle _debugDisplayMapHandle;
@@ -199,6 +204,10 @@ public partial class PCDRenderPass : ScriptableRenderPass
         _kernelMerge = pointCloudCompute.FindKernel("MergeBuffer");
         _kernelInitFromCamera = pointCloudCompute.FindKernel("InitFromCamera");
         _kernelVisualizeOcclusionDebug = pointCloudCompute.FindKernel("VisualizeOcclusionDebug");
+        _kernelCopyBack = pointCloudCompute.FindKernel("CopyBack");
+        _kernelCopyOriginType = pointCloudCompute.FindKernel("CopyOriginType");
+        _kernelMorphDilate = pointCloudCompute.FindKernel("MorphDilate");
+        _kernelMorphErode = pointCloudCompute.FindKernel("MorphErode");
 
         _isInitialized = true;
     }
@@ -220,7 +229,10 @@ public partial class PCDRenderPass : ScriptableRenderPass
                      kernelBuildDepthPyramidL3, kernelBuildDepthPyramidL4,
                      kernelApplyGradient,
                      kernelComputeOcclusion, kernelFillHoles, kernelInterpolate,
-                     kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug;
+                     kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug,
+                     kernelCopyBack, kernelCopyOriginType, kernelMorphDilate, kernelMorphErode;
+        internal TextureHandle morphOriginMapPing;
+        internal TextureHandle morphDepthMapPing;
 
         // コピー用バッファ
         internal bool useExternal;
