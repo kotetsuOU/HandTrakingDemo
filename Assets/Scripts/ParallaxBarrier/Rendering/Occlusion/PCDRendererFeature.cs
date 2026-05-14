@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -55,6 +55,11 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public bool enableTypeAwareDensity;       // ② 仮想物体を区別した密度計算
         public bool enableSoftOcclusionFade;      // ③ ソフトオクルージョン (FadeWidth)
         public bool enableJointBilateralHoleFilling; // ④ ジョイントバイラテラル穴埋め
+
+        public bool enableMorphology;                // モルフォロジー演算の有効化
+        public int morphKernelHalfSize;              // モルフォロジーカーネル半径（2 = 5×5）
+        public int morphErodeIterations;             // Opening の収縮回数（0 で Opening スキップ）
+        public int morphDilateIterations;            // Closing の膨張回数（多いほど深い穴まで伝播）
 
         [HideInInspector] public uint _dynamicMultiplierRuntimeValue;
     }
@@ -146,6 +151,22 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Tooltip("④エッジ保持型ホールフィリング (ONでジョイントバイラテラル穴埋め)")]
     public bool enableJointBilateralHoleFilling = true;
 
+    [Header("青野君 Morphology (Opening → Closing)")]
+    [Tooltip("モルフォロジー演算 (Opening -> Closing) を有効にする")]
+    public bool enableMorphology = true;
+
+    [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
+    [Range(1, 15)]
+    public int morphKernelHalfSize = 1;
+
+    [Tooltip("Opening の収縮回数（0 でスキップ）。孤立ノイズや細いトゲを除去する。破綻確認後に増やすこと。")]
+    [Range(0, 5)]
+    public int morphErodeIterations = 0;
+
+    [Tooltip("Closing の膨張回数。多いほど疎な手の甲など深い隙間まで色が伝播する。まず 1 から試すこと。")]
+    [Range(1, 5)]
+    public int morphDilateIterations = 1;
+
     private PCDRenderPass _scriptablePass;
 
     private bool _useGlobalBufferMode = false;
@@ -185,6 +206,10 @@ public class PCDRendererFeature : ScriptableRendererFeature
             enableTypeAwareDensity = this.enableTypeAwareDensity,
             enableSoftOcclusionFade = this.enableSoftOcclusionFade,
             enableJointBilateralHoleFilling = this.enableJointBilateralHoleFilling,
+            enableMorphology = this.enableMorphology,
+            morphKernelHalfSize = this.morphKernelHalfSize,
+            morphErodeIterations = this.morphErodeIterations,
+            morphDilateIterations = this.morphDilateIterations,
             _dynamicMultiplierRuntimeValue = _internalDynamicMultiplier
         };
     }

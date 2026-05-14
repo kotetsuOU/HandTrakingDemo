@@ -359,7 +359,8 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         // 【新規性③】ジョイントバイラテラル穴埋めのトグル切り替え
         if (_EnableJointBilateralHoleFilling > 0)
         {
-            _OcclusionResultMap_RW[id.xy] = float4(0, 0, 0, 1.0);
+            _OcclusionResultMap_RW[id.xy] = float4(0, 0, 0, 0);
+            _OriginTypeMap_RW[id.xy] = 2u;
         }
         else
         {

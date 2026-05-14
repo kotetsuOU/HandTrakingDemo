@@ -27,6 +27,8 @@ RWTexture2D<uint> _DepthPyramidL3_RW;
 RWTexture2D<uint> _DepthPyramidL4_RW;
 RWTexture2D<int> _CorrectedNeighborhoodSizeMap_RW;
 RWTexture2D<uint> _OriginTypeMap_RW;
+RWTexture2D<uint> _MorphOriginMapPing_RW;
+RWTexture2D<uint> _MorphDepthMapPing_RW;
 RWTexture2D<float4> _OcclusionResultMap_RW;
 RWTexture2D<float2> _OcclusionValueMap_RW;
 RWTexture2D<float4> _FinalImage_RW;
@@ -46,6 +48,8 @@ Texture2D<uint> _DepthPyramidL2;
 Texture2D<uint> _DepthPyramidL3;
 Texture2D<uint> _DepthPyramidL4;
 Texture2D<uint> _OriginTypeMap;
+Texture2D<uint> _MorphOriginMapPing;
+Texture2D<uint> _MorphDepthMapPing;
 Texture2D<int> _FinalNeighborhoodSizeMap;
 Texture2D<float4> _OcclusionResultMap;
 
@@ -90,6 +94,7 @@ int _KernelType;
 int _BinningMethod;
 int _DirectionCount;
 float _Alpha;
+int _MorphKernelHalfSize;
 
 #define GRID_SIZE 16u
 #define DEPTH_MAX_UINT 0x7FFFFFFFu

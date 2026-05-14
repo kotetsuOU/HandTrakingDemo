@@ -202,17 +202,94 @@ public partial class PCDRenderPass
         cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
         cmd.DispatchCompute(cs, passData.kernelComputeOcclusion, threadGroupsX, threadGroupsY, 1);
 
-        // --- ステージ11: 点群が描画されなかったピクセルに対する穴埋め（バイラテラル） ---
-        if (passData.settings.enableJointBilateralHoleFilling)
+        // --- ステージ11: 点群が描画されなかったピクセルに対する処理（モルフォロジー＆バイラテラル） ---
+        if (passData.settings.enableMorphology || passData.settings.enableJointBilateralHoleFilling)
         {
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.ColorMap, passData.colorMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.DepthMap, passData.depthMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap, passData.originTypeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
-            cmd.DispatchCompute(cs, passData.kernelFillHoles, threadGroupsX, threadGroupsY, 1);
+            // ── CopyOriginType 共通バインド ──
+            // OriginTypeMap_RW → MorphOriginMapPing_RW、DepthMap_RW → MorphDepthMapPing_RW をスナップショット
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyOriginType, ShaderIDs.OriginTypeMap_RW,      passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyOriginType, ShaderIDs.MorphOriginMapPing_RW, passData.morphOriginMapPing);
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyOriginType, ShaderIDs.DepthMap_RW,           passData.depthMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyOriginType, ShaderIDs.MorphDepthMapPing_RW,  passData.morphDepthMapPing);
+
+            if (passData.settings.enableMorphology)
+            {
+                int morphHalfSize    = passData.settings.morphKernelHalfSize;
+                int erodeIterations  = passData.settings.morphErodeIterations;
+                int dilateIterations = passData.settings.morphDilateIterations;
+
+                cmd.SetComputeIntParam(cs, Shader.PropertyToID("_MorphKernelHalfSize"), morphHalfSize);
+
+                // ── MorphDilate 共通バインド ──
+                // 読み取り: _MorphOriginMapPing, _MorphDepthMapPing（ping コピー）, _ColorMap
+                // 書き込み: _OcclusionResultMap_RW, _DepthMap_RW, _OriginTypeMap_RW(sentinel 3u)
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.MorphOriginMapPing,     passData.morphOriginMapPing);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.MorphDepthMapPing,      passData.morphDepthMapPing);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.ColorMap,              passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.DepthMap_RW,           passData.depthMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.VirtualDepthMap,       passData.virtualDepthTexture);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.OriginTypeMap_RW,      passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphDilate, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+
+                // ── CopyBack 共通バインド ──
+                // sentinel 3u を 0u にリセットし OcclusionResultMap → ColorMap へ転写
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyBack, ShaderIDs.ColorMap_RW,          passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyBack, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyBack, ShaderIDs.OriginTypeMap_RW,      passData.originTypeMap);
+
+                // ── MorphErode 共通バインド ──
+                // 読み取り: _MorphOriginMapPing（ping コピー）← 競合なしで前フレーム状態を参照
+                // 書き込み: _OriginTypeMap_RW, _ColorMap_RW, _OcclusionResultMap_RW, _DepthMap_RW
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphErode, ShaderIDs.MorphOriginMapPing,      passData.morphOriginMapPing);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphErode, ShaderIDs.OriginTypeMap_RW,        passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphErode, ShaderIDs.ColorMap_RW,             passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphErode, ShaderIDs.OcclusionResultMap_RW,   passData.occlusionResultMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelMorphErode, ShaderIDs.DepthMap_RW,             passData.depthMap);
+
+                // ── Opening（収縮 → 膨張）: 孤立ノイズ・細いトゲを除去 ──
+                for (int i = 0; i < erodeIterations; i++)
+                {
+                    cmd.DispatchCompute(cs, passData.kernelCopyOriginType, threadGroupsX, threadGroupsY, 1);
+                    cmd.DispatchCompute(cs, passData.kernelMorphErode,     threadGroupsX, threadGroupsY, 1);
+                }
+                for (int i = 0; i < erodeIterations; i++)
+                {
+                    cmd.DispatchCompute(cs, passData.kernelCopyOriginType, threadGroupsX, threadGroupsY, 1);
+                    cmd.DispatchCompute(cs, passData.kernelMorphDilate,    threadGroupsX, threadGroupsY, 1);
+                    cmd.DispatchCompute(cs, passData.kernelCopyBack,       threadGroupsX, threadGroupsY, 1);
+                }
+
+                // ── Closing（膨張 → 収縮）: 疎な点群の隙間を埋める ──
+                for (int i = 0; i < dilateIterations; i++)
+                {
+                    cmd.DispatchCompute(cs, passData.kernelCopyOriginType, threadGroupsX, threadGroupsY, 1);
+                    cmd.DispatchCompute(cs, passData.kernelMorphDilate,    threadGroupsX, threadGroupsY, 1);
+                    cmd.DispatchCompute(cs, passData.kernelCopyBack,       threadGroupsX, threadGroupsY, 1);
+                }
+                for (int i = 0; i < dilateIterations; i++)
+                {
+                    cmd.DispatchCompute(cs, passData.kernelCopyOriginType, threadGroupsX, threadGroupsY, 1);
+                    cmd.DispatchCompute(cs, passData.kernelMorphErode,     threadGroupsX, threadGroupsY, 1);
+                }
+            }
+
+            if (passData.settings.enableJointBilateralHoleFilling)
+            {
+                // ── FillHoles（バイラテラル仕上げ）: 色の境界を滑らかに整える ──
+                // FillHoles 直前に snapshot を取り、近傍チェックが ping から読めるようにする（SRV/UAV 競合回避）
+                cmd.DispatchCompute(cs, passData.kernelCopyOriginType, threadGroupsX, threadGroupsY, 1);
+                
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.MorphOriginMapPing,    passData.morphOriginMapPing);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.ColorMap,              passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.DepthMap,              passData.depthMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.VirtualDepthMap,       passData.virtualDepthTexture);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap,         passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap_RW,      passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginMap_RW,          passData.debugDisplayMap);
+                
+                cmd.DispatchCompute(cs, passData.kernelFillHoles, threadGroupsX, threadGroupsY, 1);
+            }
         }
 
         // --- ステージ12: オクルージョンによってできた穴を補完し、仮想深度マップやカメラバッファとマージ ---
