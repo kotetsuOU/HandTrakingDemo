@@ -259,6 +259,8 @@ public partial class PCDRenderPass
     private static void ExecuteBlitPass(BlitPassData passData, RasterGraphContext context)
     {
         // デバッグ出力または通常の出力用の標準的なBlitのフォールバック
+        // ※出力先(RenderTarget)の切り替えはSetupフェーズ(RecordRenderGraph)で
+        // builder.SetRenderAttachment を通じて行われているため、ここではそのまま描画します
         Blitter.BlitTexture(context.cmd, passData.sourceImage, new Vector2(1, 1), 0.0f, false);
     }
 }

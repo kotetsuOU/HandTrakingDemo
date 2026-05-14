@@ -83,7 +83,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // --- 【ループ外の事前計算】 (AtoZ: L - Loop-Invariant Code Motion) ---
+    // --- 【ループ外の事前計算】 ---
     half3 currentPos_h = (half3) currentPos;
     half currentDepth_h = (half) currentDepth;
     half currentPosSq_h = dot(currentPos_h, currentPos_h);
@@ -196,7 +196,7 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
             float avg1 = res3.wSum1 > 0.001 ? res3.sum1 / res3.wSum1 : 1.0;
             float avg2 = res3.wSum2 > 0.001 ? res3.sum2 / res3.wSum2 : 1.0;
 
-            // 多数決ロジック (AtoZ: M - Majority Voting)
+            // 多数決ロジック
             // 閾値「以上」の場合に遮蔽とみなすよう修正
             int passCount = 0;
             if (avg0 < _OcclusionThreshold)
@@ -298,9 +298,9 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
             int requiredPassCount = 8;
             if (level >= 4)
-                requiredPassCount = 4;
+                requiredPassCount = 5;
             else if (level >= 2)
-                requiredPassCount = 6;
+                requiredPassCount = 4;
 
             if (passCount >= requiredPassCount)
             {

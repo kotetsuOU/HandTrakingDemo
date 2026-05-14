@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.community.antigravity-unity": {
+      "version": "https://github.com/usmanbutt-dev/antigravity-unity.git",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "a4660d9b7ad4a8e3fd2581c4003ebf79db033001"
+    },
     "com.github.homuler.mediapipe": {
       "version": "file:C:/Users/hongo/Downloads/com.github.homuler.mediapipe-0.16.3.tgz",
       "depth": 0,

@@ -103,6 +103,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
     private RTHandle _integratedDepthMapHandle;
     private RTHandle _neighborhoodMapHandle;
     private RTHandle _neighborCountMapHandle;
+    private RTHandle _directGpuImageMapHandle;
     private bool _isInitialized = false;
     private const int STRIDE = 28; // 1つのポイントデータのサイズを表す: sizeof(float)*3 + sizeof(float)*3 + sizeof(uint)
 
@@ -264,6 +265,8 @@ public partial class PCDRenderPass : ScriptableRenderPass
         internal TextureHandle cameraTarget;
         internal bool enablePixelTagMap;
         internal bool enableOcclusionMap;
+        internal bool useDirectGpuImageBuffer; // SRD Managerでの切り替え用フラグ
+        internal RenderTexture directGpuImageMap; // 実際のターゲットRenderTexture
     }
 
     /// <summary> デバッグマップが生成されている場合はそれを返し、そうでない場合はnullを返します。 </summary>
@@ -317,6 +320,9 @@ public partial class PCDRenderPass : ScriptableRenderPass
 
         _neighborCountMapHandle?.Release();
         _neighborCountMapHandle = null;
+
+        _directGpuImageMapHandle?.Release();
+        _directGpuImageMapHandle = null;
 
         _staticMeshCounterBuffer?.Release();
         _staticMeshCounterBuffer = null;

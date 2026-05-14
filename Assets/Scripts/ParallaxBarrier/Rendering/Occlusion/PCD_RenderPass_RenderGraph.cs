@@ -131,6 +131,30 @@ public partial class PCDRenderPass
         int screenWidth = cameraData.cameraTargetDescriptor.width;
         int screenHeight = cameraData.cameraTargetDescriptor.height;
 
+        // SRDManagerからダイレクトGPUバッファ出力フラグを取得
+        var srdManager = UnityEngine.Object.FindAnyObjectByType<SRD.Core.SRDManager>();
+        bool useDirectGpuImageBuffer = srdManager != null && srdManager.UseDirectGpuImageBuffer;
+
+        // ダイレクトパスが有効な場合、必要に応じてグローバルRenderTextureおよびRTHandleを再生成
+        if (useDirectGpuImageBuffer && srdManager != null)
+        {
+            bool needsRealloc = false;
+            if (srdManager.DirectGpuImageMap == null || srdManager.DirectGpuImageMap.width != screenWidth || srdManager.DirectGpuImageMap.height != screenHeight)
+            {
+                if (srdManager.DirectGpuImageMap != null) srdManager.DirectGpuImageMap.Release();
+                srdManager.DirectGpuImageMap = new RenderTexture(screenWidth, screenHeight, 0, UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat);
+                srdManager.DirectGpuImageMap.enableRandomWrite = true;
+                srdManager.DirectGpuImageMap.Create();
+                needsRealloc = true;
+            }
+            
+            if (needsRealloc || _directGpuImageMapHandle == null || _directGpuImageMapHandle.rt != srdManager.DirectGpuImageMap)
+            {
+                _directGpuImageMapHandle?.Release();
+                _directGpuImageMapHandle = RTHandles.Alloc(srdManager.DirectGpuImageMap);
+            }
+        }
+
         // 16x16で分割されたグリッドマップの解像度を計算
         int gridWidth = Mathf.CeilToInt(screenWidth / 16.0f);
         int gridHeight = Mathf.CeilToInt(screenHeight / 16.0f);
@@ -335,9 +359,20 @@ public partial class PCDRenderPass
             // --- 生成された点群（またはデバッグマップ）を最終画面に描画する(Blit)パス ---
             using (var builder = renderGraph.AddRasterRenderPass<BlitPassData>("PCD Blit Pass", out var data))
             {
-            data.cameraTarget = resourceData.activeColorTexture; // 出力先は現在のカラーテクスチャ
+            // ダイレクト出力有効時はインポートしたテクスチャ、無効時は通常のカメラテクスチャをアタッチメントにする
+            if (useDirectGpuImageBuffer && _directGpuImageMapHandle != null)
+            {
+                data.cameraTarget = renderGraph.ImportTexture(_directGpuImageMapHandle);
+            }
+            else
+            {
+                data.cameraTarget = resourceData.activeColorTexture; 
+            }
+            
             data.enablePixelTagMap = _settings.enablePixelTagMap;
             data.enableOcclusionMap = _settings.enableOcclusionMap;
+            data.useDirectGpuImageBuffer = useDirectGpuImageBuffer;
+            data.directGpuImageMap = (srdManager != null) ? srdManager.DirectGpuImageMap : null;
 
             // オリジンデバッグが有効ならそちらを描画元とし、無効なら最終画像をソースとする
             if (data.enablePixelTagMap || data.enableOcclusionMap)
