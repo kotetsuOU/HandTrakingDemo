@@ -27,6 +27,8 @@ RWTexture2D<uint> _DepthPyramidL3_RW;
 RWTexture2D<uint> _DepthPyramidL4_RW;
 RWTexture2D<int> _CorrectedNeighborhoodSizeMap_RW;
 RWTexture2D<uint> _OriginTypeMap_RW;
+RWTexture2D<uint> _MorphOriginMapPing_RW;  // ping-pong 用: morphology 直前の OriginTypeMap スナップショット
+RWTexture2D<uint> _MorphDepthMapPing_RW;   // ping-pong 用: morphology 直前の DepthMap スナップショット
 RWTexture2D<float4> _OcclusionResultMap_RW;
 RWTexture2D<float2> _OcclusionValueMap_RW;
 RWTexture2D<float4> _FinalImage_RW;
@@ -46,6 +48,8 @@ Texture2D<uint> _DepthPyramidL2;
 Texture2D<uint> _DepthPyramidL3;
 Texture2D<uint> _DepthPyramidL4;
 Texture2D<uint> _OriginTypeMap;
+Texture2D<uint> _MorphOriginMapPing;       // ping-pong 用: morphology カーネルの読み取り元
+Texture2D<uint> _MorphDepthMapPing;        // ping-pong 用: MorphDilate が深度を読む元
 Texture2D<int> _FinalNeighborhoodSizeMap;
 Texture2D<float4> _OcclusionResultMap;
 
@@ -86,6 +90,7 @@ int _EnableTypeAwareDensity;
 int _EnableSoftOcclusionFade;
 int _EnableJointBilateralHoleFilling;
 int _EnableDepthWeightedOcclusion;
+int _MorphKernelHalfSize;          // モルフォロジーカーネルの半径（2 = 5×5 ボックス）
 
 int _OcclusionMode;
 float _Alpha;

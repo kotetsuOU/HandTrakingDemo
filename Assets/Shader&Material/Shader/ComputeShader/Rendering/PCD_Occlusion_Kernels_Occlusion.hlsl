@@ -478,7 +478,11 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
         // 【新規性③】ジョイントバイラテラル穴埋めのトグル切り替え
         if (_EnableJointBilateralHoleFilling > 0)
         {
-            _OcclusionResultMap_RW[id.xy] = float4(0, 0, 0, 1.0);
+            // FillHoles / Morphology の対象にするため alpha=0 + originType=2u（背景穴）として扱う。
+            // OriginTypeMap が 0u のままだと MorphDilate / FillHoles がスキップしてしまい、
+            // occlusion 判定で生じた手の甲の黒穴が埋まらない問題を修正。
+            _OcclusionResultMap_RW[id.xy] = float4(0, 0, 0, 0);
+            _OriginTypeMap_RW[id.xy] = 2u;
         }
         else
         {

@@ -33,6 +33,10 @@ public partial class PCDRenderPass
         data.kernelMerge = _kernelMerge;
         data.kernelInitFromCamera = _kernelInitFromCamera;
         data.kernelVisualizeOcclusionDebug = _kernelVisualizeOcclusionDebug;
+        data.kernelCopyBack = _kernelCopyBack;
+        data.kernelCopyOriginType = _kernelCopyOriginType;
+        data.kernelMorphDilate = _kernelMorphDilate;
+        data.kernelMorphErode = _kernelMorphErode;
         data.useExternal = _bufferManager.UseExternalBuffer;
         data.externalBuffer = _bufferManager.ExternalPointBuffer;
         data.internalBuffer = _bufferManager.PointBuffer;
