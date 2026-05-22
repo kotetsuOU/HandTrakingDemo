@@ -6,6 +6,8 @@ public class CameraCapture : MonoBehaviour
 {
     [Header("Common Settings")]
     public UnityEngine.Camera targetCamera;
+    [Tooltip("trueã®å ´åˆã€èµ·å‹•æ™‚ã«ç”»é¢ã®è§£åƒåº¦ã‚’è‡ªå‹•çš„ã«å–å¾—ã—ã¦ä½¿ç”¨ã—ã¾ã™ã€‚")]
+    public bool useScreenResolution = true;
     public int captureWidth = 2560;
     public int captureHeight = 1440;
 
@@ -17,17 +19,17 @@ public class CameraCapture : MonoBehaviour
     public string videoFramesFolder = "HandTrackingData/RecordedViewPointPicture/VideoFrames";
 
     [Header("Frame Control")]
-    [Tooltip("˜^‰æ‚ğŠJn‚·‚éƒtƒŒ[ƒ€”Ô† (ƒJƒEƒ“ƒg‚Í0‚©‚ç)B")]
+    [Tooltip("éŒ²ç”»ã‚’é–‹å§‹ã™ã‚‹ãƒ•ãƒ¬ãƒ¼ãƒ ç•ªå· (ã‚«ã‚¦ãƒ³ãƒˆã¯0ã‹ã‚‰)ã€‚")]
     public int startFrame = 0;
 
-    [Tooltip("˜^‰æ‚ğI—¹‚·‚éƒtƒŒ[ƒ€”Ô† (‚±‚ÌƒtƒŒ[ƒ€‚ÌƒLƒƒƒvƒ`ƒƒ‚ÍÀs‚³‚ê‚È‚¢)B")]
+    [Tooltip("éŒ²ç”»ã‚’çµ‚äº†ã™ã‚‹ãƒ•ãƒ¬ãƒ¼ãƒ ç•ªå· (ã“ã®ãƒ•ãƒ¬ãƒ¼ãƒ ã®ã‚­ãƒ£ãƒ—ãƒãƒ£ã¯å®Ÿè¡Œã•ã‚Œãªã„)ã€‚")]
     public int endFrame = 300;
 
     [Header("Automation Options")]
-    [Tooltip("ƒQ[ƒ€ŠJn‚É©“®‚Å˜^‰æ‚ğŠJn‚µ‚Ü‚·B")]
+    [Tooltip("ã‚²ãƒ¼ãƒ é–‹å§‹æ™‚ã«è‡ªå‹•ã§éŒ²ç”»ã‚’é–‹å§‹ã—ã¾ã™ã€‚")]
     public bool autoStartRecordingOnPlay = false;
 
-    [Tooltip("‚±‚ÌƒL[‚ğ‰Ÿ‚·‚±‚Æ‚Å˜^‰æ‚ÌŠJn/’â~‚ğƒgƒOƒ‹‚µ‚Ü‚·B")]
+    [Tooltip("ã“ã®ã‚­ãƒ¼ã‚’æŠ¼ã™ã“ã¨ã§éŒ²ç”»ã®é–‹å§‹/åœæ­¢ã‚’ãƒˆã‚°ãƒ«ã—ã¾ã™ã€‚")]
     public UnityEngine.KeyCode toggleRecordingKey = UnityEngine.KeyCode.R;
 
     private bool isRecording = false;
@@ -36,6 +38,12 @@ public class CameraCapture : MonoBehaviour
 
     void Start()
     {
+        if (useScreenResolution)
+        {
+            captureWidth = UnityEngine.Screen.width;
+            captureHeight = UnityEngine.Screen.height;
+        }
+
         if (autoStartRecordingOnPlay)
         {
             StartRecording();
@@ -79,20 +87,20 @@ public class CameraCapture : MonoBehaviour
         string filePath = System.IO.Path.Combine(directoryPath, fileName);
 
         SaveFrameToFile(filePath);
-        UnityEngine.Debug.Log(string.Format("ƒLƒƒƒvƒ`ƒƒ‚ğ•Û‘¶‚µ‚Ü‚µ‚½: {0}", filePath));
+        UnityEngine.Debug.Log(string.Format("ã‚­ãƒ£ãƒ—ãƒãƒ£ã‚’ä¿å­˜ã—ã¾ã—ãŸ: {0}", filePath));
     }
 
     public void StartRecording()
     {
         if (isRecording)
         {
-            UnityEngine.Debug.LogWarning("Šù‚É˜^‰æ‚ªŠJn‚³‚ê‚Ä‚¢‚Ü‚·B");
+            UnityEngine.Debug.LogWarning("æ—¢ã«éŒ²ç”»ãŒé–‹å§‹ã•ã‚Œã¦ã„ã¾ã™ã€‚");
             return;
         }
 
         if (endFrame <= startFrame)
         {
-            UnityEngine.Debug.LogError(string.Format("I—¹ƒtƒŒ[ƒ€ ({0}) ‚ÍŠJnƒtƒŒ[ƒ€ ({1}) ‚æ‚è‘å‚«‚­İ’è‚µ‚Ä‚­‚¾‚³‚¢B", endFrame, startFrame));
+            UnityEngine.Debug.LogError(string.Format("çµ‚äº†ãƒ•ãƒ¬ãƒ¼ãƒ  ({0}) ã¯é–‹å§‹ãƒ•ãƒ¬ãƒ¼ãƒ  ({1}) ã‚ˆã‚Šå¤§ããè¨­å®šã—ã¦ãã ã•ã„ã€‚", endFrame, startFrame));
             return;
         }
 
@@ -108,7 +116,7 @@ public class CameraCapture : MonoBehaviour
         }
 
         StartCoroutine(RecordFrames());
-        UnityEngine.Debug.Log(string.Format("˜^‰æ‚ğŠJn‚µ‚Ü‚µ‚½BƒJƒEƒ“ƒgŠJn: 0AƒLƒƒƒvƒ`ƒƒ”ÍˆÍ: {0}`{1} (ƒtƒŒ[ƒ€{1}‚Íœ‚­)A•Û‘¶æ: {2}", startFrame, endFrame, currentVideoFolderPath));
+        UnityEngine.Debug.Log(string.Format("éŒ²ç”»ã‚’é–‹å§‹ã—ã¾ã—ãŸã€‚ã‚«ã‚¦ãƒ³ãƒˆé–‹å§‹: 0ã€ã‚­ãƒ£ãƒ—ãƒãƒ£ç¯„å›²: {0}ï½{1} (ãƒ•ãƒ¬ãƒ¼ãƒ {1}ã¯é™¤ã)ã€ä¿å­˜å…ˆ: {2}", startFrame, endFrame, currentVideoFolderPath));
     }
 
     public void StopRecording()
@@ -119,7 +127,7 @@ public class CameraCapture : MonoBehaviour
         }
 
         isRecording = false;
-        UnityEngine.Debug.Log("˜^‰æ‚ğ’â~‚µ‚Ü‚µ‚½B‡ŒvƒtƒŒ[ƒ€”: " + frameCount);
+        UnityEngine.Debug.Log("éŒ²ç”»ã‚’åœæ­¢ã—ã¾ã—ãŸã€‚åˆè¨ˆãƒ•ãƒ¬ãƒ¼ãƒ æ•°: " + frameCount);
     }
 
     private System.Collections.IEnumerator RecordFrames()

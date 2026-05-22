@@ -29,10 +29,17 @@ public partial class PCDRenderPass
         data.kernelApplyGradient = _kernelApplyGradient;
         data.kernelComputeOcclusion = _kernelComputeOcclusion;
         data.kernelFillHoles = _kernelFillHoles;
+        data.kernelFillHolesPullPushInit = _kernelFillHolesPullPushInit;
+        data.kernelFillHolesPull = _kernelFillHolesPull;
+        data.kernelFillHolesPush = _kernelFillHolesPush;
+        data.kernelFillHolesPullPushFinalize = _kernelFillHolesPullPushFinalize;
         data.kernelInterpolate = _kernelInterpolate;
         data.kernelMerge = _kernelMerge;
         data.kernelInitFromCamera = _kernelInitFromCamera;
         data.kernelVisualizeOcclusionDebug = _kernelVisualizeOcclusionDebug;
+        data.kernelMorphologyErode = _kernelMorphologyErode;
+        data.kernelMorphologyDilate = _kernelMorphologyDilate;
+        data.kernelMorphologyCopy = _kernelMorphologyCopy;
         data.useExternal = _bufferManager.UseExternalBuffer;
         data.externalBuffer = _bufferManager.ExternalPointBuffer;
         data.internalBuffer = _bufferManager.PointBuffer;

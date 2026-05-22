@@ -22,6 +22,13 @@
 #pragma kernel ApplyAdaptiveGradientCorrection // 深度勾配(エッジ)に基づく適応的な近傍探索サイズの補正
 #pragma kernel ComputeOcclusion          // 点群が存在するピクセル用のオクルージョン計算
 #pragma kernel FillHoles                 // 点群が存在しない（空き）ピクセル用のオクルージョン補間（バイラテラルフィルタ）
+#pragma kernel FillHolesPullPushInit     // Pull-Push法：初期化
+#pragma kernel FillHolesPull             // Pull-Push法：ダウンサンプル（Pull）
+#pragma kernel FillHolesPush             // Pull-Push法：アップサンプルと穴埋め（Push）
+#pragma kernel FillHolesPullPushFinalize // Pull-Push法：最終結果を元のマップに書き戻す
+#pragma kernel MorphologyErode          // モルフォロジー収縮演算
+#pragma kernel MorphologyDilate         // モルフォロジー膨張演算
+#pragma kernel MorphologyCopy           // モルフォロジー中間バッファコピー
 
 // --- Post & Utility (ポストプロセス・ユーティリティ) ---
 #pragma kernel Interpolate               // 隙間(穴)を埋めるための1ピクセル補間(Dilation)

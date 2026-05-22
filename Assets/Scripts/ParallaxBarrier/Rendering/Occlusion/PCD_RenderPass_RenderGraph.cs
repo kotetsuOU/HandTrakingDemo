@@ -13,7 +13,7 @@ public partial class PCDRenderPass
         bool isTag = PCDRendererFeature.Instance.enableTagBasedOptimization;
         bool isDensity = PCDRendererFeature.Instance.enableTypeAwareDensity;
         bool isFade = PCDRendererFeature.Instance.enableSoftOcclusionFade;
-        bool isHoleFill = PCDRendererFeature.Instance.enableJointBilateralHoleFilling;
+        bool isHoleFill = PCDRendererFeature.Instance.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
 
         if (isTag && isDensity && isFade && isHoleFill) return "Proposal";
         if (!isTag && !isDensity && !isFade && !isHoleFill) return "Traditional";
@@ -288,6 +288,41 @@ public partial class PCDRenderPass
                 data.depthPyramidL4 = renderGraph.CreateTexture(descL4);
             }
 
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+            {
+                data.pullPushPyramid = new TextureHandle[5];
+                var ppDesc = new TextureDesc(screenWidth, screenHeight) { enableRandomWrite = true, colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false) };
+                data.pullPushPyramid[0] = renderGraph.CreateTexture(ppDesc);
+                
+                int pw = screenWidth;
+                int ph = screenHeight;
+                for (int i = 1; i < 5; i++)
+                {
+                    pw = Mathf.Max(1, (pw + 1) / 2);
+                    ph = Mathf.Max(1, (ph + 1) / 2);
+                    ppDesc.width = pw;
+                    ppDesc.height = ph;
+                    data.pullPushPyramid[i] = renderGraph.CreateTexture(ppDesc);
+                }
+            }
+
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.Morphology)
+            {
+                var morphColorDesc = new TextureDesc(screenWidth, screenHeight)
+                {
+                    enableRandomWrite = true,
+                    colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false)
+                };
+                data.morphColorTemp = renderGraph.CreateTexture(morphColorDesc);
+
+                var morphTypeDesc = new TextureDesc(screenWidth, screenHeight)
+                {
+                    enableRandomWrite = true,
+                    colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt
+                };
+                data.morphTypeTemp = renderGraph.CreateTexture(morphTypeDesc);
+            }
+
             desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
             data.occlusionResultMap = renderGraph.CreateTexture(desc);
             
@@ -330,6 +365,18 @@ public partial class PCDRenderPass
                 builder.UseTexture(data.depthPyramidL2, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL3, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL4, AccessFlags.ReadWrite);
+            }
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    builder.UseTexture(data.pullPushPyramid[i], AccessFlags.ReadWrite);
+                }
+            }
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.Morphology)
+            {
+                builder.UseTexture(data.morphColorTemp, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphTypeTemp, AccessFlags.ReadWrite);
             }
             builder.UseTexture(data.correctedNeighborhoodSizeMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.occlusionResultMap, AccessFlags.ReadWrite);

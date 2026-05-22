@@ -79,7 +79,7 @@ public class KeyboardController : MonoBehaviour
                 bool isTag = PCDRendererFeature.Instance.enableTagBasedOptimization;
                 bool isDensity = PCDRendererFeature.Instance.enableTypeAwareDensity;
                 bool isFade = PCDRendererFeature.Instance.enableSoftOcclusionFade;
-                bool isHoleFill = PCDRendererFeature.Instance.enableJointBilateralHoleFilling;
+                bool isHoleFill = PCDRendererFeature.Instance.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
 
                 if (isTag && isDensity && isFade && isHoleFill) methodPrefix = "Proposal";
                 else if (!isTag && !isDensity && !isFade && !isHoleFill) methodPrefix = "Traditional";
@@ -167,14 +167,14 @@ public class KeyboardController : MonoBehaviour
                 bool isAnyOn = PCDRendererFeature.Instance.enableTagBasedOptimization || 
                                PCDRendererFeature.Instance.enableTypeAwareDensity || 
                                PCDRendererFeature.Instance.enableSoftOcclusionFade || 
-                               PCDRendererFeature.Instance.enableJointBilateralHoleFilling;
+                               (PCDRendererFeature.Instance.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None);
 
                 bool toggleTo = !isAnyOn; // 1つでもONならすべてOFFにする
 
                 PCDRendererFeature.Instance.enableTagBasedOptimization = toggleTo;
                 PCDRendererFeature.Instance.enableTypeAwareDensity = toggleTo;
                 PCDRendererFeature.Instance.enableSoftOcclusionFade = toggleTo;
-                PCDRendererFeature.Instance.enableJointBilateralHoleFilling = toggleTo;
+                PCDRendererFeature.Instance.holeFillingMethod = toggleTo ? PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral : PCDRendererFeature.PCV_HoleFillingMethod.None;
 
                 string methodStr = toggleTo ? "提案手法 (全てON)" : "従来手法 (全てOFF)";
                 Debug.Log($"[KeyController] 手法切り替え: {methodStr}");
@@ -203,8 +203,23 @@ public class KeyboardController : MonoBehaviour
             }
             if (Input.GetKeyDown(KeyCode.Alpha4))
             {
-                PCDRendererFeature.Instance.enableJointBilateralHoleFilling = !PCDRendererFeature.Instance.enableJointBilateralHoleFilling;
-                Debug.Log($"[KeyController] ④ 穴埋め(Hole Filling): {(PCDRendererFeature.Instance.enableJointBilateralHoleFilling ? "ON" : "OFF")}");
+                if (PCDRendererFeature.Instance.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.None)
+                {
+                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral;
+                }
+                else if (PCDRendererFeature.Instance.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral)
+                {
+                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.PullPush;
+                }
+                else if (PCDRendererFeature.Instance.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+                {
+                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.Morphology;
+                }
+                else
+                {
+                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.None;
+                }
+                Debug.Log($"[KeyController] ④ 穴埋め(Hole Filling): {PCDRendererFeature.Instance.holeFillingMethod}");
             }
         }
 

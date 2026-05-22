@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -25,6 +25,14 @@ public class PCDRendererFeature : ScriptableRendererFeature
         Bins3 = 3,
         Bins6 = 6,
         Bins8 = 8 // 8方向分割の追加
+    }
+
+    public enum PCV_HoleFillingMethod
+    {
+        None = 0,
+        JointBilateral = 1,
+        PullPush = 2,
+        Morphology = 3
     }
 
     [System.Serializable]
@@ -54,7 +62,11 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public bool enableTagBasedOptimization;   // ① タグに基づく探索スキップ
         public bool enableTypeAwareDensity;       // ② 仮想物体を区別した密度計算
         public bool enableSoftOcclusionFade;      // ③ ソフトオクルージョン (FadeWidth)
-        public bool enableJointBilateralHoleFilling; // ④ ジョイントバイラテラル穴埋め
+        public PCV_HoleFillingMethod holeFillingMethod; // ④ エッジ保持型ホールフィリング手法
+
+        [Range(1, 15)] public int morphKernelHalfSize;
+        [Range(0, 5)] public int morphErodeIterations;
+        [Range(1, 5)] public int morphDilateIterations;
 
         [HideInInspector] public uint _dynamicMultiplierRuntimeValue;
     }
@@ -143,8 +155,21 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Tooltip("③ソフトオクルージョン (ONでグラデーションによる境界のスムージング)")]
     public bool enableSoftOcclusionFade = true;
 
-    [Tooltip("④エッジ保持型ホールフィリング (ONでジョイントバイラテラル穴埋め)")]
-    public bool enableJointBilateralHoleFilling = true;
+    [Tooltip("④エッジ保持型ホールフィリング手法の選択")]
+    public PCV_HoleFillingMethod holeFillingMethod = PCV_HoleFillingMethod.JointBilateral;
+
+    [Header("Morphology Settings")]
+    [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
+    [Range(1, 15)]
+    public int morphKernelHalfSize = 1;
+
+    [Tooltip("Opening の収縮回数（0 でスキップ）。孤立ノイズや細いトゲを除去する。破綻確認後に増やすこと。")]
+    [Range(0, 5)]
+    public int morphErodeIterations = 0;
+
+    [Tooltip("Closing の膨張回数。多いほど疎な手の甲など深い隙間まで色が伝播する。まず 1 から試すこと。")]
+    [Range(1, 5)]
+    public int morphDilateIterations = 1;
 
     private PCDRenderPass _scriptablePass;
 
@@ -184,7 +209,10 @@ public class PCDRendererFeature : ScriptableRendererFeature
             enableTagBasedOptimization = this.enableTagBasedOptimization,
             enableTypeAwareDensity = this.enableTypeAwareDensity,
             enableSoftOcclusionFade = this.enableSoftOcclusionFade,
-            enableJointBilateralHoleFilling = this.enableJointBilateralHoleFilling,
+            holeFillingMethod = this.holeFillingMethod,
+            morphKernelHalfSize = this.morphKernelHalfSize,
+            morphErodeIterations = this.morphErodeIterations,
+            morphDilateIterations = this.morphDilateIterations,
             _dynamicMultiplierRuntimeValue = _internalDynamicMultiplier
         };
     }

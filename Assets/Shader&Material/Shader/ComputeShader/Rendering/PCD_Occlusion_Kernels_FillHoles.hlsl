@@ -107,4 +107,204 @@ void FillHoles(uint3 id : SV_DispatchThreadID)
     }
 }
 
+// ==========================================
+// Pull-Push Algorithmic Hole Filling
+// ==========================================
+
+[numthreads(8, 8, 1)]
+void FillHolesPullPushInit(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _PullPushLevel_Out_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    uint originType = _OriginTypeMap[id.xy];
+    float4 color = _OcclusionResultMap[id.xy];
+    
+    float weight = (originType == 0u) ? 0.0 : 1.0;
+    _PullPushLevel_Out_RW[id.xy] = float4(color.rgb * weight, weight);
+}
+
+[numthreads(8, 8, 1)]
+void FillHolesPull(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _PullPushLevel_Out_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    uint2 src = id.xy * 2;
+    
+    float4 c00 = _PullPushLevel_In[src + uint2(0, 0)];
+    float4 c10 = _PullPushLevel_In[src + uint2(1, 0)];
+    float4 c01 = _PullPushLevel_In[src + uint2(0, 1)];
+    float4 c11 = _PullPushLevel_In[src + uint2(1, 1)];
+    
+    float4 sum = c00 + c10 + c01 + c11;
+    _PullPushLevel_Out_RW[id.xy] = sum / 4.0;
+}
+
+[numthreads(8, 8, 1)]
+void FillHolesPush(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _PullPushLevel_Out_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    float4 current = _PullPushLevel_Out_RW[id.xy];
+    float currentWeight = current.a;
+    
+    if (currentWeight < 1.0)
+    {
+        float srcW, srcH;
+        _PullPushLevel_In.GetDimensions(srcW, srcH);
+        
+        float2 uv = (id.xy + 0.5) / float2(w, h);
+        float2 srcPos = uv * float2(srcW, srcH) - 0.5;
+        
+        int2 p00 = max(0, min((int2)srcPos, int2(srcW - 1, srcH - 1)));
+        int2 p11 = min(p00 + 1, int2(srcW - 1, srcH - 1));
+        
+        float2 f = frac(srcPos);
+        
+        float4 c00 = _PullPushLevel_In[p00];
+        float4 c10 = _PullPushLevel_In[int2(p11.x, p00.y)];
+        float4 c01 = _PullPushLevel_In[int2(p00.x, p11.y)];
+        float4 c11 = _PullPushLevel_In[p11];
+        
+        float4 interp = lerp(lerp(c00, c10, f.x), lerp(c01, c11, f.x), f.y);
+        
+        float4 blended = current + (1.0 - currentWeight) * interp;
+        _PullPushLevel_Out_RW[id.xy] = blended;
+    }
+}
+
+[numthreads(8, 8, 1)]
+void FillHolesPullPushFinalize(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _OcclusionResultMap_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    uint originType = _OriginTypeMap[id.xy];
+    
+    if (originType == 0u)
+    {
+        float4 pulled = _PullPushLevel_In[id.xy];
+        if (pulled.a > 0.0001)
+        {
+            _OcclusionResultMap_RW[id.xy] = float4(pulled.rgb / pulled.a, 1.0);
+            _OriginTypeMap_RW[id.xy] = 0u; 
+            _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+        }
+    }
+}
+
+// ==========================================
+// Morphology (Erode, Dilate, Copy)
+// ==========================================
+
+[numthreads(8, 8, 1)]
+void MorphologyErode(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _MorphColorOut_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    uint originType = _MorphTypeIn[id.xy];
+    float4 color = _MorphColorIn[id.xy];
+
+    // Erode only affects valid point cloud pixels (type == 0)
+    if (originType == 0u)
+    {
+        bool hasInvalidNeighbor = false;
+        int r = _MorphKernelHalfSize;
+
+        for (int y = -r; y <= r; y++)
+        {
+            for (int x = -r; x <= r; x++)
+            {
+                int2 uv = (int2)id.xy + int2(x, y);
+                if (uv.x >= 0 && uv.x < (int)w && uv.y >= 0 && uv.y < (int)h)
+                {
+                    if (_MorphTypeIn[uv] != 0u)
+                    {
+                        hasInvalidNeighbor = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    hasInvalidNeighbor = true;
+                    break;
+                }
+            }
+            if (hasInvalidNeighbor) break;
+        }
+
+        if (hasInvalidNeighbor)
+        {
+            originType = 1u;
+            color = float4(0, 0, 0, 1);
+        }
+    }
+
+    _MorphTypeOut_RW[id.xy] = originType;
+    _MorphColorOut_RW[id.xy] = color;
+}
+
+[numthreads(8, 8, 1)]
+void MorphologyDilate(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _MorphColorOut_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    uint originType = _MorphTypeIn[id.xy];
+    float4 color = _MorphColorIn[id.xy];
+
+    // Dilate only affects invalid pixels (type != 0)
+    if (originType != 0u)
+    {
+        float4 sumColor = float4(0, 0, 0, 0);
+        float totalWeight = 0.0;
+        int r = _MorphKernelHalfSize;
+
+        for (int y = -r; y <= r; y++)
+        {
+            for (int x = -r; x <= r; x++)
+            {
+                int2 uv = (int2)id.xy + int2(x, y);
+                if (uv.x >= 0 && uv.x < (int)w && uv.y >= 0 && uv.y < (int)h)
+                {
+                    if (_MorphTypeIn[uv] == 0u)
+                    {
+                        sumColor += _MorphColorIn[uv];
+                        totalWeight += 1.0;
+                    }
+                }
+            }
+        }
+
+        if (totalWeight > 0.0)
+        {
+            originType = 0u;
+            color = sumColor / totalWeight;
+        }
+    }
+
+    _MorphTypeOut_RW[id.xy] = originType;
+    _MorphColorOut_RW[id.xy] = color;
+}
+
+[numthreads(8, 8, 1)]
+void MorphologyCopy(uint3 id : SV_DispatchThreadID)
+{
+    float w, h;
+    _MorphColorOut_RW.GetDimensions(w, h);
+    if (id.x >= (uint)w || id.y >= (uint)h) return;
+
+    _MorphColorOut_RW[id.xy] = _MorphColorIn[id.xy];
+    _MorphTypeOut_RW[id.xy] = _MorphTypeIn[id.xy];
+}
+
 #endif // PCD_OCCLUSION_KERNELS_FILLHOLES_INCLUDED

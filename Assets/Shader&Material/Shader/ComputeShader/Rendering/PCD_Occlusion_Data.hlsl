@@ -33,6 +33,14 @@ RWTexture2D<float4> _FinalImage_RW;
 RWTexture2D<float4> _OriginMap_RW;
 RWTexture2D<uint> _NeighborCountMap_RW; // neighborCountを記録するテクスチャ
 
+RWTexture2D<float4> _PullPushLevel_In_RW;
+RWTexture2D<float4> _PullPushLevel_Out_RW;
+
+Texture2D<float4> _MorphColorIn;
+RWTexture2D<float4> _MorphColorOut_RW;
+Texture2D<uint> _MorphTypeIn;
+RWTexture2D<uint> _MorphTypeOut_RW;
+
 Texture2D<float4> _ColorMap;
 Texture2D<uint> _DepthMap;
 Texture2D<float4> _ViewPositionMap;
@@ -48,6 +56,9 @@ Texture2D<uint> _DepthPyramidL4;
 Texture2D<uint> _OriginTypeMap;
 Texture2D<int> _FinalNeighborhoodSizeMap;
 Texture2D<float4> _OcclusionResultMap;
+
+Texture2D<float4> _PullPushLevel_In;
+Texture2D<float4> _PullPushLevel_Out;
 
 // Hybrid virtual depth (URP camera depth)
 Texture2D<float> _VirtualDepthMap;
@@ -90,6 +101,12 @@ int _KernelType;
 int _BinningMethod;
 int _DirectionCount;
 float _Alpha;
+
+int _PullPushMaxLevel;
+int _PullPushCurrentLevel;
+int _PullPushIsBaseLevel;
+
+int _MorphKernelHalfSize;
 
 #define GRID_SIZE 16u
 #define DEPTH_MAX_UINT 0x7FFFFFFFu

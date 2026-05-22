@@ -60,6 +60,15 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int OcclusionResultMap = Shader.PropertyToID("_OcclusionResultMap");
         public static readonly int OcclusionResultMap_RW = Shader.PropertyToID("_OcclusionResultMap_RW");
         public static readonly int FinalImage_RW = Shader.PropertyToID("_FinalImage_RW");
+
+        // Pull-Push
+        public static readonly int PullPushLevel_In = Shader.PropertyToID("_PullPushLevel_In");
+        public static readonly int PullPushLevel_Out = Shader.PropertyToID("_PullPushLevel_Out");
+        public static readonly int PullPushLevel_In_RW = Shader.PropertyToID("_PullPushLevel_In_RW");
+        public static readonly int PullPushLevel_Out_RW = Shader.PropertyToID("_PullPushLevel_Out_RW");
+        public static readonly int PullPushIsBaseLevel = Shader.PropertyToID("_PullPushIsBaseLevel");
+        public static readonly int PullPushMaxLevel = Shader.PropertyToID("_PullPushMaxLevel");
+        public static readonly int PullPushCurrentLevel = Shader.PropertyToID("_PullPushCurrentLevel");
         
         public static readonly int OriginTypeMap = Shader.PropertyToID("_OriginTypeMap");
         public static readonly int OriginTypeMap_RW = Shader.PropertyToID("_OriginTypeMap_RW");
@@ -82,6 +91,13 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int UseVirtualDepth = Shader.PropertyToID("_UseVirtualDepth");
         public static readonly int VirtualDepthMap = Shader.PropertyToID("_VirtualDepthMap");
         public static readonly int CameraColorTexture = Shader.PropertyToID("_CameraColorTexture");
+
+        // Morphology
+        public static readonly int MorphColorIn = Shader.PropertyToID("_MorphColorIn");
+        public static readonly int MorphColorOut_RW = Shader.PropertyToID("_MorphColorOut_RW");
+        public static readonly int MorphTypeIn = Shader.PropertyToID("_MorphTypeIn");
+        public static readonly int MorphTypeOut_RW = Shader.PropertyToID("_MorphTypeOut_RW");
+        public static readonly int MorphKernelHalfSize = Shader.PropertyToID("_MorphKernelHalfSize");
     }
 
     private ComputeShader pointCloudCompute; // オクルージョンパイプラインを定義するコアコンピュートシェーダー
@@ -94,8 +110,9 @@ public partial class PCDRenderPass : ScriptableRenderPass
                 _kernelBuildDepthPyramidL1, _kernelBuildDepthPyramidL2,
                 _kernelBuildDepthPyramidL3, _kernelBuildDepthPyramidL4,
                 _kernelApplyGradient,
-                _kernelComputeOcclusion, _kernelFillHoles, _kernelInterpolate,
-                _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug;
+                _kernelComputeOcclusion, _kernelFillHoles, _kernelFillHolesPullPushInit, _kernelFillHolesPull, _kernelFillHolesPush, _kernelFillHolesPullPushFinalize, _kernelInterpolate,
+                _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug,
+                _kernelMorphologyErode, _kernelMorphologyDilate, _kernelMorphologyCopy;
 
     // 出力およびデバッグマップ
     private RTHandle _debugDisplayMapHandle;
@@ -196,11 +213,18 @@ public partial class PCDRenderPass : ScriptableRenderPass
 
         _kernelComputeOcclusion = pointCloudCompute.FindKernel("ComputeOcclusion");
         _kernelFillHoles = pointCloudCompute.FindKernel("FillHoles");
+        _kernelFillHolesPullPushInit = pointCloudCompute.FindKernel("FillHolesPullPushInit");
+        _kernelFillHolesPull = pointCloudCompute.FindKernel("FillHolesPull");
+        _kernelFillHolesPush = pointCloudCompute.FindKernel("FillHolesPush");
+        _kernelFillHolesPullPushFinalize = pointCloudCompute.FindKernel("FillHolesPullPushFinalize");
         _kernelInterpolate = pointCloudCompute.FindKernel("Interpolate");
         _kernelMerge = pointCloudCompute.FindKernel("MergeBuffer");
         _kernelInitFromCamera = pointCloudCompute.FindKernel("InitFromCamera");
         _kernelVisualizeOcclusionDebug = pointCloudCompute.FindKernel("VisualizeOcclusionDebug");
-
+        _kernelMorphologyErode = pointCloudCompute.FindKernel("MorphologyErode");
+        _kernelMorphologyDilate = pointCloudCompute.FindKernel("MorphologyDilate");
+        _kernelMorphologyCopy = pointCloudCompute.FindKernel("MorphologyCopy");
+ 
         _isInitialized = true;
     }
 
@@ -220,8 +244,9 @@ public partial class PCDRenderPass : ScriptableRenderPass
                      kernelBuildDepthPyramidL1, kernelBuildDepthPyramidL2,
                      kernelBuildDepthPyramidL3, kernelBuildDepthPyramidL4,
                      kernelApplyGradient,
-                     kernelComputeOcclusion, kernelFillHoles, kernelInterpolate,
-                     kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug;
+                      kernelComputeOcclusion, kernelFillHoles, kernelFillHolesPullPushInit, kernelFillHolesPull, kernelFillHolesPush, kernelFillHolesPullPushFinalize, kernelInterpolate,
+                      kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug,
+                      kernelMorphologyErode, kernelMorphologyDilate, kernelMorphologyCopy;
 
         // コピー用バッファ
         internal bool useExternal;
@@ -252,6 +277,14 @@ public partial class PCDRenderPass : ScriptableRenderPass
         internal TextureHandle depthPyramidL4;
         internal TextureHandle correctedNeighborhoodSizeMap;
         internal TextureHandle occlusionResultMap;
+
+        // Pull-Push pyramid
+        internal TextureHandle[] pullPushPyramid;
+ 
+        // Morphology Temp
+        internal TextureHandle morphColorTemp;
+        internal TextureHandle morphTypeTemp;
+ 
         internal TextureHandle occlusionValueMap;
         internal TextureHandle finalImage;
         internal TextureHandle originTypeMap;
