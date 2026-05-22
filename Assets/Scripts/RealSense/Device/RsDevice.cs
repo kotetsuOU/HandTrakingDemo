@@ -39,11 +39,24 @@ public class RsDevice : RsFrameProvider
         if (string.IsNullOrEmpty(path)) return path;
         path = path.Replace("\\", "/");
 
-        if (!System.IO.Path.IsPathRooted(path) || path.StartsWith("Assets/"))
+        // Resolve paths inside StreamingAssets (for standalone distribution)
+        if (path.StartsWith("Assets/StreamingAssets/", System.StringComparison.OrdinalIgnoreCase))
+        {
+            string subPath = path.Substring("Assets/StreamingAssets/".Length);
+            return System.IO.Path.Combine(Application.streamingAssetsPath, subPath).Replace("\\", "/");
+        }
+        if (path.StartsWith("StreamingAssets/", System.StringComparison.OrdinalIgnoreCase))
+        {
+            string subPath = path.Substring("StreamingAssets/".Length);
+            return System.IO.Path.Combine(Application.streamingAssetsPath, subPath).Replace("\\", "/");
+        }
+
+        // Resolve standard project-relative Assets paths
+        if (!System.IO.Path.IsPathRooted(path) || path.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
         {
             string projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")).Replace("\\", "/");
 
-            if (path.StartsWith("Assets/"))
+            if (path.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
             {
                 path = path.Substring(7);
             }

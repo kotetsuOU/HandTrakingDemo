@@ -82,94 +82,285 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Header("Required Assets")]
     public ComputeShader pointCloudCompute;
 
-    [Header("Occlusion Core Settings")]
-    [Tooltip("オクルージョン計算に用いるカーネル関数")]
-    public PCV_OcclusionKernel kernelType = PCV_OcclusionKernel.Bouchiba;
+    // ローカルでのフォールバック用の設定情報
+    private PCDRenderSettings _fallbackSettings = new PCDRenderSettings
+    {
+        kernelType = PCV_OcclusionKernel.Bouchiba,
+        binningMethod = PCV_OcclusionBinning.Soft,
+        directionCount = PCV_OcclusionDirectionCount.Single,
+        exponentAlpha = 0f,
+        densityThreshold_e = 0.04f,
+        neighborhoodParam_p_prime = 4.8f,
+        enableGradientCorrection = true,
+        gradientThreshold_g_th = 0.05f,
+        occlusionThreshold = 0.8f,
+        occlusionFadeWidth = 0.1f,
+        enablePixelTagMap = false,
+        enableOcclusionMap = false,
+        recordOcclusionDebugMap = false,
+        recordPixelTagMap = false,
+        recordIntegratedDepthMap = false,
+        recordNeighborhoodMap = false,
+        recordNeighborCountMap = false,
+        enableVirtualDepthIntegration = true,
+        enableTagBasedOptimization = true,
+        enableTypeAwareDensity = true,
+        enableSoftOcclusionFade = true,
+        holeFillingMethod = PCV_HoleFillingMethod.JointBilateral,
+        morphKernelHalfSize = 1,
+        morphErodeIterations = 0,
+        morphDilateIterations = 1
+    };
 
-    [Tooltip("空間分割時のビニング手法（重みの計算方法）")]
-    public PCV_OcclusionBinning binningMethod = PCV_OcclusionBinning.Soft;
+    public PCV_OcclusionKernel kernelType
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.kernelType : _fallbackSettings.kernelType;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.kernelType = value;
+            else _fallbackSettings.kernelType = value;
+        }
+    }
 
-    [Tooltip("空間の分割方向数")]
-    public PCV_OcclusionDirectionCount directionCount = PCV_OcclusionDirectionCount.Single;
+    public PCV_OcclusionBinning binningMethod
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.binningMethod : _fallbackSettings.binningMethod;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.binningMethod = value;
+            else _fallbackSettings.binningMethod = value;
+        }
+    }
 
-    [Header("Algorithm Parameters")]
-    [Tooltip("指数関数の減衰係数 (Expモード専用)")]
-    public float exponentAlpha;
+    public PCV_OcclusionDirectionCount directionCount
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.directionCount : _fallbackSettings.directionCount;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.directionCount = value;
+            else _fallbackSettings.directionCount = value;
+        }
+    }
 
-    [Tooltip("密度計算に用いる深度のしきい値 e")]
-    public float densityThreshold_e = 0.04f;
+    public float exponentAlpha
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.exponentAlpha : _fallbackSettings.exponentAlpha;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.exponentAlpha = value;
+            else _fallbackSettings.exponentAlpha = value;
+        }
+    }
 
-    [Tooltip("近傍領域サイズを決定するための調整パラメータ p' ")]
-    public float neighborhoodParam_p_prime = 4.8f;
+    public float densityThreshold_e
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.densityThreshold_e : _fallbackSettings.densityThreshold_e;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.densityThreshold_e = value;
+            else _fallbackSettings.densityThreshold_e = value;
+        }
+    }
 
-    [Header("Gradient Correction")]
-    [Tooltip("勾配を用いた補正を有効にする")]
-    public bool enableGradientCorrection = true;
+    public float neighborhoodParam_p_prime
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.neighborhoodParam_p_prime : _fallbackSettings.neighborhoodParam_p_prime;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.neighborhoodParam_p_prime = value;
+            else _fallbackSettings.neighborhoodParam_p_prime = value;
+        }
+    }
 
-    [Tooltip("勾配しきい値 g_th")]
-    public float gradientThreshold_g_th = 0.05f;
+    public bool enableGradientCorrection
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableGradientCorrection : _fallbackSettings.enableGradientCorrection;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableGradientCorrection = value;
+            else _fallbackSettings.enableGradientCorrection = value;
+        }
+    }
 
-    [Header("Occlusion Filtering")]
-    [Tooltip("オクルージョン判定のしきい値 (論文 2.4.2節)")]
-    [Range(0f, 1f)]
-    public float occlusionThreshold = 0.8f;
+    public float gradientThreshold_g_th
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.gradientThreshold_g_th : _fallbackSettings.gradientThreshold_g_th;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.gradientThreshold_g_th = value;
+            else _fallbackSettings.gradientThreshold_g_th = value;
+        }
+    }
 
-    [Tooltip("境界を滑らかにするためのフェード幅（閾値からの減衰範囲）")]
-    [Range(0f, 1f)]
-    public float occlusionFadeWidth = 0.1f;
+    public float occlusionThreshold
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.occlusionThreshold : _fallbackSettings.occlusionThreshold;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.occlusionThreshold = value;
+            else _fallbackSettings.occlusionThreshold = value;
+        }
+    }
 
-    [Header("Display Debug")]
-    [Tooltip("点群(黒)と静的メッシュ(白)の由来を示すデバッグマップ(PixelTagMap)を有効にします")]
-    public bool enablePixelTagMap = false;
+    public float occlusionFadeWidth
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.occlusionFadeWidth : _fallbackSettings.occlusionFadeWidth;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.occlusionFadeWidth = value;
+            else _fallbackSettings.occlusionFadeWidth = value;
+        }
+    }
 
-    [Tooltip("内積計算で得た occlusionAverage(0~1) を、Record Occlusion Debug Map と同じ配色ルールで画面上に常時表示します")]
-    public bool enableOcclusionMap = false;
+    public bool enablePixelTagMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enablePixelTagMap : _fallbackSettings.enablePixelTagMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enablePixelTagMap = value;
+            else _fallbackSettings.enablePixelTagMap = value;
+        }
+    }
 
-    [Header("Record Debug")]
-    [Tooltip("1フレームだけOcclusionMapを保存します（occlusionAverageをPNG/CSVへ出力）")]
-    public bool recordOcclusionDebugMap = false;
+    public bool enableOcclusionMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableOcclusionMap : _fallbackSettings.enableOcclusionMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableOcclusionMap = value;
+            else _fallbackSettings.enableOcclusionMap = value;
+        }
+    }
 
-    [Tooltip("1フレームだけPixelTagMap(由来情報の生値)を記録します")]
-    public bool recordPixelTagMap = false;
+    public bool recordOcclusionDebugMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordOcclusionDebugMap : _fallbackSettings.recordOcclusionDebugMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordOcclusionDebugMap = value;
+            else _fallbackSettings.recordOcclusionDebugMap = value;
+        }
+    }
 
-    [Tooltip("1フレームだけ統合DepthMapを記録します")]
-    public bool recordIntegratedDepthMap = false;
+    public bool recordPixelTagMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordPixelTagMap : _fallbackSettings.recordPixelTagMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordPixelTagMap = value;
+            else _fallbackSettings.recordPixelTagMap = value;
+        }
+    }
 
-    [Tooltip("1フレームだけNeighborhoodMapを記録します")]
-    public bool recordNeighborhoodMap = false;
+    public bool recordIntegratedDepthMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordIntegratedDepthMap : _fallbackSettings.recordIntegratedDepthMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordIntegratedDepthMap = value;
+            else _fallbackSettings.recordIntegratedDepthMap = value;
+        }
+    }
 
-    [Tooltip("1フレームだけNeighborCountMapを記録します")]
-    public bool recordNeighborCountMap = false;
+    public bool recordNeighborhoodMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordNeighborhoodMap : _fallbackSettings.recordNeighborhoodMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordNeighborhoodMap = value;
+            else _fallbackSettings.recordNeighborhoodMap = value;
+        }
+    }
 
-    [Header("SICE FES 2026 Novel Methods Toggles (Ablation Study)")]
-    [Tooltip("仮想・現実の「相互オクルージョン」の統合を有効にするか")]
-    public bool enableVirtualDepthIntegration = true;
+    public bool recordNeighborCountMap
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordNeighborCountMap : _fallbackSettings.recordNeighborCountMap;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordNeighborCountMap = value;
+            else _fallbackSettings.recordNeighborCountMap = value;
+        }
+    }
 
-    [Tooltip("①タグによる近傍探索の最適化 (ONで不要な自己遮蔽計算をスキップ)")]
-    public bool enableTagBasedOptimization = true;
+    public bool enableVirtualDepthIntegration
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableVirtualDepthIntegration : _fallbackSettings.enableVirtualDepthIntegration;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableVirtualDepthIntegration = value;
+            else _fallbackSettings.enableVirtualDepthIntegration = value;
+        }
+    }
 
-    [Header("Novel Methods Toggles (Ablation Study)")]
-    [Tooltip("②仮想物体を区別した密度計算 (ONで従来手法のカウント漏れや過剰を補正)")]
-    public bool enableTypeAwareDensity = true;
+    public bool enableTagBasedOptimization
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableTagBasedOptimization : _fallbackSettings.enableTagBasedOptimization;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableTagBasedOptimization = value;
+            else _fallbackSettings.enableTagBasedOptimization = value;
+        }
+    }
 
-    [Tooltip("③ソフトオクルージョン (ONでグラデーションによる境界のスムージング)")]
-    public bool enableSoftOcclusionFade = true;
+    public bool enableTypeAwareDensity
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableTypeAwareDensity : _fallbackSettings.enableTypeAwareDensity;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableTypeAwareDensity = value;
+            else _fallbackSettings.enableTypeAwareDensity = value;
+        }
+    }
 
-    [Tooltip("④エッジ保持型ホールフィリング手法の選択")]
-    public PCV_HoleFillingMethod holeFillingMethod = PCV_HoleFillingMethod.JointBilateral;
+    public bool enableSoftOcclusionFade
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableSoftOcclusionFade : _fallbackSettings.enableSoftOcclusionFade;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableSoftOcclusionFade = value;
+            else _fallbackSettings.enableSoftOcclusionFade = value;
+        }
+    }
 
-    [Header("Morphology Settings")]
-    [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
-    [Range(1, 15)]
-    public int morphKernelHalfSize = 1;
+    public PCV_HoleFillingMethod holeFillingMethod
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.holeFillingMethod : _fallbackSettings.holeFillingMethod;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.holeFillingMethod = value;
+            else _fallbackSettings.holeFillingMethod = value;
+        }
+    }
 
-    [Tooltip("Opening の収縮回数（0 でスキップ）。孤立ノイズや細いトゲを除去する。破綻確認後に増やすこと。")]
-    [Range(0, 5)]
-    public int morphErodeIterations = 0;
+    public int morphKernelHalfSize
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.morphKernelHalfSize : _fallbackSettings.morphKernelHalfSize;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.morphKernelHalfSize = value;
+            else _fallbackSettings.morphKernelHalfSize = value;
+        }
+    }
 
-    [Tooltip("Closing の膨張回数。多いほど疎な手の甲など深い隙間まで色が伝播する。まず 1 から試すこと。")]
-    [Range(1, 5)]
-    public int morphDilateIterations = 1;
+    public int morphErodeIterations
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.morphErodeIterations : _fallbackSettings.morphErodeIterations;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.morphErodeIterations = value;
+            else _fallbackSettings.morphErodeIterations = value;
+        }
+    }
+
+    public int morphDilateIterations
+    {
+        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.morphDilateIterations : _fallbackSettings.morphDilateIterations;
+        set
+        {
+            if (PCDRenderController.Instance != null) PCDRenderController.Instance.morphDilateIterations = value;
+            else _fallbackSettings.morphDilateIterations = value;
+        }
+    }
 
     private PCDRenderPass _scriptablePass;
 
@@ -186,35 +377,14 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // Inspectorで設定されている値を構造体として取得する
     private PCDRenderSettings GetSettings()
     {
-        return new PCDRenderSettings
+        if (PCDRenderController.Instance != null)
         {
-            kernelType = this.kernelType,
-            binningMethod = this.binningMethod,
-            directionCount = this.directionCount,
-            exponentAlpha = this.exponentAlpha,
-            densityThreshold_e = this.densityThreshold_e,
-            neighborhoodParam_p_prime = this.neighborhoodParam_p_prime,
-            enableGradientCorrection = this.enableGradientCorrection,
-            gradientThreshold_g_th = this.gradientThreshold_g_th,
-            occlusionThreshold = this.occlusionThreshold,
-            occlusionFadeWidth = this.occlusionFadeWidth,
-            enablePixelTagMap = this.enablePixelTagMap,
-            enableOcclusionMap = this.enableOcclusionMap,
-            recordOcclusionDebugMap = this.recordOcclusionDebugMap,
-            recordPixelTagMap = this.recordPixelTagMap,
-            recordIntegratedDepthMap = this.recordIntegratedDepthMap,
-            recordNeighborhoodMap = this.recordNeighborhoodMap,
-            recordNeighborCountMap = this.recordNeighborCountMap,
-            enableVirtualDepthIntegration = this.enableVirtualDepthIntegration,
-            enableTagBasedOptimization = this.enableTagBasedOptimization,
-            enableTypeAwareDensity = this.enableTypeAwareDensity,
-            enableSoftOcclusionFade = this.enableSoftOcclusionFade,
-            holeFillingMethod = this.holeFillingMethod,
-            morphKernelHalfSize = this.morphKernelHalfSize,
-            morphErodeIterations = this.morphErodeIterations,
-            morphDilateIterations = this.morphDilateIterations,
-            _dynamicMultiplierRuntimeValue = _internalDynamicMultiplier
-        };
+            return PCDRenderController.Instance.GetSettings();
+        }
+
+        var settings = _fallbackSettings;
+        settings._dynamicMultiplierRuntimeValue = _internalDynamicMultiplier;
+        return settings;
     }
 
     [HideInInspector] public uint _internalDynamicMultiplier = 1;
@@ -357,7 +527,15 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // ==========================================
     private void OnValidate()
     {
-        float maxFadeWidth = Mathf.Min(occlusionThreshold, 1.0f - occlusionThreshold) * 2.0f;
-        occlusionFadeWidth = Mathf.Clamp(occlusionFadeWidth, 0f, maxFadeWidth);
+        if (PCDRenderController.Instance != null)
+        {
+            float maxFade = Mathf.Min(PCDRenderController.Instance.occlusionThreshold, 1.0f - PCDRenderController.Instance.occlusionThreshold) * 2.0f;
+            PCDRenderController.Instance.occlusionFadeWidth = Mathf.Clamp(PCDRenderController.Instance.occlusionFadeWidth, 0f, maxFade);
+        }
+        else
+        {
+            float maxFadeWidth = Mathf.Min(_fallbackSettings.occlusionThreshold, 1.0f - _fallbackSettings.occlusionThreshold) * 2.0f;
+            _fallbackSettings.occlusionFadeWidth = Mathf.Clamp(_fallbackSettings.occlusionFadeWidth, 0f, maxFadeWidth);
+        }
     }
 }

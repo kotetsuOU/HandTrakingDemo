@@ -60,18 +60,20 @@ git lfs pull
 ※ Unityで実行する際は、`Project` ウィンドウから `Scenes` フォルダ内の `RealTimeOcclusion` シーンを開いてください。
   そのシーンをアクティブにしてから再生（Play）ボタンで動作確認を行ってください。
 
-### オクルージョン DebugMap / PixelTagMap の使い方
+### オクルージョン設定の管理とデバッグ機能の使い方
 
-`PCDRendererFeature` の `Record Occlusion Debug Map` を有効にすると、**そのフレームのみ**内積計算から得られる `occlusionAverage`（0.0～1.0）を保存できます。
+本プロジェクトのオクルージョン設定（カーネル手法、しきい値、各種デバッグ/モルフォロジー設定等）は、シーン内の **`OcclusionPipelineController`** という GameObject にアタッチされた **`PCDRenderController`** コンポーネントから一元的に制御します。エディタ再生中・非再生中を問わず、パラメータを変更すると即座にレンダリング表示に反映されます。
+
+`PCDRenderController` の `Record Occlusion Debug Map` を有効にすると、**そのフレームのみ**内積計算から得られる `occlusionAverage`（0.0～1.0）を保存できます。
 - 保存先: `Assets/HandTrackingData/OcclusionMaps`
 - CSV: `occlusionAverage`（0.0～1.0）を保存
 - 操作: `Enter` / `Return`（`KeyboardControls.md` の撮影操作。Enterで統合DepthMapなども同時撮影）
 
-`PCDRendererFeature` の `Record Pixel Tag Map` を有効にすると、**そのフレームのみ**最終判定後の「アルファ値（遮蔽判定された0か1か）」と「クラス分類値」を保存できます。
+`PCDRenderController` の `Record Pixel Tag Map` を有効にすると、**そのフレームのみ**最終判定後の「アルファ値（遮蔽判定された0か1か）」と「クラス分類値」を保存できます。
 - 保存先: `Assets/HandTrackingData/PixelTagMaps`
 - 操作: 同上
 
-`PCDRendererFeature` の `Record Integrated Depth Map` を有効にすると、**そのフレームのみ**統合DepthMapを保存できます。
+`PCDRenderController` の `Record Integrated Depth Map` を有効にすると、**そのフレームのみ**統合DepthMapを保存できます。
 
 - 保存先: `Assets/HandTrackingData/DepthMaps/Integrated`
 - 操作: `Enter` / `Return`（`KeyboardControls.md` の撮影操作。EnterでOcclusion DebugMapも同時撮影）

@@ -1,4 +1,4 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using UnityEditor;
 using UnityEngine;
 
@@ -51,8 +51,14 @@ public class RsDeviceEditor : Editor
                 {
                     EditorGUI.BeginDisabledGroup(isStreaming);
                     EditorGUILayout.PropertyField(config.FindPropertyRelative("RequestedSerialNumber"));
-                    EditorGUILayout.BeginHorizontal();
+
                     var prop = config.FindPropertyRelative("PlaybackFile");
+                    if (!string.IsNullOrEmpty(prop.stringValue) && System.IO.Path.IsPathRooted(prop.stringValue))
+                    {
+                        EditorGUILayout.HelpBox("Warning: The playback file path is an absolute path. For successful distribution, please place the file inside the project (e.g. Assets/StreamingAssets) and click 'Sanitize Paths' below.", MessageType.Warning);
+                    }
+
+                    EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.PropertyField(prop);
                     if (GUILayout.Button("Open", EditorStyles.miniButton, GUILayout.ExpandWidth(false)))
                     {
@@ -60,7 +66,7 @@ public class RsDeviceEditor : Editor
                         if (path.Length != 0)
                         {
                             serializedObject.Update();
-                            prop.stringValue = path;
+                            prop.stringValue = MakeRelativePath(path);
                             serializedObject.ApplyModifiedProperties();
                             GUI.FocusControl(null);
                         }
@@ -106,8 +112,14 @@ public class RsDeviceEditor : Editor
                     EditorGUI.BeginDisabledGroup(isStreaming);
                     EditorGUILayout.PropertyField(serializedObject.FindProperty("recordDurationInFrames"));
                     EditorGUILayout.PropertyField(config.FindPropertyRelative("RequestedSerialNumber"));
-                    EditorGUILayout.BeginHorizontal();
+
                     var prop = config.FindPropertyRelative("RecordPath");
+                    if (!string.IsNullOrEmpty(prop.stringValue) && System.IO.Path.IsPathRooted(prop.stringValue))
+                    {
+                        EditorGUILayout.HelpBox("Warning: The record path is an absolute path. For successful distribution, please place it inside the project (e.g. Assets/StreamingAssets) and click 'Sanitize Paths' below.", MessageType.Warning);
+                    }
+
+                    EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.PropertyField(prop);
                     if (GUILayout.Button("Choose", EditorStyles.miniButton, GUILayout.ExpandWidth(false)))
                     {
@@ -115,7 +127,7 @@ public class RsDeviceEditor : Editor
                         if (path.Length != 0)
                         {
                             serializedObject.Update();
-                            prop.stringValue = path;
+                            prop.stringValue = MakeRelativePath(path);
                             serializedObject.ApplyModifiedProperties();
                             GUI.FocusControl(null);
                         }
@@ -130,7 +142,83 @@ public class RsDeviceEditor : Editor
                 }
         }
 
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Distribution Tools", EditorStyles.boldLabel);
+        if (GUILayout.Button("Sanitize Paths (Make Relative)"))
+        {
+            serializedObject.Update();
+            var playbackProp = config.FindPropertyRelative("PlaybackFile");
+            var recordProp = config.FindPropertyRelative("RecordPath");
+
+            playbackProp.stringValue = MakeRelativePath(playbackProp.stringValue);
+            recordProp.stringValue = MakeRelativePath(recordProp.stringValue);
+
+            serializedObject.ApplyModifiedProperties();
+            Debug.Log("[RsDeviceEditor] Sanitized paths for this RsDevice component.");
+        }
+
         serializedObject.ApplyModifiedProperties();
         EditorGUI.EndChangeCheck();
+    }
+
+    private static string MakeRelativePath(string absolutePath)
+    {
+        if (string.IsNullOrEmpty(absolutePath)) return absolutePath;
+        absolutePath = absolutePath.Replace("\\", "/");
+
+        string projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")).Replace("\\", "/");
+
+        if (absolutePath.StartsWith(projectRoot, System.StringComparison.OrdinalIgnoreCase))
+        {
+            string relativePath = absolutePath.Substring(projectRoot.Length);
+            if (relativePath.StartsWith("/"))
+            {
+                relativePath = relativePath.Substring(1);
+            }
+            return relativePath;
+        }
+
+        return absolutePath;
+    }
+
+    [MenuItem("Tools/RealSense/Sanitize All RsDevice Paths in Active Scene")]
+    public static void SanitizeAllPathsInActiveScene()
+    {
+        var devices = Resources.FindObjectsOfTypeAll<RsDevice>();
+        int count = 0;
+        foreach (var device in devices)
+        {
+            if (device.gameObject.scene.name == null) continue;
+
+            bool changed = false;
+            var playbackFile = device.DeviceConfiguration.PlaybackFile;
+            var recordPath = device.DeviceConfiguration.RecordPath;
+
+            string newPlayback = MakeRelativePath(playbackFile);
+            if (newPlayback != playbackFile)
+            {
+                device.DeviceConfiguration.PlaybackFile = newPlayback;
+                changed = true;
+            }
+
+            string newRecord = MakeRelativePath(recordPath);
+            if (newRecord != recordPath)
+            {
+                device.DeviceConfiguration.RecordPath = newRecord;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                EditorUtility.SetDirty(device);
+                if (!Application.isPlaying)
+                {
+                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(device.gameObject.scene);
+                }
+                count++;
+            }
+        }
+
+        Debug.Log($"[RsDeviceEditor] Sanitized paths in {count} RsDevice components in the active scene.");
     }
 }
