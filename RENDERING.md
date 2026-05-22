@@ -113,6 +113,7 @@ sequenceDiagram
 │   ├── [Scripts](./Assets/Scripts)  
 │   │   ├── [ParallaxBarrier/Rendering/Occlusion](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion)  
 │   │   │   ├── [PCDRendererFeature.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDRendererFeature.cs) — URP レンダラーへのパス追加、シングルトンインスタンス管理  
+│   │   │   ├── [PCDSettingsBridge.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDSettingsBridge.cs) — レンダリングパラメータの取得とフォールバックの仲介 (肥大化対策ブリッジ)  
 │   │   │   ├── [PCDRenderController.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDRenderController.cs) — インスペクターパラメータから実行パラメータへの動的仲介  
 │   │   │   ├── [PCDPointBufferManager.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDPointBufferManager.cs) — 外部バッファ・静的メッシュ・アニメーションメッシュの調停と結合  
 │   │   │   ├── [StaticMeshPCDRegistrar.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/StaticMeshPCDRegistrar.cs) — 空間内の静的/動的オブジェクトを自動検出・登録  
@@ -246,20 +247,29 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 
 ### 1. `PCDRendererFeature`
 *   **設計思想**: URP に対するオクルージョン描画パスの追加を行うエントリポイントです。シングルトンパターンを実装し、PCVデバッグシステム等の外部クラスから動的に点群データバッファを登録できるインターフェースを提供します。
+*   **主要な変更点**:
+    従来このクラスに直接定義されていた 25 個のパラメータ管理プロパティは、結合度低減と肥大化防止の観点から新設された `PCDSettingsBridge` へと移譲されました。本クラスは `settings` プロパティを通じてこれらのパラメータ変更要求のブリッジ（中継）を行います。
 
-### 2. `PCDRenderController`
+### 2. `PCDSettingsBridge`
+*   **設計思想**: `PCDRendererFeature` のプロパティ肥大化を防ぎ、関心の分離（Separation of Concerns）を推進するために設計された軽量ブリッジクラスです。
+*   **機能と役割**:
+    *   **二重化ルーティング**: 実行時に動的な `PCDOcclusionPipelineController` インスタンスが存在する場合はその設定プロパティへと処理をルーティングし、存在しない場合は内部のローカルなデフォルト値構造体 `_fallbackSettings` へと自動フォールバックします。
+    *   **値の検証 (Validation)**: `OnValidate()` メソッドにて、オクルージョン閾値 (`occlusionThreshold`) に適合するようソフトオクルージョンフェード幅 (`occlusionFadeWidth`) のクランプを適切に行います。
+    *   **パラメータ一覧**: `kernelType`, `binningMethod`, `directionCount`, `exponentAlpha`, `densityThreshold_e`, `neighborhoodParam_p_prime`, `enableGradientCorrection`, `gradientThreshold_g_th`, `occlusionThreshold`, `occlusionFadeWidth`, `enablePixelTagMap`, `enableOcclusionMap`, `recordOcclusionDebugMap`, `recordPixelTagMap`, `recordIntegratedDepthMap`, `recordNeighborhoodMap`, `recordNeighborCountMap`, `enableVirtualDepthIntegration`, `enableTagBasedOptimization`, `enableTypeAwareDensity`, `enableSoftOcclusionFade`, `holeFillingMethod`, `morphKernelHalfSize`, `morphErodeIterations`, `morphDilateIterations`
+
+### 3. `PCDRenderController`
 *   **設計思想**: レンダリングパラメーターをインスペクター上で一元管理する MonoBehaviour です。インスペクター上の値が変更されたことを検知し、一時オブジェクトを生成することなく `PCDRenderPass` の定数バッファへ値を転送するための仲介役として機能します。
 
-### 3. `PCDPointBufferManager`
+### 4. `PCDPointBufferManager`
 *   **設計思想**: 複数の点群ソース（RealSense共有バッファ、静的登録オブジェクト、ボーンアニメーションオブジェクト）をマージするためのバッファ調停者です。GC 発生を防ぐため、バッファサイズの変更がない限り `ComputeBuffer` を再利用します。
 *   **主要関数**:
     *   `UpdateBuffers(...)`: 静的/動的オブジェクトの頂点を走査し、Compute Buffer の確保と更新を行います。
     *   `Release()`: アセンブリリロード時やオブジェクト破棄時に全バッファを確実に解放します。
 
-### 4. `StaticMeshPCDRegistrar`
+### 5. `StaticMeshPCDRegistrar`
 *   **設計思想**: 空間内に存在するメッシュを自動的に検出し、点群計算対象として登録するコンポーネントです。オブジェクトが非アクティブになった場合や削除された場合の動的変更検知を備えています。
 
-### 5. `PCDRenderPass`
+### 6. `PCDRenderPass`
 *   **設計思想**: URP RenderGraph の規約に沿ったレンダリングパスです。`ExecuteComputePass` を通じて、Compute Shader の13以上の多段カーネルを最適な順序で Dispatch し、パイプラインの同期とリソースの読み書きバリアを制御します。
 
 ---
@@ -271,20 +281,33 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 ### A. 前処理・投影フェーズ
 
 #### 1. スクリーン空間への投影と深度記録 (`ProjectPoints`)
-入力された点群バッファ内の各頂点 $\mathbf{p}_{\text{world}} = (x, y, z, 1)^T$ に対し、カメラのビュー・プロジェクション行列（`_PCDViewProjMatrix`）を適用し、クリップ空間を経てスクリーン座標にマッピングします。
+入力された点群バッファ内の各頂点 `p_world = (x, y, z, 1)^T` に対し、カメラのビュー・プロジェクション行列（`_PCDViewProjMatrix`）を適用し、クリップ空間を経てスクリーン座標にマッピングします。
 
 1.  **射影変換**:
-    $$\mathbf{p}_{\text{clip}} = \mathbf{M}_{\text{VP}} \cdot \mathbf{p}_{\text{world}}$$
-    $$\mathbf{p}_{\text{ndc}} = \frac{\mathbf{p}_{\text{clip}}.xyz}{\mathbf{p}_{\text{clip}}.w}$$
-    $$\mathbf{p}_{\text{screen}} = \left( \frac{\mathbf{p}_{\text{ndc}}.xy + \mathbf{1.0}}{2.0} \right) \cdot \mathbf{v}_{\text{ScreenSize}}$$
+$$
+\mathbf{p}_{\text{clip}} = \mathbf{M}_{\text{VP}} \cdot \mathbf{p}_{\text{world}}
+$$
+$$
+\mathbf{p}_{\text{ndc}} = \frac{\mathbf{p}_{\text{clip}}.xyz}{\mathbf{p}_{\text{clip}}.w}
+$$
+$$
+\mathbf{p}_{\text{screen}} = \left( \frac{\mathbf{p}_{\text{ndc}}.xy + \mathbf{1.0}}{2.0} \right) \cdot \mathbf{v}_{\text{ScreenSize}}
+$$
 
 2.  **超並列深度アトミック書き込み**:
-    投影された座標 $(x_{\text{screen}}, y_{\text{screen}})$ が画面内にある場合、頂点深度 $z_{\text{ndc}}$ をスケーリングし、アトミック最小演算 `InterlockedMin` を用いて深度テクスチャ `_DepthMap_RW` に記録します。これによって、複数頂点が同一ピクセルに重なった際に「最も手前にある（カメラに最も近い）頂点」のみが確実に記録されます。
-    $$\text{DepthUint} = \text{clamp}\left( z_{\text{ndc}} \times \text{DEPTH\_MAX\_UINT}, 0, \text{DEPTH\_MAX\_UINT} \right)$$
-    $$\text{InterlockedMin}(\text{\_DepthMap\_RW}[uv], \text{DepthUint})$$
+    投影された座標 `(x_screen, y_screen)` が画面内にある場合、頂点深度 `z_ndc` をスケーリングし、アトミック最小演算 `InterlockedMin` を用いて深度テクスチャ `_DepthMap_RW` に記録します。これによって、複数頂点が同一ピクセルに重なった際に「最も手前にある（カメラに最も近い）頂点」のみが確実に記録されます。
+$$
+\text{DepthUint} = \text{clamp}\left( z_{\text{ndc}} \times D_{\text{max}}, 0, D_{\text{max}} \right)
+$$
+    (ここで `D_max` は最大深度定数 `DEPTH_MAX_UINT` を表します)
+
+    `_DepthMap_RW` への記録は以下のように GPU アトミック操作で行われます。
+    ```hlsl
+    InterlockedMin(_DepthMap_RW[uv], DepthUint);
+    ```
 
 #### 2. グリッド深度削減と密度推定 (`CalculateGridZMin`, `CalculateDensity`)
-*   **`CalculateGridZMin`**: 画面を $8 \times 8$ ピクセルのグリッドに分割し、ブロック内の有効デプスの最小値（$Z_{\text{min}}$）を計算します。これにより、スパースな点群の深度を低解像度にまとめ上げ、オクルージョン比較の効率を高めます。
+*   **`CalculateGridZMin`**: 画面を $8 \times 8$ ピクセルのグリッドに分割し、ブロック内の有効デプスの最小値（`Z_min`）を計算します。これにより、スパースな点群の深度を低解像度にまとめ上げ、オクルージョン比較の効率を高めます。
 *   **`CalculateDensity`**: グリッド内に投影された点群の個数をカウントし、局所的な「点群の密集度（密度）」を算出します。
 
 #### 3. 適応的探索レベルの決定 (`CalculateGridLevel`, `GridMedianFilter`, `CalculateNeighborhoodSize`)
@@ -300,7 +323,7 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 オクルージョン計算時に単純な探索半径を用いると、物体の輪郭（デプスの急激な境界）を超えて遮蔽判定が背景側に「はみ出す」現象（オクルージョン・リーク）が発生します。
 これを防ぐため、隣接ピクセル間の深度勾配（傾き）を Sobel フィルタライクな差分演算で検出します。
 *   **アルゴリズム**:
-    対象ピクセルから隣接ピクセルへの深度差 $\Delta d$ が閾値を超える（境界エッジを検出する）場合、その方向への探索半径を適応的に縮小します。これにより、オクルージョンマップの輪郭が現実のオブジェクト境界に完全に張り付くようになります。
+    対象ピクセルから隣接ピクセルへの深度差 `delta d` が閾値を超える（境界エッジを検出する）場合、その方向への探索半径を適応的に縮小します。これにより、オクルージョンマップの輪郭が現実のオブジェクト境界に完全に張り付くようになります。
 
 ---
 
@@ -322,20 +345,36 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 
 ##### 【二段階実行ロジック】
 1.  **Pass 1: 局所最小深度の探索**
-    対象ピクセルの周囲 $13 \times 13$ 領域（`fillRadius = 6`）を走査し、既に点群が投影されている近傍ピクセルのうち、最もカメラに近い最小深度（`minDepth`）を探索します。
+    対象ピクセルの周囲 `13 * 13` 領域（`fillRadius = 6`）を走査し、既に点群が投影されている近傍ピクセルのうち、最もカメラに近い最小深度（`minDepth`）を探索します。
     > [!IMPORTANT]
     > 仮想オブジェクトが存在する場合、その深度マップ（`_VirtualDepthMap`）から取得した深度値を探索の上限閾値（`thresholdDepth`）とし、仮想オブジェクトより奥にある無関係な点群が手前に漏れて補間されるのを防止します。
 2.  **Pass 2: 双方向加重平均（Bilateral Weight）の適用**
     発見した `minDepth` に近い深度を持つ近傍点のみを抽出し、以下の空間距離ウェイト（`spatialWeight`）と深度差ウェイト（`depthWeight`）を乗算した合成重みを算出して加重平均を取ります。
+
     *   深度許容差（`depthTolerance`）の定義:
-        $$\text{depthTolerance} = \frac{\text{DEPTH\_MAX\_UINT}}{1000} + (\text{minDepth} \times 0.02)$$
+$$
+\text{depthTolerance} = \frac{D_{\text{max}}}{1000} + (d_{\text{min}} \times 0.02)
+$$
+        (ここで `D_max` は `DEPTH_MAX_UINT`、`d_min` は `minDepth` を表します)
+
     *   空間ウェイト（距離の二乗による減衰）:
-        $$\text{spatialWeight} = \frac{1}{1.0 + \text{distSq} \times 0.5}$$
+$$
+\text{spatialWeight} = \frac{1}{1.0 + \text{distSq} \times 0.5}
+$$
+
     *   深度ウェイト（`minDepth` から離れるほど急速に減衰）:
-        $$\text{depthWeight} = 1.0 - \text{smoothstep}\left(0.0, 1.0, \frac{\text{nDepth} - \text{minDepth}}{\text{depthTolerance}}\right)$$
+$$
+\text{depthWeight} = 1.0 - \text{smoothstep}\left(0.0, 1.0, \frac{d_n - d_{\text{min}}}{\text{depthTolerance}}\right)
+$$
+        (ここで `d_n` は `nDepth` を表します)
+
     *   合成重みによる加重平均:
-        $$\text{Occlusion}_{\text{final}} = \frac{\sum (\text{Color}_i \times \text{Weight}_i)}{\sum \text{Weight}_i}$$
-        $$\text{Weight}_i = \text{spatialWeight}_i \times \text{depthWeight}_i$$
+$$
+\text{Occlusion}_{\text{final}} = \frac{\sum (\text{Color}_i \times \text{Weight}_i)}{\sum \text{Weight}_i}
+$$
+$$
+\text{Weight}_i = \text{spatialWeight}_i \times \text{depthWeight}_i
+$$
 
 #### 2. Pull-Push ピラミッド法 (`FillHolesPullPushInit` ~ `FillHolesPush`)
 多スケール（ピラミッド階層）表現を用いて、どれほど広大で巨大な点群の穴でも計算負荷 $O(N)$ のまま滑らかに穴埋めする画像補間アルゴリズムです。
@@ -348,18 +387,24 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 
 ##### 【各カーネルのアルゴリズム】
 1.  **`FillHolesPullPushInit` (初期化)**:
-    入力ピクセル情報をもとに、オクルージョン計算済みのピクセルは `weight = 1.0`、穴の部分は `weight = 0.0` とした 4成分ベクトル $\mathbf{v} = (r \times w, g \times w, b \times w, w)^T$ をピラミッド最下層（Level 0）に構築します。
+    入力ピクセル情報をもとに、オクルージョン計算済みのピクセルは `weight = 1.0`、穴の部分は `weight = 0.0` とした 4成分ベクトル `v = (r * w, g * w, b * w, w)^T` をピラミッド最下層（Level 0）に構築します。
 2.  **`FillHolesPull` (アップサンプリング/縮小)**:
-    解像度を段階的に $1/2$ に縮小しながらピラミッドを登ります。各ピクセルは、対応する下位レイヤーの $2 \times 2$ ブロックの単純平均を算出し、ウェイトとカラーを累積します。
-    $$\mathbf{v}_{\text{parent}} = \frac{\mathbf{v}_{00} + \mathbf{v}_{10} + \mathbf{v}_{01} + \mathbf{v}_{11}}{4.0}$$
+    解像度を段階的に `1/2` に縮小しながらピラミッドを登ります。各ピクセルは、対応する下位レイヤーの `2 * 2` ブロックの単純平均を算出し、ウェイトとカラーを累積します。
+$$
+\mathbf{v}_{\text{parent}} = \frac{\mathbf{v}_{00} + \mathbf{v}_{10} + \mathbf{v}_{01} + \mathbf{v}_{11}}{4.0}
+$$
 3.  **`FillHolesPush` (ダウンサンプリング/拡大復元)**:
     ピラミッドを降りながら解像度を拡大し、等倍に戻します。
-    下位の粗い階層からバイリニア補間（`frac` および `lerp`）で拡大した補間値 $\mathbf{v}_{\text{interp}}$ を取得します。
-    現在のピクセルのウェイト（$w_{\text{current}} = \mathbf{v}_{\text{current}}.a$）が不完全（$1.0$ 未満）な箇所について、拡大された補間値をウェイトの残量に基づいてブレンドします。
-    $$\mathbf{v}_{\text{blended}} = \mathbf{v}_{\text{current}} + (1.0 - w_{\text{current}}) \cdot \mathbf{v}_{\text{interp}}$$
+    下位の粗い階層からバイリニア補間（`frac` および `lerp`）で拡大した補間値 `v_interp` を取得します。
+    現在のピクセルのウェイト（`w_current = v_current.a`）が不完全（`1.0` 未満）な箇所について、拡大された補間値をウェイトの残量に基づいてブレンドします。
+$$
+\mathbf{v}_{\text{blended}} = \mathbf{v}_{\text{current}} + (1.0 - w_{\text{current}}) \cdot \mathbf{v}_{\text{interp}}
+$$
 4.  **`FillHolesPullPushFinalize` (最終結果書き戻し)**:
     等倍解像度に戻ったピラミッドの最下層から、累積されたオクルージョンカラーを書き戻します。
-    $$\text{Color}_{\text{final}} = \frac{\mathbf{v}_{\text{blended}}.rgb}{\mathbf{v}_{\text{blended}}.a} \quad (\text{if } \mathbf{v}_{\text{blended}}.a > 0.0001)$$
+$$
+\text{Color}_{\text{final}} = \frac{\mathbf{v}_{\text{blended}}.rgb}{\mathbf{v}_{\text{blended}}.a} \quad (\text{if } \mathbf{v}_{\text{blended}}.a > 0.0001)
+$$
 
 #### 3. 数学的モルフォロジー演算 (`MorphologyErode` / `MorphologyDilate`)
 カラー画像および点群存在フラグマップ（`_MorphTypeIn`）に対し、二値画像の数学的モルフォロジー（膨張・収縮）をグレースケールカラーと連動させて実行します。

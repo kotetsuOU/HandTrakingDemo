@@ -65,10 +65,10 @@ public partial class PCDRenderPass
                 });
             }
 
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCDRendererFeature.Instance.recordOcclusionDebugMap = false;
-                PCDRendererFeature.Instance.recordPixelTagMap = false;
+                PCDRendererFeature.Instance.settings.recordOcclusionDebugMap = false;
+                PCDRendererFeature.Instance.settings.recordPixelTagMap = false;
             }
         }
 
@@ -110,9 +110,9 @@ public partial class PCDRenderPass
                 });
             }
 
-            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.recordIntegratedDepthMap)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null && PCDRendererFeature.Instance.settings.recordIntegratedDepthMap)
             {
-                PCDRendererFeature.Instance.recordIntegratedDepthMap = false;
+                PCDRendererFeature.Instance.settings.recordIntegratedDepthMap = false;
             }
         }
 
@@ -154,9 +154,9 @@ public partial class PCDRenderPass
                 });
             }
 
-            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.recordNeighborhoodMap)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null && PCDRendererFeature.Instance.settings.recordNeighborhoodMap)
             {
-                PCDRendererFeature.Instance.recordNeighborhoodMap = false;
+                PCDRendererFeature.Instance.settings.recordNeighborhoodMap = false;
             }
         }
 
@@ -198,9 +198,9 @@ public partial class PCDRenderPass
                 });
             }
 
-            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.recordNeighborCountMap)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null && PCDRendererFeature.Instance.settings.recordNeighborCountMap)
             {
-                PCDRendererFeature.Instance.recordNeighborCountMap = false;
+                PCDRendererFeature.Instance.settings.recordNeighborCountMap = false;
             }
         }
     }

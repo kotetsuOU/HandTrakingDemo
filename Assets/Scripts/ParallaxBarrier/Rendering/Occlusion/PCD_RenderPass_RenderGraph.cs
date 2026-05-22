@@ -10,10 +10,10 @@ public partial class PCDRenderPass
     {
         if (PCDRendererFeature.Instance == null) return "";
 
-        bool isTag = PCDRendererFeature.Instance.enableTagBasedOptimization;
-        bool isDensity = PCDRendererFeature.Instance.enableTypeAwareDensity;
-        bool isFade = PCDRendererFeature.Instance.enableSoftOcclusionFade;
-        bool isHoleFill = PCDRendererFeature.Instance.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
+        bool isTag = PCDRendererFeature.Instance.settings.enableTagBasedOptimization;
+        bool isDensity = PCDRendererFeature.Instance.settings.enableTypeAwareDensity;
+        bool isFade = PCDRendererFeature.Instance.settings.enableSoftOcclusionFade;
+        bool isHoleFill = PCDRendererFeature.Instance.settings.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
 
         if (isTag && isDensity && isFade && isHoleFill) return "Proposal";
         if (!isTag && !isDensity && !isFade && !isHoleFill) return "Traditional";
@@ -98,11 +98,11 @@ public partial class PCDRenderPass
             if (_settings.recordOcclusionDebugMap || _settings.recordPixelTagMap || _settings.recordIntegratedDepthMap)
             {
                 UnityEngine.Debug.LogWarning("[PCDRenderPass] Skipped rendering because depthMapOnlyMode is true.");
-                if (PCDRendererFeature.Instance != null)
+                if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
                 {
-                    PCDRendererFeature.Instance.recordOcclusionDebugMap = false;
-                    PCDRendererFeature.Instance.recordPixelTagMap = false;
-                    PCDRendererFeature.Instance.recordIntegratedDepthMap = false;
+                    PCDRendererFeature.Instance.settings.recordOcclusionDebugMap = false;
+                    PCDRendererFeature.Instance.settings.recordPixelTagMap = false;
+                    PCDRendererFeature.Instance.settings.recordIntegratedDepthMap = false;
                 }
             }
             return;
@@ -114,11 +114,11 @@ public partial class PCDRenderPass
             if (_settings.recordOcclusionDebugMap || _settings.recordPixelTagMap || _settings.recordIntegratedDepthMap)
             {
                 UnityEngine.Debug.LogWarning("[PCDRenderPass] Check box pressed but ignored. No point cloud and no depth map data.");
-                if (PCDRendererFeature.Instance != null)
+                if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
                 {
-                    PCDRendererFeature.Instance.recordOcclusionDebugMap = false;
-                    PCDRendererFeature.Instance.recordPixelTagMap = false;
-                    PCDRendererFeature.Instance.recordIntegratedDepthMap = false;
+                    PCDRendererFeature.Instance.settings.recordOcclusionDebugMap = false;
+                    PCDRendererFeature.Instance.settings.recordPixelTagMap = false;
+                    PCDRendererFeature.Instance.settings.recordIntegratedDepthMap = false;
                 }
             }
             return;

@@ -82,285 +82,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Header("Required Assets")]
     public ComputeShader pointCloudCompute;
 
-    // ローカルでのフォールバック用の設定情報
-    private PCDRenderSettings _fallbackSettings = new PCDRenderSettings
-    {
-        kernelType = PCV_OcclusionKernel.Bouchiba,
-        binningMethod = PCV_OcclusionBinning.Soft,
-        directionCount = PCV_OcclusionDirectionCount.Single,
-        exponentAlpha = 0f,
-        densityThreshold_e = 0.04f,
-        neighborhoodParam_p_prime = 4.8f,
-        enableGradientCorrection = true,
-        gradientThreshold_g_th = 0.05f,
-        occlusionThreshold = 0.8f,
-        occlusionFadeWidth = 0.1f,
-        enablePixelTagMap = false,
-        enableOcclusionMap = false,
-        recordOcclusionDebugMap = false,
-        recordPixelTagMap = false,
-        recordIntegratedDepthMap = false,
-        recordNeighborhoodMap = false,
-        recordNeighborCountMap = false,
-        enableVirtualDepthIntegration = true,
-        enableTagBasedOptimization = true,
-        enableTypeAwareDensity = true,
-        enableSoftOcclusionFade = true,
-        holeFillingMethod = PCV_HoleFillingMethod.JointBilateral,
-        morphKernelHalfSize = 1,
-        morphErodeIterations = 0,
-        morphDilateIterations = 1
-    };
-
-    public PCV_OcclusionKernel kernelType
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.kernelType : _fallbackSettings.kernelType;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.kernelType = value;
-            else _fallbackSettings.kernelType = value;
-        }
-    }
-
-    public PCV_OcclusionBinning binningMethod
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.binningMethod : _fallbackSettings.binningMethod;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.binningMethod = value;
-            else _fallbackSettings.binningMethod = value;
-        }
-    }
-
-    public PCV_OcclusionDirectionCount directionCount
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.directionCount : _fallbackSettings.directionCount;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.directionCount = value;
-            else _fallbackSettings.directionCount = value;
-        }
-    }
-
-    public float exponentAlpha
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.exponentAlpha : _fallbackSettings.exponentAlpha;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.exponentAlpha = value;
-            else _fallbackSettings.exponentAlpha = value;
-        }
-    }
-
-    public float densityThreshold_e
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.densityThreshold_e : _fallbackSettings.densityThreshold_e;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.densityThreshold_e = value;
-            else _fallbackSettings.densityThreshold_e = value;
-        }
-    }
-
-    public float neighborhoodParam_p_prime
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.neighborhoodParam_p_prime : _fallbackSettings.neighborhoodParam_p_prime;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.neighborhoodParam_p_prime = value;
-            else _fallbackSettings.neighborhoodParam_p_prime = value;
-        }
-    }
-
-    public bool enableGradientCorrection
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableGradientCorrection : _fallbackSettings.enableGradientCorrection;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableGradientCorrection = value;
-            else _fallbackSettings.enableGradientCorrection = value;
-        }
-    }
-
-    public float gradientThreshold_g_th
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.gradientThreshold_g_th : _fallbackSettings.gradientThreshold_g_th;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.gradientThreshold_g_th = value;
-            else _fallbackSettings.gradientThreshold_g_th = value;
-        }
-    }
-
-    public float occlusionThreshold
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.occlusionThreshold : _fallbackSettings.occlusionThreshold;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.occlusionThreshold = value;
-            else _fallbackSettings.occlusionThreshold = value;
-        }
-    }
-
-    public float occlusionFadeWidth
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.occlusionFadeWidth : _fallbackSettings.occlusionFadeWidth;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.occlusionFadeWidth = value;
-            else _fallbackSettings.occlusionFadeWidth = value;
-        }
-    }
-
-    public bool enablePixelTagMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enablePixelTagMap : _fallbackSettings.enablePixelTagMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enablePixelTagMap = value;
-            else _fallbackSettings.enablePixelTagMap = value;
-        }
-    }
-
-    public bool enableOcclusionMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableOcclusionMap : _fallbackSettings.enableOcclusionMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableOcclusionMap = value;
-            else _fallbackSettings.enableOcclusionMap = value;
-        }
-    }
-
-    public bool recordOcclusionDebugMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordOcclusionDebugMap : _fallbackSettings.recordOcclusionDebugMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordOcclusionDebugMap = value;
-            else _fallbackSettings.recordOcclusionDebugMap = value;
-        }
-    }
-
-    public bool recordPixelTagMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordPixelTagMap : _fallbackSettings.recordPixelTagMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordPixelTagMap = value;
-            else _fallbackSettings.recordPixelTagMap = value;
-        }
-    }
-
-    public bool recordIntegratedDepthMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordIntegratedDepthMap : _fallbackSettings.recordIntegratedDepthMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordIntegratedDepthMap = value;
-            else _fallbackSettings.recordIntegratedDepthMap = value;
-        }
-    }
-
-    public bool recordNeighborhoodMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordNeighborhoodMap : _fallbackSettings.recordNeighborhoodMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordNeighborhoodMap = value;
-            else _fallbackSettings.recordNeighborhoodMap = value;
-        }
-    }
-
-    public bool recordNeighborCountMap
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.recordNeighborCountMap : _fallbackSettings.recordNeighborCountMap;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.recordNeighborCountMap = value;
-            else _fallbackSettings.recordNeighborCountMap = value;
-        }
-    }
-
-    public bool enableVirtualDepthIntegration
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableVirtualDepthIntegration : _fallbackSettings.enableVirtualDepthIntegration;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableVirtualDepthIntegration = value;
-            else _fallbackSettings.enableVirtualDepthIntegration = value;
-        }
-    }
-
-    public bool enableTagBasedOptimization
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableTagBasedOptimization : _fallbackSettings.enableTagBasedOptimization;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableTagBasedOptimization = value;
-            else _fallbackSettings.enableTagBasedOptimization = value;
-        }
-    }
-
-    public bool enableTypeAwareDensity
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableTypeAwareDensity : _fallbackSettings.enableTypeAwareDensity;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableTypeAwareDensity = value;
-            else _fallbackSettings.enableTypeAwareDensity = value;
-        }
-    }
-
-    public bool enableSoftOcclusionFade
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.enableSoftOcclusionFade : _fallbackSettings.enableSoftOcclusionFade;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.enableSoftOcclusionFade = value;
-            else _fallbackSettings.enableSoftOcclusionFade = value;
-        }
-    }
-
-    public PCV_HoleFillingMethod holeFillingMethod
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.holeFillingMethod : _fallbackSettings.holeFillingMethod;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.holeFillingMethod = value;
-            else _fallbackSettings.holeFillingMethod = value;
-        }
-    }
-
-    public int morphKernelHalfSize
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.morphKernelHalfSize : _fallbackSettings.morphKernelHalfSize;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.morphKernelHalfSize = value;
-            else _fallbackSettings.morphKernelHalfSize = value;
-        }
-    }
-
-    public int morphErodeIterations
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.morphErodeIterations : _fallbackSettings.morphErodeIterations;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.morphErodeIterations = value;
-            else _fallbackSettings.morphErodeIterations = value;
-        }
-    }
-
-    public int morphDilateIterations
-    {
-        get => PCDRenderController.Instance != null ? PCDRenderController.Instance.morphDilateIterations : _fallbackSettings.morphDilateIterations;
-        set
-        {
-            if (PCDRenderController.Instance != null) PCDRenderController.Instance.morphDilateIterations = value;
-            else _fallbackSettings.morphDilateIterations = value;
-        }
-    }
+    public PCDSettingsBridge settings { get; private set; }
 
     private PCDRenderPass _scriptablePass;
 
@@ -377,14 +99,11 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // Inspectorで設定されている値を構造体として取得する
     private PCDRenderSettings GetSettings()
     {
-        if (PCDRenderController.Instance != null)
+        if (settings == null)
         {
-            return PCDRenderController.Instance.GetSettings();
+            settings = new PCDSettingsBridge();
         }
-
-        var settings = _fallbackSettings;
-        settings._dynamicMultiplierRuntimeValue = _internalDynamicMultiplier;
-        return settings;
+        return settings.GetSettings(_internalDynamicMultiplier);
     }
 
     [HideInInspector] public uint _internalDynamicMultiplier = 1;
@@ -393,6 +112,11 @@ public class PCDRendererFeature : ScriptableRendererFeature
     public override void Create()
     {
         Instance = this;
+
+        if (settings == null)
+        {
+            settings = new PCDSettingsBridge();
+        }
 
         _scriptablePass?.Cleanup();
 
@@ -471,7 +195,11 @@ public class PCDRendererFeature : ScriptableRendererFeature
         {
             // Inspectorでの変更をパスに反映
             _scriptablePass.UpdateSettings(GetSettings());
-            _scriptablePass.SetDebugFlags(enablePixelTagMap, enableOcclusionMap);
+            if (settings == null)
+            {
+                settings = new PCDSettingsBridge();
+            }
+            _scriptablePass.SetDebugFlags(settings.enablePixelTagMap, settings.enableOcclusionMap);
         }
 
         // 常時パスをエンキューし、描画をスキップするかどうかはRecordRenderGraph内や内部ロジックに委ねる
@@ -527,15 +255,10 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // ==========================================
     private void OnValidate()
     {
-        if (PCDRenderController.Instance != null)
+        if (settings == null)
         {
-            float maxFade = Mathf.Min(PCDRenderController.Instance.occlusionThreshold, 1.0f - PCDRenderController.Instance.occlusionThreshold) * 2.0f;
-            PCDRenderController.Instance.occlusionFadeWidth = Mathf.Clamp(PCDRenderController.Instance.occlusionFadeWidth, 0f, maxFade);
+            settings = new PCDSettingsBridge();
         }
-        else
-        {
-            float maxFadeWidth = Mathf.Min(_fallbackSettings.occlusionThreshold, 1.0f - _fallbackSettings.occlusionThreshold) * 2.0f;
-            _fallbackSettings.occlusionFadeWidth = Mathf.Clamp(_fallbackSettings.occlusionFadeWidth, 0f, maxFadeWidth);
-        }
+        settings.OnValidate();
     }
 }

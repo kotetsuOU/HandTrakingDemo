@@ -2,9 +2,9 @@ using UnityEngine;
 using static PCDRendererFeature;
 
 [ExecuteInEditMode]
-public class PCDRenderController : MonoBehaviour
+public class PCDOcclusionPipelineController : MonoBehaviour
 {
-    public static PCDRenderController Instance { get; private set; }
+    public static PCDOcclusionPipelineController Instance { get; private set; }
 
     [Header("Occlusion Core Settings")]
     [Tooltip("オクルージョン計算に用いるカーネル関数")]

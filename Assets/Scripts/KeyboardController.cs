@@ -67,19 +67,19 @@ public class KeyboardController : MonoBehaviour
             string methodPrefix = "";
 
             // ① オクルージョンマップの書き出しフラグをオン
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCDRendererFeature.Instance.recordOcclusionDebugMap = true;
-                PCDRendererFeature.Instance.recordPixelTagMap = true;
-                PCDRendererFeature.Instance.recordIntegratedDepthMap = true;
-                PCDRendererFeature.Instance.recordNeighborhoodMap = true;
-                PCDRendererFeature.Instance.recordNeighborCountMap = true;
+                PCDRendererFeature.Instance.settings.recordOcclusionDebugMap = true;
+                PCDRendererFeature.Instance.settings.recordPixelTagMap = true;
+                PCDRendererFeature.Instance.settings.recordIntegratedDepthMap = true;
+                PCDRendererFeature.Instance.settings.recordNeighborhoodMap = true;
+                PCDRendererFeature.Instance.settings.recordNeighborCountMap = true;
                 Debug.Log("[KeyboardController] オクルージョン関連DebugMapの出力をリクエストしました");
 
-                bool isTag = PCDRendererFeature.Instance.enableTagBasedOptimization;
-                bool isDensity = PCDRendererFeature.Instance.enableTypeAwareDensity;
-                bool isFade = PCDRendererFeature.Instance.enableSoftOcclusionFade;
-                bool isHoleFill = PCDRendererFeature.Instance.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
+                bool isTag = PCDRendererFeature.Instance.settings.enableTagBasedOptimization;
+                bool isDensity = PCDRendererFeature.Instance.settings.enableTypeAwareDensity;
+                bool isFade = PCDRendererFeature.Instance.settings.enableSoftOcclusionFade;
+                bool isHoleFill = PCDRendererFeature.Instance.settings.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
 
                 if (isTag && isDensity && isFade && isHoleFill) methodPrefix = "Proposal";
                 else if (!isTag && !isDensity && !isFade && !isHoleFill) methodPrefix = "Traditional";
@@ -161,20 +161,20 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.M))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
                 // 全ての提案機能のON/OFFを一括でトグルする
-                bool isAnyOn = PCDRendererFeature.Instance.enableTagBasedOptimization || 
-                               PCDRendererFeature.Instance.enableTypeAwareDensity || 
-                               PCDRendererFeature.Instance.enableSoftOcclusionFade || 
-                               (PCDRendererFeature.Instance.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None);
+                bool isAnyOn = PCDRendererFeature.Instance.settings.enableTagBasedOptimization || 
+                               PCDRendererFeature.Instance.settings.enableTypeAwareDensity || 
+                               PCDRendererFeature.Instance.settings.enableSoftOcclusionFade || 
+                               (PCDRendererFeature.Instance.settings.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None);
 
                 bool toggleTo = !isAnyOn; // 1つでもONならすべてOFFにする
 
-                PCDRendererFeature.Instance.enableTagBasedOptimization = toggleTo;
-                PCDRendererFeature.Instance.enableTypeAwareDensity = toggleTo;
-                PCDRendererFeature.Instance.enableSoftOcclusionFade = toggleTo;
-                PCDRendererFeature.Instance.holeFillingMethod = toggleTo ? PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral : PCDRendererFeature.PCV_HoleFillingMethod.None;
+                PCDRendererFeature.Instance.settings.enableTagBasedOptimization = toggleTo;
+                PCDRendererFeature.Instance.settings.enableTypeAwareDensity = toggleTo;
+                PCDRendererFeature.Instance.settings.enableSoftOcclusionFade = toggleTo;
+                PCDRendererFeature.Instance.settings.holeFillingMethod = toggleTo ? PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral : PCDRendererFeature.PCV_HoleFillingMethod.None;
 
                 string methodStr = toggleTo ? "提案手法 (全てON)" : "従来手法 (全てOFF)";
                 Debug.Log($"[KeyController] 手法切り替え: {methodStr}");
@@ -184,42 +184,42 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         // 6. 各提案機能(Ablation)の個別切り替え (Alpha1, 2, 3, 4)
         // ----------------------------------------------------
-        if (PCDRendererFeature.Instance != null)
+        if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
         {
             if (Input.GetKeyDown(KeyCode.Alpha1))
             {
-                PCDRendererFeature.Instance.enableTagBasedOptimization = !PCDRendererFeature.Instance.enableTagBasedOptimization;
-                Debug.Log($"[KeyController] ① タグスキップ最適化: {(PCDRendererFeature.Instance.enableTagBasedOptimization ? "ON" : "OFF")}");
+                PCDRendererFeature.Instance.settings.enableTagBasedOptimization = !PCDRendererFeature.Instance.settings.enableTagBasedOptimization;
+                Debug.Log($"[KeyController] ① タグスキップ最適化: {(PCDRendererFeature.Instance.settings.enableTagBasedOptimization ? "ON" : "OFF")}");
             }
             if (Input.GetKeyDown(KeyCode.Alpha2))
             {
-                PCDRendererFeature.Instance.enableTypeAwareDensity = !PCDRendererFeature.Instance.enableTypeAwareDensity;
-                Debug.Log($"[KeyController] ② 密度計算補正: {(PCDRendererFeature.Instance.enableTypeAwareDensity ? "ON" : "OFF")}");
+                PCDRendererFeature.Instance.settings.enableTypeAwareDensity = !PCDRendererFeature.Instance.settings.enableTypeAwareDensity;
+                Debug.Log($"[KeyController] ② 密度計算補正: {(PCDRendererFeature.Instance.settings.enableTypeAwareDensity ? "ON" : "OFF")}");
             }
             if (Input.GetKeyDown(KeyCode.Alpha3))
             {
-                PCDRendererFeature.Instance.enableSoftOcclusionFade = !PCDRendererFeature.Instance.enableSoftOcclusionFade;
-                Debug.Log($"[KeyController] ③ ソフトフェード: {(PCDRendererFeature.Instance.enableSoftOcclusionFade ? "ON" : "OFF")}");
+                PCDRendererFeature.Instance.settings.enableSoftOcclusionFade = !PCDRendererFeature.Instance.settings.enableSoftOcclusionFade;
+                Debug.Log($"[KeyController] ③ ソフトフェード: {(PCDRendererFeature.Instance.settings.enableSoftOcclusionFade ? "ON" : "OFF")}");
             }
             if (Input.GetKeyDown(KeyCode.Alpha4))
             {
-                if (PCDRendererFeature.Instance.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.None)
+                if (PCDRendererFeature.Instance.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.None)
                 {
-                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral;
+                    PCDRendererFeature.Instance.settings.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral;
                 }
-                else if (PCDRendererFeature.Instance.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral)
+                else if (PCDRendererFeature.Instance.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral)
                 {
-                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.PullPush;
+                    PCDRendererFeature.Instance.settings.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.PullPush;
                 }
-                else if (PCDRendererFeature.Instance.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+                else if (PCDRendererFeature.Instance.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
                 {
-                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.Morphology;
+                    PCDRendererFeature.Instance.settings.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.Morphology;
                 }
                 else
                 {
-                    PCDRendererFeature.Instance.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.None;
+                    PCDRendererFeature.Instance.settings.holeFillingMethod = PCDRendererFeature.PCV_HoleFillingMethod.None;
                 }
-                Debug.Log($"[KeyController] ④ 穴埋め(Hole Filling): {PCDRendererFeature.Instance.holeFillingMethod}");
+                Debug.Log($"[KeyController] ④ 穴埋め(Hole Filling): {PCDRendererFeature.Instance.settings.holeFillingMethod}");
             }
         }
 
@@ -228,16 +228,16 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.T))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                if (PCDRendererFeature.Instance.occlusionFadeWidth > 0.05f)
+                if (PCDRendererFeature.Instance.settings.occlusionFadeWidth > 0.05f)
                 {
-                    PCDRendererFeature.Instance.occlusionFadeWidth = 0.0f;
+                    PCDRendererFeature.Instance.settings.occlusionFadeWidth = 0.0f;
                     Debug.Log("[KeyController] FadeWidth: 0.0 (くっきりマスク)");
                 }
                 else
                 {
-                    PCDRendererFeature.Instance.occlusionFadeWidth = 0.2f;
+                    PCDRendererFeature.Instance.settings.occlusionFadeWidth = 0.2f;
                     Debug.Log("[KeyController] FadeWidth: 0.2 (滑らかマスク)");
                 }
             }
@@ -290,14 +290,14 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.P))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCDRendererFeature.Instance.enablePixelTagMap = !PCDRendererFeature.Instance.enablePixelTagMap;
-                Debug.Log($"[KeyController] PixelTag Map: {(PCDRendererFeature.Instance.enablePixelTagMap ? "ON" : "OFF")}");
+                PCDRendererFeature.Instance.settings.enablePixelTagMap = !PCDRendererFeature.Instance.settings.enablePixelTagMap;
+                Debug.Log($"[KeyController] PixelTag Map: {(PCDRendererFeature.Instance.settings.enablePixelTagMap ? "ON" : "OFF")}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle PixelTag Map.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle PixelTag Map.");
             }
         }
 
@@ -306,14 +306,14 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.O))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCDRendererFeature.Instance.enableOcclusionMap = !PCDRendererFeature.Instance.enableOcclusionMap;
-                Debug.Log($"[KeyController] Occlusion Map: {(PCDRendererFeature.Instance.enableOcclusionMap ? "ON" : "OFF")}");
+                PCDRendererFeature.Instance.settings.enableOcclusionMap = !PCDRendererFeature.Instance.settings.enableOcclusionMap;
+                Debug.Log($"[KeyController] Occlusion Map: {(PCDRendererFeature.Instance.settings.enableOcclusionMap ? "ON" : "OFF")}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Occlusion Map.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Occlusion Map.");
             }
         }
 
@@ -322,15 +322,15 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.L))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCV_OcclusionKernel nextMode = (PCV_OcclusionKernel)(((int)PCDRendererFeature.Instance.kernelType + 1) % Enum.GetValues(typeof(PCV_OcclusionKernel)).Length);
-                PCDRendererFeature.Instance.kernelType = nextMode;
+                PCV_OcclusionKernel nextMode = (PCV_OcclusionKernel)(((int)PCDRendererFeature.Instance.settings.kernelType + 1) % Enum.GetValues(typeof(PCV_OcclusionKernel)).Length);
+                PCDRendererFeature.Instance.settings.kernelType = nextMode;
                 Debug.Log($"[KeyController] Kernel Type: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Kernel Type.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Kernel Type.");
             }
         }
 
@@ -339,15 +339,15 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.K))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCV_OcclusionBinning nextMode = (PCV_OcclusionBinning)(((int)PCDRendererFeature.Instance.binningMethod + 1) % Enum.GetValues(typeof(PCV_OcclusionBinning)).Length);
-                PCDRendererFeature.Instance.binningMethod = nextMode;
+                PCV_OcclusionBinning nextMode = (PCV_OcclusionBinning)(((int)PCDRendererFeature.Instance.settings.binningMethod + 1) % Enum.GetValues(typeof(PCV_OcclusionBinning)).Length);
+                PCDRendererFeature.Instance.settings.binningMethod = nextMode;
                 Debug.Log($"[KeyController] Binning Method: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Binning Method.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Binning Method.");
             }
         }
 
@@ -356,20 +356,20 @@ public class KeyboardController : MonoBehaviour
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.J))
         {
-            if (PCDRendererFeature.Instance != null)
+            if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
                 // Enumの値が不連続(1, 3, 6, 8)であるため、インデックスベースで循環させる
                 Array values = Enum.GetValues(typeof(PCV_OcclusionDirectionCount));
-                int currentIndex = Array.IndexOf(values, PCDRendererFeature.Instance.directionCount);
+                int currentIndex = Array.IndexOf(values, PCDRendererFeature.Instance.settings.directionCount);
                 int nextIndex = (currentIndex + 1) % values.Length;
                 PCV_OcclusionDirectionCount nextCount = (PCV_OcclusionDirectionCount)values.GetValue(nextIndex);
 
-                PCDRendererFeature.Instance.directionCount = nextCount;
+                PCDRendererFeature.Instance.settings.directionCount = nextCount;
                 Debug.Log($"[KeyController] Direction Count: {nextCount}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance is null; cannot toggle Direction Count.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Direction Count.");
             }
         }
     }

@@ -1,0 +1,52 @@
+name: Sync Wiki Documents
+
+on:
+  push:
+    branches:
+      - 3DDisplay
+      - main
+    paths:
+      - "WIKI.md"
+      - "RENDERING.md"
+      - "HAPTICS.md"
+      - "DEBUG_PCV.md"
+      - "KeyboardControls.md"
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+
+      - name: Sync to GitHub Wiki
+        env:
+          WIKI_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+        run: |
+          # Wiki リポジトリを一時ディレクトリにクローン
+          git clone "$WIKI_REPO" temp-wiki
+          
+          # ドキュメントを配置 (WIKI.md は Home.md として配置)
+          cp WIKI.md temp-wiki/Home.md
+          cp RENDERING.md temp-wiki/RENDERING.md
+          cp HAPTICS.md temp-wiki/HAPTICS.md
+          cp DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
+          if [ -f KeyboardControls.md ]; then
+            cp KeyboardControls.md temp-wiki/KeyboardControls.md
+          fi
+          
+          # 変更の有無を確認してコミット・プッシュ
+          cd temp-wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Auto-sync wiki from main repository (${{ github.sha }})"
+            git push origin HEAD
+          else
+            echo "No changes to sync."
+          fi

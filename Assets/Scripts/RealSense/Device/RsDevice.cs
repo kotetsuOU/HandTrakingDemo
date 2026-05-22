@@ -51,17 +51,11 @@ public class RsDevice : RsFrameProvider
             return System.IO.Path.Combine(Application.streamingAssetsPath, subPath).Replace("\\", "/");
         }
 
-        // Resolve standard project-relative Assets paths
-        if (!System.IO.Path.IsPathRooted(path) || path.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+        // Resolve standard project-relative paths (e.g. Assets/..., RecordedRawVideo/...)
+        if (!System.IO.Path.IsPathRooted(path))
         {
             string projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")).Replace("\\", "/");
-
-            if (path.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
-            {
-                path = path.Substring(7);
-            }
-
-            return projectRoot + "/Assets/" + path;
+            return projectRoot + "/" + path;
         }
 
         return path;
