@@ -24,7 +24,7 @@ public class PCV_Renderer : MonoBehaviour
 
         if (meshFilter == null || meshRenderer == null)
         {
-            UnityEngine.Debug.LogError("PCV_Renderer‚É•K—v‚ÈMeshFilter‚Ü‚½‚ÍMeshRendererƒRƒ“ƒ|[ƒlƒ“ƒg‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB");
+            UnityEngine.Debug.LogError("PCV_Rendererã«å¿…è¦ãªMeshFilterã¾ãŸã¯MeshRendererã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚");
             return;
         }
 

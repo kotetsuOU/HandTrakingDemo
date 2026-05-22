@@ -115,8 +115,9 @@ public class PCV_Controller : MonoBehaviour
         dataManager = GetComponent<PCV_DataManager>();
         operationHandler = GetComponent<PCV_OperationHandler>();
 
-        if (dataManager != null && !isSubscribed)
+        if (dataManager != null)
         {
+            dataManager.OnDataUpdated -= OnDataUpdated;
             dataManager.OnDataUpdated += OnDataUpdated;
             isSubscribed = true;
         }
@@ -162,7 +163,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (pcdRendererFeature == null)
         {
-            UnityEngine.Debug.LogWarning("PCDRendererFeature‚ÌƒCƒ“ƒXƒ^ƒ“ƒX‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñBƒAƒNƒeƒBƒu‚ÈURPƒŒƒ“ƒ_ƒ‰[‚ÉPCDRendererFeature‚ª’Ç‰Á‚³‚ê‚Ä‚¢‚é‚©Šm”F‚µ‚Ä‚­‚¾‚³‚¢B");
+            UnityEngine.Debug.LogWarning("PCDRendererFeatureã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚ã‚¢ã‚¯ãƒ†ã‚£ãƒ–ãªURPãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ã«PCDRendererFeatureãŒè¿½åŠ ã•ã‚Œã¦ã„ã‚‹ã‹ç¢ºèªã—ã¦ãã ã•ã„ã€‚");
         }
     }
 
@@ -173,7 +174,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (dataManager == null || settings == null)
         {
-            UnityEngine.Debug.LogError("DataManager‚Ü‚½‚ÍSettingsƒRƒ“ƒ|[ƒlƒ“ƒg‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB");
+            UnityEngine.Debug.LogError("DataManagerã¾ãŸã¯Settingsã‚³ãƒ³ãƒãƒ¼ãƒãƒ³ãƒˆãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚");
             return;
         }
 
@@ -186,7 +187,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
         {
-            UnityEngine.Debug.Log("“_ŒQƒf[ƒ^‚ªƒ[ƒh‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ (Editor)BÄ\’z‚ğÀs‚µ‚Ü‚·B");
+            UnityEngine.Debug.Log("ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ãŒãƒ­ãƒ¼ãƒ‰ã•ã‚Œã¦ã„ã¾ã›ã‚“ (Editor)ã€‚å†æ§‹ç¯‰ã‚’å®Ÿè¡Œã—ã¾ã™ã€‚");
             RebuildPointCloud();
         }
 
@@ -199,7 +200,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
         {
-            UnityEngine.Debug.Log("“_ŒQƒf[ƒ^‚ªƒ[ƒh‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ (Editor)BÄ\’z‚ğÀs‚µ‚Ü‚·B");
+            UnityEngine.Debug.Log("ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ãŒãƒ­ãƒ¼ãƒ‰ã•ã‚Œã¦ã„ã¾ã›ã‚“ (Editor)ã€‚å†æ§‹ç¯‰ã‚’å®Ÿè¡Œã—ã¾ã™ã€‚");
             RebuildPointCloud();
         }
 
@@ -212,7 +213,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
         {
-            UnityEngine.Debug.Log("“_ŒQƒf[ƒ^‚ªƒ[ƒh‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ (Editor)BÄ\’z‚ğÀs‚µ‚Ü‚·B");
+            UnityEngine.Debug.Log("ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ãŒãƒ­ãƒ¼ãƒ‰ã•ã‚Œã¦ã„ã¾ã›ã‚“ (Editor)ã€‚å†æ§‹ç¯‰ã‚’å®Ÿè¡Œã—ã¾ã™ã€‚");
             RebuildPointCloud();
         }
 
@@ -225,7 +226,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
         {
-            UnityEngine.Debug.Log("“_ŒQƒf[ƒ^‚ªƒ[ƒh‚³‚ê‚Ä‚¢‚Ü‚¹‚ñ (Editor)B–§“x•âŠ®‚ÌÀs‘O‚ÉÄ\’z‚ğÀs‚µ‚Ü‚·B");
+            UnityEngine.Debug.Log("ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ãŒãƒ­ãƒ¼ãƒ‰ã•ã‚Œã¦ã„ã¾ã›ã‚“ (Editor)ã€‚å¯†åº¦è£œå®Œã®å®Ÿè¡Œå‰ã«å†æ§‹ç¯‰ã‚’å®Ÿè¡Œã—ã¾ã™ã€‚");
             RebuildPointCloud();
         }
 
@@ -267,11 +268,11 @@ public class PCV_Controller : MonoBehaviour
             this.transform.position = Vector3.zero;
             this.transform.rotation = Quaternion.identity;
             this.transform.localScale = Vector3.one;
-            UnityEngine.Debug.Log($"[Calibration] {appliedCount} Œ‚ÌTransform‚ğ”½‰f‚µ‚Ü‚µ‚½BViewer‚ğƒŠƒZƒbƒg‚µ‚Ü‚µ‚½B");
+            UnityEngine.Debug.Log($"[Calibration] {appliedCount} ä»¶ã®Transformã‚’åæ˜ ã—ã¾ã—ãŸã€‚Viewerã‚’ãƒªã‚»ãƒƒãƒˆã—ã¾ã—ãŸã€‚");
         }
         else
         {
-            UnityEngine.Debug.LogWarning("[Calibration] ”½‰f‘ÎÛ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ‚Å‚µ‚½B");
+            UnityEngine.Debug.LogWarning("[Calibration] åæ˜ å¯¾è±¡ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã§ã—ãŸã€‚");
         }
     }
 
@@ -286,7 +287,7 @@ public class PCV_Controller : MonoBehaviour
 
         if (dataManager.SpatialSearch == null || Camera.main == null)
         {
-            UnityEngine.Debug.LogWarning("‹óŠÔŒŸõƒ‚ƒWƒ…[ƒ‹‚Ü‚½‚ÍMain Camera‚ª—˜—p‚Å‚«‚Ü‚¹‚ñB");
+            UnityEngine.Debug.LogWarning("ç©ºé–“æ¤œç´¢ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã¾ãŸã¯Main CameraãŒåˆ©ç”¨ã§ãã¾ã›ã‚“ã€‚");
             return;
         }
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
@@ -294,7 +295,7 @@ public class PCV_Controller : MonoBehaviour
         if (dataManager.SpatialSearch.FindClosestPoint(ray, 0.1f, out int closestPointIndex))
         {
             List<int> neighborIndices = dataManager.SpatialSearch.FindNeighbors(closestPointIndex, settings.searchRadius);
-            UnityEngine.Debug.Log($"Voxel Grid‚ğg—p‚µ‚Ä {neighborIndices.Count} ŒÂ‚Ì‹ß–T“_‚ªŒ©‚Â‚©‚è‚Ü‚µ‚½B");
+            UnityEngine.Debug.Log($"Voxel Gridã‚’ä½¿ç”¨ã—ã¦ {neighborIndices.Count} å€‹ã®è¿‘å‚ç‚¹ãŒè¦‹ã¤ã‹ã‚Šã¾ã—ãŸã€‚");
             pointCloudRenderer.HighlightPoints(closestPointIndex, neighborIndices, dataManager.CurrentData, Color.magenta, settings.neighborColor);
         }
     }
@@ -306,13 +307,13 @@ public class PCV_Controller : MonoBehaviour
 
         if (dataManager.SpatialSearch == null)
         {
-            UnityEngine.Debug.Log("“_ŒQƒf[ƒ^‚ªƒ[ƒh‚³‚ê‚Ä‚¢‚Ü‚¹‚ñBÄ\’z‚ğÀs‚µ‚Ü‚·B");
+            UnityEngine.Debug.Log("ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ãŒãƒ­ãƒ¼ãƒ‰ã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚å†æ§‹ç¯‰ã‚’å®Ÿè¡Œã—ã¾ã™ã€‚");
             RebuildPointCloud();
         }
 
         if (dataManager.SpatialSearch == null || dataManager.SpatialSearch.VoxelGrid == null)
         {
-            UnityEngine.Debug.LogError("VoxelGrid‚Ì‰Šú‰»‚É¸”s‚µ‚Ü‚µ‚½B“_ŒQ‚ğƒ[ƒh‚µ‚Ä‚­‚¾‚³‚¢B");
+            UnityEngine.Debug.LogError("VoxelGridã®åˆæœŸåŒ–ã«å¤±æ•—ã—ã¾ã—ãŸã€‚ç‚¹ç¾¤ã‚’ãƒ­ãƒ¼ãƒ‰ã—ã¦ãã ã•ã„ã€‚");
             return;
         }
 
