@@ -1,13 +1,29 @@
 {
   "dependencies": {
     "com.github.homuler.mediapipe": {
-      "version": "file:C:/Users/hongo/Downloads/com.github.homuler.mediapipe-0.16.3.tgz",
+      "version": "file:C:/Users/81804/Downloads/com.github.homuler.mediapipe-0.16.3.tgz",
       "depth": 0,
       "source": "local-tarball",
       "dependencies": {
         "com.unity.ugui": "1.0.0",
         "com.unity.test-framework": "1.0.0"
       }
+    },
+    "com.shinolab.autd3": {
+      "version": "https://github.com/shinolab/AUTD3Sharp.git#upm/latest",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "aaa920db1bc94ee646ffe394e232630dcb412a54"
+    },
+    "com.unity.bindings.openimageio": {
+      "version": "1.0.2",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.collections": "1.2.4"
+      },
+      "url": "https://packages.unity.com"
     },
     "com.unity.burst": {
       "version": "1.8.28",
@@ -28,7 +44,7 @@
     },
     "com.unity.collections": {
       "version": "2.6.2",
-      "depth": 2,
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.burst": "1.8.23",
@@ -80,7 +96,7 @@
     },
     "com.unity.nuget.mono-cecil": {
       "version": "1.11.6",
-      "depth": 3,
+      "depth": 2,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -93,7 +109,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.probuilder": {
-      "version": "6.0.8",
+      "version": "6.0.9",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -101,6 +117,17 @@
         "com.unity.modules.imgui": "1.0.0",
         "com.unity.modules.physics": "1.0.0",
         "com.unity.settings-manager": "1.0.3"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.recorder": {
+      "version": "5.1.6",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.timeline": "1.8.7",
+        "com.unity.collections": "1.2.4",
+        "com.unity.bindings.openimageio": "1.0.2"
       },
       "url": "https://packages.unity.com"
     },
@@ -171,7 +198,7 @@
     },
     "com.unity.test-framework.performance": {
       "version": "3.2.0",
-      "depth": 3,
+      "depth": 2,
       "source": "registry",
       "dependencies": {
         "com.unity.test-framework": "1.1.33",
