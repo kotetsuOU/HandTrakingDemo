@@ -110,7 +110,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
                 _kernelBuildDepthPyramidL1, _kernelBuildDepthPyramidL2,
                 _kernelBuildDepthPyramidL3, _kernelBuildDepthPyramidL4,
                 _kernelApplyGradient,
-                _kernelComputeOcclusion, _kernelFillHoles, _kernelFillHolesPullPushInit, _kernelFillHolesPull, _kernelFillHolesPush, _kernelFillHolesPullPushFinalize, _kernelInterpolate,
+                _kernelComputeOcclusion, _kernelCopyColorToOcclusion, _kernelFillHoles, _kernelFillHolesPullPushInit, _kernelFillHolesPull, _kernelFillHolesPush, _kernelFillHolesPullPushFinalize, _kernelInterpolate,
                 _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug,
                 _kernelMorphologyErode, _kernelMorphologyDilate, _kernelMorphologyCopy;
 
@@ -212,6 +212,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
         }
 
         _kernelComputeOcclusion = pointCloudCompute.FindKernel("ComputeOcclusion");
+        _kernelCopyColorToOcclusion = pointCloudCompute.FindKernel("CopyColorToOcclusion");
         _kernelFillHoles = pointCloudCompute.FindKernel("FillHoles");
         _kernelFillHolesPullPushInit = pointCloudCompute.FindKernel("FillHolesPullPushInit");
         _kernelFillHolesPull = pointCloudCompute.FindKernel("FillHolesPull");
@@ -244,7 +245,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
                      kernelBuildDepthPyramidL1, kernelBuildDepthPyramidL2,
                      kernelBuildDepthPyramidL3, kernelBuildDepthPyramidL4,
                      kernelApplyGradient,
-                      kernelComputeOcclusion, kernelFillHoles, kernelFillHolesPullPushInit, kernelFillHolesPull, kernelFillHolesPush, kernelFillHolesPullPushFinalize, kernelInterpolate,
+                      kernelComputeOcclusion, kernelCopyColorToOcclusion, kernelFillHoles, kernelFillHolesPullPushInit, kernelFillHolesPull, kernelFillHolesPush, kernelFillHolesPullPushFinalize, kernelInterpolate,
                       kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug,
                       kernelMorphologyErode, kernelMorphologyDilate, kernelMorphologyCopy;
 

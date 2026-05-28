@@ -6,7 +6,7 @@ on:
       - 3DDisplay
       - main
     paths:
-      - "WIKI.md"
+      - "Home.md"
       - "RENDERING.md"
       - "HAPTICS.md"
       - "DEBUG_PCV.md"

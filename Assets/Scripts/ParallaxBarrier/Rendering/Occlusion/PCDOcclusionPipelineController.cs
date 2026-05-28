@@ -8,13 +8,13 @@ public class PCDOcclusionPipelineController : MonoBehaviour
 
     [Header("Occlusion Core Settings")]
     [Tooltip("オクルージョン計算に用いるカーネル関数")]
-    public PCV_OcclusionKernel kernelType = PCV_OcclusionKernel.Bouchiba;
+    public PCD_OcclusionKernel kernelType = PCD_OcclusionKernel.Bouchiba;
 
     [Tooltip("空間分割時のビニング手法（重みの計算方法）")]
-    public PCV_OcclusionBinning binningMethod = PCV_OcclusionBinning.Soft;
+    public PCD_OcclusionBinning binningMethod = PCD_OcclusionBinning.Soft;
 
     [Tooltip("空間の分割方向数")]
-    public PCV_OcclusionDirectionCount directionCount = PCV_OcclusionDirectionCount.Single;
+    public PCD_OcclusionDirectionCount directionCount = PCD_OcclusionDirectionCount.Single;
 
     [Header("Algorithm Parameters")]
     [Tooltip("指数関数の減衰係数 (Expモード専用)")]
@@ -80,11 +80,17 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     public bool enableSoftOcclusionFade = true;
 
     [Tooltip("④エッジ保持型ホールフィリング手法の選択")]
-    public PCV_HoleFillingMethod holeFillingMethod = PCV_HoleFillingMethod.JointBilateral;
+    public PCD_HoleFillingMethod holeFillingMethod = PCD_HoleFillingMethod.JointBilateral;
+
+    [Tooltip("⑤処理の最適化と検証のためのグリッドサイズ")]
+    public PCD_GridSize gridSize = PCD_GridSize.Grid16x16;
+
+    [Tooltip("⑥空き空間スキップによる高速化を有効にするか（Gridの効率化）")]
+    public bool enableGridSkipping = true;
 
     [Header("Morphology Settings")]
     [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
-    [Range(1, 15)]
+    [Range(1, 25)]
     public int morphKernelHalfSize = 1;
 
     [Tooltip("Opening の収縮回数（0 でスキップ）。孤立ノイズや細いトゲを除去する。破綻確認後に増やすこと。")]
@@ -99,7 +105,14 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     {
         if (Instance != null && Instance != this)
         {
-            DestroyImmediate(this);
+            if (Application.isPlaying)
+            {
+                Destroy(this);
+            }
+            else
+            {
+                Debug.LogWarning($"[PCD] Duplicate PCDOcclusionPipelineController found on {gameObject.name}. Please remove it.");
+            }
             return;
         }
         Instance = this;
@@ -107,7 +120,10 @@ public class PCDOcclusionPipelineController : MonoBehaviour
 
     private void OnEnable()
     {
-        Instance = this;
+        if (Instance == null || Instance == this)
+        {
+            Instance = this;
+        }
     }
 
     private void OnDisable()
@@ -150,6 +166,8 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             enableTypeAwareDensity = this.enableTypeAwareDensity,
             enableSoftOcclusionFade = this.enableSoftOcclusionFade,
             holeFillingMethod = this.holeFillingMethod,
+            gridSize = this.gridSize,
+            enableGridSkipping = this.enableGridSkipping,
             morphKernelHalfSize = this.morphKernelHalfSize,
             morphErodeIterations = this.morphErodeIterations,
             morphDilateIterations = this.morphDilateIterations,

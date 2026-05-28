@@ -6,20 +6,22 @@ public class PCDRendererFeature : ScriptableRendererFeature
 {
     public static PCDRendererFeature Instance { get; private set; }
 
-    public enum PCV_OcclusionKernel
+    public enum PCD_OcclusionKernel
     {
         Bouchiba = 0,
         Exponential = 1,
-        Linear = 2
+        Linear = 2,
+        Skip = 3,
+        DepthOnly = 4
     }
 
-    public enum PCV_OcclusionBinning
+    public enum PCD_OcclusionBinning
     {
         Soft = 0,
         Hard = 1
     }
 
-    public enum PCV_OcclusionDirectionCount
+    public enum PCD_OcclusionDirectionCount
     {
         Single = 1,
         Bins3 = 3,
@@ -27,20 +29,28 @@ public class PCDRendererFeature : ScriptableRendererFeature
         Bins8 = 8 // 8方向分割の追加
     }
 
-    public enum PCV_HoleFillingMethod
+    public enum PCD_HoleFillingMethod
     {
         None = 0,
         JointBilateral = 1,
         PullPush = 2,
-        Morphology = 3
+        Morphology_OC = 3, // Opening-Closing
+        Morphology_CO = 4  // Closing-Opening
+    }
+
+    public enum PCD_GridSize
+    {
+        Grid8x8 = 8,
+        Grid16x16 = 16,
+        Grid32x32 = 32
     }
 
     [System.Serializable]
     public struct PCDRenderSettings
     {
-        public PCV_OcclusionKernel kernelType;
-        public PCV_OcclusionBinning binningMethod;
-        public PCV_OcclusionDirectionCount directionCount;
+        public PCD_OcclusionKernel kernelType;
+        public PCD_OcclusionBinning binningMethod;
+        public PCD_OcclusionDirectionCount directionCount;
 
         public float exponentAlpha;
         public float densityThreshold_e;
@@ -62,9 +72,12 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public bool enableTagBasedOptimization;   // ① タグに基づく探索スキップ
         public bool enableTypeAwareDensity;       // ② 仮想物体を区別した密度計算
         public bool enableSoftOcclusionFade;      // ③ ソフトオクルージョン (FadeWidth)
-        public PCV_HoleFillingMethod holeFillingMethod; // ④ エッジ保持型ホールフィリング手法
+        public PCD_HoleFillingMethod holeFillingMethod; // ④ エッジ保持型ホールフィリング手法
 
-        [Range(1, 15)] public int morphKernelHalfSize;
+        public PCD_GridSize gridSize;             // グリッドサイズ (最適化・検証用)
+        public bool enableGridSkipping;           // グリッド単位の参照スキップ (Empty Space Skipping)
+
+        [Range(1, 25)] public int morphKernelHalfSize;
         [Range(0, 5)] public int morphErodeIterations;
         [Range(1, 5)] public int morphDilateIterations;
 

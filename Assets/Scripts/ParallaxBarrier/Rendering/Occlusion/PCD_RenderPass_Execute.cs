@@ -46,19 +46,27 @@ public partial class PCDRenderPass
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableTagBasedOptimization"), passData.settings.enableTagBasedOptimization ? 1 : 0);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableTypeAwareDensity"), passData.settings.enableTypeAwareDensity ? 1 : 0);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableSoftOcclusionFade"), passData.settings.enableSoftOcclusionFade ? 1 : 0);
-        cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableJointBilateralHoleFilling"), (passData.settings.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None) ? 1 : 0);
+        cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableGridSkipping"), passData.settings.enableGridSkipping ? 1 : 0);
+        cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableJointBilateralHoleFilling"), (passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None) ? 1 : 0);
 
         // 仮想物体など、スクリーン全体を埋めているメッシュにおける仮想的な密度倍率(x = 深度バッファ/実点群数などを加味)を設定
         uint densityMultiplier = System.Math.Max(1u, passData.settings._dynamicMultiplierRuntimeValue);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_StaticMeshDensityMultiplier"), (int)densityMultiplier);
+
+        int gs = (int)passData.settings.gridSize;
+        if (gs == 0) gs = 16;
+        cmd.DisableShaderKeyword("GRID_SIZE_8");
+        cmd.DisableShaderKeyword("GRID_SIZE_16");
+        cmd.DisableShaderKeyword("GRID_SIZE_32");
+        cmd.EnableShaderKeyword($"GRID_SIZE_{gs}");
 
         // --- 最適なスレッドグループ数を計算 ---
         int sw = (int)passData.screenParams.x;
         int sh = (int)passData.screenParams.y;
         int threadGroupsX = (sw + 7) / 8;
         int threadGroupsY = (sh + 7) / 8;
-        int gridGroupsX = (sw + 15) / 16;
-        int gridGroupsY = (sh + 15) / 16;
+        int gridGroupsX = (sw + gs - 1) / gs;
+        int gridGroupsY = (sh + gs - 1) / gs;
 
         // --- ステージ1: 中間RTテクスチャのクリア ---
         cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.ColorMap_RW, passData.colorMap);
@@ -66,7 +74,10 @@ public partial class PCDRenderPass
         cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.ViewPositionMap_RW, passData.viewPositionMap);
         cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
         cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.FinalImage_RW, passData.finalImage);
+        
+        var clearFinalImageTarget = (passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None) ? passData.finalImage : passData.occlusionResultMap;
+        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.FinalImage_RW, clearFinalImageTarget);
+        
         cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
         cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
         cmd.DispatchCompute(cs, passData.kernelClear, threadGroupsX, threadGroupsY, 1);
@@ -111,99 +122,115 @@ public partial class PCDRenderPass
             cmd.DispatchCompute(cs, passData.kernelProject, projectGroups, 1, 1);
         }
 
-        // --- ステージ4: 各グリッドセルの最小深度を計算 ---
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.DepthMap, passData.depthMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.GridZMinMap_RW, passData.gridZMinMap);
-        cmd.DispatchCompute(cs, passData.kernelCalcGridZMin, gridGroupsX, gridGroupsY, 1);
-
-        // --- ステージ5: グリッド解像度の要件を評価するために画面上のサンプル密度を計算 ---
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DepthMap, passData.depthMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.GridZMinMap, passData.gridZMinMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.OriginTypeMap, passData.originTypeMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DensityMap_RW, passData.densityMap);
-        cmd.DispatchCompute(cs, passData.kernelCalcDensity, gridGroupsX, gridGroupsY, 1);
-
-        // --- ステージ6: ポイントの密度に応じて必要な詳細レベル（グリッドレベル）を決定 ---
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.DensityMap, passData.densityMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.GridLevelMap_RW, passData.gridLevelMap);
-        int gridThreadX = (gridGroupsX + 15) / 16;
-        int gridThreadY = (gridGroupsY + 15) / 16;
-        cmd.DispatchCompute(cs, passData.kernelCalcGridLevel, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
-
-        // --- ステージ7: 穴やアーティファクトを防ぐために、メディアンフィルターを用いてグリッドレベルを平滑化 ---
-        cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.GridLevelMap, passData.gridLevelMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.FilteredGridLevelMap_RW, passData.filteredGridLevelMap);
-        cmd.DispatchCompute(cs, passData.kernelGridMedianFilter, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
-
-        // --- ステージ8: フィルター処理されたLODに基づいて基本的な近傍の半径サイズを算出 ---
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.FilteredGridLevelMap, passData.filteredGridLevelMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
-        cmd.DispatchCompute(cs, passData.kernelCalcNeighborhoodSize, threadGroupsX, threadGroupsY, 1);
-
-        // --- ステージ9: （オプション）急な深度勾配がある部分の近傍サイズを補正 ---
-        if (passData.settings.enableGradientCorrection)
+        if (passData.settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip)
         {
-            // 階層的な深度レベル（L1 〜 L4）を構築
-            int l1_w = Mathf.Max(1, (sw + 1) / 2);
-            int l1_h = Mathf.Max(1, (sh + 1) / 2);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.DepthMap, passData.depthMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.DepthPyramidL1_RW, passData.depthPyramidL1);
-            cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL1, (l1_w + 7) / 8, (l1_h + 7) / 8, 1);
+            // --- ステージ4: 各グリッドセルの最小深度を計算 ---
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.DepthMap, passData.depthMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.GridZMinMap_RW, passData.gridZMinMap);
+            cmd.DispatchCompute(cs, passData.kernelCalcGridZMin, gridGroupsX, gridGroupsY, 1);
 
-            int l2_w = Mathf.Max(1, (l1_w + 1) / 2);
-            int l2_h = Mathf.Max(1, (l1_h + 1) / 2);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL2, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL2, ShaderIDs.DepthPyramidL2_RW, passData.depthPyramidL2);
-            cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL2, (l2_w + 7) / 8, (l2_h + 7) / 8, 1);
+            // --- ステージ5: グリッド解像度の要件を評価するために画面上のサンプル密度を計算 ---
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DepthMap, passData.depthMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.GridZMinMap, passData.gridZMinMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.OriginTypeMap, passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DensityMap_RW, passData.densityMap);
+            cmd.DispatchCompute(cs, passData.kernelCalcDensity, gridGroupsX, gridGroupsY, 1);
 
-            int l3_w = Mathf.Max(1, (l2_w + 1) / 2);
-            int l3_h = Mathf.Max(1, (l2_h + 1) / 2);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL3, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL3, ShaderIDs.DepthPyramidL3_RW, passData.depthPyramidL3);
-            cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL3, (l3_w + 7) / 8, (l3_h + 7) / 8, 1);
+            // --- ステージ6: ポイントの密度に応じて必要な詳細レベル（グリッドレベル）を決定 ---
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.DensityMap, passData.densityMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.GridLevelMap_RW, passData.gridLevelMap);
+            int gridThreadX = (gridGroupsX + 15) / 16;
+            int gridThreadY = (gridGroupsY + 15) / 16;
+            cmd.DispatchCompute(cs, passData.kernelCalcGridLevel, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
 
-            int l4_w = Mathf.Max(1, (l3_w + 1) / 2);
-            int l4_h = Mathf.Max(1, (l3_h + 1) / 2);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL4, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
-            cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL4, ShaderIDs.DepthPyramidL4_RW, passData.depthPyramidL4);
-            cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL4, (l4_w + 7) / 8, (l4_h + 7) / 8, 1);
+            // --- ステージ7: 穴やアーティファクトを防ぐために、メディアンフィルターを用いてグリッドレベルを平滑化 ---
+            cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.GridLevelMap, passData.gridLevelMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.FilteredGridLevelMap_RW, passData.filteredGridLevelMap);
+            cmd.DispatchCompute(cs, passData.kernelGridMedianFilter, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
 
-            cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
-            cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
-            cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
-            cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
-            cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.NeighborhoodSizeMap, passData.neighborhoodSizeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.CorrectedNeighborhoodSizeMap_RW, passData.correctedNeighborhoodSizeMap);
-            cmd.DispatchCompute(cs, passData.kernelApplyGradient, threadGroupsX, threadGroupsY, 1);
+            // --- ステージ8: フィルター処理されたLODに基づいて基本的な近傍の半径サイズを算出 ---
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.FilteredGridLevelMap, passData.filteredGridLevelMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
+            cmd.DispatchCompute(cs, passData.kernelCalcNeighborhoodSize, threadGroupsX, threadGroupsY, 1);
+
+            // --- ステージ9: （オプション）急な深度勾配がある部分の近傍サイズを補正 ---
+            if (passData.settings.enableGradientCorrection)
+            {
+                // 階層的な深度レベル（L1 〜 L4）を構築
+                int l1_w = Mathf.Max(1, (sw + 1) / 2);
+                int l1_h = Mathf.Max(1, (sh + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.DepthMap, passData.depthMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.DepthPyramidL1_RW, passData.depthPyramidL1);
+                cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL1, (l1_w + 7) / 8, (l1_h + 7) / 8, 1);
+
+                int l2_w = Mathf.Max(1, (l1_w + 1) / 2);
+                int l2_h = Mathf.Max(1, (l1_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL2, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL2, ShaderIDs.DepthPyramidL2_RW, passData.depthPyramidL2);
+                cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL2, (l2_w + 7) / 8, (l2_h + 7) / 8, 1);
+
+                int l3_w = Mathf.Max(1, (l2_w + 1) / 2);
+                int l3_h = Mathf.Max(1, (l2_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL3, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL3, ShaderIDs.DepthPyramidL3_RW, passData.depthPyramidL3);
+                cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL3, (l3_w + 7) / 8, (l3_h + 7) / 8, 1);
+
+                int l4_w = Mathf.Max(1, (l3_w + 1) / 2);
+                int l4_h = Mathf.Max(1, (l3_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL4, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL4, ShaderIDs.DepthPyramidL4_RW, passData.depthPyramidL4);
+                cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL4, (l4_w + 7) / 8, (l4_h + 7) / 8, 1);
+
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.NeighborhoodSizeMap, passData.neighborhoodSizeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.CorrectedNeighborhoodSizeMap_RW, passData.correctedNeighborhoodSizeMap);
+                cmd.DispatchCompute(cs, passData.kernelApplyGradient, threadGroupsX, threadGroupsY, 1);
+            }
         }
 
         // リバースZバッファへの対応フラグをセット（DX11等で正しいオクルージョン判定を行うため）
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_IsReversedZ"), SystemInfo.usesReversedZBuffer ? 1 : 0);
 
         // --- ステージ10: 近傍オクルージョンテストを実行し、奥にあるポイントを破棄し、手前にあるポイントをフィルタリング ---
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ColorMap, passData.colorMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthMap, passData.depthMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap, passData.originTypeMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+        if (passData.settings.kernelType == PCDRendererFeature.PCD_OcclusionKernel.Skip)
+        {
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ColorMap, passData.colorMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+            cmd.DispatchCompute(cs, passData.kernelCopyColorToOcclusion, threadGroupsX, threadGroupsY, 1);
+        }
+        else
+        {
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ColorMap, passData.colorMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthMap, passData.depthMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap, passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DensityMap, passData.densityMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.GridZMinMap, passData.gridZMinMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+        }
 
         int shouldRecordDebug = (passData.settings.recordOcclusionDebugMap || passData.settings.recordPixelTagMap || passData.settings.enablePixelTagMap || passData.settings.enableOcclusionMap || passData.settings.recordNeighborCountMap) ? 1 : 0;
         cmd.SetComputeIntParam(cs, ShaderIDs.RecordOcclusionDebug, shouldRecordDebug);
 
         // ※UnityのComputeShaderは、対象カーネル内にRWTextureへの書き込みコードが存在する場合、
         // 実際に実行されない(if等で保護されている)場合であってもPropertyとしてバインドしておく必要があります。
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.NeighborCountMap_RW, passData.neighborCountMap);
-
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
-
-        cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
-        cmd.DispatchCompute(cs, passData.kernelComputeOcclusion, threadGroupsX, threadGroupsY, 1);
+        if (passData.settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip)
+        {
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.NeighborCountMap_RW, passData.neighborCountMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
+            cmd.DispatchCompute(cs, passData.kernelComputeOcclusion, threadGroupsX, threadGroupsY, 1);
+        }
 
         // --- ステージ11: 点群が描画されなかったピクセルに対する穴埋め ---
-        if (passData.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.JointBilateral)
+        if (passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.JointBilateral)
         {
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.ColorMap, passData.colorMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.DepthMap, passData.depthMap);
@@ -214,7 +241,7 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
             cmd.DispatchCompute(cs, passData.kernelFillHoles, threadGroupsX, threadGroupsY, 1);
         }
-        else if (passData.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+        else if (passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
         {
             int maxLevel = 5;
 
@@ -269,11 +296,9 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelFillHolesPullPushFinalize, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
             cmd.DispatchCompute(cs, passData.kernelFillHolesPullPushFinalize, threadGroupsX, threadGroupsY, 1);
         }
-        else if (passData.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.Morphology)
+        else if (passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
+                 passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO)
         {
-            int erode1 = passData.settings.morphErodeIterations;
-            int dilate = erode1 + passData.settings.morphDilateIterations;
-            int erode2 = passData.settings.morphDilateIterations;
             int halfSize = passData.settings.morphKernelHalfSize;
 
             cmd.SetComputeIntParam(cs, ShaderIDs.MorphKernelHalfSize, halfSize);
@@ -295,6 +320,10 @@ public partial class PCDRenderPass
                 cmd.DispatchCompute(cs, kernelId, threadGroupsX, threadGroupsY, 1);
                 currentInTemp = !currentInTemp;
             };
+
+            int erode1 = passData.settings.morphErodeIterations;
+            int dilate = erode1 + passData.settings.morphDilateIterations;
+            int erode2 = passData.settings.morphDilateIterations;
 
             for (int i = 0; i < erode1; i++)
             {
@@ -322,13 +351,16 @@ public partial class PCDRenderPass
         }
 
         // --- ステージ12: オクルージョンによってできた穴を補完し、仮想深度マップやカメラバッファとマージ ---
-        cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.OcclusionResultMap, passData.occlusionResultMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
-        cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.CameraColorTexture, passData.cameraColorTexture);
-        cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.OriginTypeMap, passData.originTypeMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.FinalImage_RW, passData.finalImage);
-        cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
-        cmd.DispatchCompute(cs, passData.kernelInterpolate, threadGroupsX, threadGroupsY, 1);
+        if (passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None)
+        {
+            cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.OcclusionResultMap, passData.occlusionResultMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
+            cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.CameraColorTexture, passData.cameraColorTexture);
+            cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.OriginTypeMap, passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.FinalImage_RW, passData.finalImage);
+            cmd.SetComputeTextureParam(cs, passData.kernelInterpolate, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
+            cmd.DispatchCompute(cs, passData.kernelInterpolate, threadGroupsX, threadGroupsY, 1);
+        }
 
         // --- ステージ13: PixelTag または OcclusionMap を表示時は、OcclusionValueMapを常時カラー(またはグレースケール)可視化して上書き ---
         if (passData.settings.enablePixelTagMap || passData.settings.enableOcclusionMap)

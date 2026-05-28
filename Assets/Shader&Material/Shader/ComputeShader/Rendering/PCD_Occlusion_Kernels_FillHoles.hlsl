@@ -121,7 +121,15 @@ void FillHolesPullPushInit(uint3 id : SV_DispatchThreadID)
     uint originType = _OriginTypeMap[id.xy];
     float4 color = _OcclusionResultMap[id.xy];
     
-    float weight = (originType == 0u) ? 0.0 : 1.0;
+    // デフォルトのウェイトは1.0（実点群、背景、スキップ部分含む）
+    float weight = 1.0;
+    
+    // 遮蔽判定されたピクセル（色＝黒かつ不透明度＝1.0）のみウェイトを0.0（穴埋め対象）とする
+    if (color.a == 1.0 && all(color.rgb == 0.0))
+    {
+        weight = 0.0;
+    }
+    
     _PullPushLevel_Out_RW[id.xy] = float4(color.rgb * weight, weight);
 }
 
@@ -189,12 +197,17 @@ void FillHolesPullPushFinalize(uint3 id : SV_DispatchThreadID)
     
     if (originType == 0u)
     {
-        float4 pulled = _PullPushLevel_In[id.xy];
-        if (pulled.a > 0.0001)
+        // 実際に遮蔽判定されていた（穴埋めの必要があった）ピクセルのみを対象にする
+        float4 color = _OcclusionResultMap_RW[id.xy];
+        if (color.a == 1.0 && all(color.rgb == 0.0))
         {
-            _OcclusionResultMap_RW[id.xy] = float4(pulled.rgb / pulled.a, 1.0);
-            _OriginTypeMap_RW[id.xy] = 0u; 
-            _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+            float4 pulled = _PullPushLevel_In[id.xy];
+            if (pulled.a > 0.0001)
+            {
+                _OcclusionResultMap_RW[id.xy] = float4(pulled.rgb / pulled.a, 1.0);
+                _OriginTypeMap_RW[id.xy] = 0u; 
+                _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+            }
         }
     }
 }
@@ -213,10 +226,10 @@ void MorphologyErode(uint3 id : SV_DispatchThreadID)
     uint originType = _MorphTypeIn[id.xy];
     float4 color = _MorphColorIn[id.xy];
 
-    // Erode only affects valid point cloud pixels (type == 0)
-    if (originType == 0u)
+    // 仮想オブジェクトのピクセル (type == 1u) のみを収縮対象とする
+    if (originType == 1u)
     {
-        bool hasInvalidNeighbor = false;
+        bool hasPointCloudNeighbor = false;
         int r = _MorphKernelHalfSize;
 
         for (int y = -r; y <= r; y++)
@@ -226,24 +239,20 @@ void MorphologyErode(uint3 id : SV_DispatchThreadID)
                 int2 uv = (int2)id.xy + int2(x, y);
                 if (uv.x >= 0 && uv.x < (int)w && uv.y >= 0 && uv.y < (int)h)
                 {
-                    if (_MorphTypeIn[uv] != 0u)
+                    // 隣接ピクセルに「実点群または遮蔽されたピクセル (0u)」が存在するかどうかを判定 (背景 2u は無視)
+                    if (_MorphTypeIn[uv] == 0u)
                     {
-                        hasInvalidNeighbor = true;
+                        hasPointCloudNeighbor = true;
                         break;
                     }
                 }
-                else
-                {
-                    hasInvalidNeighbor = true;
-                    break;
-                }
             }
-            if (hasInvalidNeighbor) break;
+            if (hasPointCloudNeighbor) break;
         }
 
-        if (hasInvalidNeighbor)
+        if (hasPointCloudNeighbor)
         {
-            originType = 1u;
+            originType = 0u; // 遮蔽されたピクセル（黒）として扱うために 0u に変更
             color = float4(0, 0, 0, 1);
         }
     }
@@ -262,8 +271,8 @@ void MorphologyDilate(uint3 id : SV_DispatchThreadID)
     uint originType = _MorphTypeIn[id.xy];
     float4 color = _MorphColorIn[id.xy];
 
-    // Dilate only affects invalid pixels (type != 0)
-    if (originType != 0u)
+    // 実点群または遮蔽されたピクセル (type == 0u) のみを膨張対象とする（背景 2u への不要な膨張を防止）
+    if (originType == 0u)
     {
         float4 sumColor = float4(0, 0, 0, 0);
         float totalWeight = 0.0;
@@ -276,7 +285,7 @@ void MorphologyDilate(uint3 id : SV_DispatchThreadID)
                 int2 uv = (int2)id.xy + int2(x, y);
                 if (uv.x >= 0 && uv.x < (int)w && uv.y >= 0 && uv.y < (int)h)
                 {
-                    if (_MorphTypeIn[uv] == 0u)
+                    if (_MorphTypeIn[uv] == 1u)
                     {
                         sumColor += _MorphColorIn[uv];
                         totalWeight += 1.0;
@@ -287,7 +296,7 @@ void MorphologyDilate(uint3 id : SV_DispatchThreadID)
 
         if (totalWeight > 0.0)
         {
-            originType = 0u;
+            originType = 1u;
             color = sumColor / totalWeight;
         }
     }

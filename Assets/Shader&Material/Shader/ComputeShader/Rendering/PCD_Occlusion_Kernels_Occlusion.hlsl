@@ -116,11 +116,38 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     int2 minBound = max(int2(0, 0), (int2) id.xy - (int) radius);
     int2 maxBound = min((int2) _ScreenParams.xy - 1, (int2) id.xy + (int) radius);
 
-    for (int searchY = minBound.y; searchY <= maxBound.y; searchY++)
+    uint2 minGrid = (uint2)minBound / GRID_SIZE;
+    uint2 maxGrid = (uint2)maxBound / GRID_SIZE;
+
+    for (uint gy = minGrid.y; gy <= maxGrid.y; gy++)
     {
-        for (int searchX = minBound.x; searchX <= maxBound.x; searchX++)
+        for (uint gx = minGrid.x; gx <= maxGrid.x; gx++)
         {
-            uint2 uv = uint2(searchX, searchY);
+            float2 gridDensity = _DensityMap[uint2(gx, gy)];
+            // 【Target Skipping & Z-Culling】
+            // 探索対象のグリッドに遮蔽要因がない場合は、このグリッドのピクセル探索を丸ごとスキップする。
+            if (_EnableGridSkipping > 0)
+            {
+                if (useTagOptimization && gridDensity.x <= 0.0) continue;
+                if (!useTagOptimization && gridDensity.x <= 0.0 && gridDensity.y <= 0.0) continue;
+                
+                // 【Z-Culling】: グリッド内の「一番手前の点」が現在のピクセルよりも奥にある場合、
+                // そのグリッド内には遮蔽できる点は存在しないので丸ごとスキップ可能！
+                uint gridZMin_uint = _GridZMinMap[uint2(gx, gy)];
+                half gridZMin_h = (half)((float)gridZMin_uint / (float)DEPTH_MAX_UINT);
+                if (currentDepth_h - gridZMin_h <= 0.01h) continue;
+            }
+
+            int startX = max(minBound.x, (int)(gx * GRID_SIZE));
+            int endX = min(maxBound.x, (int)((gx + 1u) * GRID_SIZE - 1u));
+            int startY = max(minBound.y, (int)(gy * GRID_SIZE));
+            int endY = min(maxBound.y, (int)((gy + 1u) * GRID_SIZE - 1u));
+
+            for (int searchY = startY; searchY <= endY; searchY++)
+            {
+                for (int searchX = startX; searchX <= endX; searchX++)
+                {
+                    uint2 uv = uint2(searchX, searchY);
             uint neighborDepth_uint = _DepthMap[uv];
             uint neighborOriginType = _OriginTypeMap_RW[uv];
 
@@ -182,6 +209,8 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                 }
             }
         }
+    }
+    }
     }
 
     float alpha = 1.0;

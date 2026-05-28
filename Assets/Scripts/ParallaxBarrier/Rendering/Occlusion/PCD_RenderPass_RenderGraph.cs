@@ -13,7 +13,7 @@ public partial class PCDRenderPass
         bool isTag = PCDRendererFeature.Instance.settings.enableTagBasedOptimization;
         bool isDensity = PCDRendererFeature.Instance.settings.enableTypeAwareDensity;
         bool isFade = PCDRendererFeature.Instance.settings.enableSoftOcclusionFade;
-        bool isHoleFill = PCDRendererFeature.Instance.settings.holeFillingMethod != PCDRendererFeature.PCV_HoleFillingMethod.None;
+        bool isHoleFill = PCDRendererFeature.Instance.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None;
 
         if (isTag && isDensity && isFade && isHoleFill) return "Proposal";
         if (!isTag && !isDensity && !isFade && !isHoleFill) return "Traditional";
@@ -155,9 +155,11 @@ public partial class PCDRenderPass
             }
         }
 
-        // 16x16で分割されたグリッドマップの解像度を計算
-        int gridWidth = Mathf.CeilToInt(screenWidth / 16.0f);
-        int gridHeight = Mathf.CeilToInt(screenHeight / 16.0f);
+        // 選択されたサイズで分割されたグリッドマップの解像度を計算
+        float gs = (float)_settings.gridSize;
+        if (gs == 0) gs = 16.0f; // フォールバック
+        int gridWidth = Mathf.CeilToInt(screenWidth / gs);
+        int gridHeight = Mathf.CeilToInt(screenHeight / gs);
         int l1_Width = 1, l1_Height = 1, l2_Width = 1, l2_Height = 1, l3_Width = 1, l3_Height = 1, l4_Width = 1, l4_Height = 1;
 
         // 勾配に応じた近傍補正を有効にしている場合、階層マップ(L1〜L4)の解像度を計算
@@ -186,6 +188,7 @@ public partial class PCDRenderPass
         // コンピュートシェーダーを実行するパスをRenderGraphに追加
         using (var builder = renderGraph.AddComputePass<ComputePassData>(PROFILER_TAG, out var data))
         {
+            builder.AllowGlobalStateModification(true);
             // パスへ渡すパラメータ（シェーダーや各種データ）を登録
             BindComputePassData(ref data, camera, screenWidth, screenHeight, activeCount, activeBuffer, depthMapOnlyMode, resourceData);
 
@@ -273,7 +276,7 @@ public partial class PCDRenderPass
             gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
             data.gridLevelMap = renderGraph.CreateTexture(gridDesc);
             data.filteredGridLevelMap = renderGraph.CreateTexture(gridDesc);
-            gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RFloat, false);
+            gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RGFloat, false);
             data.densityMap = renderGraph.CreateTexture(gridDesc);
 
             if (data.settings.enableGradientCorrection)
@@ -288,7 +291,7 @@ public partial class PCDRenderPass
                 data.depthPyramidL4 = renderGraph.CreateTexture(descL4);
             }
 
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
             {
                 data.pullPushPyramid = new TextureHandle[5];
                 var ppDesc = new TextureDesc(screenWidth, screenHeight) { enableRandomWrite = true, colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false) };
@@ -306,7 +309,8 @@ public partial class PCDRenderPass
                 }
             }
 
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.Morphology)
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
+                data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO)
             {
                 var morphColorDesc = new TextureDesc(screenWidth, screenHeight)
                 {
@@ -337,8 +341,13 @@ public partial class PCDRenderPass
                 data.occlusionValueMap = renderGraph.CreateTexture(desc);
             }
             
-            desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
-            data.finalImage = renderGraph.CreateTexture(desc);
+            bool useHoleFilling = data.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None;
+
+            if (useHoleFilling)
+            {
+                desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
+                data.finalImage = renderGraph.CreateTexture(desc);
+            }
 
             if (data.settings.enablePixelTagMap || data.settings.enableOcclusionMap)
             {
@@ -347,6 +356,7 @@ public partial class PCDRenderPass
             }
             else
             {
+                desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
                 data.debugDisplayMap = renderGraph.CreateTexture(desc);
             }
 
@@ -366,14 +376,15 @@ public partial class PCDRenderPass
                 builder.UseTexture(data.depthPyramidL3, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL4, AccessFlags.ReadWrite);
             }
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.PullPush)
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
             {
                 for (int i = 0; i < 5; i++)
                 {
                     builder.UseTexture(data.pullPushPyramid[i], AccessFlags.ReadWrite);
                 }
             }
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCV_HoleFillingMethod.Morphology)
+            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
+                data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO)
             {
                 builder.UseTexture(data.morphColorTemp, AccessFlags.ReadWrite);
                 builder.UseTexture(data.morphTypeTemp, AccessFlags.ReadWrite);
@@ -381,12 +392,15 @@ public partial class PCDRenderPass
             builder.UseTexture(data.correctedNeighborhoodSizeMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.occlusionResultMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.occlusionValueMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.finalImage, AccessFlags.ReadWrite);
+            if (useHoleFilling)
+            {
+                builder.UseTexture(data.finalImage, AccessFlags.ReadWrite);
+            }
             builder.UseTexture(data.originTypeMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.debugDisplayMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.neighborCountMap, AccessFlags.ReadWrite);
 
-            finalImageHandle = data.finalImage;
+            finalImageHandle = useHoleFilling ? data.finalImage : data.occlusionResultMap;
 
             // アロケーションが終わったら、実際のComputeShader実行関数を登録
             builder.SetRenderFunc((ComputePassData passData, ComputeGraphContext context) =>

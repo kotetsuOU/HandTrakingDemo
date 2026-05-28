@@ -3,8 +3,9 @@
 // メインのコンピュートシェーダーエントリポイント
 // 各パス（カーネル）を定義し、関連するHLSLファイルをインクルードします。
 // ==========================================
-
 // --- Preprocess (前処理) ---
+#pragma multi_compile _ GRID_SIZE_8 GRID_SIZE_16 GRID_SIZE_32
+
 #pragma kernel ClearMaps                 // マップ初期化
 #pragma kernel ClearCounter              // 静的メッシュのカウンター初期化
 #pragma kernel ProjectPoints             // 点群をスクリーン空間に投影し深度バッファを構築
@@ -21,6 +22,7 @@
 #pragma kernel BuildDepthPyramidL4       // 深度ピラミッド レベル4生成
 #pragma kernel ApplyAdaptiveGradientCorrection // 深度勾配(エッジ)に基づく適応的な近傍探索サイズの補正
 #pragma kernel ComputeOcclusion          // 点群が存在するピクセル用のオクルージョン計算
+#pragma kernel CopyColorToOcclusion      // オクルージョン計算をスキップして直接色をコピー
 #pragma kernel FillHoles                 // 点群が存在しない（空き）ピクセル用のオクルージョン補間（バイラテラルフィルタ）
 #pragma kernel FillHolesPullPushInit     // Pull-Push法：初期化
 #pragma kernel FillHolesPull             // Pull-Push法：ダウンサンプル（Pull）

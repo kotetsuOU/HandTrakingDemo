@@ -5,9 +5,9 @@ public class PCDSettingsBridge
 {
     private PCDRenderSettings _fallbackSettings = new PCDRenderSettings
     {
-        kernelType = PCV_OcclusionKernel.Bouchiba,
-        binningMethod = PCV_OcclusionBinning.Soft,
-        directionCount = PCV_OcclusionDirectionCount.Single,
+        kernelType = PCD_OcclusionKernel.Bouchiba,
+        binningMethod = PCD_OcclusionBinning.Soft,
+        directionCount = PCD_OcclusionDirectionCount.Single,
         exponentAlpha = 0f,
         densityThreshold_e = 0.04f,
         neighborhoodParam_p_prime = 4.8f,
@@ -26,15 +26,17 @@ public class PCDSettingsBridge
         enableTagBasedOptimization = true,
         enableTypeAwareDensity = true,
         enableSoftOcclusionFade = true,
-        holeFillingMethod = PCV_HoleFillingMethod.JointBilateral,
+        holeFillingMethod = PCD_HoleFillingMethod.JointBilateral,
         morphKernelHalfSize = 1,
         morphErodeIterations = 0,
-        morphDilateIterations = 1
+        morphDilateIterations = 1,
+        gridSize = PCD_GridSize.Grid16x16,
+        enableGridSkipping = true
     };
 
     private PCDOcclusionPipelineController Controller => PCDOcclusionPipelineController.Instance;
 
-    public PCV_OcclusionKernel kernelType
+    public PCD_OcclusionKernel kernelType
     {
         get => Controller != null ? Controller.kernelType : _fallbackSettings.kernelType;
         set
@@ -44,7 +46,7 @@ public class PCDSettingsBridge
         }
     }
 
-    public PCV_OcclusionBinning binningMethod
+    public PCD_OcclusionBinning binningMethod
     {
         get => Controller != null ? Controller.binningMethod : _fallbackSettings.binningMethod;
         set
@@ -54,7 +56,7 @@ public class PCDSettingsBridge
         }
     }
 
-    public PCV_OcclusionDirectionCount directionCount
+    public PCD_OcclusionDirectionCount directionCount
     {
         get => Controller != null ? Controller.directionCount : _fallbackSettings.directionCount;
         set
@@ -244,7 +246,7 @@ public class PCDSettingsBridge
         }
     }
 
-    public PCV_HoleFillingMethod holeFillingMethod
+    public PCD_HoleFillingMethod holeFillingMethod
     {
         get => Controller != null ? Controller.holeFillingMethod : _fallbackSettings.holeFillingMethod;
         set
@@ -283,6 +285,27 @@ public class PCDSettingsBridge
             else _fallbackSettings.morphDilateIterations = value;
         }
     }
+
+    public PCD_GridSize gridSize
+    {
+        get => Controller != null ? Controller.gridSize : _fallbackSettings.gridSize;
+        set
+        {
+            if (Controller != null) Controller.gridSize = value;
+            else _fallbackSettings.gridSize = value;
+        }
+    }
+
+    public bool enableGridSkipping
+    {
+        get => Controller != null ? Controller.enableGridSkipping : _fallbackSettings.enableGridSkipping;
+        set
+        {
+            if (Controller != null) Controller.enableGridSkipping = value;
+            else _fallbackSettings.enableGridSkipping = value;
+        }
+    }
+
 
     public PCDRenderSettings GetSettings(uint internalDynamicMultiplier)
     {

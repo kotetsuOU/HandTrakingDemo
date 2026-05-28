@@ -28,6 +28,7 @@ public partial class PCDRenderPass
         data.kernelBuildDepthPyramidL4 = _kernelBuildDepthPyramidL4;
         data.kernelApplyGradient = _kernelApplyGradient;
         data.kernelComputeOcclusion = _kernelComputeOcclusion;
+        data.kernelCopyColorToOcclusion = _kernelCopyColorToOcclusion;
         data.kernelFillHoles = _kernelFillHoles;
         data.kernelFillHolesPullPushInit = _kernelFillHolesPullPushInit;
         data.kernelFillHolesPull = _kernelFillHolesPull;

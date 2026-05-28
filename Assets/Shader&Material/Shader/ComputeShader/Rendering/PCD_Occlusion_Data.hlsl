@@ -17,7 +17,7 @@ RWTexture2D<float4> _ColorMap_RW;
 RWTexture2D<uint> _DepthMap_RW;
 RWTexture2D<float4> _ViewPositionMap_RW;
 RWTexture2D<uint> _GridZMinMap_RW;
-RWTexture2D<float> _DensityMap_RW;
+RWTexture2D<float2> _DensityMap_RW;
 RWTexture2D<int> _GridLevelMap_RW;
 RWTexture2D<int> _FilteredGridLevelMap_RW;
 RWTexture2D<int> _NeighborhoodSizeMap_RW;
@@ -45,7 +45,7 @@ Texture2D<float4> _ColorMap;
 Texture2D<uint> _DepthMap;
 Texture2D<float4> _ViewPositionMap;
 Texture2D<uint> _GridZMinMap;
-Texture2D<float> _DensityMap;
+Texture2D<float2> _DensityMap;
 Texture2D<int> _GridLevelMap;
 Texture2D<int> _FilteredGridLevelMap;
 Texture2D<int> _NeighborhoodSizeMap;
@@ -95,6 +95,7 @@ uint _StaticMeshDensityMultiplier;  // 仮想オブジェクト(メッシュ)の
 int _EnableTagBasedOptimization;
 int _EnableTypeAwareDensity;
 int _EnableSoftOcclusionFade;
+int _EnableGridSkipping;
 int _EnableJointBilateralHoleFilling;
 
 int _KernelType;
@@ -108,7 +109,13 @@ int _PullPushIsBaseLevel;
 
 int _MorphKernelHalfSize;
 
-#define GRID_SIZE 16u
+#if defined(GRID_SIZE_8)
+    #define GRID_SIZE 8u
+#elif defined(GRID_SIZE_32)
+    #define GRID_SIZE 32u
+#else
+    #define GRID_SIZE 16u
+#endif
 #define DEPTH_MAX_UINT 0x7FFFFFFFu
 
 groupshared uint shared_z_min;

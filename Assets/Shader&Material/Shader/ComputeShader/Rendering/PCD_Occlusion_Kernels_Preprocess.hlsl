@@ -109,12 +109,15 @@ void CalculateGridZMin(uint3 id : SV_DispatchThreadID, uint3 groupID : SV_GroupI
 // 4. Calculate Density per Grid
 // 各グリッド内の有効な(手前の表面に近い)点群の密度(占有率)を計算する。
 // 単純な個数ではなく、Z-Min + 閾値 の範囲内の点をカウントする。
+groupshared uint shared_virtual_count;
+
 [numthreads(GRID_SIZE, GRID_SIZE, 1)]
 void CalculateDensity(uint3 id : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
     if (groupIndex == 0u)
     {
         shared_point_count = 0u;
+        shared_virtual_count = 0u;
     }
     GroupMemoryBarrierWithGroupSync();
 
@@ -137,11 +140,17 @@ void CalculateDensity(uint3 id : SV_DispatchThreadID, uint3 groupID : SV_GroupID
             {
                 InterlockedAdd(shared_point_count, 1u);
             }
-            else if (_EnableTypeAwareDensity == 0 && originType == 1u)
+            if (_EnableTypeAwareDensity == 0 && originType == 1u)
             {
                 // 仮想オブジェクトの場合かつ従来手法(OFF)なら係数倍してカウント
                 uint safeMultiplier = min((uint)_StaticMeshDensityMultiplier, 1000u);
                 InterlockedAdd(shared_point_count, safeMultiplier);
+            }
+            
+            // 仮想オブジェクトの密度も別途計測（Target Skipping用）
+            if (originType == 1u)
+            {
+                InterlockedAdd(shared_virtual_count, 1u);
             }
         }
     }
@@ -151,7 +160,8 @@ void CalculateDensity(uint3 id : SV_DispatchThreadID, uint3 groupID : SV_GroupID
     if (groupIndex == 0u)
     {
         float density = float(shared_point_count) / float(GRID_SIZE * GRID_SIZE);
-        _DensityMap_RW[groupID.xy] = density;
+        float virtualDensity = float(shared_virtual_count) / float(GRID_SIZE * GRID_SIZE);
+        _DensityMap_RW[groupID.xy] = float2(density, virtualDensity);
     }
 }
 
@@ -166,7 +176,7 @@ void CalculateGridLevel(uint3 id : SV_DispatchThreadID)
     if (id.x >= dim.x || id.y >= dim.y)
         return;
 
-    float density = _DensityMap[id.xy];
+    float density = _DensityMap[id.xy].x;
     int level = 0;
     if (density > 0.001)
     {
@@ -228,6 +238,21 @@ void CalculateNeighborhoodSize(uint3 id : SV_DispatchThreadID)
     uint2 gridID = id.xy / GRID_SIZE;
     int level = _FilteredGridLevelMap[gridID];
     _NeighborhoodSizeMap_RW[id.xy] = level;
+}
+
+// 7.5 CopyColorToOcclusion (Skip Occlusion Kernel)
+// オクルージョン判定を行わず、直接 FillHoles などに送るために _ColorMap を _OcclusionResultMap にコピーする
+[numthreads(8, 8, 1)]
+void CopyColorToOcclusion(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _ScreenParams.x || id.y >= (uint) _ScreenParams.y)
+        return;
+
+    uint originType = _OriginTypeMap_RW[id.xy];
+    if (originType != 2u) // 点群(0u)または仮想オブジェクト(1u)
+    {
+        _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy];
+    }
 }
 
 #endif // PCD_OCCLUSION_KERNELS_PREPROCESS_INCLUDED
