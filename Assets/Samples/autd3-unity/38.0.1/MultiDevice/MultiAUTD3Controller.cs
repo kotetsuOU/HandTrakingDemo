@@ -24,6 +24,10 @@ public class MultiAUTD3Controller : MonoBehaviour
         TurnOff           // 出力を停止する (Nullゲインなどを送る)
     }
 
+    [Header("Debug Settings")]
+    [Tooltip("TwinCATなしでテストする場合はONにする（Nopリンクを使用）")]
+    public bool useMock = false;
+
     [Header("Mode Settings")]
     [Tooltip("出力モードの設定")]
     public ControlMode mode = ControlMode.TargetOnly;
@@ -43,23 +47,32 @@ public class MultiAUTD3Controller : MonoBehaviour
 
         try
         {
-            _autd = Controller.Open(
-                    FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None).OrderBy(obj => obj.ID).Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation)),
-                    new AUTD3Sharp.Link.TwinCAT()
-                );
+            var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None)
+                .OrderBy(obj => obj.ID)
+                .Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation));
+
+            if (useMock)
+            {
+                _autd = Controller.Open(devices, new AUTD3Sharp.Link.Nop());
+                UnityEngine.Debug.Log("AUTD3: Nopリンク（モック）で起動しました。");
+            }
+            else
+            {
+                _autd = Controller.Open(devices, new AUTD3Sharp.Link.TwinCAT());
+            }
         }
         catch (Exception ex)
         {
             UnityEngine.Debug.LogError(ex);
-            UnityEngine.Debug.LogError("Failed to connect to real device via TwinCAT. Continuing without AUTD3 device.");
+            UnityEngine.Debug.LogError("Failed to connect to real device via TwinCAT. Please ensure TwinCAT is running and configured correctly.");
             return;
         }
 
-        _autd!.Send(new Sine(freq: 150 * Hz, option: new SineOption()));
+        _autd.Send(new Sine(freq: 150 * Hz, option: new SineOption()));
 
         if (Target != null && mode == ControlMode.TargetOnly)
         {
-            _autd!.Send(new Focus(pos: Target.transform.position, option: new FocusOption()));
+            _autd.Send(new Focus(pos: Target.transform.position, option: new FocusOption()));
             _oldPosition = Target.transform.position;
         }
     }

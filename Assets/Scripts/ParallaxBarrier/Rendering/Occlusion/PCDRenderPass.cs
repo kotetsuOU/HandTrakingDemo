@@ -22,12 +22,12 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int DensityThreshold_e = Shader.PropertyToID("_DensityThreshold_e");
         public static readonly int NeighborhoodParam_p_prime = Shader.PropertyToID("_NeighborhoodParam_p_prime");
         public static readonly int GradientThreshold_g_th = Shader.PropertyToID("_GradientThreshold_g_th");
-        public static readonly int OcclusionMode = Shader.PropertyToID("_OcclusionMode");
+        public static readonly int KernelType = Shader.PropertyToID("_KernelType");
+        public static readonly int BinningMethod = Shader.PropertyToID("_BinningMethod");
+        public static readonly int DirectionCount = Shader.PropertyToID("_DirectionCount");
         public static readonly int Alpha = Shader.PropertyToID("_Alpha");
         public static readonly int OcclusionThreshold = Shader.PropertyToID("_OcclusionThreshold");
         public static readonly int OcclusionFadeWidth = Shader.PropertyToID("_OcclusionFadeWidth");
-        public static readonly int EnableDepthWeightedOcclusion = Shader.PropertyToID("_EnableDepthWeightedOcclusion");
-        public static readonly int DepthWeightBeta = Shader.PropertyToID("_DepthWeightBeta");
 
         public static readonly int ColorMap = Shader.PropertyToID("_ColorMap");
         public static readonly int DepthMap = Shader.PropertyToID("_DepthMap");
@@ -63,10 +63,6 @@ public partial class PCDRenderPass : ScriptableRenderPass
         
         public static readonly int OriginTypeMap = Shader.PropertyToID("_OriginTypeMap");
         public static readonly int OriginTypeMap_RW = Shader.PropertyToID("_OriginTypeMap_RW");
-        public static readonly int MorphOriginMapPing = Shader.PropertyToID("_MorphOriginMapPing");
-        public static readonly int MorphOriginMapPing_RW = Shader.PropertyToID("_MorphOriginMapPing_RW");
-        public static readonly int MorphDepthMapPing = Shader.PropertyToID("_MorphDepthMapPing");
-        public static readonly int MorphDepthMapPing_RW = Shader.PropertyToID("_MorphDepthMapPing_RW");
         public static readonly int OriginMap_RW = Shader.PropertyToID("_OriginMap_RW");
         public static readonly int NeighborCountMap_RW = Shader.PropertyToID("_NeighborCountMap_RW");
 
@@ -99,8 +95,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
                 _kernelBuildDepthPyramidL3, _kernelBuildDepthPyramidL4,
                 _kernelApplyGradient,
                 _kernelComputeOcclusion, _kernelFillHoles, _kernelInterpolate,
-                _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug,
-                _kernelCopyBack, _kernelCopyOriginType, _kernelMorphDilate, _kernelMorphErode;
+                _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug;
 
     // 出力およびデバッグマップ
     private RTHandle _debugDisplayMapHandle;
@@ -204,10 +199,6 @@ public partial class PCDRenderPass : ScriptableRenderPass
         _kernelMerge = pointCloudCompute.FindKernel("MergeBuffer");
         _kernelInitFromCamera = pointCloudCompute.FindKernel("InitFromCamera");
         _kernelVisualizeOcclusionDebug = pointCloudCompute.FindKernel("VisualizeOcclusionDebug");
-        _kernelCopyBack = pointCloudCompute.FindKernel("CopyBack");
-        _kernelCopyOriginType = pointCloudCompute.FindKernel("CopyOriginType");
-        _kernelMorphDilate = pointCloudCompute.FindKernel("MorphDilate");
-        _kernelMorphErode = pointCloudCompute.FindKernel("MorphErode");
 
         _isInitialized = true;
     }
@@ -229,10 +220,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
                      kernelBuildDepthPyramidL3, kernelBuildDepthPyramidL4,
                      kernelApplyGradient,
                      kernelComputeOcclusion, kernelFillHoles, kernelInterpolate,
-                     kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug,
-                     kernelCopyBack, kernelCopyOriginType, kernelMorphDilate, kernelMorphErode;
-        internal TextureHandle morphOriginMapPing;
-        internal TextureHandle morphDepthMapPing;
+                     kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug;
 
         // コピー用バッファ
         internal bool useExternal;

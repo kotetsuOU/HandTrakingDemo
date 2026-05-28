@@ -9,8 +9,7 @@ public class HapCollisionDetectors : MonoBehaviour
     public enum DetectionMode
     {
         TransformOnly,       // 単一のオブジェクト(Transform)の座標と半径で判定する
-        SkinnedMeshRenderer, // アニメーションする SkinnedMeshRenderer の表面と半径で判定する
-        MeshFilter           // 通常メッシュ(ProBuilderなど)の表面と半径で判定する。SoftBodyDeformの変形にも追従する
+        SkinnedMeshRenderer  // アニメーションする SkinnedMeshRenderer の表面と半径で判定する
     }
 
     [Header("Settings")]
@@ -22,9 +21,6 @@ public class HapCollisionDetectors : MonoBehaviour
 
     [Tooltip("SkinnedMeshRenderer モードの際に判定基準とするターゲットメッシュ")]
     public SkinnedMeshRenderer targetSkinnedMesh;
-
-    [Tooltip("MeshFilter モードの際に判定基準とするターゲットメッシュ (ProBuilderなど通常メッシュ)")]
-    public MeshFilter targetMeshFilter;
 
     [Tooltip("接触判定を行う半径 (ターゲットとの距離の閾値)")]
     public float collisionRadius = 0.5f;
@@ -194,52 +190,6 @@ public class HapCollisionDetectors : MonoBehaviour
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
         }
 
-        else if (detectionMode == DetectionMode.MeshFilter)
-        {
-            if (targetMeshFilter == null) return;
-
-            _meshVertices = targetMeshFilter.mesh.vertices;
-            _meshNormals = targetMeshFilter.mesh.normals;
-            if (_meshVertices == null || _meshVertices.Length == 0) return;
-
-            if (_meshVerticesBuffer == null || _meshVerticesBuffer.count != _meshVertices.Length)
-            {
-                _meshVerticesBuffer?.Release();
-                _meshNormalsBuffer?.Release();
-                _meshVerticesBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
-                _meshNormalsBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
-            }
-
-            _meshVerticesBuffer.SetData(_meshVertices);
-
-            if (_meshNormals != null && _meshNormals.Length == _meshVertices.Length)
-            {
-                _meshNormalsBuffer.SetData(_meshNormals);
-            }
-
-            collisionComputeShader.SetBuffer(_kernelMesh, "PointCloudBuffer", globalBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "Result", _resultBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "MeshVerticesBuffer", _meshVerticesBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "MeshNormalsBuffer", _meshNormalsBuffer);
-
-            collisionComputeShader.SetInt("PointsCount", pointsCount);
-            collisionComputeShader.SetInt("MeshVerticesCount", _meshVertices.Length);
-            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetMeshFilter.transform.localToWorldMatrix);
-
-            Bounds bounds = targetMeshFilter.GetComponent<Renderer>().bounds;
-            float totalPadding = collisionRadius + boundsPadding;
-
-            collisionComputeShader.SetVector("MeshBoundsMin", bounds.min - new Vector3(totalPadding, totalPadding, totalPadding));
-            collisionComputeShader.SetVector("MeshBoundsMax", bounds.max + new Vector3(totalPadding, totalPadding, totalPadding));
-
-            collisionComputeShader.SetFloat("Radius", collisionRadius);
-            collisionComputeShader.SetFloat("RadiusSqr", collisionRadius * collisionRadius);
-            collisionComputeShader.SetInt("VertexSubstep", vertexSamplingStep);
-
-            int threadGroups = Mathf.CeilToInt(pointsCount / 256.0f);
-            collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
-        }
-
         // --- ComputeShader の実行結果を受け取る ---
         _resultBuffer.GetData(_resultData);
         bool col = _resultData[0].isColliding > 0;
@@ -288,22 +238,10 @@ public class HapCollisionDetectors : MonoBehaviour
         else if (detectionMode == DetectionMode.SkinnedMeshRenderer && targetSkinnedMesh != null)
         {
             Bounds bounds = targetSkinnedMesh.bounds;
-            bounds.Expand(collisionRadius * 2f);
+            bounds.Expand(collisionRadius * 2f); 
             Gizmos.DrawWireCube(bounds.center, bounds.size);
             Gizmos.color = IsColliding ? new Color(1f, 0f, 0f, 0.2f) : new Color(0f, 1f, 0f, 0.2f);
             Gizmos.DrawCube(bounds.center, bounds.size);
-        }
-        else if (detectionMode == DetectionMode.MeshFilter && targetMeshFilter != null)
-        {
-            var renderer = targetMeshFilter.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                Bounds bounds = renderer.bounds;
-                bounds.Expand(collisionRadius * 2f);
-                Gizmos.DrawWireCube(bounds.center, bounds.size);
-                Gizmos.color = IsColliding ? new Color(1f, 0f, 0f, 0.2f) : new Color(0f, 1f, 0f, 0.2f);
-                Gizmos.DrawCube(bounds.center, bounds.size);
-            }
         }
 
         // 接触位置と法線をGizmoで可視化する (Rayが刺さったような表現)

@@ -6,21 +6,34 @@ public class PCDRendererFeature : ScriptableRendererFeature
 {
     public static PCDRendererFeature Instance { get; private set; }
 
-    public enum PCDOcclusionMode
+    public enum PCV_OcclusionKernel
     {
         Bouchiba = 0,
-        Exponential3D = 1,
-        Linear = 2,
-        BouchibaDirectionalBinning = 3,
-        DirectionalBinning = 4,
-        BouchibaHexagonalDecomposition = 5,
-        HexagonalDecomposition = 6
+        Exponential = 1,
+        Linear = 2
+    }
+
+    public enum PCV_OcclusionBinning
+    {
+        Soft = 0,
+        Hard = 1
+    }
+
+    public enum PCV_OcclusionDirectionCount
+    {
+        Single = 1,
+        Bins3 = 3,
+        Bins6 = 6,
+        Bins8 = 8 // 8方向分割の追加
     }
 
     [System.Serializable]
     public struct PCDRenderSettings
     {
-        public PCDOcclusionMode occlusionMode;
+        public PCV_OcclusionKernel kernelType;
+        public PCV_OcclusionBinning binningMethod;
+        public PCV_OcclusionDirectionCount directionCount;
+
         public float exponentAlpha;
         public float densityThreshold_e;
         public float neighborhoodParam_p_prime;
@@ -28,8 +41,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public float gradientThreshold_g_th;
         [Range(0f, 1f)] public float occlusionThreshold;
         [Range(0f, 1f)] public float occlusionFadeWidth;
-        public bool enableDepthWeightedOcclusion;
-        public float depthWeightBeta;
         public bool enablePixelTagMap;
         public bool enableOcclusionMap;
         public bool recordOcclusionDebugMap;
@@ -43,10 +54,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public bool enableTagBasedOptimization;   // ① タグに基づく探索スキップ
         public bool enableTypeAwareDensity;       // ② 仮想物体を区別した密度計算
         public bool enableSoftOcclusionFade;      // ③ ソフトオクルージョン (FadeWidth)
-        public bool enableJointBilateralHoleFilling; // ④ ジョイントバイラテラル穴埋め（最終仕上げ）
-        public int morphKernelHalfSize;              // モルフォロジーカーネル半径（2 = 5×5）
-        public int morphErodeIterations;             // Opening の収縮回数（0 で Opening スキップ）
-        public int morphDilateIterations;            // Closing の膨張回数（多いほど深い穴まで伝播）
+        public bool enableJointBilateralHoleFilling; // ④ ジョイントバイラテラル穴埋め
 
         [HideInInspector] public uint _dynamicMultiplierRuntimeValue;
     }
@@ -62,10 +70,17 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Header("Required Assets")]
     public ComputeShader pointCloudCompute;
 
-    [Header("Algorithm Parameters")]
-    [Tooltip("オクルージョン演算のモード切り替え")]
-    public PCDOcclusionMode occlusionMode;
+    [Header("Occlusion Core Settings")]
+    [Tooltip("オクルージョン計算に用いるカーネル関数")]
+    public PCV_OcclusionKernel kernelType = PCV_OcclusionKernel.Bouchiba;
 
+    [Tooltip("空間分割時のビニング手法（重みの計算方法）")]
+    public PCV_OcclusionBinning binningMethod = PCV_OcclusionBinning.Soft;
+
+    [Tooltip("空間の分割方向数")]
+    public PCV_OcclusionDirectionCount directionCount = PCV_OcclusionDirectionCount.Single;
+
+    [Header("Algorithm Parameters")]
     [Tooltip("指数関数の減衰係数 (Expモード専用)")]
     public float exponentAlpha;
 
@@ -90,12 +105,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Tooltip("境界を滑らかにするためのフェード幅（閾値からの減衰範囲）")]
     [Range(0f, 1f)]
     public float occlusionFadeWidth = 0.1f;
-
-    [Tooltip("Mode 0-6 で深度差に基づく重み付き平均を有効化する")]
-    public bool enableDepthWeightedOcclusion = false;
-
-    [Tooltip("深度差重み exp(-beta * dz^2) の減衰係数")]
-    public float depthWeightBeta = 64.0f;
 
     [Header("Display Debug")]
     [Tooltip("点群(黒)と静的メッシュ(白)の由来を示すデバッグマップ(PixelTagMap)を有効にします")]
@@ -134,21 +143,8 @@ public class PCDRendererFeature : ScriptableRendererFeature
     [Tooltip("③ソフトオクルージョン (ONでグラデーションによる境界のスムージング)")]
     public bool enableSoftOcclusionFade = true;
 
-    [Tooltip("④エッジ保持型ホールフィリング (ONでジョイントバイラテラル穴埋め・最終仕上げ)")]
+    [Tooltip("④エッジ保持型ホールフィリング (ONでジョイントバイラテラル穴埋め)")]
     public bool enableJointBilateralHoleFilling = true;
-
-    [Header("Morphology (Opening → Closing)")]
-    [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
-    [Range(1, 5)]
-    public int morphKernelHalfSize = 1;
-
-    [Tooltip("Opening の収縮回数（0 でスキップ）。孤立ノイズや細いトゲを除去する。破綻確認後に増やすこと。")]
-    [Range(0, 5)]
-    public int morphErodeIterations = 0;
-
-    [Tooltip("Closing の膨張回数。多いほど疎な手の甲など深い隙間まで色が伝播する。まず 1 から試すこと。")]
-    [Range(1, 8)]
-    public int morphDilateIterations = 1;
 
     private PCDRenderPass _scriptablePass;
 
@@ -167,7 +163,9 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         return new PCDRenderSettings
         {
-            occlusionMode = this.occlusionMode,
+            kernelType = this.kernelType,
+            binningMethod = this.binningMethod,
+            directionCount = this.directionCount,
             exponentAlpha = this.exponentAlpha,
             densityThreshold_e = this.densityThreshold_e,
             neighborhoodParam_p_prime = this.neighborhoodParam_p_prime,
@@ -175,8 +173,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
             gradientThreshold_g_th = this.gradientThreshold_g_th,
             occlusionThreshold = this.occlusionThreshold,
             occlusionFadeWidth = this.occlusionFadeWidth,
-            enableDepthWeightedOcclusion = this.enableDepthWeightedOcclusion,
-            depthWeightBeta = this.depthWeightBeta,
             enablePixelTagMap = this.enablePixelTagMap,
             enableOcclusionMap = this.enableOcclusionMap,
             recordOcclusionDebugMap = this.recordOcclusionDebugMap,
@@ -189,9 +185,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
             enableTypeAwareDensity = this.enableTypeAwareDensity,
             enableSoftOcclusionFade = this.enableSoftOcclusionFade,
             enableJointBilateralHoleFilling = this.enableJointBilateralHoleFilling,
-            morphKernelHalfSize = this.morphKernelHalfSize,
-            morphErodeIterations = this.morphErodeIterations,
-            morphDilateIterations = this.morphDilateIterations,
             _dynamicMultiplierRuntimeValue = _internalDynamicMultiplier
         };
     }
@@ -338,6 +331,5 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         float maxFadeWidth = Mathf.Min(occlusionThreshold, 1.0f - occlusionThreshold) * 2.0f;
         occlusionFadeWidth = Mathf.Clamp(occlusionFadeWidth, 0f, maxFadeWidth);
-        depthWeightBeta = Mathf.Max(0f, depthWeightBeta);
     }
 }

@@ -237,8 +237,6 @@ public partial class PCDRenderPass
 
             desc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
             data.originTypeMap = renderGraph.CreateTexture(desc);
-            data.morphOriginMapPing = renderGraph.CreateTexture(desc); // ping-pong 用 OriginTypeMap スナップショット
-            data.morphDepthMapPing  = renderGraph.CreateTexture(desc); // ping-pong 用 DepthMap スナップショット（R32_UInt）
 
             // 常にImportしてバインドさせる
             neighborCountMapHandle_RG = renderGraph.ImportTexture(_neighborCountMapHandle);
@@ -314,8 +312,6 @@ public partial class PCDRenderPass
             builder.UseTexture(data.occlusionValueMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.finalImage, AccessFlags.ReadWrite);
             builder.UseTexture(data.originTypeMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.morphOriginMapPing, AccessFlags.ReadWrite);
-            builder.UseTexture(data.morphDepthMapPing,  AccessFlags.ReadWrite);
             builder.UseTexture(data.debugDisplayMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.neighborCountMap, AccessFlags.ReadWrite);
 

@@ -22,10 +22,6 @@
 #pragma kernel ApplyAdaptiveGradientCorrection // 深度勾配(エッジ)に基づく適応的な近傍探索サイズの補正
 #pragma kernel ComputeOcclusion          // 点群が存在するピクセル用のオクルージョン計算
 #pragma kernel FillHoles                 // 点群が存在しない（空き）ピクセル用のオクルージョン補間（バイラテラルフィルタ）
-#pragma kernel CopyBack                  // MorphDilate の結果を ColorMap へ転写し、次イテレーションのソースとして準備
-#pragma kernel CopyOriginType            // ping-pong 用: OriginTypeMap を MorphOriginMapPing へコピー（SRV/UAV 競合回避）
-#pragma kernel MorphDilate               // モルフォロジー膨張: 点群領域を外側へ拡張し色・深度を伝播（Closing の膨張ステップ）
-#pragma kernel MorphErode                // モルフォロジー収縮: 境界ピクセルを除去し色もクリア（Opening 収縮 / Closing 後処理）
 
 // --- Post & Utility (ポストプロセス・ユーティリティ) ---
 #pragma kernel Interpolate               // 隙間(穴)を埋めるための1ピクセル補間(Dilation)

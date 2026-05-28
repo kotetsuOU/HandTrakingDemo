@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"E:\\\\RealTimeOcclusionDemo_fresh\" && grep -n \"RsGlobalPointCloudManager\\\\|PCDPointBuffer\\\\|PointCloud\\\\|RsDevice\\\\|PCDRenderer\" \"Assets/Others/Scenes/RealTimeOcclusionwithAUTD.unity\" | head -60)",
+      "Read(//e/RealTimeOcclusionDemo_fresh/**)",
+      "Bash(cd \"E:\\\\RealTimeOcclusionDemo_fresh\" && grep -n \"RsGlobalPointCloudManager\\\\|PCDPointBuffer\\\\|PointCloud\\\\|RsDevice\\\\|PCDRenderer\" \"Assets/Scenes/RealTimeOcclusion.unity\" | head -60)",
+      "Bash(awk '/^--- .*&744917729$/{found=1} found && /m_Name:/{print NR\": \"$0; found=0}' \"Assets/Others/Scenes/RealTimeOcclusionwithAUTD.unity\")"
+    ]
+  }
+}
