@@ -18,9 +18,11 @@ public class HapDeformBridge : MonoBehaviour
 
     private void Update()
     {
-        if (hapCollision == null) return;
-        if (!hapCollision.IsColliding) return;
+        if (hapCollision == null || !hapCollision.IsColliding) return;
 
-        _softBodyDeform.Deform(hapCollision.HitPosition, deformForce);
+        // 検出された全接触点（最大8方向）それぞれに対してへこみを適用する
+        // メッシュ更新は SoftBodyDeform.LateUpdate でまとめて1回行われる
+        foreach (var pos in hapCollision.HitPositions)
+            _softBodyDeform.Deform(pos, deformForce);
     }
 }

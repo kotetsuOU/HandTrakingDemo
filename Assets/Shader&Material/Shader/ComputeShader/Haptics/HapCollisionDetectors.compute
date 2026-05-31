@@ -1,5 +1,7 @@
-﻿#pragma kernel CheckCollision
+#pragma kernel CheckCollision
 #pragma kernel CheckCollisionMesh
+
+#define NUM_SECTORS 8
 
 // Defined same as STRIDE in RsGlobalPointCloudManager
 struct PointData
@@ -24,8 +26,9 @@ int PointsCount;
 float3 TargetPosition;
 float Radius;
 float RadiusSqr;
+float3 SphereCenterWorld; // 球の中心（オクタント計算用）
 
-// For SkinnedMeshRenderer mode
+// For SkinnedMeshRenderer / MeshFilter mode
 StructuredBuffer<float3> MeshVerticesBuffer;
 StructuredBuffer<float3> MeshNormalsBuffer;
 float4x4 LocalToWorldMatrix;
@@ -34,14 +37,16 @@ float3 MeshBoundsMin;
 float3 MeshBoundsMax;
 int VertexSubstep;
 
+// 方向ベクトルから 0〜7 のオクタントインデックスを返す
+int GetOctant(float3 dir)
+{
+    return (dir.x >= 0 ? 0 : 4) | (dir.y >= 0 ? 0 : 2) | (dir.z >= 0 ? 0 : 1);
+}
+
 [numthreads(256, 1, 1)]
 void CheckCollision(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) PointsCount)
-        return;
-
-    // もしすでに誰かが接触を検知していたら終了
-    if (Result[0].isColliding > 0)
         return;
 
     float3 pointPos = PointCloudBuffer[id.x].pos;
@@ -49,15 +54,14 @@ void CheckCollision(uint3 id : SV_DispatchThreadID)
 
     if (dot(diff, diff) <= RadiusSqr)
     {
+        int sector = GetOctant(diff);
         int originalValue;
-        InterlockedCompareExchange(Result[0].isColliding, 0, 1, originalValue);
+        InterlockedCompareExchange(Result[sector].isColliding, 0, 1, originalValue);
 
-        // 自分が最初に1を書き込めた場合のみ、座標情報を書き込む
         if (originalValue == 0)
         {
-            Result[0].hitPoint = pointPos;
-            // TransformOnlyでは法線が不要なので、ターゲットから点への方向を出力しておく
-            Result[0].hitNormal = normalize(pointPos - TargetPosition);
+            Result[sector].hitPoint = pointPos;
+            Result[sector].hitNormal = normalize(diff);
         }
     }
 }
@@ -68,13 +72,9 @@ void CheckCollisionMesh(uint3 id : SV_DispatchThreadID)
     if (id.x >= (uint) PointsCount)
         return;
 
-    if (Result[0].isColliding > 0)
-        return;
-
     float3 pointPos = PointCloudBuffer[id.x].pos;
 
-    // 1. Broad-phase AABB Culling (大まかな境界箱での事前除外)
-    // C# 側で Bounds に Radius 等の余白（パディング）を含めた状態で送ってきているため、そのまま比較します
+    // 1. Broad-phase AABB Culling
     if (pointPos.x < MeshBoundsMin.x || pointPos.x > MeshBoundsMax.x ||
         pointPos.y < MeshBoundsMin.y || pointPos.y > MeshBoundsMax.y ||
         pointPos.z < MeshBoundsMin.z || pointPos.z > MeshBoundsMax.z)
@@ -82,29 +82,28 @@ void CheckCollisionMesh(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // 2. Narrow-phase Sampling (対象領域内に入った点のみ、抽出した頂点と詳細判定)
+    // 2. Narrow-phase Sampling
     for (int i = 0; i < MeshVerticesCount; i += VertexSubstep)
     {
-        // SkinnedMeshRenderer.BakeMesh で取得した頂点群は
-        // SkinnedMeshRenderer がアタッチされているオブジェクト(Transform)の
-        // ローカル座標系で出力されます。
         float3 localVert = MeshVerticesBuffer[i];
         float3 worldVert = mul(LocalToWorldMatrix, float4(localVert, 1.0)).xyz;
 
         float3 diff = pointPos - worldVert;
         if (dot(diff, diff) <= RadiusSqr)
         {
+            // 球の中心から頂点への方向でオクタントを決定
+            float3 vertDir = worldVert - SphereCenterWorld;
+            int sector = GetOctant(vertDir);
+
             int originalValue;
-            InterlockedCompareExchange(Result[0].isColliding, 0, 1, originalValue);
+            InterlockedCompareExchange(Result[sector].isColliding, 0, 1, originalValue);
 
             if (originalValue == 0)
             {
-                // ローカル座標系の法線をワールド空間へ変換
                 float3 localNorm = MeshNormalsBuffer[i];
                 float3 worldNorm = mul((float3x3) LocalToWorldMatrix, localNorm);
-
-                Result[0].hitPoint = worldVert;
-                Result[0].hitNormal = normalize(worldNorm);
+                Result[sector].hitPoint = worldVert;
+                Result[sector].hitNormal = normalize(worldNorm);
             }
             return;
         }

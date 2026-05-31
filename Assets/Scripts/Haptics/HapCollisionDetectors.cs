@@ -1,15 +1,18 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
 /// RsGlobalPointCloudManager で統合された点群データに対して、指定した物体やメッシュが接触しているかを計算するクラス。
 /// ComputeShader を使用し、大量の点群計算（数百万点規模）でもパフォーマンスを落とさずに接触判定を行います。
+/// 複数接触点対応: 球を8オクタントに分割し、各方向の接触位置を個別に検出します。
 /// </summary>
 public class HapCollisionDetectors : MonoBehaviour
 {
     public enum DetectionMode
     {
         TransformOnly,       // 単一のオブジェクト(Transform)の座標と半径で判定する
-        SkinnedMeshRenderer  // アニメーションする SkinnedMeshRenderer の表面と半径で判定する
+        SkinnedMeshRenderer, // アニメーションする SkinnedMeshRenderer の表面と半径で判定する
+        MeshFilter           // MeshFilter のメッシュ形状と半径で判定する（変形追従対応）
     }
 
     [Header("Settings")]
@@ -21,6 +24,9 @@ public class HapCollisionDetectors : MonoBehaviour
 
     [Tooltip("SkinnedMeshRenderer モードの際に判定基準とするターゲットメッシュ")]
     public SkinnedMeshRenderer targetSkinnedMesh;
+
+    [Tooltip("MeshFilter モードの際に判定基準とするターゲット MeshFilter")]
+    public MeshFilter targetMeshFilter;
 
     [Tooltip("接触判定を行う半径 (ターゲットとの距離の閾値)")]
     public float collisionRadius = 0.5f;
@@ -42,22 +48,20 @@ public class HapCollisionDetectors : MonoBehaviour
     [Tooltip("接触時にシーンビュー上で境界枠や球（緑/赤）をGizmoとして表示するかどうか")]
     public bool showDebugGizmo = true;
 
-    /// <summary>
-    /// 現在、点群がターゲットに接触しているかどうかを返します (True/False)
-    /// </summary>
+    private const int NUM_SECTORS = 8;
+
+    /// <summary>現在、点群がターゲットに接触しているかどうか</summary>
     public bool IsColliding { get; private set; }
 
-    /// <summary>
-    /// 最後に接触したメッシュ頂点のワールド座標
-    /// </summary>
+    /// <summary>最初のオクタントの接触位置（後方互換用）</summary>
     public Vector3 HitPosition { get; private set; }
 
-    /// <summary>
-    /// 最後に接触したメッシュ頂点のワールド法線
-    /// </summary>
+    /// <summary>最初のオクタントの接触法線（後方互換用）</summary>
     public Vector3 HitNormal { get; private set; }
 
-    // Shader 側の HitResult 構造体に対応させる
+    /// <summary>全オクタントの接触位置リスト（複数方向への変形に使用）</summary>
+    public List<Vector3> HitPositions { get; private set; } = new List<Vector3>();
+
     [System.Serializable]
     private struct HitResult
     {
@@ -67,7 +71,7 @@ public class HapCollisionDetectors : MonoBehaviour
     }
 
     private ComputeBuffer _resultBuffer;
-    private HitResult[] _resultData = new HitResult[1];
+    private HitResult[] _resultData = new HitResult[NUM_SECTORS];
 
     private int _kernelTransform;
     private int _kernelMesh;
@@ -86,8 +90,8 @@ public class HapCollisionDetectors : MonoBehaviour
             _kernelMesh = collisionComputeShader.FindKernel("CheckCollisionMesh");
         }
 
-        // int(4) + float3(12) + float3(12) = 28 bytes
-        _resultBuffer = new ComputeBuffer(1, 28);
+        // int(4) + float3(12) + float3(12) = 28 bytes × NUM_SECTORS
+        _resultBuffer = new ComputeBuffer(NUM_SECTORS, 28);
     }
 
     private void Update()
@@ -95,35 +99,32 @@ public class HapCollisionDetectors : MonoBehaviour
         if (RsGlobalPointCloudManager.Instance == null || collisionComputeShader == null)
             return;
 
-        // グローバルマネージャから統合バッファと現在の点群数を取得
         var globalBuffer = RsGlobalPointCloudManager.Instance.GetGlobalBuffer();
         int pointsCount = RsGlobalPointCloudManager.Instance.CurrentTotalCount;
 
-        // 点群が存在しない場合は接触なしとして終了
         if (globalBuffer == null || pointsCount == 0)
         {
             UpdateCollisionResult(false);
             return;
         }
 
-        // --- ComputeBuffer のデータリセット ---
-        // 前フレームの結果が残らないように確実に 0(False) で初期化
-        _resultData[0] = new HitResult { isColliding = 0, hitPoint = Vector3.zero, hitNormal = Vector3.zero };
+        // 全セクターをリセット
+        for (int i = 0; i < NUM_SECTORS; i++)
+            _resultData[i] = new HitResult { isColliding = 0, hitPoint = Vector3.zero, hitNormal = Vector3.zero };
         _resultBuffer.SetData(_resultData);
 
         if (detectionMode == DetectionMode.TransformOnly)
         {
             if (targetObject == null) return;
 
-            // Shaderへのパラメータセット (TransformOnlyモード)
             collisionComputeShader.SetBuffer(_kernelTransform, "PointCloudBuffer", globalBuffer);
             collisionComputeShader.SetBuffer(_kernelTransform, "Result", _resultBuffer);
             collisionComputeShader.SetInt("PointsCount", pointsCount);
             collisionComputeShader.SetVector("TargetPosition", targetObject.position);
+            collisionComputeShader.SetVector("SphereCenterWorld", targetObject.position);
             collisionComputeShader.SetFloat("RadiusSqr", collisionRadius * collisionRadius);
             collisionComputeShader.SetFloat("Radius", collisionRadius);
 
-            // スレッドグループ数を計算し、ComputeShader をディスパッチ (1グループ=256スレッド)
             int threadGroups = Mathf.CeilToInt(pointsCount / 256.0f);
             collisionComputeShader.Dispatch(_kernelTransform, threadGroups, 1, 1);
         }
@@ -131,19 +132,13 @@ public class HapCollisionDetectors : MonoBehaviour
         {
             if (targetSkinnedMesh == null) return;
 
-            // アニメーションなどで変形した後の現在のメッシュ形状(頂点座標)をベイクして取得
-            // ※ BakeMesh で得られる頂点は対象SkinnedMeshRendererの Transform の Local 座標系になります
-            if (_bakedMesh == null)
-            {
-                _bakedMesh = new Mesh();
-            }
+            if (_bakedMesh == null) _bakedMesh = new Mesh();
             targetSkinnedMesh.BakeMesh(_bakedMesh, true);
 
             _meshVertices = _bakedMesh.vertices;
             _meshNormals = _bakedMesh.normals;
             if (_meshVertices == null || _meshVertices.Length == 0) return;
 
-            // 頂点・法線用の ComputeBuffer のサイズを調整
             if (_meshVerticesBuffer == null || _meshVerticesBuffer.count != _meshVertices.Length)
             {
                 _meshVerticesBuffer?.Release();
@@ -152,36 +147,64 @@ public class HapCollisionDetectors : MonoBehaviour
                 _meshNormalsBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
             }
 
-            // CPUで取得した頂点・法線配列をGPU側へ転送
             _meshVerticesBuffer.SetData(_meshVertices);
-
-            // normals 配列が存在しない場合はエラーを防ぐためダミーを与える
             if (_meshNormals != null && _meshNormals.Length == _meshVertices.Length)
-            {
                 _meshNormalsBuffer.SetData(_meshNormals);
-            }
 
-            // Shaderへのパラメータセット (SkinnedMeshモード)
             collisionComputeShader.SetBuffer(_kernelMesh, "PointCloudBuffer", globalBuffer);
             collisionComputeShader.SetBuffer(_kernelMesh, "Result", _resultBuffer);
             collisionComputeShader.SetBuffer(_kernelMesh, "MeshVerticesBuffer", _meshVerticesBuffer);
             collisionComputeShader.SetBuffer(_kernelMesh, "MeshNormalsBuffer", _meshNormalsBuffer);
-
             collisionComputeShader.SetInt("PointsCount", pointsCount);
             collisionComputeShader.SetInt("MeshVerticesCount", _meshVertices.Length);
             collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetSkinnedMesh.transform.localToWorldMatrix);
+            collisionComputeShader.SetVector("SphereCenterWorld", targetSkinnedMesh.bounds.center);
 
-            // Broad-phase 判定用: メッシュ全体を囲む境界箱(Bounds)。
-            // Renderer.bounds はワールド座標系でのバウンディングボックスを直接返してくれます。
-            // 計算量を減らすため、点群がこの境界箱の中に入っていない場合はそもそも演算をスキップします。
             Bounds bounds = targetSkinnedMesh.bounds;
-
-            // collisionRadiusに加えて、ユーザー指定の余白を持たせて安全マージンを確保
             float totalPadding = collisionRadius + boundsPadding;
+            collisionComputeShader.SetVector("MeshBoundsMin", bounds.min - Vector3.one * totalPadding);
+            collisionComputeShader.SetVector("MeshBoundsMax", bounds.max + Vector3.one * totalPadding);
+            collisionComputeShader.SetFloat("Radius", collisionRadius);
+            collisionComputeShader.SetFloat("RadiusSqr", collisionRadius * collisionRadius);
+            collisionComputeShader.SetInt("VertexSubstep", vertexSamplingStep);
 
-            collisionComputeShader.SetVector("MeshBoundsMin", bounds.min - new Vector3(totalPadding, totalPadding, totalPadding));
-            collisionComputeShader.SetVector("MeshBoundsMax", bounds.max + new Vector3(totalPadding, totalPadding, totalPadding));
+            int threadGroups = Mathf.CeilToInt(pointsCount / 256.0f);
+            collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
+        }
+        else if (detectionMode == DetectionMode.MeshFilter)
+        {
+            if (targetMeshFilter == null) return;
 
+            _meshVertices = targetMeshFilter.mesh.vertices;
+            _meshNormals = targetMeshFilter.mesh.normals;
+            if (_meshVertices == null || _meshVertices.Length == 0) return;
+
+            if (_meshVerticesBuffer == null || _meshVerticesBuffer.count != _meshVertices.Length)
+            {
+                _meshVerticesBuffer?.Release();
+                _meshNormalsBuffer?.Release();
+                _meshVerticesBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
+                _meshNormalsBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
+            }
+
+            _meshVerticesBuffer.SetData(_meshVertices);
+            if (_meshNormals != null && _meshNormals.Length == _meshVertices.Length)
+                _meshNormalsBuffer.SetData(_meshNormals);
+
+            collisionComputeShader.SetBuffer(_kernelMesh, "PointCloudBuffer", globalBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "Result", _resultBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "MeshVerticesBuffer", _meshVerticesBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "MeshNormalsBuffer", _meshNormalsBuffer);
+            collisionComputeShader.SetInt("PointsCount", pointsCount);
+            collisionComputeShader.SetInt("MeshVerticesCount", _meshVertices.Length);
+            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetMeshFilter.transform.localToWorldMatrix);
+            collisionComputeShader.SetVector("SphereCenterWorld", targetMeshFilter.transform.position);
+
+            var rend = targetMeshFilter.GetComponent<Renderer>();
+            Bounds bounds = rend != null ? rend.bounds : new Bounds(targetMeshFilter.transform.position, Vector3.one);
+            float totalPadding = collisionRadius + boundsPadding;
+            collisionComputeShader.SetVector("MeshBoundsMin", bounds.min - Vector3.one * totalPadding);
+            collisionComputeShader.SetVector("MeshBoundsMax", bounds.max + Vector3.one * totalPadding);
             collisionComputeShader.SetFloat("Radius", collisionRadius);
             collisionComputeShader.SetFloat("RadiusSqr", collisionRadius * collisionRadius);
             collisionComputeShader.SetInt("VertexSubstep", vertexSamplingStep);
@@ -190,43 +213,42 @@ public class HapCollisionDetectors : MonoBehaviour
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
         }
 
-        // --- ComputeShader の実行結果を受け取る ---
+        // 全セクターの結果を収集
         _resultBuffer.GetData(_resultData);
-        bool col = _resultData[0].isColliding > 0;
+        HitPositions.Clear();
+        bool anyCollision = false;
 
-        UpdateCollisionResult(col);
-
-        if (col)
+        for (int i = 0; i < NUM_SECTORS; i++)
         {
-            HitPosition = _resultData[0].hitPoint;
-            HitNormal = _resultData[0].hitNormal;
+            if (_resultData[i].isColliding > 0)
+            {
+                anyCollision = true;
+                HitPositions.Add(_resultData[i].hitPoint);
+            }
+        }
+
+        UpdateCollisionResult(anyCollision);
+
+        if (anyCollision)
+        {
+            HitPosition = HitPositions[0];
+            HitNormal = _resultData[System.Array.FindIndex(_resultData, r => r.isColliding > 0)].hitNormal;
         }
     }
 
-    /// <summary>
-    /// 衝突ステータスの更新と、デバッグ表示の反映を行います
-    /// </summary>
     private void UpdateCollisionResult(bool isColliding)
     {
         IsColliding = isColliding;
-
-        // インスペクタ等で状態を確認しやすくするための表示更新
-        if (IsColliding)
-        {
-            debugCollisionStatus = "🔥 COLLIDING! (接触中)";
-        }
-        else
-        {
-            debugCollisionStatus = "Not Colliding...";
-        }
+        debugCollisionStatus = isColliding
+            ? $"COLLIDING! ({HitPositions.Count} 点)"
+            : "Not Colliding...";
     }
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
     private void OnDrawGizmos()
     {
         if (!showDebugGizmo) return;
 
-        // 接触時は赤色、非接触時は緑色の半透明で境界や対象を描画します
         Gizmos.color = IsColliding ? new Color(1f, 0f, 0f, 0.4f) : new Color(0f, 1f, 0f, 0.4f);
 
         if (detectionMode == DetectionMode.TransformOnly && targetObject != null)
@@ -238,32 +260,38 @@ public class HapCollisionDetectors : MonoBehaviour
         else if (detectionMode == DetectionMode.SkinnedMeshRenderer && targetSkinnedMesh != null)
         {
             Bounds bounds = targetSkinnedMesh.bounds;
-            bounds.Expand(collisionRadius * 2f); 
+            bounds.Expand(collisionRadius * 2f);
             Gizmos.DrawWireCube(bounds.center, bounds.size);
             Gizmos.color = IsColliding ? new Color(1f, 0f, 0f, 0.2f) : new Color(0f, 1f, 0f, 0.2f);
             Gizmos.DrawCube(bounds.center, bounds.size);
         }
+        else if (detectionMode == DetectionMode.MeshFilter && targetMeshFilter != null)
+        {
+            var rend = targetMeshFilter.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                Bounds bounds = rend.bounds;
+                bounds.Expand(collisionRadius * 2f);
+                Gizmos.DrawWireCube(bounds.center, bounds.size);
+                Gizmos.color = IsColliding ? new Color(1f, 0f, 0f, 0.2f) : new Color(0f, 1f, 0f, 0.2f);
+                Gizmos.DrawCube(bounds.center, bounds.size);
+            }
+        }
 
-        // 接触位置と法線をGizmoで可視化する (Rayが刺さったような表現)
-        if (IsColliding)
+        // 各接触点を個別に表示
+        foreach (var pos in HitPositions)
         {
             Gizmos.color = Color.magenta;
-            Gizmos.DrawSphere(HitPosition, 0.05f); // 接触した場所に小さな球体
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawRay(HitPosition, HitNormal * 0.3f); // 法線方向に線を伸ばす
+            Gizmos.DrawSphere(pos, 0.03f);
         }
     }
 #endif
 
     private void OnDestroy()
     {
-        // 確保した ComputeBuffer などのネイティブリソースはメモリリーク防止のために必ず Release します
         _resultBuffer?.Release();
         _meshVerticesBuffer?.Release();
         _meshNormalsBuffer?.Release();
-        if (_bakedMesh != null)
-        {
-            Destroy(_bakedMesh);
-        }
+        if (_bakedMesh != null) Destroy(_bakedMesh);
     }
 }
