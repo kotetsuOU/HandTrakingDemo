@@ -193,7 +193,7 @@ void FillHolesPullPushFinalize(uint3 id : SV_DispatchThreadID)
     _OcclusionResultMap_RW.GetDimensions(w, h);
     if (id.x >= (uint)w || id.y >= (uint)h) return;
 
-    uint originType = _OriginTypeMap[id.xy];
+    uint originType = _OriginTypeMap_RW[id.xy];
     
     if (originType == 0u)
     {

@@ -153,13 +153,13 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
             cmd.DispatchCompute(cs, passData.kernelCalcNeighborhoodSize, threadGroupsX, threadGroupsY, 1);
 
-            // --- ステージ9: （オプション）急な深度勾配がある部分の近傍サイズを補正 ---
-            if (passData.settings.enableGradientCorrection)
+            // --- ステージ9a: 深度ピラミッドの構築（全カーネルタイプ共通） ---
+            // L1は_ViewPositionMapと_OriginTypeMapから物理点群のみを抽出
             {
-                // 階層的な深度レベル（L1 〜 L4）を構築
                 int l1_w = Mathf.Max(1, (sw + 1) / 2);
                 int l1_h = Mathf.Max(1, (sh + 1) / 2);
-                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.DepthMap, passData.depthMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.OriginTypeMap, passData.originTypeMap);
                 cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL1, ShaderIDs.DepthPyramidL1_RW, passData.depthPyramidL1);
                 cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL1, (l1_w + 7) / 8, (l1_h + 7) / 8, 1);
 
@@ -181,10 +181,29 @@ public partial class PCDRenderPass
                 cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL4, ShaderIDs.DepthPyramidL4_RW, passData.depthPyramidL4);
                 cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL4, (l4_w + 7) / 8, (l4_h + 7) / 8, 1);
 
+                int l5_w = Mathf.Max(1, (l4_w + 1) / 2);
+                int l5_h = Mathf.Max(1, (l4_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL5, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL5, ShaderIDs.DepthPyramidL5_RW, passData.depthPyramidL5);
+                cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL5, (l5_w + 7) / 8, (l5_h + 7) / 8, 1);
+
+                int l6_w = Mathf.Max(1, (l5_w + 1) / 2);
+                int l6_h = Mathf.Max(1, (l5_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL6, ShaderIDs.DepthPyramidL5, passData.depthPyramidL5);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildDepthPyramidL6, ShaderIDs.DepthPyramidL6_RW, passData.depthPyramidL6);
+                cmd.DispatchCompute(cs, passData.kernelBuildDepthPyramidL6, (l6_w + 7) / 8, (l6_h + 7) / 8, 1);
+            }
+            
+
+            // --- ステージ9b: （オプション）急な深度勾配がある部分の近傍サイズを補正 ---
+            if (passData.settings.enableGradientCorrection)
+            {
                 cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
                 cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
                 cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
                 cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL5, passData.depthPyramidL5);
+                cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.DepthPyramidL6, passData.depthPyramidL6);
                 cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.NeighborhoodSizeMap, passData.neighborhoodSizeMap);
                 cmd.SetComputeTextureParam(cs, passData.kernelApplyGradient, ShaderIDs.CorrectedNeighborhoodSizeMap_RW, passData.correctedNeighborhoodSizeMap);
                 cmd.DispatchCompute(cs, passData.kernelApplyGradient, threadGroupsX, threadGroupsY, 1);
@@ -194,7 +213,7 @@ public partial class PCDRenderPass
         // リバースZバッファへの対応フラグをセット（DX11等で正しいオクルージョン判定を行うため）
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_IsReversedZ"), SystemInfo.usesReversedZBuffer ? 1 : 0);
 
-        // --- ステージ10: 近傍オクルージョンテストを実行し、奥にあるポイントを破棄し、手前にあるポイントをフィルタリング ---
+        // --- ステージ10: ピラミッドサンプリングによるオクルージョン判定 ---
         if (passData.settings.kernelType == PCDRendererFeature.PCD_OcclusionKernel.Skip)
         {
             cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ColorMap, passData.colorMap);
@@ -205,14 +224,17 @@ public partial class PCDRenderPass
         else
         {
             cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ColorMap, passData.colorMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthMap, passData.depthMap);
             cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
             cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DensityMap, passData.densityMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.GridZMinMap, passData.gridZMinMap);
+            // ピラミッドテクスチャをオクルージョンカーネルにバインド
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL5, passData.depthPyramidL5);
+            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL6, passData.depthPyramidL6);
             cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
         }
 
@@ -235,7 +257,6 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.ColorMap, passData.colorMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.DepthMap, passData.depthMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
@@ -291,7 +312,6 @@ public partial class PCDRenderPass
             // Phase 3: Copy result back to OcclusionResultMap and update OriginTypeMap
             cmd.SetComputeTextureParam(cs, passData.kernelFillHolesPullPushFinalize, ShaderIDs.PullPushLevel_In, passData.pullPushPyramid[0]);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHolesPullPushFinalize, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelFillHolesPullPushFinalize, ShaderIDs.OriginTypeMap, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHolesPullPushFinalize, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHolesPullPushFinalize, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
             cmd.DispatchCompute(cs, passData.kernelFillHolesPullPushFinalize, threadGroupsX, threadGroupsY, 1);

@@ -26,6 +26,8 @@ public partial class PCDRenderPass
         data.kernelBuildDepthPyramidL2 = _kernelBuildDepthPyramidL2;
         data.kernelBuildDepthPyramidL3 = _kernelBuildDepthPyramidL3;
         data.kernelBuildDepthPyramidL4 = _kernelBuildDepthPyramidL4;
+        data.kernelBuildDepthPyramidL5 = _kernelBuildDepthPyramidL5;
+        data.kernelBuildDepthPyramidL6 = _kernelBuildDepthPyramidL6;
         data.kernelApplyGradient = _kernelApplyGradient;
         data.kernelComputeOcclusion = _kernelComputeOcclusion;
         data.kernelCopyColorToOcclusion = _kernelCopyColorToOcclusion;

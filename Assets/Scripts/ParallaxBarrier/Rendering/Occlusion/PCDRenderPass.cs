@@ -54,6 +54,10 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int DepthPyramidL3_RW = Shader.PropertyToID("_DepthPyramidL3_RW");
         public static readonly int DepthPyramidL4 = Shader.PropertyToID("_DepthPyramidL4");
         public static readonly int DepthPyramidL4_RW = Shader.PropertyToID("_DepthPyramidL4_RW");
+        public static readonly int DepthPyramidL5 = Shader.PropertyToID("_DepthPyramidL5");
+        public static readonly int DepthPyramidL5_RW = Shader.PropertyToID("_DepthPyramidL5_RW");
+        public static readonly int DepthPyramidL6 = Shader.PropertyToID("_DepthPyramidL6");
+        public static readonly int DepthPyramidL6_RW = Shader.PropertyToID("_DepthPyramidL6_RW");
         public static readonly int CorrectedNeighborhoodSizeMap_RW = Shader.PropertyToID("_CorrectedNeighborhoodSizeMap_RW");
         public static readonly int FinalNeighborhoodSizeMap = Shader.PropertyToID("_FinalNeighborhoodSizeMap");
         
@@ -109,6 +113,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
                 _kernelCalcNeighborhoodSize,
                 _kernelBuildDepthPyramidL1, _kernelBuildDepthPyramidL2,
                 _kernelBuildDepthPyramidL3, _kernelBuildDepthPyramidL4,
+                _kernelBuildDepthPyramidL5, _kernelBuildDepthPyramidL6,
                 _kernelApplyGradient,
                 _kernelComputeOcclusion, _kernelCopyColorToOcclusion, _kernelFillHoles, _kernelFillHolesPullPushInit, _kernelFillHolesPull, _kernelFillHolesPush, _kernelFillHolesPullPushFinalize, _kernelInterpolate,
                 _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug,
@@ -202,14 +207,13 @@ public partial class PCDRenderPass : ScriptableRenderPass
         _kernelGridMedianFilter = pointCloudCompute.FindKernel("GridMedianFilter");
         _kernelCalcNeighborhoodSize = pointCloudCompute.FindKernel("CalculateNeighborhoodSize");
 
-        if (_settings.enableGradientCorrection)
-        {
-            _kernelBuildDepthPyramidL1 = pointCloudCompute.FindKernel("BuildDepthPyramidL1");
-            _kernelBuildDepthPyramidL2 = pointCloudCompute.FindKernel("BuildDepthPyramidL2");
-            _kernelBuildDepthPyramidL3 = pointCloudCompute.FindKernel("BuildDepthPyramidL3");
-            _kernelBuildDepthPyramidL4 = pointCloudCompute.FindKernel("BuildDepthPyramidL4");
-            _kernelApplyGradient = pointCloudCompute.FindKernel("ApplyAdaptiveGradientCorrection");
-        }
+        _kernelBuildDepthPyramidL1 = pointCloudCompute.FindKernel("BuildDepthPyramidL1");
+        _kernelBuildDepthPyramidL2 = pointCloudCompute.FindKernel("BuildDepthPyramidL2");
+        _kernelBuildDepthPyramidL3 = pointCloudCompute.FindKernel("BuildDepthPyramidL3");
+        _kernelBuildDepthPyramidL4 = pointCloudCompute.FindKernel("BuildDepthPyramidL4");
+        _kernelBuildDepthPyramidL5 = pointCloudCompute.FindKernel("BuildDepthPyramidL5");
+        _kernelBuildDepthPyramidL6 = pointCloudCompute.FindKernel("BuildDepthPyramidL6");
+        _kernelApplyGradient = pointCloudCompute.FindKernel("ApplyAdaptiveGradientCorrection");
 
         _kernelComputeOcclusion = pointCloudCompute.FindKernel("ComputeOcclusion");
         _kernelCopyColorToOcclusion = pointCloudCompute.FindKernel("CopyColorToOcclusion");
@@ -244,6 +248,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
                      kernelCalcNeighborhoodSize,
                      kernelBuildDepthPyramidL1, kernelBuildDepthPyramidL2,
                      kernelBuildDepthPyramidL3, kernelBuildDepthPyramidL4,
+                     kernelBuildDepthPyramidL5, kernelBuildDepthPyramidL6,
                      kernelApplyGradient,
                       kernelComputeOcclusion, kernelCopyColorToOcclusion, kernelFillHoles, kernelFillHolesPullPushInit, kernelFillHolesPull, kernelFillHolesPush, kernelFillHolesPullPushFinalize, kernelInterpolate,
                       kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug,
@@ -276,6 +281,8 @@ public partial class PCDRenderPass : ScriptableRenderPass
         internal TextureHandle depthPyramidL2;
         internal TextureHandle depthPyramidL3;
         internal TextureHandle depthPyramidL4;
+        internal TextureHandle depthPyramidL5;
+        internal TextureHandle depthPyramidL6;
         internal TextureHandle correctedNeighborhoodSizeMap;
         internal TextureHandle occlusionResultMap;
 

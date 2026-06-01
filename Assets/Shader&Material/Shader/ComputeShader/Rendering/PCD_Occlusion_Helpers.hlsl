@@ -2,37 +2,101 @@
 #ifndef PCD_OCCLUSION_HELPERS_INCLUDED
 #define PCD_OCCLUSION_HELPERS_INCLUDED
 
-// ピラミッド構築時に 2x2 px 領域内の最小深度値(手前)を抽出してダウンスケール
-uint ZMinDownsample(Texture2D<uint> inputTex, uint2 uv)
+// ==========================================
+// Level 1用: 物理点群(OriginType == 0u)のみを抽出し、最小深度ベクトルを返す
+// 【新規性要素】ジオメトリバッファを用いた構築時フィルタリング
+// ==========================================
+float4 ZMinPhysicalDownsample(Texture2D<float4> posTex, Texture2D<uint> typeTex, uint2 uv)
 {
-    uint z0 = inputTex[uv + uint2(0, 0)];
-    uint z1 = inputTex[uv + uint2(1, 0)];
-    uint z2 = inputTex[uv + uint2(0, 1)];
-    uint z3 = inputTex[uv + uint2(1, 1)];
-    return min(min(z0, z1), min(z2, z3));
+    float4 p0 = posTex[uv + uint2(0, 0)]; uint t0 = typeTex[uv + uint2(0, 0)];
+    float4 p1 = posTex[uv + uint2(1, 0)]; uint t1 = typeTex[uv + uint2(1, 0)];
+    float4 p2 = posTex[uv + uint2(0, 1)]; uint t2 = typeTex[uv + uint2(0, 1)];
+    float4 p3 = posTex[uv + uint2(1, 1)]; uint t3 = typeTex[uv + uint2(1, 1)];
+
+    bool useTagOpt = (_EnableTagBasedOptimization > 0);
+
+    float4 minP = useTagOpt ? float4(0.0, 0.0, 0.0, 1e9) : p0;
+    
+    if (useTagOpt)
+    {
+        if (t0 == 0u && p0.w < minP.w) minP = p0;
+        if (t1 == 0u && p1.w < minP.w) minP = p1;
+        if (t2 == 0u && p2.w < minP.w) minP = p2;
+        if (t3 == 0u && p3.w < minP.w) minP = p3;
+    }
+    else
+    {
+        if (p1.w < minP.w) minP = p1;
+        if (p2.w < minP.w) minP = p2;
+        if (p3.w < minP.w) minP = p3;
+    }
+    
+    return minP;
 }
 
-// ソーベルフィルタを使用して深度画像の勾配量(エッジ強度)を算出
-// - pyramidTex: 計算対象の深度ピラミッドテクスチャ
-// - x, y 平面の勾配(Gx, Gy)の大きさを返す
-float SobelOnPyramid(Texture2D<uint> pyramidTex, uint2 uv)
+// ==========================================
+// Level 2〜4用: 物理点群のみで構成されたピラミッドからの単純ダウンサンプル
+// .w 成分で最小深度のベクトル全体を選択
+// ==========================================
+float4 ZMinPositionDownsample(Texture2D<float4> inputTex, uint2 uv)
+{
+    float4 p0 = inputTex[uv + uint2(0, 0)];
+    float4 p1 = inputTex[uv + uint2(1, 0)];
+    float4 p2 = inputTex[uv + uint2(0, 1)];
+    float4 p3 = inputTex[uv + uint2(1, 1)];
+    
+    float4 minP = p0;
+    if (p1.w < minP.w) minP = p1;
+    if (p2.w < minP.w) minP = p2;
+    if (p3.w < minP.w) minP = p3;
+    return minP;
+}
+
+// ==========================================
+// ピラミッドレベルに応じた座標フェッチ
+// level 0 は _ViewPositionMap（フル解像度）、level 1〜4 はピラミッドテクスチャを参照
+// ==========================================
+float4 FetchPyramidPosition(int level, uint2 uv_base, int2 offset)
+{
+    uint2 uv_mip = (uv_base >> (uint)level) + (uint2)offset;
+    
+    float4 result = float4(0, 0, 0, 1e9);
+    
+    if (level == 1) result = _DepthPyramidL1[uv_mip];
+    else if (level == 2) result = _DepthPyramidL2[uv_mip];
+    else if (level == 3) result = _DepthPyramidL3[uv_mip];
+    else if (level == 4) result = _DepthPyramidL4[uv_mip];
+    else if (level == 5) result = _DepthPyramidL5[uv_mip];
+    else if (level == 6) result = _DepthPyramidL6[uv_mip];
+    else result = _ViewPositionMap[uv_base + (uint2)offset];
+    
+    return result;
+}
+
+// ==========================================
+// ソーベルフィルタによる深度勾配計算（float4 ピラミッド対応版）
+// .w 成分をビュー空間深度として使用。センチネル値(1e9)検知で勾配ゼロ返却。
+// ※ _GradientThreshold_g_th はメートル単位の勾配に対応するため再チューニングが必要
+// ==========================================
+float SobelOnPyramid(Texture2D<float4> pyramidTex, uint2 uv)
 {
     uint2 dim;
     pyramidTex.GetDimensions(dim.x, dim.y);
-    float tl = (float) pyramidTex[clamp(uv + int2(-1, -1), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float t = (float) pyramidTex[clamp(uv + int2(0, -1), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float tr = (float) pyramidTex[clamp(uv + int2(1, -1), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float l = (float) pyramidTex[clamp(uv + int2(-1, 0), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float r = (float) pyramidTex[clamp(uv + int2(1, 0), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float bl = (float) pyramidTex[clamp(uv + int2(-1, 1), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float b = (float) pyramidTex[clamp(uv + int2(0, 1), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
-    float br = (float) pyramidTex[clamp(uv + int2(1, 1), 0, dim - 1)] / (float) DEPTH_MAX_UINT;
 
-    const float MAX_DEPTH_NORMALIZED = 1.0 + 0.1;
-    // 近傍8ピクセルのいずれかが描画範囲外やクリア深度の時は勾配なしとして扱う
-    if (tl > MAX_DEPTH_NORMALIZED || t > MAX_DEPTH_NORMALIZED || tr > MAX_DEPTH_NORMALIZED ||
-        l > MAX_DEPTH_NORMALIZED || r > MAX_DEPTH_NORMALIZED ||
-        bl > MAX_DEPTH_NORMALIZED || b > MAX_DEPTH_NORMALIZED || br > MAX_DEPTH_NORMALIZED)
+    float tl = pyramidTex[clamp(uv + int2(-1, -1), 0, dim - 1)].w;
+    float t  = pyramidTex[clamp(uv + int2( 0, -1), 0, dim - 1)].w;
+    float tr = pyramidTex[clamp(uv + int2( 1, -1), 0, dim - 1)].w;
+    float l  = pyramidTex[clamp(uv + int2(-1,  0), 0, dim - 1)].w;
+    float r  = pyramidTex[clamp(uv + int2( 1,  0), 0, dim - 1)].w;
+    float bl = pyramidTex[clamp(uv + int2(-1,  1), 0, dim - 1)].w;
+    float b  = pyramidTex[clamp(uv + int2( 0,  1), 0, dim - 1)].w;
+    float br = pyramidTex[clamp(uv + int2( 1,  1), 0, dim - 1)].w;
+
+    // センチネル値(1e9)が混入している領域は有効な表面ではないため勾配0とする
+    const float SENTINEL_THRESHOLD = 1e8;
+    if (tl > SENTINEL_THRESHOLD || t > SENTINEL_THRESHOLD || tr > SENTINEL_THRESHOLD ||
+        l  > SENTINEL_THRESHOLD || r > SENTINEL_THRESHOLD ||
+        bl > SENTINEL_THRESHOLD || b > SENTINEL_THRESHOLD || br > SENTINEL_THRESHOLD)
     {
         return 0.0;
     }

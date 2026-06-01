@@ -158,12 +158,13 @@ public partial class PCDRenderPass
         // 選択されたサイズで分割されたグリッドマップの解像度を計算
         float gs = (float)_settings.gridSize;
         if (gs == 0) gs = 16.0f; // フォールバック
-        int gridWidth = Mathf.CeilToInt(screenWidth / gs);
+        int gridGroupsX = Mathf.CeilToInt(screenWidth / gs);
         int gridHeight = Mathf.CeilToInt(screenHeight / gs);
-        int l1_Width = 1, l1_Height = 1, l2_Width = 1, l2_Height = 1, l3_Width = 1, l3_Height = 1, l4_Width = 1, l4_Height = 1;
+        int l1_Width = 1, l1_Height = 1, l2_Width = 1, l2_Height = 1, l3_Width = 1, l3_Height = 1, l4_Width = 1, l4_Height = 1, l5_Width = 1, l5_Height = 1, l6_Width = 1, l6_Height = 1;
 
-        // 勾配に応じた近傍補正を有効にしている場合、階層マップ(L1〜L4)の解像度を計算
-        if (_settings.enableGradientCorrection)
+        // ピラミッドが必要な場合（オクルージョンカーネルがSkip以外、または勾配補正が有効）の解像度計算
+        bool needsPyramid = _settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip;
+        if (needsPyramid)
         {
             l1_Width = Mathf.Max(1, Mathf.CeilToInt(screenWidth / 2.0f));
             l1_Height = Mathf.Max(1, Mathf.CeilToInt(screenHeight / 2.0f));
@@ -173,6 +174,10 @@ public partial class PCDRenderPass
             l3_Height = Mathf.Max(1, Mathf.CeilToInt(l2_Height / 2.0f));
             l4_Width = Mathf.Max(1, Mathf.CeilToInt(l3_Width / 2.0f));
             l4_Height = Mathf.Max(1, Mathf.CeilToInt(l3_Height / 2.0f));
+            l5_Width = Mathf.Max(1, Mathf.CeilToInt(l4_Width / 2.0f));
+            l5_Height = Mathf.Max(1, Mathf.CeilToInt(l4_Height / 2.0f));
+            l6_Width = Mathf.Max(1, Mathf.CeilToInt(l5_Width / 2.0f));
+            l6_Height = Mathf.Max(1, Mathf.CeilToInt(l5_Height / 2.0f));
         }
 
         // デバッグマップのアロケーション（外部ファイル化）
@@ -181,9 +186,9 @@ public partial class PCDRenderPass
         TextureHandle finalImageHandle;
         TextureHandle debugDisplayMapHandle_RG = default;
         TextureHandle occlusionValueMapHandle_RG = default;
-        TextureHandle integratedDepthMapHandle_RG = default;
         TextureHandle neighborhoodMapHandle_RG = default;
         TextureHandle neighborCountMapHandle_RG = default;
+        TextureHandle integratedDepthMapHandle_RG = default;
 
         // コンピュートシェーダーを実行するパスをRenderGraphに追加
         using (var builder = renderGraph.AddComputePass<ComputePassData>(PROFILER_TAG, out var data))
@@ -270,7 +275,7 @@ public partial class PCDRenderPass
             data.neighborCountMap = neighborCountMapHandle_RG;
 
             // 密度とグリッドレベル用の縮小バッファを生成
-            var gridDesc = new TextureDesc(gridWidth, gridHeight) { enableRandomWrite = true };
+            var gridDesc = new TextureDesc(gridGroupsX, gridHeight) { enableRandomWrite = true };
             gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
             data.gridZMinMap = renderGraph.CreateTexture(gridDesc);
             gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
@@ -279,16 +284,20 @@ public partial class PCDRenderPass
             gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RGFloat, false);
             data.densityMap = renderGraph.CreateTexture(gridDesc);
 
-            if (data.settings.enableGradientCorrection)
+            if (needsPyramid)
             {
-                var descL1 = new TextureDesc(l1_Width, l1_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt };
+                var descL1 = new TextureDesc(l1_Width, l1_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
                 data.depthPyramidL1 = renderGraph.CreateTexture(descL1);
-                var descL2 = new TextureDesc(l2_Width, l2_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt };
+                var descL2 = new TextureDesc(l2_Width, l2_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
                 data.depthPyramidL2 = renderGraph.CreateTexture(descL2);
-                var descL3 = new TextureDesc(l3_Width, l3_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt };
+                var descL3 = new TextureDesc(l3_Width, l3_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
                 data.depthPyramidL3 = renderGraph.CreateTexture(descL3);
-                var descL4 = new TextureDesc(l4_Width, l4_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt };
+                var descL4 = new TextureDesc(l4_Width, l4_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
                 data.depthPyramidL4 = renderGraph.CreateTexture(descL4);
+                var descL5 = new TextureDesc(l5_Width, l5_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
+                data.depthPyramidL5 = renderGraph.CreateTexture(descL5);
+                var descL6 = new TextureDesc(l6_Width, l6_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
+                data.depthPyramidL6 = renderGraph.CreateTexture(descL6);
             }
 
             if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
@@ -369,12 +378,14 @@ public partial class PCDRenderPass
             builder.UseTexture(data.gridLevelMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.filteredGridLevelMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.neighborhoodSizeMap, AccessFlags.ReadWrite);
-            if (data.settings.enableGradientCorrection)
+            if (needsPyramid)
             {
                 builder.UseTexture(data.depthPyramidL1, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL2, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL3, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL4, AccessFlags.ReadWrite);
+                builder.UseTexture(data.depthPyramidL5, AccessFlags.ReadWrite);
+                builder.UseTexture(data.depthPyramidL6, AccessFlags.ReadWrite);
             }
             if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
             {
