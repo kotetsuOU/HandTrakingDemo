@@ -68,26 +68,32 @@ public partial class PCDRenderPass
         int gridGroupsX = (sw + gs - 1) / gs;
         int gridGroupsY = (sh + gs - 1) / gs;
 
-        // --- ステージ1: 中間RTテクスチャのクリア ---
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.ColorMap_RW, passData.colorMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.DepthMap_RW, passData.depthMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.ViewPositionMap_RW, passData.viewPositionMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
-        
-        var clearFinalImageTarget = (passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None) ? passData.finalImage : passData.occlusionResultMap;
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.FinalImage_RW, clearFinalImageTarget);
-        
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
-        cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
-        cmd.DispatchCompute(cs, passData.kernelClear, threadGroupsX, threadGroupsY, 1);
+        bool runInitFromCamera = passData.hasVirtualDepth && passData.settings.enableVirtualDepthIntegration;
 
-        // カウンターのクリア
+        // --- ステージ1: 中間RTテクスチャのクリア ---
+        // InitFromCamera が有効な場合、InitFromCamera が全ピクセルを上書き初期化するため ClearMaps をスキップする
+        if (!runInitFromCamera)
+        {
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.ColorMap_RW, passData.colorMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.DepthMap_RW, passData.depthMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.ViewPositionMap_RW, passData.viewPositionMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
+            
+            var clearFinalImageTarget = (passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None) ? passData.finalImage : passData.occlusionResultMap;
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.FinalImage_RW, clearFinalImageTarget);
+            
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelClear, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
+            cmd.DispatchCompute(cs, passData.kernelClear, threadGroupsX, threadGroupsY, 1);
+        }
+
+        // カウンターのクリアは常に実行
         cmd.SetComputeBufferParam(cs, passData.kernelClearCounter, ShaderIDs.StaticMeshCounter_RW, passData.staticMeshCounterBuffer);
         cmd.DispatchCompute(cs, passData.kernelClearCounter, 1, 1, 1);
 
         // --- ステージ2: 仮想深度マップからの初期化（提供されている場合） ---
-        if (passData.hasVirtualDepth && passData.settings.enableVirtualDepthIntegration)
+        if (runInitFromCamera)
         {
             cmd.SetComputeIntParam(cs, ShaderIDs.UseVirtualDepth, 1);
             cmd.SetComputeTextureParam(cs, passData.kernelInitFromCamera, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
@@ -101,6 +107,9 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelInitFromCamera, ShaderIDs.ColorMap_RW, passData.colorMap);
             cmd.SetComputeTextureParam(cs, passData.kernelInitFromCamera, ShaderIDs.ViewPositionMap_RW, passData.viewPositionMap);
             cmd.SetComputeTextureParam(cs, passData.kernelInitFromCamera, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+            // ClearMapsの代わりにここでOriginMapも初期化するためにバインドを追加
+            cmd.SetComputeTextureParam(cs, passData.kernelInitFromCamera, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
+            
             cmd.SetComputeBufferParam(cs, passData.kernelInitFromCamera, ShaderIDs.StaticMeshCounter_RW, passData.staticMeshCounterBuffer);
             cmd.SetComputeMatrixParam(cs, ShaderIDs.InverseProjectionMatrix, passData.inverseProjectionMatrix);
             cmd.DispatchCompute(cs, passData.kernelInitFromCamera, threadGroupsX, threadGroupsY, 1);

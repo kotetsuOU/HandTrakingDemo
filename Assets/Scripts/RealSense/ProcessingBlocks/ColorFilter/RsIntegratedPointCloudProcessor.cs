@@ -12,6 +12,9 @@ using Unity.Collections.LowLevel.Unsafe;
 /// </summary>
 public class RsIntegratedPointCloudProcessor : IDisposable
 {
+    // プロファイリング用に、従来手法でもスキップさせず毎回リードバックを発行させるフラグ
+    public bool ForceReadbackEveryFrame { get; set; } = true;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct RsIntrinsics { public int width, height; public float ppx, ppy, fx, fy; }
 
@@ -227,7 +230,7 @@ public class RsIntegratedPointCloudProcessor : IDisposable
             _shader.Dispatch(_kernelIndex, threadGroups, 1, 1);
 
             // フィルタリングされた点群の数を非同期にCPUへ読み戻すリクエストを発行
-            if (!_countReadbackPending) RequestAsyncReadback();
+            if (ForceReadbackEveryFrame || !_countReadbackPending) RequestAsyncReadback();
         }
     }
 

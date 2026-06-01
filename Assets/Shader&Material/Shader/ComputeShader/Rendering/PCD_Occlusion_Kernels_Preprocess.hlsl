@@ -22,9 +22,11 @@ void ClearMaps(uint3 id : SV_DispatchThreadID)
     _ColorMap_RW[id.xy] = float4(0, 0, 0, 0);
     _DepthMap_RW[id.xy] = DEPTH_MAX_UINT;
     _ViewPositionMap_RW[id.xy] = float4(0, 0, 0, 1e9);
-    _OcclusionResultMap_RW[id.xy] = float4(0, 0, 0, 0);
-    _OcclusionValueMap_RW[id.xy] = float2(0.0, 0.0);
-    _FinalImage_RW[id.xy] = float4(0, 0, 0, 0);
+    
+    // 以下のテクスチャは後続のカーネルで全ピクセルが上書きされるため、クリアを省略して高速化
+    // _OcclusionResultMap_RW[id.xy] = float4(0, 0, 0, 0);
+    // _OcclusionValueMap_RW[id.xy] = float2(0.0, 0.0);
+    // _FinalImage_RW[id.xy] = float4(0, 0, 0, 0);
 
     _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
     _OriginTypeMap_RW[id.xy] = 2u; // 2 = Background
@@ -248,11 +250,8 @@ void CopyColorToOcclusion(uint3 id : SV_DispatchThreadID)
     if (id.x >= (uint) _ScreenParams.x || id.y >= (uint) _ScreenParams.y)
         return;
 
-    uint originType = _OriginTypeMap_RW[id.xy];
-    if (originType != 2u) // 点群(0u)または仮想オブジェクト(1u)
-    {
-        _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy];
-    }
+    // 背景(2u)も含めて全ピクセルをコピー(上書き)し、事前のClear処理を不要にする
+    _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy];
 }
 
 #endif // PCD_OCCLUSION_KERNELS_PREPROCESS_INCLUDED

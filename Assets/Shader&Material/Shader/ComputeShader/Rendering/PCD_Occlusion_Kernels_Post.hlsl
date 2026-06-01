@@ -65,40 +65,65 @@ void Interpolate(uint3 id : SV_DispatchThreadID)
 // URPなどの描画パイプラインから取得したカメラの現在の深度およびカラーをベースにする。
 // 点群を描画する前にこれを初期状態としてマップに反映することで、
 // 通常の3D仮想オブジェクト（メッシュ）などが点群と相互に正しく遮蔽(オクルージョン)されるようにする。
+groupshared uint shared_mesh_counter;
+
 [numthreads(8, 8, 1)]
-void InitFromCamera(uint3 id : SV_DispatchThreadID)
+void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIndex)
 {
-    if (id.x >= (uint) _ScreenParams.x || id.y >= (uint) _ScreenParams.y)
-        return;
+    if (groupIndex == 0)
+        shared_mesh_counter = 0;
 
-    float rawDepth = _VirtualDepthMap[id.xy];
-    float cameraDepth = _IsReversedZ > 0 ? (1.0 - rawDepth) : rawDepth;
+    GroupMemoryBarrierWithGroupSync();
 
-    if (cameraDepth >= 0.9999)
+    uint local_hit = 0;
+
+    if (id.x < (uint) _ScreenParams.x && id.y < (uint) _ScreenParams.y)
     {
-        _DepthMap_RW[id.xy] = DEPTH_MAX_UINT;
-        _ColorMap_RW[id.xy] = float4(0, 0, 0, 0);
-        _ViewPositionMap_RW[id.xy] = float4(0, 0, 0, 1e9);
-        _OriginTypeMap_RW[id.xy] = 2u;
-        return;
+        // ClearMaps の代わりとして OriginMap もここでクリアしておく
+        _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+
+        float rawDepth = _VirtualDepthMap[id.xy];
+        float cameraDepth = _IsReversedZ > 0 ? (1.0 - rawDepth) : rawDepth;
+
+        if (cameraDepth >= 0.9999)
+        {
+            _DepthMap_RW[id.xy] = DEPTH_MAX_UINT;
+            _ColorMap_RW[id.xy] = float4(0, 0, 0, 0);
+            _ViewPositionMap_RW[id.xy] = float4(0, 0, 0, 1e9);
+            _OriginTypeMap_RW[id.xy] = 2u;
+        }
+        else
+        {
+            uint depth_uint = (uint) (cameraDepth * (float) DEPTH_MAX_UINT);
+            _DepthMap_RW[id.xy] = depth_uint;
+
+            float4 cameraColor = _CameraColorTexture[id.xy];
+            _ColorMap_RW[id.xy] = float4(cameraColor.rgb, 1.0);
+
+            float2 uv = float2(id.xy) / _ScreenParams.xy;
+            float2 ndc = uv * 2.0 - 1.0;
+            float4 clipPos = float4(ndc.x, ndc.y, cameraDepth * 2.0 - 1.0, 1.0);
+            float4 viewPos = mul(_InverseProjectionMatrix, clipPos);
+            viewPos /= viewPos.w;
+
+            _ViewPositionMap_RW[id.xy] = float4(viewPos.xyz, cameraDepth);
+            _OriginTypeMap_RW[id.xy] = 1u;
+
+            local_hit = 1;
+        }
     }
 
-    uint depth_uint = (uint) (cameraDepth * (float) DEPTH_MAX_UINT);
-    _DepthMap_RW[id.xy] = depth_uint;
+    if (local_hit == 1)
+    {
+        InterlockedAdd(shared_mesh_counter, 1);
+    }
 
-    float4 cameraColor = _CameraColorTexture[id.xy];
-    _ColorMap_RW[id.xy] = float4(cameraColor.rgb, 1.0);
+    GroupMemoryBarrierWithGroupSync();
 
-    float2 uv = float2(id.xy) / _ScreenParams.xy;
-    float2 ndc = uv * 2.0 - 1.0;
-    float4 clipPos = float4(ndc.x, ndc.y, cameraDepth * 2.0 - 1.0, 1.0);
-    float4 viewPos = mul(_InverseProjectionMatrix, clipPos);
-    viewPos /= viewPos.w;
-
-    _ViewPositionMap_RW[id.xy] = float4(viewPos.xyz, cameraDepth);
-    _OriginTypeMap_RW[id.xy] = 1u;
-
-    InterlockedAdd(_StaticMeshCounter_RW[0], 1u);
+    if (groupIndex == 0 && shared_mesh_counter > 0)
+    {
+        InterlockedAdd(_StaticMeshCounter_RW[0], shared_mesh_counter);
+    }
 }
 
 int _DebugDisplayMode;

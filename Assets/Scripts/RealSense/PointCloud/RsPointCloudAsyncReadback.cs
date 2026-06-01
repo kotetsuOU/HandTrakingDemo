@@ -11,12 +11,18 @@ public class RsPointCloudAsyncReadback : IDisposable
 
     #endregion
 
+    #region Public Properties
+
+    // プロファイリング用に、従来手法でもスキップさせず毎回リードバックを発行させるフラグ
+    public bool ForceReadbackEveryFrame { get; set; } = true;
+
+    #endregion
+
     #region Private Fields
 
-    // ComputeBuffer.CopyCount で GPU上の要素数を取得するための1要素バッファ群
-    private ComputeBuffer _filteredCountBuffer;
-    private ComputeBuffer _sampledCountBuffer;
-    private ComputeBuffer _discardedCountBuffer;
+    // ComputeBuffer.CopyCount で GPU上の要素数を取得するためのバッファ
+    // 3要素 (filtered, sampled, discarded) を1つのバッファにまとめる
+    private ComputeBuffer _countsBuffer;
 
     private bool _countReadbackPending = false; // 値の取得待機状態のフラグ
     private bool _samplesReadbackPending = false;
@@ -60,9 +66,8 @@ public class RsPointCloudAsyncReadback : IDisposable
 
     private void InitializeBuffers()
     {
-        _filteredCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
-        _sampledCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
-        _discardedCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
+        // 3つのint要素を1つのバッファにまとめる (最適化)
+        _countsBuffer = new ComputeBuffer(3, sizeof(int), ComputeBufferType.Raw);
         _cachedSamples = new Vector3[MAX_SAMPLE_TRANSFER];
     }
 
@@ -82,14 +87,15 @@ public class RsPointCloudAsyncReadback : IDisposable
             return;
         }
 
-        if (_filteredCountBuffer == null || _sampledCountBuffer == null || _discardedCountBuffer == null)
+        if (_countsBuffer == null)
         {
-            UnityEngine.Debug.LogWarning("RsPointCloudAsyncReadback: One or more internal count buffers are null. Async readback request aborted.");
+            UnityEngine.Debug.LogWarning("RsPointCloudAsyncReadback: _countsBuffer is null. Async readback request aborted.");
             return;
         }
 
         // 既に直前の要求が処理中(Pending)の場合は、今回のフレームでの要求は見送る(スキップ)
-        if (_countReadbackPending)
+        // ただし ForceReadbackEveryFrame が true ならばスキップせずに発行する
+        if (!ForceReadbackEveryFrame && _countReadbackPending)
         {
             _stats?.RecordCountReadbackSkipped();
             return;
@@ -97,15 +103,13 @@ public class RsPointCloudAsyncReadback : IDisposable
 
         _countReadbackPending = true;
 
-        // AppendBuffer から要素数を取り出して1 int 分の _CountBuffer に書き込む
-        ComputeBuffer.CopyCount(filteredVerticesBuffer, _filteredCountBuffer, 0);
-        ComputeBuffer.CopyCount(samplingBuffer, _sampledCountBuffer, 0);
-        ComputeBuffer.CopyCount(distanceDiscardBuffer, _discardedCountBuffer, 0);
+        // AppendBuffer から要素数を取り出して1つのバッファの異なるオフセット(0, 4, 8)に書き込む
+        ComputeBuffer.CopyCount(filteredVerticesBuffer, _countsBuffer, 0);
+        ComputeBuffer.CopyCount(samplingBuffer, _countsBuffer, 4);
+        ComputeBuffer.CopyCount(distanceDiscardBuffer, _countsBuffer, 8);
 
-        // AsyncGPUReadbackに取得を依頼。コールバックが指定関数に返却される
-        AsyncGPUReadback.Request(_filteredCountBuffer, OnFilteredCountReadback);
-        AsyncGPUReadback.Request(_sampledCountBuffer, OnSampledCountReadback);
-        AsyncGPUReadback.Request(_discardedCountBuffer, OnDiscardedCountReadback);
+        // AsyncGPUReadbackに取得を依頼 (3つ分まとめて1回のリクエスト)
+        AsyncGPUReadback.Request(_countsBuffer, OnCountsReadback);
 
         // 点群自体のデータの非同期読み取り要求も行う（PCA用）
         RequestAsyncSamplesReadback(samplingBuffer);
@@ -113,26 +117,26 @@ public class RsPointCloudAsyncReadback : IDisposable
 
     public void RequestFilteredCountReadback(ComputeBuffer filteredVerticesBuffer)
     {
-        if (_countReadbackPending)
+        if (!ForceReadbackEveryFrame && _countReadbackPending)
         {
             _stats?.RecordCountReadbackSkipped();
             return;
         }
         
-        if (filteredVerticesBuffer == null || _filteredCountBuffer == null)
+        if (filteredVerticesBuffer == null || _countsBuffer == null)
         {
             return;
         }
         
         _countReadbackPending = true;
         
-        ComputeBuffer.CopyCount(filteredVerticesBuffer, _filteredCountBuffer, 0);
-        AsyncGPUReadback.Request(_filteredCountBuffer, OnFilteredCountReadback);
+        ComputeBuffer.CopyCount(filteredVerticesBuffer, _countsBuffer, 0);
+        AsyncGPUReadback.Request(_countsBuffer, OnCountsReadback);
     }
 
     private void RequestAsyncSamplesReadback(ComputeBuffer samplingBuffer)
     {
-        if (_samplesReadbackPending)
+        if (!ForceReadbackEveryFrame && _samplesReadbackPending)
         {
             _stats?.RecordSamplesReadbackSkipped();
             return;
@@ -152,32 +156,18 @@ public class RsPointCloudAsyncReadback : IDisposable
 
     #region Readback Callbacks
 
-    private void OnFilteredCountReadback(AsyncGPUReadbackRequest request)
+    private void OnCountsReadback(AsyncGPUReadbackRequest request)
     {
         _countReadbackPending = false;
         if (request.hasError) return;
         
         var data = request.GetData<int>();
-        if (data.Length > 0) 
+        if (data.Length >= 1) 
             _lastFilteredCount = data[0];
-    }
-
-    private void OnSampledCountReadback(AsyncGPUReadbackRequest request)
-    {
-        if (request.hasError) return;
-        
-        var data = request.GetData<int>();
-        if (data.Length > 0) 
-            _lastSampledCount = data[0];
-    }
-
-    private void OnDiscardedCountReadback(AsyncGPUReadbackRequest request)
-    {
-        if (request.hasError) return;
-        
-        var data = request.GetData<int>();
-        if (data.Length > 0) 
-            _lastDiscardedCount = data[0];
+        if (data.Length >= 2) 
+            _lastSampledCount = data[1];
+        if (data.Length >= 3) 
+            _lastDiscardedCount = data[2];
     }
 
     // GPUから届いたサンプリング点群データをCPU配列へコピーする
@@ -209,9 +199,9 @@ public class RsPointCloudAsyncReadback : IDisposable
         _cachedSamplesCount = 0;
     }
 
-    public (ComputeBuffer filtered, ComputeBuffer sampled, ComputeBuffer discarded) GetCountBuffers()
+    public ComputeBuffer GetCountsBuffer()
     {
-        return (_filteredCountBuffer, _sampledCountBuffer, _discardedCountBuffer);
+        return _countsBuffer;
     }
 
     #endregion
@@ -224,12 +214,8 @@ public class RsPointCloudAsyncReadback : IDisposable
         _samplesReadbackPending = false;
         _hasCachedSamples = false;
         
-        _filteredCountBuffer?.Release();
-        _filteredCountBuffer = null;
-        _sampledCountBuffer?.Release();
-        _sampledCountBuffer = null;
-        _discardedCountBuffer?.Release();
-        _discardedCountBuffer = null;
+        _countsBuffer?.Release();
+        _countsBuffer = null;
     }
 
     #endregion
