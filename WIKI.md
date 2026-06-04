@@ -52,7 +52,7 @@ graph TD
     *   **URP RenderGraph へのノンブロッキング・データパッシング**:
         `PCDRenderPass.RecordRenderGraph` 内で、外部バッファ参照と点数を引き渡すことで、CPU を一切ブロックせずに URP の描画フローへシームレスに組み込み。
     *   **多段 Compute Shader カーネル (`PCD_Occlusion.compute`)**:
-        Joint Bilateral 補間、Pull-Push 補完、モルフォロジー演算などの多段演算を GPU 側で実行。
+        Joint Bilateral 補間、Pull-Push 補完、モルフォロジー演算などの多段演算を GPU 側で実行。また、タグベースのオクルージョン最適化 (`EnableTagBasedOptimization`) による仮想オブジェクト同士のセルフオクルージョン防止制御や、D3D11 環境における SRV/UAV 同時バインドハザードを回避する堅牢なアーキテクチャを採用しています。
 *   **詳細はこちら ──> [RENDERING.md](./RENDERING.md) を読む**
 
 ---

@@ -114,38 +114,88 @@ sequenceDiagram
 │   │   ├── [ParallaxBarrier/Rendering/Occlusion](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion)  
 │   │   │   ├── [PCDRendererFeature.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDRendererFeature.cs) — URP レンダラーへのパス追加、シングルトンインスタンス管理  
 │   │   │   ├── [PCDSettingsBridge.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDSettingsBridge.cs) — レンダリングパラメータの取得とフォールバックの仲介 (肥大化対策ブリッジ)  
-│   │   │   ├── [PCDRenderController.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDRenderController.cs) — インスペクターパラメータから実行パラメータへの動的仲介  
+│   │   │   ├── [PCDOcclusionPipelineController.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDOcclusionPipelineController.cs) — インスペクターパラメータから実行パラメータへの動的仲介  
 │   │   │   ├── [PCDPointBufferManager.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDPointBufferManager.cs) — 外部バッファ・静的メッシュ・アニメーションメッシュの調停と結合  
 │   │   │   ├── [StaticMeshPCDRegistrar.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/StaticMeshPCDRegistrar.cs) — 空間内の静的/動的オブジェクトを自動検出・登録  
-│   │   │   ├── [PCD_RenderPass_RenderGraph.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_RenderGraph.cs) — URP RenderGraph へのパス登録とバッファ割り当て  
-│   │   │   └── [PCD_RenderPass_Execute.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_Execute.cs) — Compute Shader カーネルの多段ディスパッチ統制  
+│   │   │   ├── [PCDRenderPass.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDRenderPass.cs) — オクルージョン描画パスのメイン処理・初期化・実行ライフサイクル管理  
+│   │   │   ├── [PCD_RenderPass_Allocation.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_Allocation.cs) — レンダーグラフ内での各種デプステクスチャやピラミッドなどのバッファリソース確保  
+│   │   │   ├── [PCD_RenderPass_BindParams.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_BindParams.cs) — 各 Compute Shader カーネルの引数、バッファ、定数等のバインド設定  
+│   │   │   ├── [PCD_RenderPass_Execute.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_Execute.cs) — 13段階の Compute Shader カーネルの多段ディスパッチ処理制御  
+│   │   │   ├── [PCD_RenderPass_RenderGraph.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_RenderGraph.cs) — URP RenderGraph への各 Compute/Raster パスの登録とバリアの構築  
+│   │   │   ├── [PCD_RenderPass_Debug.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCD_RenderPass_Debug.cs) — デバッグ画像のディスクエクスポートや非同期 GPU Readback の制御  
+│   │   │   ├── [PCDIntegratedDepthMapExporter.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDIntegratedDepthMapExporter.cs) — 統合DepthMap (R32_UInt) の可逆生データ(.raw32)および可視化PNGのエクスポート  
+│   │   │   └── [PCDOcclusionDebugExporter.cs](./Assets/Scripts/ParallaxBarrier/Rendering/Occlusion/PCDOcclusionDebugExporter.cs) — オクルージョン結果、近傍数などの16色パレットPNG/CSV出力用デバッグユーティリティ  
 │   │   └── [RealSense](./Assets/Scripts/RealSense)  
 │   │       ├── [Device](./Assets/Scripts/RealSense/Device)  
-│   │       │   ├── [RsDevice.cs](./Assets/Scripts/RealSense/Device/RsDevice.cs) — Pipeline をラップしたストリーム管理・エラーハンドリング  
-│   │       │   └── [RsDeviceController.cs](./Assets/Scripts/RealSense/Device/RsDeviceController.cs) — 接続確認および起動制御  
-│   │       ├── [RsProcessingPipe.cs](./Assets/Scripts/RealSense/RsProcessingPipe.cs) — フィルタパイプラインの構築、Dispose 管理  
-│   │       ├── [RsProcessingBlock.cs](./Assets/Scripts/RealSense/RsProcessingBlock.cs) — 各種フィルタの基底 ScriptableObject  
-│   │       ├── [ProcessingBlocks/ColorFilter](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter)  
-│   │       │   ├── [RsIntegratedPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) — GPU Direct 統合処理ブロック (常時搭載コア)  
-│   │       │   ├── [RsIntegratedPointCloudProcessor.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloudProcessor.cs) — GPU 投影・射影演算プロセッサ  
-│   │       │   ├── [RsColorBasedDepthCulling.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsColorBasedDepthCulling.cs) — HSV/YCbCr 色空間閾値に基づく深度カリング  
-│   │       │   ├── [RsGpuCullingProcessor.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsGpuCullingProcessor.cs) — カリング用 Compute Shader 並列ディスパッチャー  
-│   │       │   ├── [RsDepthToColorCalibration.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsDepthToColorCalibration.cs) — 内参・外参を利用した深度-カラー幾何アライメント補正  
-│   │       │   ├── [RsHsvConverter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsHsvConverter.cs) / [RsYCbCrConverter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsYCbCrConverter.cs) — 高速色空間変換ユーティリティ  
-│   │       │   └── [RsCullingDebugExporter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsCullingDebugExporter.cs) — カリング検証用 BMP 非同期エクスポート  
+│   │       │   ├── [RsDevice.cs](./Assets/Scripts/RealSense/Device/RsDevice.cs) — Pipeline をラップしたストリーム管理・エラーハンドリング (別スレッドポーリング、エラー自動リカバリ)  
+│   │       │   └── [RsDeviceController.cs](./Assets/Scripts/RealSense/Device/RsDeviceController.cs) — カメラの接続確認および起動制御  
+│   │       ├── [Debug](./Assets/Scripts/RealSense/Debug)  
+│   │       │   └── [RsAsyncStatsLogger.cs](./Assets/Scripts/RealSense/Debug/RsAsyncStatsLogger.cs) — 点群処理パフォーマンスなどの非同期ログ出力制御  
+│   │       ├── [RsConfiguration.cs](./Assets/Scripts/RealSense/RsConfiguration.cs) — RealSense カメラのストリーム構成 (解像度・フォーマット・FPS) 設定  
+│   │       ├── [RsDeviceInspector.cs](./Assets/Scripts/RealSense/RsDeviceInspector.cs) — 接続デバイス情報や詳細パラメータのインスペクション・デバッグ表示  
+│   │       ├── [RsFrameProvider.cs](./Assets/Scripts/RealSense/RsFrameProvider.cs) — フレームデータを提供するプロバイダーインターフェース  
+│   │       ├── [RsPoseStreamTransformer.cs](./Assets/Scripts/RealSense/RsPoseStreamTransformer.cs) — IMU(姿勢/加速度/角速度)データの変換および反映処理  
+│   │       ├── [RsProcessingPipe.cs](./Assets/Scripts/RealSense/RsProcessingPipe.cs) — フィルタパイプラインの構築、ネイティブフレームメモリの Dispose 管理  
+│   │       ├── [RsProcessingBlock.cs](./Assets/Scripts/RealSense/RsProcessingBlock.cs) — 各種処理ブロック (RsProcessingBlock) の基底クラス定義  
+│   │       ├── [RsUnityMainThreadDispatcher.cs](./Assets/Scripts/RealSense/RsUnityMainThreadDispatcher.cs) — 非同期スレッドから Unity メインスレッドでのアクション実行の調停  
+│   │       ├── [RsVideoStreamRequest.cs](./Assets/Scripts/RealSense/RsVideoStreamRequest.cs) — 特定の映像ストリームの要求パラメータ管理  
+│   │       ├── [ProcessingBlocks](./Assets/Scripts/RealSense/ProcessingBlocks)  
+│   │       │   ├── [CustomProcessingBlock.cs](./Assets/Scripts/RealSense/ProcessingBlocks/CustomProcessingBlock.cs) — カスタム処理ブロックの基本実装テンプレート  
+│   │       │   ├── [DepthCutoff.cs](./Assets/Scripts/RealSense/ProcessingBlocks/DepthCutoff.cs) — 深度の指定範囲カリング処理  
+│   │       │   ├── [RsAlign.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsAlign.cs) — 深度とカラー画像のアライメント処理  
+│   │       │   ├── [RsColorizer.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsColorizer.cs) — 深度値をカラー画像にマッピングするカラーライザー  
+│   │       │   ├── [RsDecimationFilter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsDecimationFilter.cs) — 深度画像の解像度を段階的に低減するフィルタ  
+│   │       │   ├── [RsDisparityTransform.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsDisparityTransform.cs) — 深度値と視差値 (Disparity) の相互変換処理  
+│   │       │   ├── [RsHoleFillingFilter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsHoleFillingFilter.cs) — RealSense SDK 標準の穴埋めフィルタ  
+│   │       │   ├── [RsPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsPointCloud.cs) — 深度画像から 3D 座標への変換および頂点バッファ構築  
+│   │       │   ├── [RsProcessingProfile.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsProcessingProfile.cs) — フィルタパイプライン設定プロファイルの保存・管理  
+│   │       │   ├── [RsSpatialFilter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsSpatialFilter.cs) — エッジ保存型の空間平滑化フィルタ  
+│   │       │   ├── [RsTemporalFilter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsTemporalFilter.cs) — フレーム間の時間平均によるノイズ低減フィルタ  
+│   │       │   ├── [RsThresholdFilter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/RsThresholdFilter.cs) — 深度の最小・最大しきい値フィルタ  
+│   │       │   └── [ColorFilter](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter)  
+│   │       │       ├── [RsIntegratedPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) — GPU Direct 統合処理ブロック (常時搭載コア)  
+│   │       │       ├── [RsIntegratedPointCloudProcessor.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloudProcessor.cs) — GPU 投影・射影演算プロセッサ  
+│   │       │       ├── [RsColorBasedDepthCulling.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsColorBasedDepthCulling.cs) — HSV/YCbCr 色空間閾値に基づく深度カリング  
+│   │       │       ├── [RsGpuCullingProcessor.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsGpuCullingProcessor.cs) — カリング用 Compute Shader 並列ディスパッチャー  
+│   │       │       ├── [RsDepthToColorCalibration.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsDepthToColorCalibration.cs) — 内参・外参を利用した深度-カラー幾何アライメント補正  
+│   │       │       ├── [RsHsvConverter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsHsvConverter.cs) / [RsYCbCrConverter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsYCbCrConverter.cs) — 高速色空間変換ユーティリティ  
+│   │       │       └── [RsCullingDebugExporter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsCullingDebugExporter.cs) — カリング検証用 BMP 非同期エクスポート  
 │   │       └── [PointCloud](./Assets/Scripts/RealSense/PointCloud)  
 │   │           ├── [RsPointCloudRenderer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudRenderer.cs) — 個別点群の初期化・ライフサイクル制御、バッファ提供  
 │   │           ├── [RsPointCloudInitializer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudInitializer.cs) — 実機/合成データ/統合点群の初期化切り替え  
 │   │           ├── [RsGlobalPointCloudManager.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.cs) — グローバル統合点群管理 (GlobalManager)  
-│   │           └── [RsGlobalPointCloudManager.Merge.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Merge.cs) — GPU CommandBuffer 非同期マージ実装  
+│   │           ├── [RsGlobalPointCloudManager.Merge.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Merge.cs) — GPU CommandBuffer 非同期マージ実装  
+│   │           ├── [RsGlobalPointCloudManager.PCA.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.PCA.cs) — 統合点群の主成分分析 (PCA) による簡易中心姿勢推定  
+│   │           ├── [RsGlobalPointCloudManager.Stats.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Stats.cs) — 統合点群の有効点数やバウンディングボックス等の統計情報計算  
+│   │           ├── [RsComputeStats.cs](./Assets/Scripts/RealSense/PointCloud/RsComputeStats.cs) — 単体点群用の統計値計算 Compute Shader インターフェース  
+│   │           ├── [RsDataProvider.cs](./Assets/Scripts/RealSense/PointCloud/RsDataProvider.cs) — 頂点/カラーデータの供給インターフェース  
+│   │           ├── [RsFilterPassExecutor.cs](./Assets/Scripts/RealSense/PointCloud/RsFilterPassExecutor.cs) — 点群に対する追加フィルタパスのスケジューラ  
+│   │           ├── [RsFilterShaderDispatcher.cs](./Assets/Scripts/RealSense/PointCloud/RsFilterShaderDispatcher.cs) — 汎用点群フィルタ用 Compute Shader のディスパッチャー  
+│   │           ├── [RsGpuProfiler.cs](./Assets/Scripts/RealSense/PointCloud/RsGpuProfiler.cs) — 各点群パスの GPU 実行時間のプロファイリング管理  
+│   │           ├── [RsMaterialController.cs](./Assets/Scripts/RealSense/PointCloud/RsMaterialController.cs) — 点群のサイズやブレンドなど、マテリアルの動的制御  
+│   │           ├── [RsPerformanceLogger.cs](./Assets/Scripts/RealSense/PointCloud/RsPerformanceLogger.cs) — 点群処理のスループットやレンダリング性能を計測・記録  
+│   │           ├── [RsPointCloudAsyncReadback.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudAsyncReadback.cs) — ComputeBuffer から CPU 配列への非同期読み戻し (AsyncGPUReadback)  
+│   │           ├── [RsPointCloudCapturer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudCapturer.cs) — 点群フレームのバイナリキャプチャ・保存・再生用マネージャー  
+│   │           ├── [RsPointCloudCompute.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudCompute.cs) — 頂点生成およびノイズ除去フィルタ用 Compute Shader 制御  
+│   │           ├── [RsPointCloudFrameProcessor.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudFrameProcessor.cs) — フレーム単位の点群データ加工・フロー制御  
+│   │           ├── [RsPointCloudPCA.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudPCA.cs) — 個別点群に対する PCA (主成分分析) 実行クラス  
+│   │           ├── [RsPointCloudSyntheticData.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudSyntheticData.cs) — デバッグ・検証用の合成点群 (球、直方体等) の生成  
+│   │           ├── [RsPointCloudVisualization.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudVisualization.cs) — Point Cloud のトポロジーや簡易ワイヤーフレーム表示制御  
+│   │           └── [RsTransformController.cs](./Assets/Scripts/RealSense/PointCloud/RsTransformController.cs) — 各カメラのトランスフォーム変更の動的同期・適用  
 │   └── [Shader&Material/Shader/ComputeShader/Rendering](./Assets/Shader&Material/Shader/ComputeShader/Rendering)  
 │       ├── [PCD_Occlusion.compute](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion.compute) — メインオクルージョン計算エントリポイント  
-│       ├── [PCD_Occlusion_Data.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl) — 定数・バッファ宣言  
-│       ├── [PCD_Occlusion_Helpers.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl) — 投影・距離判定用ヘルパ関数  
-│       ├── [PCD_Occlusion_Kernels_Preprocess.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl) — 点群投影・密度・近傍サイズ計算  
-│       ├── [PCD_Occlusion_Kernels_DepthPyramid.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl) — 深度ピラミッド L1～L4 構築  
-│       ├── [PCD_Occlusion_Kernels_Occlusion.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl) — 適応的勾配補正およびオクルージョン計算  
-│       └── [PCD_Occlusion_Kernels_FillHoles.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl) — Joint Bilateral / Pull-Push / モルフォロジー  
+│       ├── [PCD_Occlusion_Data.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl) — 定数・バッファ・各種パラメータ定義  
+│       ├── [PCD_Occlusion_Helpers.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl) — 3D射影、距離・深度比較用の汎用ヘルパ関数  
+│       ├── [PCD_Occlusion_Kernels_Preprocess.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl) — 点群投影・最小Zバッファ生成・密度・近傍サイズ計算カーネル  
+│       ├── [PCD_Occlusion_Kernels_DepthPyramid.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl) — 深度ピラミッド L1～L6 構築およびタグON時の物理点群フィルタリングカーネル  
+│       ├── [PCD_Occlusion_Kernels_Occlusion.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl) — 適応的勾配補正およびオクルージョン(遮蔽度)メイン計算カーネル  
+│       ├── [PCD_Occlusion_Kernels_Occlusion_Discrete3.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion_Discrete3.hlsl) — 3方向離散レイサンプリングによる高速オクルージョン計算カーネル  
+│       ├── [PCD_Occlusion_Kernels_Occlusion_Discrete6.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion_Discrete6.hlsl) — 6方向離散レイサンプリングによるオクルージョン計算カーネル  
+│       ├── [PCD_Occlusion_Kernels_Occlusion_Discrete8.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion_Discrete8.hlsl) — 8方向離散レイサンプリングによる高精度オクルージョン計算カーネル  
+│       ├── [PCD_Occlusion_Kernels_Occlusion_SingleDirection.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion_SingleDirection.hlsl) — 1方向（直線状）のみを探索する軽量オクルージョン計算カーネル  
+│       ├── [PCD_Occlusion_Kernels_Post.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Post.hlsl) — ポストプロセス補間、デバッグ可視化用のPixelTagMap・オクルージョンマップ最終出力生成カーネル  
+│       └── [PCD_Occlusion_Kernels_FillHoles.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl) — Joint Bilateral / Pull-Push / モルフォロジーによる画像空間ホールフィリングカーネル  
+  
 
 
 ---
@@ -257,7 +307,7 @@ GC で回収されないため、フレームワーク側で明示的に解放�
     *   **値の検証 (Validation)**: `OnValidate()` メソッドにて、オクルージョン閾値 (`occlusionThreshold`) に適合するようソフトオクルージョンフェード幅 (`occlusionFadeWidth`) のクランプを適切に行います。
     *   **パラメータ一覧**: `kernelType`, `binningMethod`, `directionCount`, `exponentAlpha`, `densityThreshold_e`, `neighborhoodParam_p_prime`, `enableGradientCorrection`, `gradientThreshold_g_th`, `occlusionThreshold`, `occlusionFadeWidth`, `enablePixelTagMap`, `enableOcclusionMap`, `recordOcclusionDebugMap`, `recordPixelTagMap`, `recordIntegratedDepthMap`, `recordNeighborhoodMap`, `recordNeighborCountMap`, `enableVirtualDepthIntegration`, `enableTagBasedOptimization`, `enableTypeAwareDensity`, `enableSoftOcclusionFade`, `holeFillingMethod`, `morphKernelHalfSize`, `morphErodeIterations`, `morphDilateIterations`
 
-### 3. `PCDRenderController`
+### 3. `PCDOcclusionPipelineController`
 *   **設計思想**: レンダリングパラメーターをインスペクター上で一元管理する MonoBehaviour です。インスペクター上の値が変更されたことを検知し、一時オブジェクトを生成することなく `PCDRenderPass` の定数バッファへ値を転送するための仲介役として機能します。
 
 ### 4. `PCDPointBufferManager`
@@ -330,9 +380,24 @@ $$
 ### C. オクルージョン計算フェーズ
 
 #### 1. ピラミッド深度比較オクルージョン判定 (`ComputeOcclusion`)
-点群深度マップと、並列構築された $4$ 階層の低解像度深度ピラミッド（`BuildDepthPyramidL1` ~ `L4`）を比較します。
+点群深度マップと、並列構築された $6$ 階層の低解像度深度ピラミッド（`BuildDepthPyramidL1` ~ `L6`）を比較します。
 *   各ピクセルにおいて、そのピクセルを中心とする適応的探索半径内の深度情報をピラミッドテクスチャから高効率（キャッシュ最適）にサンプリングします。
 *   サンプリングした背景オブジェクトの深度が点群の深度より奥にある場合、遮蔽度（オクルージョン度）を算出して `_OcclusionResultMap` に $0.0 \sim 1.0$ の値として書き込みます。
+
+#### 2. タグベース最適化 (`EnableTagBasedOptimization`) とオクルーダー制御
+本システムでは、仮想オブジェクト（`1u`）、物理点群（`0u`）、背景（`2u`）というタグ（`OriginType`）を用いて、演算の最適化とアーティファクトの排除を行っています。
+
+*   **ON の場合（推奨設定）**:
+    *   **ピラミッド構築時のフィルタリング**: Level 1 の構築段階（`ZMinPhysicalDownsample`）で、`originType == 0u` の点のみを抽出し、それ以外はセンチネル値（`1e9`）として棄却します。これにより、Level 1〜6 からフェッチされる近傍点は **100%確実に物理点群であることが保証** され、仮想オブジェクト同士が互いに遮蔽し合う誤作動（セルフオクルージョン）を完全に防ぎます。
+    *   **Level 0 (フル解像度) の制御**: 極めて近距離の高密度領域などで探索レベルが 0（ピラミッドを使わずフル解像度の `_ViewPositionMap` を直接フェッチする）になった場合、そこには仮想オブジェクトも混在しています。そのため、フェッチ直後に `_OriginTypeMap` を確認し、物理点群以外であればスキップする厳密な制御を行っています。
+*   **OFF の場合（ナイーブフォールバック）**:
+    *   タグを一切無視し、純粋に「一番手前にある深度（Min-Z）」を採用してダウンサンプリングおよびオクルージョン計算を行います。仮想オブジェクトも遮蔽物（オクルーダー）として機能してしまうため、主にピュアなデプスベース手法とのアルゴリズム比較検証目的で使用します。
+
+#### 3. D3D11 SRV/UAV 同時バインドハザードの回避設計
+DirectX 11 環境下では、同一の Compute Shader カーネル内で同じテクスチャリソースを **SRV（読み込み専用）** と **UAV（読み書き両用）** の両方にバインドするとハザード検知により SRV 側が強制的に `NULL` (読み取り値 `0`) となる制約があります。
+*   これにより、すべての点が `0u`（物理点群）として誤認され、画面全体が緑色（スキップ判定）に塗りつぶされる不具合が発生し得ます。
+*   これを防ぐため、`_OriginTypeMap` などを読み書きするカーネル（`ComputeOcclusion` や `FillHolesPullPushFinalize`）では、SRV バインドを C# 側で徹底的に排除し、HLSL 側では `RWTexture2D` (`_OriginTypeMap_RW`) から直接読み取りと書き込みを行う設計を徹底しています。
+*   デバッグ可視化時（`EnablePixelTagMap`）は、最適化のON/OFFに関わらず、このバッファに適切にタグ情報（実点群は `-3.0` (緑)、背景は `-1.0` (白)）をルーティングし、純粋な判定可視化を行えるように設計しています。
 
 ---
 
