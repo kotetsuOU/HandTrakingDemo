@@ -72,10 +72,10 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     [Tooltip("①タグによる近傍探索の最適化 (ONで不要な自己遮蔽計算をスキップ)")]
     public bool enableTagBasedOptimization = true;
 
-    [Header("Novel Methods Toggles (Ablation Study)")]
     [Tooltip("②仮想物体を区別した密度計算 (ONで従来手法のカウント漏れや過剰を補正)")]
     public bool enableTypeAwareDensity = true;
 
+    [Header("Novel Methods Toggles (Ablation Study)")]
     [Tooltip("③ソフトオクルージョン (ONでグラデーションによる境界のスムージング)")]
     public bool enableSoftOcclusionFade = true;
 
@@ -84,9 +84,6 @@ public class PCDOcclusionPipelineController : MonoBehaviour
 
     [Tooltip("⑤処理の最適化と検証のためのグリッドサイズ")]
     public PCD_GridSize gridSize = PCD_GridSize.Grid16x16;
-
-    [Tooltip("⑥空き空間スキップによる高速化を有効にするか（Gridの効率化）")]
-    public bool enableGridSkipping = true;
 
     [Header("Morphology Settings")]
     [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
@@ -167,7 +164,6 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             enableSoftOcclusionFade = this.enableSoftOcclusionFade,
             holeFillingMethod = this.holeFillingMethod,
             gridSize = this.gridSize,
-            enableGridSkipping = this.enableGridSkipping,
             morphKernelHalfSize = this.morphKernelHalfSize,
             morphErodeIterations = this.morphErodeIterations,
             morphDilateIterations = this.morphDilateIterations,

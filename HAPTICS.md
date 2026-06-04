@@ -127,15 +127,19 @@ struct PointData
   2. **早期リターン判定**: すでに他のスレッドで衝突が検知されている（`Result[0].isColliding > 0`）場合は、不必要な計算をスキップして即座に終了します。
   3. **侵入距離の二乗比較**:
      平方根計算（`sqrt`）は GPU 負荷が高いため、距離の二乗（ドット積）を用い、半径の二乗（`RadiusSqr`）と比較します。
-$$
-\mathbf{d} = \mathbf{p}_{\text{point}} - \mathbf{p}_{\text{target}}
-$$
-$$
-\text{distSq} = \text{dot}(\mathbf{d}, \mathbf{d})
-$$
-$$
-\text{if } (\text{distSq} \le \text{RadiusSqr})
-$$
+
+      $$
+      \mathbf{d} = \mathbf{p}_{\text{point}} - \mathbf{p}_{\text{target}}
+      $$
+
+      $$
+      \text{distSq} = \text{dot}(\mathbf{d}, \mathbf{d})
+      $$
+
+      $$
+      \text{if } (\text{distSq} \le \text{RadiusSqr})
+      $$
+
   4. **アトミック衝突フラグ書き換えと情報記録**:
      競合（レースコンディション）を防止するため、アトミック関数 `InterlockedCompareExchange` を用い、衝突フラグをスレッドセーフに `1` に書き換えます。
      
@@ -175,36 +179,44 @@ $$
      スレッドに割り当てられた点群頂点 `p_point = (x_p, y_p, z_p)^T` が、拡張されたメッシュ全体のバウンディングボックス `b_min = (x_min, y_min, z_min)^T`、`b_max = (x_max, y_max, z_max)^T` の外にあるかを判定します。
      
      以下のいずれか1つでも満たす場合、衝突の可能性はありません。
-$$
-x_p < x_{\text{min}} \quad \text{or} \quad x_p > x_{\text{max}}
-$$
-$$
-y_p < y_{\text{min}} \quad \text{or} \quad y_p > y_{\text{max}}
-$$
-$$
-z_p < z_{\text{min}} \quad \text{or} \quad z_p > z_{\text{max}}
-$$
+
+      $$
+      x_p < x_{\text{min}} \quad \text{or} \quad x_p > x_{\text{max}}
+      $$
+
+      $$
+      y_p < y_{\text{min}} \quad \text{or} \quad y_p > y_{\text{max}}
+      $$
+
+      $$
+      z_p < z_{\text{min}} \quad \text{or} \quad z_p > z_{\text{max}}
+      $$
      
      この条件に一致した場合、即座に早期リターン（`return`）します。これにより、各頂点に対する Narrow-Phase の距離総当たりループを `O(1)` でスキップし、演算コストをほぼゼロに削減します。
   2. **Narrow-Phase Sampling (詳細総当たり判定)**:
      バウンディングボックス内に進入した点群のみ、メッシュ頂点バッファ `MeshVerticesBuffer` を走査します。
      - **VertexSubstep による間引き**:
        計算負荷を調整するため、`VertexSubstep`（例: 10頂点おき）のステップ幅 `S` で検証する頂点をスキップします。
-$$
-\text{Index}_i = i \times S \quad (i = 0, 1, 2, \dots)
-$$
+
+       $$
+       \text{Index}_i = i \times S \quad (i = 0, 1, 2, \dots)
+       $$
+
      - **ワールド空間への座標投影**:
        BakeMesh によって得られた頂点はローカル座標系であるため、毎フレーム更新される `4 * 4` 行列 `M_LocalToWorld` を用いてワールド座標へ射影します。
-$$
-\mathbf{p}_{\text{world}} = \mathbf{M}_{\text{LocalToWorld}} \cdot \begin{pmatrix} \mathbf{p}_{\text{local}} \\ 1 \end{pmatrix}
-$$
+
+       $$
+       \mathbf{p}_{\text{world}} = \mathbf{M}_{\text{LocalToWorld}} \cdot \begin{pmatrix} \mathbf{p}_{\text{local}} \\ 1 \end{pmatrix}
+       $$
+
        (ここで `p_local` は BakeMesh から得られたローカル頂点座標を表します)
      - **距離比較とアトミック記録**:
        ワールド頂点と点群頂点の距離の二乗が `RadiusSqr` 以下である場合、アトミック関数で排他的に書き込みロックを確立。
        最初に書き込みに成功したスレッドが、BakeMesh から得られたローカル法線 `n_local` をワールド空間法線 `n_world` に変形して記録します。
-$$
-\mathbf{n}_{\text{world}} = \text{normalize}\left( \mathbf{M}_{\text{LocalToWorld, 3x3}} \cdot \mathbf{n}_{\text{local}} \right)
-$$
+
+       $$
+       \mathbf{n}_{\text{world}} = \text{normalize}\left( \mathbf{M}_{\text{LocalToWorld, 3x3}} \cdot \mathbf{n}_{\text{local}} \right)
+       $$
        
        衝突した頂点情報と法線は以下のように記録されます：
        ```hlsl

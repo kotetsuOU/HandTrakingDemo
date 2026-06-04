@@ -132,7 +132,7 @@ public partial class PCDRenderPass
         int screenHeight = cameraData.cameraTargetDescriptor.height;
 
         // SRDManagerからダイレクトGPUバッファ出力フラグを取得
-        var srdManager = UnityEngine.Object.FindAnyObjectByType<SRD.Core.SRDManager>();
+        var srdManager = GetSRDManager();
         bool useDirectGpuImageBuffer = srdManager != null && srdManager.UseDirectGpuImageBuffer;
 
         // ダイレクトパスが有効な場合、必要に応じてグローバルRenderTextureおよびRTHandleを再生成
@@ -162,9 +162,27 @@ public partial class PCDRenderPass
         int gridHeight = Mathf.CeilToInt(screenHeight / gs);
         int l1_Width = 1, l1_Height = 1, l2_Width = 1, l2_Height = 1, l3_Width = 1, l3_Height = 1, l4_Width = 1, l4_Height = 1, l5_Width = 1, l5_Height = 1, l6_Width = 1, l6_Height = 1;
 
-        // ピラミッドが必要な場合（オクルージョンカーネルがSkip以外、または勾配補正が有効）の解像度計算
-        bool needsPyramid = _settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip;
-        if (needsPyramid)
+        bool hasVirtualDepth = resourceData.cameraDepthTexture.IsValid();
+        bool hasVirtualObjects = hasDepthMapMeshes;
+        if (hasVirtualDepth && _settings.enableVirtualDepthIntegration)
+        {
+            hasVirtualObjects = hasVirtualObjects || (PCDRendererFeature.Instance.LastFrameVirtualMeshPixelCount > 0);
+        }
+
+        bool needsNeighborhoodSize = hasVirtualObjects && 
+            (_settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip || 
+             _settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.JointBilateral || 
+             _settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
+             _settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO);
+
+        bool needsDepthPyramid = hasVirtualObjects && 
+            (_settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip || 
+             (needsNeighborhoodSize && _settings.enableGradientCorrection));
+
+        bool hasMorphology = _settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC || 
+                             _settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO;
+        
+        if (needsDepthPyramid || hasMorphology)
         {
             l1_Width = Mathf.Max(1, Mathf.CeilToInt(screenWidth / 2.0f));
             l1_Height = Mathf.Max(1, Mathf.CeilToInt(screenHeight / 2.0f));
@@ -196,6 +214,8 @@ public partial class PCDRenderPass
             builder.AllowGlobalStateModification(true);
             // パスへ渡すパラメータ（シェーダーや各種データ）を登録
             BindComputePassData(ref data, camera, screenWidth, screenHeight, activeCount, activeBuffer, depthMapOnlyMode, resourceData);
+
+            data.hasVirtualObjects = hasVirtualObjects;
 
             // 仮想深度（バックグラウンドの深度）を使用する場合、カメラの深度テクスチャを登録
             if (data.hasVirtualDepth || depthMapOnlyMode)
@@ -281,10 +301,10 @@ public partial class PCDRenderPass
             gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
             data.gridLevelMap = renderGraph.CreateTexture(gridDesc);
             data.filteredGridLevelMap = renderGraph.CreateTexture(gridDesc);
-            gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RGFloat, false);
+            gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RFloat, false);
             data.densityMap = renderGraph.CreateTexture(gridDesc);
 
-            if (needsPyramid)
+            if (needsDepthPyramid)
             {
                 var descL1 = new TextureDesc(l1_Width, l1_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
                 data.depthPyramidL1 = renderGraph.CreateTexture(descL1);
@@ -302,7 +322,10 @@ public partial class PCDRenderPass
 
             if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
             {
-                data.pullPushPyramid = new TextureHandle[5];
+                if (data.pullPushPyramid == null || data.pullPushPyramid.Length != 5)
+                {
+                    data.pullPushPyramid = new TextureHandle[5];
+                }
                 var ppDesc = new TextureDesc(screenWidth, screenHeight) { enableRandomWrite = true, colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false) };
                 data.pullPushPyramid[0] = renderGraph.CreateTexture(ppDesc);
                 
@@ -334,10 +357,48 @@ public partial class PCDRenderPass
                     colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt
                 };
                 data.morphTypeTemp = renderGraph.CreateTexture(morphTypeDesc);
+
+                // Morph Pyramids
+                var typeDesc = new TextureDesc(1, 1) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt };
+                var colDesc = new TextureDesc(1, 1) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
+                
+                typeDesc.width = colDesc.width = l1_Width; typeDesc.height = colDesc.height = l1_Height;
+                data.morphTypePyramidL1 = renderGraph.CreateTexture(typeDesc);
+                data.morphColorPyramidL1 = renderGraph.CreateTexture(colDesc);
+
+                typeDesc.width = colDesc.width = l2_Width; typeDesc.height = colDesc.height = l2_Height;
+                data.morphTypePyramidL2 = renderGraph.CreateTexture(typeDesc);
+                data.morphColorPyramidL2 = renderGraph.CreateTexture(colDesc);
+
+                typeDesc.width = colDesc.width = l3_Width; typeDesc.height = colDesc.height = l3_Height;
+                data.morphTypePyramidL3 = renderGraph.CreateTexture(typeDesc);
+                data.morphColorPyramidL3 = renderGraph.CreateTexture(colDesc);
+
+                typeDesc.width = colDesc.width = l4_Width; typeDesc.height = colDesc.height = l4_Height;
+                data.morphTypePyramidL4 = renderGraph.CreateTexture(typeDesc);
+                data.morphColorPyramidL4 = renderGraph.CreateTexture(colDesc);
+
+                typeDesc.width = colDesc.width = l5_Width; typeDesc.height = colDesc.height = l5_Height;
+                data.morphTypePyramidL5 = renderGraph.CreateTexture(typeDesc);
+                data.morphColorPyramidL5 = renderGraph.CreateTexture(colDesc);
+
+                typeDesc.width = colDesc.width = l6_Width; typeDesc.height = colDesc.height = l6_Height;
+                data.morphTypePyramidL6 = renderGraph.CreateTexture(typeDesc);
+                data.morphColorPyramidL6 = renderGraph.CreateTexture(colDesc);
             }
 
-            desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
-            data.occlusionResultMap = renderGraph.CreateTexture(desc);
+            bool useHoleFilling = data.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None;
+            bool needsOcclusionResultMap = hasVirtualObjects || useHoleFilling;
+
+            if (needsOcclusionResultMap)
+            {
+                desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
+                data.occlusionResultMap = renderGraph.CreateTexture(desc);
+            }
+            else
+            {
+                data.occlusionResultMap = data.colorMap;
+            }
             
             if (data.settings.recordOcclusionDebugMap || data.settings.recordPixelTagMap)
             {
@@ -350,8 +411,6 @@ public partial class PCDRenderPass
                 data.occlusionValueMap = renderGraph.CreateTexture(desc);
             }
             
-            bool useHoleFilling = data.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None;
-
             if (useHoleFilling)
             {
                 desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
@@ -378,7 +437,7 @@ public partial class PCDRenderPass
             builder.UseTexture(data.gridLevelMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.filteredGridLevelMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.neighborhoodSizeMap, AccessFlags.ReadWrite);
-            if (needsPyramid)
+            if (needsDepthPyramid)
             {
                 builder.UseTexture(data.depthPyramidL1, AccessFlags.ReadWrite);
                 builder.UseTexture(data.depthPyramidL2, AccessFlags.ReadWrite);
@@ -399,9 +458,26 @@ public partial class PCDRenderPass
             {
                 builder.UseTexture(data.morphColorTemp, AccessFlags.ReadWrite);
                 builder.UseTexture(data.morphTypeTemp, AccessFlags.ReadWrite);
+
+                builder.UseTexture(data.morphTypePyramidL1, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphTypePyramidL2, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphTypePyramidL3, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphTypePyramidL4, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphTypePyramidL5, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphTypePyramidL6, AccessFlags.ReadWrite);
+
+                builder.UseTexture(data.morphColorPyramidL1, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphColorPyramidL2, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphColorPyramidL3, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphColorPyramidL4, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphColorPyramidL5, AccessFlags.ReadWrite);
+                builder.UseTexture(data.morphColorPyramidL6, AccessFlags.ReadWrite);
             }
             builder.UseTexture(data.correctedNeighborhoodSizeMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.occlusionResultMap, AccessFlags.ReadWrite);
+            if (needsOcclusionResultMap)
+            {
+                builder.UseTexture(data.occlusionResultMap, AccessFlags.ReadWrite);
+            }
             builder.UseTexture(data.occlusionValueMap, AccessFlags.ReadWrite);
             if (useHoleFilling)
             {

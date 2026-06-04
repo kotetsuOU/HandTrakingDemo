@@ -16,94 +16,41 @@ void FillHoles(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    uint vDepth_uint = DEPTH_MAX_UINT;
-    bool hasVirtualObj = false;
+    int level = _FinalNeighborhoodSizeMap[id.xy];
+    int l = max(1, level); // levelをベースにした探索距離(radius)
 
-    if (_UseVirtualDepth > 0)
-    {
-        float vDepthRaw = _VirtualDepthMap[id.xy];
-        float vDepth = _IsReversedZ > 0 ? (1.0 - vDepthRaw) : vDepthRaw;
+    int2 dirs[8] = {
+        int2(1, 0), int2(1, 1), int2(0, 1), int2(-1, 1),
+        int2(-1, 0), int2(-1, -1), int2(0, -1), int2(1, -1)
+    };
 
-        if (vDepth < 0.9999)
-        {
-            hasVirtualObj = true;
-            vDepth_uint = (uint) (vDepth * (float) DEPTH_MAX_UINT);
-        }
-    }
-
-    int fillRadius = 6;
-    float totalWeight = 0.0;
+    int validCount = 0;
     float4 accumulatedColor = float4(0, 0, 0, 0);
-    float weightedOriginSum = 0.0;
 
-    uint thresholdDepth = (hasVirtualObj) ? vDepth_uint : DEPTH_MAX_UINT;
-
-    // --- Pass 1: 最小深度の探索 ---
-    uint minDepth = thresholdDepth;
-
-    int2 minBound = max(int2(0, 0), (int2)id.xy - fillRadius);
-    int2 maxBound = min((int2)_ScreenParams.xy - 1, (int2)id.xy + fillRadius);
-
-    for (int searchY = minBound.y; searchY <= maxBound.y; searchY++)
+    for (int i = 0; i < 8; i++)
     {
-        for (int searchX = minBound.x; searchX <= maxBound.x; searchX++)
+        int2 uv = (int2)id.xy + dirs[i] * l;
+        
+        // 境界チェック
+        if (uv.x >= 0 && uv.x < (int)_ScreenParams.x && uv.y >= 0 && uv.y < (int)_ScreenParams.y)
         {
-            uint2 uv = uint2(searchX, searchY);
+            // _OriginTypeMap が 0u (点群として計算済み) なら有効
             if (_OriginTypeMap_RW[uv] == 0u)
             {
-                minDepth = min(minDepth, _DepthMap[uv]);
+                validCount++;
+                accumulatedColor += _ColorMap[uv];
             }
         }
     }
 
-    // --- Pass 2: ジョイントバイラテラル加重平均 ---
-    if (minDepth < thresholdDepth)
+    // 8方向すべてに点群が存在した場合のみ穴埋めを適用
+    if (validCount == 8)
     {
-        uint depthTolerance = (DEPTH_MAX_UINT / 1000) + (uint)((float)minDepth * 0.02);
-
-        for (int searchY = minBound.y; searchY <= maxBound.y; searchY++)
-        {
-            for (int searchX = minBound.x; searchX <= maxBound.x; searchX++)
-            {
-                uint2 uv = uint2(searchX, searchY);
-                uint nDepth_uint = _DepthMap[uv];
-
-                if (nDepth_uint < thresholdDepth && nDepth_uint >= minDepth && (nDepth_uint - minDepth) <= depthTolerance)
-                {
-                    float2 offset = float2(searchX - (int)id.x, searchY - (int)id.y);
-                    float distSq = dot(offset, offset);
-                    float spatialWeight = 1.0 / (1.0 + distSq * 0.5);
-
-                    float depthDiff = (float)(nDepth_uint - minDepth) / (float)depthTolerance;
-                    float depthWeight = 1.0 - smoothstep(0.0, 1.0, depthDiff);
-                    float weight = spatialWeight * depthWeight;
-
-                    float4 c = _ColorMap[uv];
-                    accumulatedColor += c * weight;
-                    totalWeight += weight;
-
-                    uint nType = _OriginTypeMap_RW[uv];
-                    weightedOriginSum += (float) nType * weight;
-                }
-            }
-        }
-    }
-
-    if (totalWeight > 0.01)
-    {
-        _OcclusionResultMap_RW[id.xy] = accumulatedColor / totalWeight;
-
-        float avgType = weightedOriginSum / totalWeight;
-        if (avgType < 0.5)
-        {
-            _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
-            _OriginTypeMap_RW[id.xy] = 0u;
-        }
-        else
-        {
-            _OriginMap_RW[id.xy] = float4(1, 1, 1, 1);
-            _OriginTypeMap_RW[id.xy] = 1u;
-        }
+        _OcclusionResultMap_RW[id.xy] = accumulatedColor / 8.0;
+        
+        // 穴を埋めたのでタイプを更新
+        _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+        _OriginTypeMap_RW[id.xy] = 0u;
     }
 }
 
@@ -213,7 +160,171 @@ void FillHolesPullPushFinalize(uint3 id : SV_DispatchThreadID)
 }
 
 // ==========================================
-// Morphology (Erode, Dilate, Copy)
+// Morphology Pyramid Building
+// ==========================================
+
+[numthreads(8, 8, 1)]
+void BuildMorphPyramidL1(uint3 id : SV_DispatchThreadID)
+{
+    uint2 dim;
+    _MorphTypePyramidL1_RW.GetDimensions(dim.x, dim.y);
+    if (id.x >= dim.x || id.y >= dim.y) return;
+
+    uint2 src = id.xy * 2u;
+    
+    uint t0 = _MorphTypeIn[src + uint2(0, 0)];
+    uint t1 = _MorphTypeIn[src + uint2(1, 0)];
+    uint t2 = _MorphTypeIn[src + uint2(0, 1)];
+    uint t3 = _MorphTypeIn[src + uint2(1, 1)];
+    
+    uint mask0 = (t0 == 0u ? 1u : 0u) | (t0 == 1u ? 2u : 0u) | (t0 == 2u ? 4u : 0u);
+    uint mask1 = (t1 == 0u ? 1u : 0u) | (t1 == 1u ? 2u : 0u) | (t1 == 2u ? 4u : 0u);
+    uint mask2 = (t2 == 0u ? 1u : 0u) | (t2 == 1u ? 2u : 0u) | (t2 == 2u ? 4u : 0u);
+    uint mask3 = (t3 == 0u ? 1u : 0u) | (t3 == 1u ? 2u : 0u) | (t3 == 2u ? 4u : 0u);
+    
+    _MorphTypePyramidL1_RW[id.xy] = mask0 | mask1 | mask2 | mask3;
+
+    float4 c0 = (t0 != 2u) ? _MorphColorIn[src + uint2(0, 0)] : float4(0,0,0,0);
+    float4 c1 = (t1 != 2u) ? _MorphColorIn[src + uint2(1, 0)] : float4(0,0,0,0);
+    float4 c2 = (t2 != 2u) ? _MorphColorIn[src + uint2(0, 1)] : float4(0,0,0,0);
+    float4 c3 = (t3 != 2u) ? _MorphColorIn[src + uint2(1, 1)] : float4(0,0,0,0);
+    
+    float w0 = (t0 != 2u) ? 1.0 : 0.0;
+    float w1 = (t1 != 2u) ? 1.0 : 0.0;
+    float w2 = (t2 != 2u) ? 1.0 : 0.0;
+    float w3 = (t3 != 2u) ? 1.0 : 0.0;
+    
+    float totalW = w0 + w1 + w2 + w3;
+    _MorphColorPyramidL1_RW[id.xy] = (totalW > 0.0) ? ((c0 + c1 + c2 + c3) / totalW) : float4(0,0,0,0);
+}
+
+[numthreads(8, 8, 1)]
+void BuildMorphPyramidL2(uint3 id : SV_DispatchThreadID)
+{
+    uint2 dim;
+    _MorphTypePyramidL2_RW.GetDimensions(dim.x, dim.y);
+    if (id.x >= dim.x || id.y >= dim.y) return;
+    uint2 src = id.xy * 2u;
+    uint m0 = _MorphTypePyramidL1[src + uint2(0, 0)];
+    uint m1 = _MorphTypePyramidL1[src + uint2(1, 0)];
+    uint m2 = _MorphTypePyramidL1[src + uint2(0, 1)];
+    uint m3 = _MorphTypePyramidL1[src + uint2(1, 1)];
+    _MorphTypePyramidL2_RW[id.xy] = m0 | m1 | m2 | m3;
+
+    float4 c0 = ((m0 & 3u) != 0u) ? _MorphColorPyramidL1[src + uint2(0, 0)] : float4(0,0,0,0);
+    float4 c1 = ((m1 & 3u) != 0u) ? _MorphColorPyramidL1[src + uint2(1, 0)] : float4(0,0,0,0);
+    float4 c2 = ((m2 & 3u) != 0u) ? _MorphColorPyramidL1[src + uint2(0, 1)] : float4(0,0,0,0);
+    float4 c3 = ((m3 & 3u) != 0u) ? _MorphColorPyramidL1[src + uint2(1, 1)] : float4(0,0,0,0);
+    float w0 = ((m0 & 3u) != 0u) ? 1.0 : 0.0;
+    float w1 = ((m1 & 3u) != 0u) ? 1.0 : 0.0;
+    float w2 = ((m2 & 3u) != 0u) ? 1.0 : 0.0;
+    float w3 = ((m3 & 3u) != 0u) ? 1.0 : 0.0;
+    float totalW = w0 + w1 + w2 + w3;
+    _MorphColorPyramidL2_RW[id.xy] = (totalW > 0.0) ? ((c0 + c1 + c2 + c3) / totalW) : float4(0,0,0,0);
+}
+
+[numthreads(8, 8, 1)]
+void BuildMorphPyramidL3(uint3 id : SV_DispatchThreadID)
+{
+    uint2 dim;
+    _MorphTypePyramidL3_RW.GetDimensions(dim.x, dim.y);
+    if (id.x >= dim.x || id.y >= dim.y) return;
+    uint2 src = id.xy * 2u;
+    uint m0 = _MorphTypePyramidL2[src + uint2(0, 0)];
+    uint m1 = _MorphTypePyramidL2[src + uint2(1, 0)];
+    uint m2 = _MorphTypePyramidL2[src + uint2(0, 1)];
+    uint m3 = _MorphTypePyramidL2[src + uint2(1, 1)];
+    _MorphTypePyramidL3_RW[id.xy] = m0 | m1 | m2 | m3;
+
+    float4 c0 = ((m0 & 3u) != 0u) ? _MorphColorPyramidL2[src + uint2(0, 0)] : float4(0,0,0,0);
+    float4 c1 = ((m1 & 3u) != 0u) ? _MorphColorPyramidL2[src + uint2(1, 0)] : float4(0,0,0,0);
+    float4 c2 = ((m2 & 3u) != 0u) ? _MorphColorPyramidL2[src + uint2(0, 1)] : float4(0,0,0,0);
+    float4 c3 = ((m3 & 3u) != 0u) ? _MorphColorPyramidL2[src + uint2(1, 1)] : float4(0,0,0,0);
+    float w0 = ((m0 & 3u) != 0u) ? 1.0 : 0.0;
+    float w1 = ((m1 & 3u) != 0u) ? 1.0 : 0.0;
+    float w2 = ((m2 & 3u) != 0u) ? 1.0 : 0.0;
+    float w3 = ((m3 & 3u) != 0u) ? 1.0 : 0.0;
+    float totalW = w0 + w1 + w2 + w3;
+    _MorphColorPyramidL3_RW[id.xy] = (totalW > 0.0) ? ((c0 + c1 + c2 + c3) / totalW) : float4(0,0,0,0);
+}
+
+[numthreads(8, 8, 1)]
+void BuildMorphPyramidL4(uint3 id : SV_DispatchThreadID)
+{
+    uint2 dim;
+    _MorphTypePyramidL4_RW.GetDimensions(dim.x, dim.y);
+    if (id.x >= dim.x || id.y >= dim.y) return;
+    uint2 src = id.xy * 2u;
+    uint m0 = _MorphTypePyramidL3[src + uint2(0, 0)];
+    uint m1 = _MorphTypePyramidL3[src + uint2(1, 0)];
+    uint m2 = _MorphTypePyramidL3[src + uint2(0, 1)];
+    uint m3 = _MorphTypePyramidL3[src + uint2(1, 1)];
+    _MorphTypePyramidL4_RW[id.xy] = m0 | m1 | m2 | m3;
+
+    float4 c0 = ((m0 & 3u) != 0u) ? _MorphColorPyramidL3[src + uint2(0, 0)] : float4(0,0,0,0);
+    float4 c1 = ((m1 & 3u) != 0u) ? _MorphColorPyramidL3[src + uint2(1, 0)] : float4(0,0,0,0);
+    float4 c2 = ((m2 & 3u) != 0u) ? _MorphColorPyramidL3[src + uint2(0, 1)] : float4(0,0,0,0);
+    float4 c3 = ((m3 & 3u) != 0u) ? _MorphColorPyramidL3[src + uint2(1, 1)] : float4(0,0,0,0);
+    float w0 = ((m0 & 3u) != 0u) ? 1.0 : 0.0;
+    float w1 = ((m1 & 3u) != 0u) ? 1.0 : 0.0;
+    float w2 = ((m2 & 3u) != 0u) ? 1.0 : 0.0;
+    float w3 = ((m3 & 3u) != 0u) ? 1.0 : 0.0;
+    float totalW = w0 + w1 + w2 + w3;
+    _MorphColorPyramidL4_RW[id.xy] = (totalW > 0.0) ? ((c0 + c1 + c2 + c3) / totalW) : float4(0,0,0,0);
+}
+
+[numthreads(8, 8, 1)]
+void BuildMorphPyramidL5(uint3 id : SV_DispatchThreadID)
+{
+    uint2 dim;
+    _MorphTypePyramidL5_RW.GetDimensions(dim.x, dim.y);
+    if (id.x >= dim.x || id.y >= dim.y) return;
+    uint2 src = id.xy * 2u;
+    uint m0 = _MorphTypePyramidL4[src + uint2(0, 0)];
+    uint m1 = _MorphTypePyramidL4[src + uint2(1, 0)];
+    uint m2 = _MorphTypePyramidL4[src + uint2(0, 1)];
+    uint m3 = _MorphTypePyramidL4[src + uint2(1, 1)];
+    _MorphTypePyramidL5_RW[id.xy] = m0 | m1 | m2 | m3;
+
+    float4 c0 = ((m0 & 3u) != 0u) ? _MorphColorPyramidL4[src + uint2(0, 0)] : float4(0,0,0,0);
+    float4 c1 = ((m1 & 3u) != 0u) ? _MorphColorPyramidL4[src + uint2(1, 0)] : float4(0,0,0,0);
+    float4 c2 = ((m2 & 3u) != 0u) ? _MorphColorPyramidL4[src + uint2(0, 1)] : float4(0,0,0,0);
+    float4 c3 = ((m3 & 3u) != 0u) ? _MorphColorPyramidL4[src + uint2(1, 1)] : float4(0,0,0,0);
+    float w0 = ((m0 & 3u) != 0u) ? 1.0 : 0.0;
+    float w1 = ((m1 & 3u) != 0u) ? 1.0 : 0.0;
+    float w2 = ((m2 & 3u) != 0u) ? 1.0 : 0.0;
+    float w3 = ((m3 & 3u) != 0u) ? 1.0 : 0.0;
+    float totalW = w0 + w1 + w2 + w3;
+    _MorphColorPyramidL5_RW[id.xy] = (totalW > 0.0) ? ((c0 + c1 + c2 + c3) / totalW) : float4(0,0,0,0);
+}
+
+[numthreads(8, 8, 1)]
+void BuildMorphPyramidL6(uint3 id : SV_DispatchThreadID)
+{
+    uint2 dim;
+    _MorphTypePyramidL6_RW.GetDimensions(dim.x, dim.y);
+    if (id.x >= dim.x || id.y >= dim.y) return;
+    uint2 src = id.xy * 2u;
+    uint m0 = _MorphTypePyramidL5[src + uint2(0, 0)];
+    uint m1 = _MorphTypePyramidL5[src + uint2(1, 0)];
+    uint m2 = _MorphTypePyramidL5[src + uint2(0, 1)];
+    uint m3 = _MorphTypePyramidL5[src + uint2(1, 1)];
+    _MorphTypePyramidL6_RW[id.xy] = m0 | m1 | m2 | m3;
+
+    float4 c0 = ((m0 & 3u) != 0u) ? _MorphColorPyramidL5[src + uint2(0, 0)] : float4(0,0,0,0);
+    float4 c1 = ((m1 & 3u) != 0u) ? _MorphColorPyramidL5[src + uint2(1, 0)] : float4(0,0,0,0);
+    float4 c2 = ((m2 & 3u) != 0u) ? _MorphColorPyramidL5[src + uint2(0, 1)] : float4(0,0,0,0);
+    float4 c3 = ((m3 & 3u) != 0u) ? _MorphColorPyramidL5[src + uint2(1, 1)] : float4(0,0,0,0);
+    float w0 = ((m0 & 3u) != 0u) ? 1.0 : 0.0;
+    float w1 = ((m1 & 3u) != 0u) ? 1.0 : 0.0;
+    float w2 = ((m2 & 3u) != 0u) ? 1.0 : 0.0;
+    float w3 = ((m3 & 3u) != 0u) ? 1.0 : 0.0;
+    float totalW = w0 + w1 + w2 + w3;
+    _MorphColorPyramidL6_RW[id.xy] = (totalW > 0.0) ? ((c0 + c1 + c2 + c3) / totalW) : float4(0,0,0,0);
+}
+
+// ==========================================
+// Morphology Passes (Erode & Dilate)
 // ==========================================
 
 [numthreads(8, 8, 1)]
@@ -226,34 +337,42 @@ void MorphologyErode(uint3 id : SV_DispatchThreadID)
     uint originType = _MorphTypeIn[id.xy];
     float4 color = _MorphColorIn[id.xy];
 
-    // 仮想オブジェクトのピクセル (type == 1u) のみを収縮対象とする
-    if (originType == 1u)
+    // 対象ピクセルは OriginType == 0u のみ
+    if (originType == 0u)
     {
-        bool hasPointCloudNeighbor = false;
-        int r = _MorphKernelHalfSize;
+        bool hasVirtualObjectNeighbor = false;
+        int level = min(6, _FinalNeighborhoodSizeMap[id.xy]);
+        
+        int2 dirs[9] = {
+            int2(0, 0), int2(1, 0), int2(1, 1), int2(0, 1), int2(-1, 1),
+            int2(-1, 0), int2(-1, -1), int2(0, -1), int2(1, -1)
+        };
 
-        for (int y = -r; y <= r; y++)
+        for (int i = 0; i < 9; i++)
         {
-            for (int x = -r; x <= r; x++)
+            uint2 uv_mip = (id.xy >> (uint)level) + dirs[i];
+            
+            uint mask = 0u;
+            if (level == 0) mask = (_MorphTypeIn[uv_mip] == 0u ? 1u : 0u) | (_MorphTypeIn[uv_mip] == 1u ? 2u : 0u) | (_MorphTypeIn[uv_mip] == 2u ? 4u : 0u);
+            else if (level == 1) mask = _MorphTypePyramidL1[uv_mip];
+            else if (level == 2) mask = _MorphTypePyramidL2[uv_mip];
+            else if (level == 3) mask = _MorphTypePyramidL3[uv_mip];
+            else if (level == 4) mask = _MorphTypePyramidL4[uv_mip];
+            else if (level == 5) mask = _MorphTypePyramidL5[uv_mip];
+            else mask = _MorphTypePyramidL6[uv_mip];
+
+            // 近傍に仮想オブジェクト(1u)が1点でも存在するか検証
+            if ((mask & 2u) != 0u)
             {
-                int2 uv = (int2)id.xy + int2(x, y);
-                if (uv.x >= 0 && uv.x < (int)w && uv.y >= 0 && uv.y < (int)h)
-                {
-                    // 隣接ピクセルに「実点群または遮蔽されたピクセル (0u)」が存在するかどうかを判定 (背景 2u は無視)
-                    if (_MorphTypeIn[uv] == 0u)
-                    {
-                        hasPointCloudNeighbor = true;
-                        break;
-                    }
-                }
+                hasVirtualObjectNeighbor = true;
+                break;
             }
-            if (hasPointCloudNeighbor) break;
         }
 
-        if (hasPointCloudNeighbor)
+        if (hasVirtualObjectNeighbor)
         {
-            originType = 0u; // 遮蔽されたピクセル（黒）として扱うために 0u に変更
-            color = float4(0, 0, 0, 1);
+            originType = 1u; // 仮想オブジェクトに戻す
+            color = float4(0, 0, 0, 0);
         }
     }
 
@@ -271,33 +390,50 @@ void MorphologyDilate(uint3 id : SV_DispatchThreadID)
     uint originType = _MorphTypeIn[id.xy];
     float4 color = _MorphColorIn[id.xy];
 
-    // 実点群または遮蔽されたピクセル (type == 0u) のみを膨張対象とする（背景 2u への不要な膨張を防止）
-    if (originType == 0u)
+    // 対象ピクセルは OriginType == 1u のみ
+    if (originType == 1u)
     {
         float4 sumColor = float4(0, 0, 0, 0);
         float totalWeight = 0.0;
-        int r = _MorphKernelHalfSize;
+        int level = min(6, _FinalNeighborhoodSizeMap[id.xy]);
 
-        for (int y = -r; y <= r; y++)
+        int2 dirs[9] = {
+            int2(0, 0), int2(1, 0), int2(1, 1), int2(0, 1), int2(-1, 1),
+            int2(-1, 0), int2(-1, -1), int2(0, -1), int2(1, -1)
+        };
+
+        for (int i = 0; i < 9; i++)
         {
-            for (int x = -r; x <= r; x++)
+            uint2 uv_mip = (id.xy >> (uint)level) + dirs[i];
+
+            uint mask = 0u;
+            float4 c = float4(0, 0, 0, 0);
+
+            if (level == 0) 
             {
-                int2 uv = (int2)id.xy + int2(x, y);
-                if (uv.x >= 0 && uv.x < (int)w && uv.y >= 0 && uv.y < (int)h)
-                {
-                    if (_MorphTypeIn[uv] == 1u)
-                    {
-                        sumColor += _MorphColorIn[uv];
-                        totalWeight += 1.0;
-                    }
-                }
+                uint t = _MorphTypeIn[uv_mip];
+                mask = (t == 0u ? 1u : 0u) | (t == 1u ? 2u : 0u);
+                c = (t == 0u) ? _MorphColorIn[uv_mip] : float4(0,0,0,0);
+            }
+            else if (level == 1) { mask = _MorphTypePyramidL1[uv_mip]; c = _MorphColorPyramidL1[uv_mip]; }
+            else if (level == 2) { mask = _MorphTypePyramidL2[uv_mip]; c = _MorphColorPyramidL2[uv_mip]; }
+            else if (level == 3) { mask = _MorphTypePyramidL3[uv_mip]; c = _MorphColorPyramidL3[uv_mip]; }
+            else if (level == 4) { mask = _MorphTypePyramidL4[uv_mip]; c = _MorphColorPyramidL4[uv_mip]; }
+            else if (level == 5) { mask = _MorphTypePyramidL5[uv_mip]; c = _MorphColorPyramidL5[uv_mip]; }
+            else                 { mask = _MorphTypePyramidL6[uv_mip]; c = _MorphColorPyramidL6[uv_mip]; }
+
+            // 近傍に実点群(0u)が1点でも存在するか検証
+            if ((mask & 1u) != 0u)
+            {
+                sumColor += c;
+                totalWeight += 1.0;
             }
         }
 
         if (totalWeight > 0.0)
         {
-            originType = 1u;
-            color = sumColor / totalWeight;
+            originType = 0u; // 実点群に置き換える
+            color = float4(0, 0, 0, 1.0);
         }
     }
 

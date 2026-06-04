@@ -334,21 +334,26 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 入力された点群バッファ内の各頂点 `p_world = (x, y, z, 1)^T` に対し、カメラのビュー・プロジェクション行列（`_PCDViewProjMatrix`）を適用し、クリップ空間を経てスクリーン座標にマッピングします。
 
 1.  **射影変換**:
-$$
-\mathbf{p}_{\text{clip}} = \mathbf{M}_{\text{VP}} \cdot \mathbf{p}_{\text{world}}
-$$
-$$
-\mathbf{p}_{\text{ndc}} = \frac{\mathbf{p}_{\text{clip}}.xyz}{\mathbf{p}_{\text{clip}}.w}
-$$
-$$
-\mathbf{p}_{\text{screen}} = \left( \frac{\mathbf{p}_{\text{ndc}}.xy + \mathbf{1.0}}{2.0} \right) \cdot \mathbf{v}_{\text{ScreenSize}}
-$$
+
+    $$
+    \mathbf{p}_{\text{clip}} = \mathbf{M}_{\text{VP}} \cdot \mathbf{p}_{\text{world}}
+    $$
+
+    $$
+    \mathbf{p}_{\text{ndc}} = \frac{\mathbf{p}_{\text{clip}}.xyz}{\mathbf{p}_{\text{clip}}.w}
+    $$
+
+    $$
+    \mathbf{p}_{\text{screen}} = \left( \frac{\mathbf{p}_{\text{ndc}}.xy + \mathbf{1.0}}{2.0} \right) \cdot \mathbf{v}_{\text{ScreenSize}}
+    $$
 
 2.  **超並列深度アトミック書き込み**:
     投影された座標 `(x_screen, y_screen)` が画面内にある場合、頂点深度 `z_ndc` をスケーリングし、アトミック最小演算 `InterlockedMin` を用いて深度テクスチャ `_DepthMap_RW` に記録します。これによって、複数頂点が同一ピクセルに重なった際に「最も手前にある（カメラに最も近い）頂点」のみが確実に記録されます。
-$$
-\text{DepthUint} = \text{clamp}\left( z_{\text{ndc}} \times D_{\text{max}}, 0, D_{\text{max}} \right)
-$$
+
+    $$
+    \text{DepthUint} = \text{clamp}\left( z_{\text{ndc}} \times D_{\text{max}}, 0, D_{\text{max}} \right)
+    $$
+
     (ここで `D_max` は最大深度定数 `DEPTH_MAX_UINT` を表します)
 
     `_DepthMap_RW` への記録は以下のように GPU アトミック操作で行われます。
@@ -417,29 +422,36 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
     発見した `minDepth` に近い深度を持つ近傍点のみを抽出し、以下の空間距離ウェイト（`spatialWeight`）と深度差ウェイト（`depthWeight`）を乗算した合成重みを算出して加重平均を取ります。
 
     *   深度許容差（`depthTolerance`）の定義:
-$$
-\text{depthTolerance} = \frac{D_{\text{max}}}{1000} + (d_{\text{min}} \times 0.02)
-$$
+
+        $$
+        \text{depthTolerance} = \frac{D_{\text{max}}}{1000} + (d_{\text{min}} \times 0.02)
+        $$
+
         (ここで `D_max` は `DEPTH_MAX_UINT`、`d_min` は `minDepth` を表します)
 
     *   空間ウェイト（距離の二乗による減衰）:
-$$
-\text{spatialWeight} = \frac{1}{1.0 + \text{distSq} \times 0.5}
-$$
+
+        $$
+        \text{spatialWeight} = \frac{1}{1.0 + \text{distSq} \times 0.5}
+        $$
 
     *   深度ウェイト（`minDepth` から離れるほど急速に減衰）:
-$$
-\text{depthWeight} = 1.0 - \text{smoothstep}\left(0.0, 1.0, \frac{d_n - d_{\text{min}}}{\text{depthTolerance}}\right)
-$$
+
+        $$
+        \text{depthWeight} = 1.0 - \text{smoothstep}\left(0.0, 1.0, \frac{d_n - d_{\text{min}}}{\text{depthTolerance}}\right)
+        $$
+
         (ここで `d_n` は `nDepth` を表します)
 
     *   合成重みによる加重平均:
-$$
-\text{Occlusion}_{\text{final}} = \frac{\sum (\text{Color}_i \times \text{Weight}_i)}{\sum \text{Weight}_i}
-$$
-$$
-\text{Weight}_i = \text{spatialWeight}_i \times \text{depthWeight}_i
-$$
+
+        $$
+        \text{Occlusion}_{\text{final}} = \frac{\sum (\text{Color}_i \times \text{Weight}_i)}{\sum \text{Weight}_i}
+        $$
+
+        $$
+        \text{Weight}_i = \text{spatialWeight}_i \times \text{depthWeight}_i
+        $$
 
 #### 2. Pull-Push ピラミッド法 (`FillHolesPullPushInit` ~ `FillHolesPush`)
 多スケール（ピラミッド階層）表現を用いて、どれほど広大で巨大な点群の穴でも計算負荷 $O(N)$ のまま滑らかに穴埋めする画像補間アルゴリズムです。
@@ -455,21 +467,26 @@ $$
     入力ピクセル情報をもとに、オクルージョン計算済みのピクセルは `weight = 1.0`、穴の部分は `weight = 0.0` とした 4成分ベクトル `v = (r * w, g * w, b * w, w)^T` をピラミッド最下層（Level 0）に構築します。
 2.  **`FillHolesPull` (アップサンプリング/縮小)**:
     解像度を段階的に `1/2` に縮小しながらピラミッドを登ります。各ピクセルは、対応する下位レイヤーの `2 * 2` ブロックの単純平均を算出し、ウェイトとカラーを累積します。
-$$
-\mathbf{v}_{\text{parent}} = \frac{\mathbf{v}_{00} + \mathbf{v}_{10} + \mathbf{v}_{01} + \mathbf{v}_{11}}{4.0}
-$$
+
+    $$
+    \mathbf{v}_{\text{parent}} = \frac{\mathbf{v}_{00} + \mathbf{v}_{10} + \mathbf{v}_{01} + \mathbf{v}_{11}}{4.0}
+    $$
+
 3.  **`FillHolesPush` (ダウンサンプリング/拡大復元)**:
     ピラミッドを降りながら解像度を拡大し、等倍に戻します。
     下位の粗い階層からバイリニア補間（`frac` および `lerp`）で拡大した補間値 `v_interp` を取得します。
     現在のピクセルのウェイト（`w_current = v_current.a`）が不完全（`1.0` 未満）な箇所について、拡大された補間値をウェイトの残量に基づいてブレンドします。
-$$
-\mathbf{v}_{\text{blended}} = \mathbf{v}_{\text{current}} + (1.0 - w_{\text{current}}) \cdot \mathbf{v}_{\text{interp}}
-$$
+
+    $$
+    \mathbf{v}_{\text{blended}} = \mathbf{v}_{\text{current}} + (1.0 - w_{\text{current}}) \cdot \mathbf{v}_{\text{interp}}
+    $$
+
 4.  **`FillHolesPullPushFinalize` (最終結果書き戻し)**:
     等倍解像度に戻ったピラミッドの最下層から、累積されたオクルージョンカラーを書き戻します。
-$$
-\text{Color}_{\text{final}} = \frac{\mathbf{v}_{\text{blended}}.rgb}{\mathbf{v}_{\text{blended}}.a} \quad (\text{if } \mathbf{v}_{\text{blended}}.a > 0.0001)
-$$
+
+    $$
+    \text{Color}_{\text{final}} = \frac{\mathbf{v}_{\text{blended}}.rgb}{\mathbf{v}_{\text{blended}}.a} \quad (\text{if } \mathbf{v}_{\text{blended}}.a > 0.0001)
+    $$
 
 #### 3. 数学的モルフォロジー演算 (`MorphologyErode` / `MorphologyDilate`)
 カラー画像および点群存在フラグマップ（`_MorphTypeIn`）に対し、二値画像の数学的モルフォロジー（膨張・収縮）をグレースケールカラーと連動させて実行します。

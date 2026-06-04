@@ -75,7 +75,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public PCD_HoleFillingMethod holeFillingMethod; // ④ エッジ保持型ホールフィリング手法
 
         public PCD_GridSize gridSize;             // グリッドサイズ (最適化・検証用)
-        public bool enableGridSkipping;           // グリッド単位の参照スキップ (Empty Space Skipping)
 
         [Range(1, 25)] public int morphKernelHalfSize;
         [Range(0, 5)] public int morphErodeIterations;
@@ -120,6 +119,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
     }
 
     [HideInInspector] public uint _internalDynamicMultiplier = 1;
+    public uint LastFrameVirtualMeshPixelCount { get; set; } = 1;
 
     // レンダラー特徴の初期化時に呼ばれる
     public override void Create()

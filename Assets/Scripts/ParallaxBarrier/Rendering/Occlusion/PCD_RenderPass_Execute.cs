@@ -46,7 +46,6 @@ public partial class PCDRenderPass
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableTagBasedOptimization"), passData.settings.enableTagBasedOptimization ? 1 : 0);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableTypeAwareDensity"), passData.settings.enableTypeAwareDensity ? 1 : 0);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableSoftOcclusionFade"), passData.settings.enableSoftOcclusionFade ? 1 : 0);
-        cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableGridSkipping"), passData.settings.enableGridSkipping ? 1 : 0);
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_EnableJointBilateralHoleFilling"), (passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None) ? 1 : 0);
 
         // 仮想物体など、スクリーン全体を埋めているメッシュにおける仮想的な密度倍率(x = 深度バッファ/実点群数などを加味)を設定
@@ -131,7 +130,17 @@ public partial class PCDRenderPass
             cmd.DispatchCompute(cs, passData.kernelProject, projectGroups, 1, 1);
         }
 
-        if (passData.settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip)
+        bool needsNeighborhoodSize = passData.hasVirtualObjects && 
+            (passData.settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip || 
+             passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.JointBilateral || 
+             passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
+             passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO);
+
+        bool needsDepthPyramid = passData.hasVirtualObjects && 
+            (passData.settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip || 
+             (needsNeighborhoodSize && passData.settings.enableGradientCorrection));
+
+        if (needsNeighborhoodSize)
         {
             // --- ステージ4: 各グリッドセルの最小深度を計算 ---
             cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.DepthMap, passData.depthMap);
@@ -161,7 +170,10 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.FilteredGridLevelMap, passData.filteredGridLevelMap);
             cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
             cmd.DispatchCompute(cs, passData.kernelCalcNeighborhoodSize, threadGroupsX, threadGroupsY, 1);
+        }
 
+        if (needsDepthPyramid)
+        {
             // --- ステージ9a: 深度ピラミッドの構築（全カーネルタイプ共通） ---
             // L1は_ViewPositionMapと_OriginTypeMapから物理点群のみを抽出
             {
@@ -223,41 +235,53 @@ public partial class PCDRenderPass
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_IsReversedZ"), SystemInfo.usesReversedZBuffer ? 1 : 0);
 
         // --- ステージ10: ピラミッドサンプリングによるオクルージョン判定 ---
-        if (passData.settings.kernelType == PCDRendererFeature.PCD_OcclusionKernel.Skip)
+        if (passData.hasVirtualObjects)
         {
-            cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ColorMap, passData.colorMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
-            cmd.DispatchCompute(cs, passData.kernelCopyColorToOcclusion, threadGroupsX, threadGroupsY, 1);
+            if (passData.settings.kernelType == PCDRendererFeature.PCD_OcclusionKernel.Skip)
+            {
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ColorMap, passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+                cmd.DispatchCompute(cs, passData.kernelCopyColorToOcclusion, threadGroupsX, threadGroupsY, 1);
+            }
+            else
+            {
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ColorMap, passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
+                // ピラミッドテクスチャをオクルージョンカーネルにバインド
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL5, passData.depthPyramidL5);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL6, passData.depthPyramidL6);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+
+                int shouldRecordDebug = (passData.settings.recordOcclusionDebugMap || passData.settings.recordPixelTagMap || passData.settings.enablePixelTagMap || passData.settings.enableOcclusionMap || passData.settings.recordNeighborCountMap) ? 1 : 0;
+                cmd.SetComputeIntParam(cs, ShaderIDs.RecordOcclusionDebug, shouldRecordDebug);
+
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.NeighborCountMap_RW, passData.neighborCountMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
+                cmd.DispatchCompute(cs, passData.kernelComputeOcclusion, threadGroupsX, threadGroupsY, 1);
+            }
         }
         else
         {
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ColorMap, passData.colorMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.VirtualDepthMap, passData.virtualDepthTexture);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
-            // ピラミッドテクスチャをオクルージョンカーネルにバインド
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL1, passData.depthPyramidL1);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL2, passData.depthPyramidL2);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL3, passData.depthPyramidL3);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL4, passData.depthPyramidL4);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL5, passData.depthPyramidL5);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.DepthPyramidL6, passData.depthPyramidL6);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
-        }
-
-        int shouldRecordDebug = (passData.settings.recordOcclusionDebugMap || passData.settings.recordPixelTagMap || passData.settings.enablePixelTagMap || passData.settings.enableOcclusionMap || passData.settings.recordNeighborCountMap) ? 1 : 0;
-        cmd.SetComputeIntParam(cs, ShaderIDs.RecordOcclusionDebug, shouldRecordDebug);
-
-        // ※UnityのComputeShaderは、対象カーネル内にRWTextureへの書き込みコードが存在する場合、
-        // 実際に実行されない(if等で保護されている)場合であってもPropertyとしてバインドしておく必要があります。
-        if (passData.settings.kernelType != PCDRendererFeature.PCD_OcclusionKernel.Skip)
-        {
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.NeighborCountMap_RW, passData.neighborCountMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OcclusionValueMap_RW, passData.occlusionValueMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelComputeOcclusion, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
-            cmd.DispatchCompute(cs, passData.kernelComputeOcclusion, threadGroupsX, threadGroupsY, 1);
+            // 仮想オブジェクトが存在しないが、ホールフィリングが有効な場合は単にColorMapをOcclusionResultMapにコピーする
+            bool useHoleFilling = passData.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None;
+            if (useHoleFilling)
+            {
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ColorMap, passData.colorMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.ViewPositionMap, passData.viewPositionMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCopyColorToOcclusion, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
+                cmd.DispatchCompute(cs, passData.kernelCopyColorToOcclusion, threadGroupsX, threadGroupsY, 1);
+            }
         }
 
         // --- ステージ11: 点群が描画されなかったピクセルに対する穴埋め ---
@@ -269,6 +293,7 @@ public partial class PCDRenderPass
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginTypeMap_RW, passData.originTypeMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OcclusionResultMap_RW, passData.occlusionResultMap);
             cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.OriginMap_RW, passData.debugDisplayMap);
+            cmd.SetComputeTextureParam(cs, passData.kernelFillHoles, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
             cmd.DispatchCompute(cs, passData.kernelFillHoles, threadGroupsX, threadGroupsY, 1);
         }
         else if (passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
@@ -341,32 +366,102 @@ public partial class PCDRenderPass
                 TextureHandle colorOut = currentInTemp ? passData.occlusionResultMap : passData.morphColorTemp;
                 TextureHandle typeOut = currentInTemp ? passData.originTypeMap : passData.morphTypeTemp;
 
+                // Build Morph Pyramid first
+                int l1_w = Mathf.Max(1, (sw + 1) / 2);
+                int l1_h = Mathf.Max(1, (sh + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL1, ShaderIDs.MorphTypeIn, typeIn);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL1, ShaderIDs.MorphColorIn, colorIn);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL1, ShaderIDs.MorphTypePyramidL1_RW, passData.morphTypePyramidL1);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL1, ShaderIDs.MorphColorPyramidL1_RW, passData.morphColorPyramidL1);
+                cmd.DispatchCompute(cs, passData.kernelBuildMorphPyramidL1, (l1_w + 7) / 8, (l1_h + 7) / 8, 1);
+
+                int l2_w = Mathf.Max(1, (l1_w + 1) / 2);
+                int l2_h = Mathf.Max(1, (l1_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL2, ShaderIDs.MorphTypePyramidL1, passData.morphTypePyramidL1);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL2, ShaderIDs.MorphColorPyramidL1, passData.morphColorPyramidL1);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL2, ShaderIDs.MorphTypePyramidL2_RW, passData.morphTypePyramidL2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL2, ShaderIDs.MorphColorPyramidL2_RW, passData.morphColorPyramidL2);
+                cmd.DispatchCompute(cs, passData.kernelBuildMorphPyramidL2, (l2_w + 7) / 8, (l2_h + 7) / 8, 1);
+
+                int l3_w = Mathf.Max(1, (l2_w + 1) / 2);
+                int l3_h = Mathf.Max(1, (l2_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL3, ShaderIDs.MorphTypePyramidL2, passData.morphTypePyramidL2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL3, ShaderIDs.MorphColorPyramidL2, passData.morphColorPyramidL2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL3, ShaderIDs.MorphTypePyramidL3_RW, passData.morphTypePyramidL3);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL3, ShaderIDs.MorphColorPyramidL3_RW, passData.morphColorPyramidL3);
+                cmd.DispatchCompute(cs, passData.kernelBuildMorphPyramidL3, (l3_w + 7) / 8, (l3_h + 7) / 8, 1);
+
+                int l4_w = Mathf.Max(1, (l3_w + 1) / 2);
+                int l4_h = Mathf.Max(1, (l3_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL4, ShaderIDs.MorphTypePyramidL3, passData.morphTypePyramidL3);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL4, ShaderIDs.MorphColorPyramidL3, passData.morphColorPyramidL3);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL4, ShaderIDs.MorphTypePyramidL4_RW, passData.morphTypePyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL4, ShaderIDs.MorphColorPyramidL4_RW, passData.morphColorPyramidL4);
+                cmd.DispatchCompute(cs, passData.kernelBuildMorphPyramidL4, (l4_w + 7) / 8, (l4_h + 7) / 8, 1);
+
+                int l5_w = Mathf.Max(1, (l4_w + 1) / 2);
+                int l5_h = Mathf.Max(1, (l4_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL5, ShaderIDs.MorphTypePyramidL4, passData.morphTypePyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL5, ShaderIDs.MorphColorPyramidL4, passData.morphColorPyramidL4);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL5, ShaderIDs.MorphTypePyramidL5_RW, passData.morphTypePyramidL5);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL5, ShaderIDs.MorphColorPyramidL5_RW, passData.morphColorPyramidL5);
+                cmd.DispatchCompute(cs, passData.kernelBuildMorphPyramidL5, (l5_w + 7) / 8, (l5_h + 7) / 8, 1);
+
+                int l6_w = Mathf.Max(1, (l5_w + 1) / 2);
+                int l6_h = Mathf.Max(1, (l5_h + 1) / 2);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL6, ShaderIDs.MorphTypePyramidL5, passData.morphTypePyramidL5);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL6, ShaderIDs.MorphColorPyramidL5, passData.morphColorPyramidL5);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL6, ShaderIDs.MorphTypePyramidL6_RW, passData.morphTypePyramidL6);
+                cmd.SetComputeTextureParam(cs, passData.kernelBuildMorphPyramidL6, ShaderIDs.MorphColorPyramidL6_RW, passData.morphColorPyramidL6);
+                cmd.DispatchCompute(cs, passData.kernelBuildMorphPyramidL6, (l6_w + 7) / 8, (l6_h + 7) / 8, 1);
+
+                // Now execute the actual morph pass
                 cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorIn, colorIn);
                 cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypeIn, typeIn);
                 cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorOut_RW, colorOut);
                 cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypeOut_RW, typeOut);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.FinalNeighborhoodSizeMap, passData.settings.enableGradientCorrection ? passData.correctedNeighborhoodSizeMap : passData.neighborhoodSizeMap);
+
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypePyramidL1, passData.morphTypePyramidL1);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypePyramidL2, passData.morphTypePyramidL2);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypePyramidL3, passData.morphTypePyramidL3);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypePyramidL4, passData.morphTypePyramidL4);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypePyramidL5, passData.morphTypePyramidL5);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphTypePyramidL6, passData.morphTypePyramidL6);
+
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorPyramidL1, passData.morphColorPyramidL1);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorPyramidL2, passData.morphColorPyramidL2);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorPyramidL3, passData.morphColorPyramidL3);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorPyramidL4, passData.morphColorPyramidL4);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorPyramidL5, passData.morphColorPyramidL5);
+                cmd.SetComputeTextureParam(cs, kernelId, ShaderIDs.MorphColorPyramidL6, passData.morphColorPyramidL6);
 
                 cmd.DispatchCompute(cs, kernelId, threadGroupsX, threadGroupsY, 1);
                 currentInTemp = !currentInTemp;
             };
 
-            int erode1 = passData.settings.morphErodeIterations;
-            int dilate = erode1 + passData.settings.morphDilateIterations;
-            int erode2 = passData.settings.morphDilateIterations;
-
-            for (int i = 0; i < erode1; i++)
+            if (passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC)
             {
-                runMorphPass(passData.kernelMorphologyErode, "Erode1");
+                // Opening (Erode -> Dilate) then Closing (Dilate -> Erode)
+                for (int i = 0; i < passData.settings.morphErodeIterations; i++) runMorphPass(passData.kernelMorphologyErode, "Erode");
+                for (int i = 0; i < passData.settings.morphDilateIterations; i++) runMorphPass(passData.kernelMorphologyDilate, "Dilate");
+                for (int i = 0; i < passData.settings.morphDilateIterations; i++) runMorphPass(passData.kernelMorphologyDilate, "Dilate");
+                for (int i = 0; i < passData.settings.morphErodeIterations; i++) runMorphPass(passData.kernelMorphologyErode, "Erode");
             }
-
-            for (int i = 0; i < dilate; i++)
+            else if (passData.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO)
             {
-                runMorphPass(passData.kernelMorphologyDilate, "Dilate");
+                // Closing (Dilate -> Erode) then Opening (Erode -> Dilate)
+                // The user requested Pyramid -> Dilate -> Pyramid -> Erode
+                for (int i = 0; i < passData.settings.morphDilateIterations; i++) runMorphPass(passData.kernelMorphologyDilate, "Dilate");
+                for (int i = 0; i < passData.settings.morphErodeIterations; i++) runMorphPass(passData.kernelMorphologyErode, "Erode");
+                for (int i = 0; i < passData.settings.morphErodeIterations; i++) runMorphPass(passData.kernelMorphologyErode, "Erode");
+                for (int i = 0; i < passData.settings.morphDilateIterations; i++) runMorphPass(passData.kernelMorphologyDilate, "Dilate");
             }
-
-            for (int i = 0; i < erode2; i++)
+            else
             {
-                runMorphPass(passData.kernelMorphologyErode, "Erode2");
+                // Fallback (e.g. basic Dilate then Erode)
+                for (int i = 0; i < passData.settings.morphDilateIterations; i++) runMorphPass(passData.kernelMorphologyDilate, "Dilate");
+                for (int i = 0; i < passData.settings.morphErodeIterations; i++) runMorphPass(passData.kernelMorphologyErode, "Erode");
             }
 
             if (currentInTemp)
@@ -410,6 +505,7 @@ public partial class PCDRenderPass
             }
             var data = request.GetData<uint>();
             uint virtualMeshPixelCount = data[0];
+            PCDRendererFeature.Instance.LastFrameVirtualMeshPixelCount = virtualMeshPixelCount;
 
             if (totalPoints > 0)
             {

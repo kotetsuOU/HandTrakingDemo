@@ -17,7 +17,7 @@ RWTexture2D<float4> _ColorMap_RW;
 RWTexture2D<uint> _DepthMap_RW;
 RWTexture2D<float4> _ViewPositionMap_RW;
 RWTexture2D<uint> _GridZMinMap_RW;
-RWTexture2D<float2> _DensityMap_RW;
+RWTexture2D<float> _DensityMap_RW;
 RWTexture2D<int> _GridLevelMap_RW;
 RWTexture2D<int> _FilteredGridLevelMap_RW;
 RWTexture2D<int> _NeighborhoodSizeMap_RW;
@@ -47,7 +47,7 @@ Texture2D<float4> _ColorMap;
 Texture2D<uint> _DepthMap;
 Texture2D<float4> _ViewPositionMap;
 Texture2D<uint> _GridZMinMap;
-Texture2D<float2> _DensityMap;
+Texture2D<float> _DensityMap;
 Texture2D<int> _GridLevelMap;
 Texture2D<int> _FilteredGridLevelMap;
 Texture2D<int> _NeighborhoodSizeMap;
@@ -63,6 +63,34 @@ Texture2D<float4> _OcclusionResultMap;
 
 Texture2D<float4> _PullPushLevel_In;
 Texture2D<float4> _PullPushLevel_Out;
+
+RWTexture2D<uint> _MorphTypePyramidL1_RW;
+RWTexture2D<uint> _MorphTypePyramidL2_RW;
+RWTexture2D<uint> _MorphTypePyramidL3_RW;
+RWTexture2D<uint> _MorphTypePyramidL4_RW;
+RWTexture2D<uint> _MorphTypePyramidL5_RW;
+RWTexture2D<uint> _MorphTypePyramidL6_RW;
+
+RWTexture2D<float4> _MorphColorPyramidL1_RW;
+RWTexture2D<float4> _MorphColorPyramidL2_RW;
+RWTexture2D<float4> _MorphColorPyramidL3_RW;
+RWTexture2D<float4> _MorphColorPyramidL4_RW;
+RWTexture2D<float4> _MorphColorPyramidL5_RW;
+RWTexture2D<float4> _MorphColorPyramidL6_RW;
+
+Texture2D<uint> _MorphTypePyramidL1;
+Texture2D<uint> _MorphTypePyramidL2;
+Texture2D<uint> _MorphTypePyramidL3;
+Texture2D<uint> _MorphTypePyramidL4;
+Texture2D<uint> _MorphTypePyramidL5;
+Texture2D<uint> _MorphTypePyramidL6;
+
+Texture2D<float4> _MorphColorPyramidL1;
+Texture2D<float4> _MorphColorPyramidL2;
+Texture2D<float4> _MorphColorPyramidL3;
+Texture2D<float4> _MorphColorPyramidL4;
+Texture2D<float4> _MorphColorPyramidL5;
+Texture2D<float4> _MorphColorPyramidL6;
 
 // Hybrid virtual depth (URP camera depth)
 Texture2D<float> _VirtualDepthMap;

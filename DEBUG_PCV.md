@@ -61,9 +61,11 @@
 
 1.  **ボクセルインデックスの算出**:
     空間内の点 `p = (x, y, z)^T` に対し、ボクセルサイズ `d_size` で除算して整数化（切り捨て）し、ボクセル座標 `v = (x_v, y_v, z_v)^T` を算出します。
-$$
-x_v = \lfloor x / d_{\text{size}} \rfloor, \quad y_v = \lfloor y / d_{\text{size}} \rfloor, \quad z_v = \lfloor z / d_{\text{size}} \rfloor
-$$
+
+    $$
+    x_v = \lfloor x / d_{\text{size}} \rfloor, \quad y_v = \lfloor y / d_{\text{size}} \rfloor, \quad z_v = \lfloor z / d_{\text{size}} \rfloor
+    $$
+
 2.  **ハッシュ登録**:
     算出したボクセル座標 `v` をキーとし、該当する頂点のインデックス `i` をリストにアペンドしてハッシュバケットを構築します（`BuildCpuGrid`）。
 
@@ -111,9 +113,11 @@ GPU 上でスレッドセーフに空間ハッシュおよびソート済みイ�
 
 *   **動作仕様**:
     1.  頂点の 3D グリッド座標からハッシュ値を計算します：
-$$
-H = \text{Hash}(\mathbf{v})
-$$
+
+        $$
+        H = \text{Hash}(\mathbf{v})
+        $$
+
     2.  アトミック操作でハッシュテーブルスロット `_VoxelHashTable[H]` を獲得します：
         ```hlsl
         InterlockedCompareExchange(_VoxelHashTable[H], -1, vertexIndex, prevHead);

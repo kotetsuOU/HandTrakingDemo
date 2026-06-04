@@ -30,8 +30,7 @@ public class PCDSettingsBridge
         morphKernelHalfSize = 1,
         morphErodeIterations = 0,
         morphDilateIterations = 1,
-        gridSize = PCD_GridSize.Grid16x16,
-        enableGridSkipping = true
+        gridSize = PCD_GridSize.Grid16x16
     };
 
     private PCDOcclusionPipelineController Controller => PCDOcclusionPipelineController.Instance;
@@ -293,16 +292,6 @@ public class PCDSettingsBridge
         {
             if (Controller != null) Controller.gridSize = value;
             else _fallbackSettings.gridSize = value;
-        }
-    }
-
-    public bool enableGridSkipping
-    {
-        get => Controller != null ? Controller.enableGridSkipping : _fallbackSettings.enableGridSkipping;
-        set
-        {
-            if (Controller != null) Controller.enableGridSkipping = value;
-            else _fallbackSettings.enableGridSkipping = value;
         }
     }
 

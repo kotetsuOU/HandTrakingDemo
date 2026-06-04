@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // PCD_Occulusion.compute
 // 繝｡繧､繝ｳ縺ｮ繧ｳ繝ｳ繝斐Η繝ｼ繝医す繧ｧ繝ｼ繝繝ｼ繧ｨ繝ｳ繝医Μ繝昴う繝ｳ繝・
 // 蜷・ヱ繧ｹ・医き繝ｼ繝阪Ν・峨ｒ螳夂ｾｩ縺励・未騾｣縺吶ｋHLSL繝輔ぃ繧､繝ｫ繧偵う繝ｳ繧ｯ繝ｫ繝ｼ繝峨＠縺ｾ縺吶・
@@ -33,6 +33,12 @@
 #pragma kernel MorphologyErode          // 繝｢繝ｫ繝輔か繝ｭ繧ｸ繝ｼ蜿守ｸｮ貍皮ｮ・
 #pragma kernel MorphologyDilate         // 繝｢繝ｫ繝輔か繝ｭ繧ｸ繝ｼ閹ｨ蠑ｵ貍皮ｮ・
 #pragma kernel MorphologyCopy           // 繝｢繝ｫ繝輔か繝ｭ繧ｸ繝ｼ荳ｭ髢薙ヰ繝・ヵ繧｡繧ｳ繝斐・
+#pragma kernel BuildMorphPyramidL1
+#pragma kernel BuildMorphPyramidL2
+#pragma kernel BuildMorphPyramidL3
+#pragma kernel BuildMorphPyramidL4
+#pragma kernel BuildMorphPyramidL5
+#pragma kernel BuildMorphPyramidL6
 
 // --- Post & Utility (繝昴せ繝医・繝ｭ繧ｻ繧ｹ繝ｻ繝ｦ繝ｼ繝・ぅ繝ｪ繝・ぅ) ---
 #pragma kernel Interpolate               // 髫咎俣(遨ｴ)繧貞沂繧√ｋ縺溘ａ縺ｮ1繝斐け繧ｻ繝ｫ陬憺俣(Dilation)

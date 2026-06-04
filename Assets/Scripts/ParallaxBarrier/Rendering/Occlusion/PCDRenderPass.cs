@@ -61,6 +61,32 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int CorrectedNeighborhoodSizeMap_RW = Shader.PropertyToID("_CorrectedNeighborhoodSizeMap_RW");
         public static readonly int FinalNeighborhoodSizeMap = Shader.PropertyToID("_FinalNeighborhoodSizeMap");
         
+        public static readonly int MorphTypePyramidL1 = Shader.PropertyToID("_MorphTypePyramidL1");
+        public static readonly int MorphTypePyramidL1_RW = Shader.PropertyToID("_MorphTypePyramidL1_RW");
+        public static readonly int MorphTypePyramidL2 = Shader.PropertyToID("_MorphTypePyramidL2");
+        public static readonly int MorphTypePyramidL2_RW = Shader.PropertyToID("_MorphTypePyramidL2_RW");
+        public static readonly int MorphTypePyramidL3 = Shader.PropertyToID("_MorphTypePyramidL3");
+        public static readonly int MorphTypePyramidL3_RW = Shader.PropertyToID("_MorphTypePyramidL3_RW");
+        public static readonly int MorphTypePyramidL4 = Shader.PropertyToID("_MorphTypePyramidL4");
+        public static readonly int MorphTypePyramidL4_RW = Shader.PropertyToID("_MorphTypePyramidL4_RW");
+        public static readonly int MorphTypePyramidL5 = Shader.PropertyToID("_MorphTypePyramidL5");
+        public static readonly int MorphTypePyramidL5_RW = Shader.PropertyToID("_MorphTypePyramidL5_RW");
+        public static readonly int MorphTypePyramidL6 = Shader.PropertyToID("_MorphTypePyramidL6");
+        public static readonly int MorphTypePyramidL6_RW = Shader.PropertyToID("_MorphTypePyramidL6_RW");
+
+        public static readonly int MorphColorPyramidL1 = Shader.PropertyToID("_MorphColorPyramidL1");
+        public static readonly int MorphColorPyramidL1_RW = Shader.PropertyToID("_MorphColorPyramidL1_RW");
+        public static readonly int MorphColorPyramidL2 = Shader.PropertyToID("_MorphColorPyramidL2");
+        public static readonly int MorphColorPyramidL2_RW = Shader.PropertyToID("_MorphColorPyramidL2_RW");
+        public static readonly int MorphColorPyramidL3 = Shader.PropertyToID("_MorphColorPyramidL3");
+        public static readonly int MorphColorPyramidL3_RW = Shader.PropertyToID("_MorphColorPyramidL3_RW");
+        public static readonly int MorphColorPyramidL4 = Shader.PropertyToID("_MorphColorPyramidL4");
+        public static readonly int MorphColorPyramidL4_RW = Shader.PropertyToID("_MorphColorPyramidL4_RW");
+        public static readonly int MorphColorPyramidL5 = Shader.PropertyToID("_MorphColorPyramidL5");
+        public static readonly int MorphColorPyramidL5_RW = Shader.PropertyToID("_MorphColorPyramidL5_RW");
+        public static readonly int MorphColorPyramidL6 = Shader.PropertyToID("_MorphColorPyramidL6");
+        public static readonly int MorphColorPyramidL6_RW = Shader.PropertyToID("_MorphColorPyramidL6_RW");
+
         public static readonly int OcclusionResultMap = Shader.PropertyToID("_OcclusionResultMap");
         public static readonly int OcclusionResultMap_RW = Shader.PropertyToID("_OcclusionResultMap_RW");
         public static readonly int FinalImage_RW = Shader.PropertyToID("_FinalImage_RW");
@@ -117,7 +143,9 @@ public partial class PCDRenderPass : ScriptableRenderPass
                 _kernelApplyGradient,
                 _kernelComputeOcclusion, _kernelCopyColorToOcclusion, _kernelFillHoles, _kernelFillHolesPullPushInit, _kernelFillHolesPull, _kernelFillHolesPush, _kernelFillHolesPullPushFinalize, _kernelInterpolate,
                 _kernelMerge, _kernelInitFromCamera, _kernelVisualizeOcclusionDebug,
-                _kernelMorphologyErode, _kernelMorphologyDilate, _kernelMorphologyCopy;
+                _kernelMorphologyErode, _kernelMorphologyDilate, _kernelMorphologyCopy,
+                _kernelBuildMorphPyramidL1, _kernelBuildMorphPyramidL2, _kernelBuildMorphPyramidL3,
+                _kernelBuildMorphPyramidL4, _kernelBuildMorphPyramidL5, _kernelBuildMorphPyramidL6;
 
     // 出力およびデバッグマップ
     private RTHandle _debugDisplayMapHandle;
@@ -133,6 +161,23 @@ public partial class PCDRenderPass : ScriptableRenderPass
     private PCDPointBufferManager _bufferManager;
 
     private ComputeBuffer _staticMeshCounterBuffer;
+
+    private SRD.Core.SRDManager _cachedSrdManager;
+    private float _lastSrdManagerSearchTime = -1000f;
+
+    private SRD.Core.SRDManager GetSRDManager()
+    {
+        if (_cachedSrdManager != null)
+            return _cachedSrdManager;
+
+        if (Time.realtimeSinceStartup - _lastSrdManagerSearchTime > 2.0f)
+        {
+            _cachedSrdManager = UnityEngine.Object.FindAnyObjectByType<SRD.Core.SRDManager>();
+            _lastSrdManagerSearchTime = Time.realtimeSinceStartup;
+        }
+
+        return _cachedSrdManager;
+    }
 
     public PCDRenderPass(ComputeShader computeShader, PCDRendererFeature.PCDRenderSettings settings)
     {
@@ -229,6 +274,13 @@ public partial class PCDRenderPass : ScriptableRenderPass
         _kernelMorphologyErode = pointCloudCompute.FindKernel("MorphologyErode");
         _kernelMorphologyDilate = pointCloudCompute.FindKernel("MorphologyDilate");
         _kernelMorphologyCopy = pointCloudCompute.FindKernel("MorphologyCopy");
+
+        _kernelBuildMorphPyramidL1 = pointCloudCompute.FindKernel("BuildMorphPyramidL1");
+        _kernelBuildMorphPyramidL2 = pointCloudCompute.FindKernel("BuildMorphPyramidL2");
+        _kernelBuildMorphPyramidL3 = pointCloudCompute.FindKernel("BuildMorphPyramidL3");
+        _kernelBuildMorphPyramidL4 = pointCloudCompute.FindKernel("BuildMorphPyramidL4");
+        _kernelBuildMorphPyramidL5 = pointCloudCompute.FindKernel("BuildMorphPyramidL5");
+        _kernelBuildMorphPyramidL6 = pointCloudCompute.FindKernel("BuildMorphPyramidL6");
  
         _isInitialized = true;
     }
@@ -252,7 +304,8 @@ public partial class PCDRenderPass : ScriptableRenderPass
                      kernelApplyGradient,
                       kernelComputeOcclusion, kernelCopyColorToOcclusion, kernelFillHoles, kernelFillHolesPullPushInit, kernelFillHolesPull, kernelFillHolesPush, kernelFillHolesPullPushFinalize, kernelInterpolate,
                       kernelMerge, kernelInitFromCamera, kernelVisualizeOcclusionDebug,
-                      kernelMorphologyErode, kernelMorphologyDilate, kernelMorphologyCopy;
+                      kernelMorphologyErode, kernelMorphologyDilate, kernelMorphologyCopy,
+                      kernelBuildMorphPyramidL1, kernelBuildMorphPyramidL2, kernelBuildMorphPyramidL3, kernelBuildMorphPyramidL4, kernelBuildMorphPyramidL5, kernelBuildMorphPyramidL6;
 
         // コピー用バッファ
         internal bool useExternal;
@@ -269,6 +322,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
         internal TextureHandle virtualDepthTexture;
         internal TextureHandle cameraColorTexture;
         internal bool hasVirtualDepth;
+        internal bool hasVirtualObjects;
         internal bool depthMapOnlyMode;
         internal Matrix4x4 inverseProjectionMatrix;
         internal TextureHandle viewPositionMap;
@@ -292,6 +346,20 @@ public partial class PCDRenderPass : ScriptableRenderPass
         // Morphology Temp
         internal TextureHandle morphColorTemp;
         internal TextureHandle morphTypeTemp;
+
+        internal TextureHandle morphTypePyramidL1;
+        internal TextureHandle morphTypePyramidL2;
+        internal TextureHandle morphTypePyramidL3;
+        internal TextureHandle morphTypePyramidL4;
+        internal TextureHandle morphTypePyramidL5;
+        internal TextureHandle morphTypePyramidL6;
+
+        internal TextureHandle morphColorPyramidL1;
+        internal TextureHandle morphColorPyramidL2;
+        internal TextureHandle morphColorPyramidL3;
+        internal TextureHandle morphColorPyramidL4;
+        internal TextureHandle morphColorPyramidL5;
+        internal TextureHandle morphColorPyramidL6;
  
         internal TextureHandle occlusionValueMap;
         internal TextureHandle finalImage;

@@ -43,6 +43,12 @@ public partial class PCDRenderPass
         data.kernelMorphologyErode = _kernelMorphologyErode;
         data.kernelMorphologyDilate = _kernelMorphologyDilate;
         data.kernelMorphologyCopy = _kernelMorphologyCopy;
+        data.kernelBuildMorphPyramidL1 = _kernelBuildMorphPyramidL1;
+        data.kernelBuildMorphPyramidL2 = _kernelBuildMorphPyramidL2;
+        data.kernelBuildMorphPyramidL3 = _kernelBuildMorphPyramidL3;
+        data.kernelBuildMorphPyramidL4 = _kernelBuildMorphPyramidL4;
+        data.kernelBuildMorphPyramidL5 = _kernelBuildMorphPyramidL5;
+        data.kernelBuildMorphPyramidL6 = _kernelBuildMorphPyramidL6;
         data.useExternal = _bufferManager.UseExternalBuffer;
         data.externalBuffer = _bufferManager.ExternalPointBuffer;
         data.internalBuffer = _bufferManager.PointBuffer;
