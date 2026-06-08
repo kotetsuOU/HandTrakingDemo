@@ -74,12 +74,25 @@ namespace SRD.Core
         {
             if (_srdManager.UseDirectGpuImageBuffer)
             {
-                // PCDRenderPassで描画されたグローバルなRenderTextureを、左目と右目の両方に流し込む
-                if (_srdManager.DirectGpuImageMap != null)
+                if (_srdManager.StereoCameraController != null && _srdManager.StereoCameraController.CurrentPattern == SRD.Utils.CameraPattern.Pattern3D)
                 {
-                    _stereoCompositer.RegisterSourceStereoTextures(_srdManager.DirectGpuImageMap, _srdManager.DirectGpuImageMap);
-                    _stereoCompositer.RenderStereoComposition(_outputTexture);
-                    _isStereoTextureRegistered = false; // フラグをリセットし、直接入力モードから戻った際に再登録されるようにする
+                    // 3Dパターンの場合は、左目用と右目用のRenderTextureを個別に流し込む
+                    if (_srdManager.DirectGpuImageLeft != null && _srdManager.DirectGpuImageRight != null)
+                    {
+                        _stereoCompositer.RegisterSourceStereoTextures(_srdManager.DirectGpuImageLeft, _srdManager.DirectGpuImageRight);
+                        _stereoCompositer.RenderStereoComposition(_outputTexture);
+                        _isStereoTextureRegistered = false; 
+                    }
+                }
+                else
+                {
+                    // 2Dパターンの場合は、PCDRenderPassで描画されたグローバルなRenderTextureを両目に流し込む
+                    if (_srdManager.DirectGpuImageMap != null)
+                    {
+                        _stereoCompositer.RegisterSourceStereoTextures(_srdManager.DirectGpuImageMap, _srdManager.DirectGpuImageMap);
+                        _stereoCompositer.RenderStereoComposition(_outputTexture);
+                        _isStereoTextureRegistered = false; // フラグをリセットし、直接入力モードから戻った際に再登録されるようにする
+                    }
                 }
             }
             else

@@ -80,6 +80,15 @@ namespace SRD.Core
         [HideInInspector]
         public RenderTexture DirectGpuImageMap;
 
+        [HideInInspector]
+        public RenderTexture DirectGpuImageLeft;
+
+        [HideInInspector]
+        public RenderTexture DirectGpuImageRight;
+
+        [Tooltip("ステレオカメラのパターンを切り替えるコントローラー")]
+        public Utils.StereoCameraController StereoCameraController;
+
         private SRDSystemDescription _description;
 
 

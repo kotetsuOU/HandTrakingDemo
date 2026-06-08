@@ -155,6 +155,8 @@ public partial class PCDRenderPass : ScriptableRenderPass
     private RTHandle _neighborhoodMapHandle;
     private RTHandle _neighborCountMapHandle;
     private RTHandle _directGpuImageMapHandle;
+    private RTHandle _directGpuImageLeftHandle;
+    private RTHandle _directGpuImageRightHandle;
     private bool _isInitialized = false;
     private const int STRIDE = 28; // 1つのポイントデータのサイズを表す: sizeof(float)*3 + sizeof(float)*3 + sizeof(uint)
 
@@ -434,6 +436,12 @@ public partial class PCDRenderPass : ScriptableRenderPass
 
         _directGpuImageMapHandle?.Release();
         _directGpuImageMapHandle = null;
+
+        _directGpuImageLeftHandle?.Release();
+        _directGpuImageLeftHandle = null;
+
+        _directGpuImageRightHandle?.Release();
+        _directGpuImageRightHandle = null;
 
         _staticMeshCounterBuffer?.Release();
         _staticMeshCounterBuffer = null;
