@@ -31,7 +31,7 @@ float ComputeOcclusionValue_SingleDirection(float3 currentPos_h, float currentPo
 
         // [Fact] 従来のMode 1 (Single Exponential3D) のみ生Expを許容し、
         // それ以外 (Linearカーネルや、方向分割時のExpカーネル) は 0.0 でクリップする仕様を再現する。
-        if (_KernelType == 1 && _DirectionCount == 1)
+        if (_KernelType == 1)
         {
             return 1.0 - (float) exp(-(half) _Alpha * d_ortho_sq);
         }

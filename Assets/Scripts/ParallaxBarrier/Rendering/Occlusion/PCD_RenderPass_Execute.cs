@@ -37,8 +37,9 @@ public partial class PCDRenderPass
         cmd.SetComputeFloatParam(cs, ShaderIDs.NeighborhoodParam_p_prime, passData.settings.neighborhoodParam_p_prime);
         cmd.SetComputeFloatParam(cs, ShaderIDs.GradientThreshold_g_th, passData.settings.gradientThreshold_g_th);
         cmd.SetComputeIntParam(cs, ShaderIDs.KernelType, (int)passData.settings.kernelType);
-        cmd.SetComputeIntParam(cs, ShaderIDs.BinningMethod, (int)passData.settings.binningMethod);
-        cmd.SetComputeIntParam(cs, ShaderIDs.DirectionCount, (int)passData.settings.directionCount);
+        cmd.SetComputeIntParam(cs, ShaderIDs.EvaluationMode, (int)passData.settings.evaluationMode);
+        cmd.SetComputeIntParam(cs, ShaderIDs.MinOccludedSectors, passData.settings.minOccludedSectors);
+        cmd.SetComputeIntParam(cs, ShaderIDs.MinSearchLevel, passData.settings.minSearchLevel);
         cmd.SetComputeFloatParam(cs, ShaderIDs.Alpha, passData.settings.exponentAlpha);
         cmd.SetComputeFloatParam(cs, ShaderIDs.OcclusionThreshold, passData.settings.occlusionThreshold);
         cmd.SetComputeFloatParam(cs, ShaderIDs.OcclusionFadeWidth, passData.settings.occlusionFadeWidth);
@@ -142,34 +143,43 @@ public partial class PCDRenderPass
 
         if (needsNeighborhoodSize)
         {
-            // --- ステージ4: 各グリッドセルの最小深度を計算 ---
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.DepthMap, passData.depthMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.GridZMinMap_RW, passData.gridZMinMap);
-            cmd.DispatchCompute(cs, passData.kernelCalcGridZMin, gridGroupsX, gridGroupsY, 1);
+            if (passData.settings.enableDensityBasedLOD)
+            {
+                // --- ステージ4: 各グリッドセルの最小深度を計算 ---
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.DepthMap, passData.depthMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcGridZMin, ShaderIDs.GridZMinMap_RW, passData.gridZMinMap);
+                cmd.DispatchCompute(cs, passData.kernelCalcGridZMin, gridGroupsX, gridGroupsY, 1);
 
-            // --- ステージ5: グリッド解像度の要件を評価するために画面上のサンプル密度を計算 ---
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DepthMap, passData.depthMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.GridZMinMap, passData.gridZMinMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.OriginTypeMap, passData.originTypeMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DensityMap_RW, passData.densityMap);
-            cmd.DispatchCompute(cs, passData.kernelCalcDensity, gridGroupsX, gridGroupsY, 1);
+                // --- ステージ5: グリッド解像度の要件を評価するために画面上のサンプル密度を計算 ---
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DepthMap, passData.depthMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.GridZMinMap, passData.gridZMinMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.OriginTypeMap, passData.originTypeMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcDensity, ShaderIDs.DensityMap_RW, passData.densityMap);
+                cmd.DispatchCompute(cs, passData.kernelCalcDensity, gridGroupsX, gridGroupsY, 1);
 
-            // --- ステージ6: ポイントの密度に応じて必要な詳細レベル（グリッドレベル）を決定 ---
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.DensityMap, passData.densityMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.GridLevelMap_RW, passData.gridLevelMap);
-            int gridThreadX = (gridGroupsX + 15) / 16;
-            int gridThreadY = (gridGroupsY + 15) / 16;
-            cmd.DispatchCompute(cs, passData.kernelCalcGridLevel, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
+                // --- ステージ6: ポイントの密度に応じて必要な詳細レベル（グリッドレベル）を決定 ---
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.DensityMap, passData.densityMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcGridLevel, ShaderIDs.GridLevelMap_RW, passData.gridLevelMap);
+                int gridThreadX = (gridGroupsX + 15) / 16;
+                int gridThreadY = (gridGroupsY + 15) / 16;
+                cmd.DispatchCompute(cs, passData.kernelCalcGridLevel, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
 
-            // --- ステージ7: 穴やアーティファクトを防ぐために、メディアンフィルターを用いてグリッドレベルを平滑化 ---
-            cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.GridLevelMap, passData.gridLevelMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.FilteredGridLevelMap_RW, passData.filteredGridLevelMap);
-            cmd.DispatchCompute(cs, passData.kernelGridMedianFilter, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
+                // --- ステージ7: 穴やアーティファクトを防ぐために、メディアンフィルターを用いてグリッドレベルを平滑化 ---
+                cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.GridLevelMap, passData.gridLevelMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelGridMedianFilter, ShaderIDs.FilteredGridLevelMap_RW, passData.filteredGridLevelMap);
+                cmd.DispatchCompute(cs, passData.kernelGridMedianFilter, Mathf.Max(1, gridThreadX), Mathf.Max(1, gridThreadY), 1);
 
-            // --- ステージ8: フィルター処理されたLODに基づいて基本的な近傍の半径サイズを算出 ---
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.FilteredGridLevelMap, passData.filteredGridLevelMap);
-            cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
-            cmd.DispatchCompute(cs, passData.kernelCalcNeighborhoodSize, threadGroupsX, threadGroupsY, 1);
+                // --- ステージ8: フィルター処理されたLODに基づいて基本的な近傍の半径サイズを算出 ---
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.FilteredGridLevelMap, passData.filteredGridLevelMap);
+                cmd.SetComputeTextureParam(cs, passData.kernelCalcNeighborhoodSize, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
+                cmd.DispatchCompute(cs, passData.kernelCalcNeighborhoodSize, threadGroupsX, threadGroupsY, 1);
+            }
+            else
+            {
+                // --- ステージ8（代替）: 密度計算をスキップし、_MinSearchLevel で近傍サイズマップを一括初期化 ---
+                cmd.SetComputeTextureParam(cs, passData.kernelFillNeighborhoodSizeWithMinLevel, ShaderIDs.NeighborhoodSizeMap_RW, passData.neighborhoodSizeMap);
+                cmd.DispatchCompute(cs, passData.kernelFillNeighborhoodSizeWithMinLevel, threadGroupsX, threadGroupsY, 1);
+            }
         }
 
         if (needsDepthPyramid)

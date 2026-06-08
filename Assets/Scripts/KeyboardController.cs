@@ -339,41 +339,38 @@ public class KeyboardController : MonoBehaviour
         }
 
         // ----------------------------------------------------
-        // 12. Binning Method の切り替え (Kキー)
+        // 12. Evaluation Mode の切り替え (Kキー)
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.K))
         {
             if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                PCD_OcclusionBinning nextMode = (PCD_OcclusionBinning)(((int)PCDRendererFeature.Instance.settings.binningMethod + 1) % Enum.GetValues(typeof(PCD_OcclusionBinning)).Length);
-                PCDRendererFeature.Instance.settings.binningMethod = nextMode;
-                Debug.Log($"[KeyController] Binning Method: {nextMode}");
+                PCD_OcclusionEvaluationMode nextMode = (PCD_OcclusionEvaluationMode)(((int)PCDRendererFeature.Instance.settings.evaluationMode + 1) % Enum.GetValues(typeof(PCD_OcclusionEvaluationMode)).Length);
+                PCDRendererFeature.Instance.settings.evaluationMode = nextMode;
+                Debug.Log($"[KeyController] Evaluation Mode: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Binning Method.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Evaluation Mode.");
             }
         }
 
         // ----------------------------------------------------
-        // 13. Direction Count の切り替え (Jキー)
+        // 13. Min Occluded Sectors の切り替え (Jキー)
         // ----------------------------------------------------
         if (Input.GetKeyDown(KeyCode.J))
         {
             if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
-                // Enumの値が不連続(1, 3, 6, 8)であるため、インデックスベースで循環させる
-                Array values = Enum.GetValues(typeof(PCD_OcclusionDirectionCount));
-                int currentIndex = Array.IndexOf(values, PCDRendererFeature.Instance.settings.directionCount);
-                int nextIndex = (currentIndex + 1) % values.Length;
-                PCD_OcclusionDirectionCount nextCount = (PCD_OcclusionDirectionCount)values.GetValue(nextIndex);
+                int nextCount = PCDRendererFeature.Instance.settings.minOccludedSectors + 1;
+                if (nextCount > 8) nextCount = 1;
 
-                PCDRendererFeature.Instance.settings.directionCount = nextCount;
-                Debug.Log($"[KeyController] Direction Count: {nextCount}");
+                PCDRendererFeature.Instance.settings.minOccludedSectors = nextCount;
+                Debug.Log($"[KeyController] Min Occluded Sectors: {nextCount}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Direction Count.");
+                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Min Occluded Sectors.");
             }
         }
     }

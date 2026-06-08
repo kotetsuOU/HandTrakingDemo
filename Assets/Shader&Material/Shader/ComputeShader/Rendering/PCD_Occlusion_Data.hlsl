@@ -131,8 +131,9 @@ int _EnableSoftOcclusionFade;
 int _EnableJointBilateralHoleFilling;
 
 int _KernelType;
-int _BinningMethod;
-int _DirectionCount;
+int _EvaluationMode;
+int _MinOccludedSectors;
+int _MinSearchLevel;
 float _Alpha;
 
 int _PullPushMaxLevel;

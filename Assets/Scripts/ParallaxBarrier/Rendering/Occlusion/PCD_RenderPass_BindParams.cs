@@ -22,6 +22,7 @@ public partial class PCDRenderPass
         data.kernelCalcGridLevel = _kernelCalcGridLevel;
         data.kernelGridMedianFilter = _kernelGridMedianFilter;
         data.kernelCalcNeighborhoodSize = _kernelCalcNeighborhoodSize;
+        data.kernelFillNeighborhoodSizeWithMinLevel = _kernelFillNeighborhoodSizeWithMinLevel;
         data.kernelBuildDepthPyramidL1 = _kernelBuildDepthPyramidL1;
         data.kernelBuildDepthPyramidL2 = _kernelBuildDepthPyramidL2;
         data.kernelBuildDepthPyramidL3 = _kernelBuildDepthPyramidL3;

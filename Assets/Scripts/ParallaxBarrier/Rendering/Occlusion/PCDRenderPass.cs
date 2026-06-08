@@ -23,8 +23,9 @@ public partial class PCDRenderPass : ScriptableRenderPass
         public static readonly int NeighborhoodParam_p_prime = Shader.PropertyToID("_NeighborhoodParam_p_prime");
         public static readonly int GradientThreshold_g_th = Shader.PropertyToID("_GradientThreshold_g_th");
         public static readonly int KernelType = Shader.PropertyToID("_KernelType");
-        public static readonly int BinningMethod = Shader.PropertyToID("_BinningMethod");
-        public static readonly int DirectionCount = Shader.PropertyToID("_DirectionCount");
+        public static readonly int EvaluationMode = Shader.PropertyToID("_EvaluationMode");
+        public static readonly int MinOccludedSectors = Shader.PropertyToID("_MinOccludedSectors");
+        public static readonly int MinSearchLevel = Shader.PropertyToID("_MinSearchLevel");
         public static readonly int Alpha = Shader.PropertyToID("_Alpha");
         public static readonly int OcclusionThreshold = Shader.PropertyToID("_OcclusionThreshold");
         public static readonly int OcclusionFadeWidth = Shader.PropertyToID("_OcclusionFadeWidth");
@@ -136,7 +137,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
     // 個々のコンピュートシェーダー関数に対応するカーネルID
     private int _kernelClear, _kernelClearCounter, _kernelProject, _kernelCalcGridZMin, _kernelCalcDensity,
                 _kernelCalcGridLevel, _kernelGridMedianFilter,
-                _kernelCalcNeighborhoodSize,
+                _kernelCalcNeighborhoodSize, _kernelFillNeighborhoodSizeWithMinLevel,
                 _kernelBuildDepthPyramidL1, _kernelBuildDepthPyramidL2,
                 _kernelBuildDepthPyramidL3, _kernelBuildDepthPyramidL4,
                 _kernelBuildDepthPyramidL5, _kernelBuildDepthPyramidL6,
@@ -251,6 +252,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
         _kernelCalcGridLevel = pointCloudCompute.FindKernel("CalculateGridLevel");
         _kernelGridMedianFilter = pointCloudCompute.FindKernel("GridMedianFilter");
         _kernelCalcNeighborhoodSize = pointCloudCompute.FindKernel("CalculateNeighborhoodSize");
+        _kernelFillNeighborhoodSizeWithMinLevel = pointCloudCompute.FindKernel("FillNeighborhoodSizeWithMinLevel");
 
         _kernelBuildDepthPyramidL1 = pointCloudCompute.FindKernel("BuildDepthPyramidL1");
         _kernelBuildDepthPyramidL2 = pointCloudCompute.FindKernel("BuildDepthPyramidL2");
@@ -297,7 +299,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
 
         internal int kernelClear, kernelClearCounter, kernelProject, kernelCalcGridZMin, kernelCalcDensity,
                      kernelCalcGridLevel, kernelGridMedianFilter,
-                     kernelCalcNeighborhoodSize,
+                     kernelCalcNeighborhoodSize, kernelFillNeighborhoodSizeWithMinLevel,
                      kernelBuildDepthPyramidL1, kernelBuildDepthPyramidL2,
                      kernelBuildDepthPyramidL3, kernelBuildDepthPyramidL4,
                      kernelBuildDepthPyramidL5, kernelBuildDepthPyramidL6,

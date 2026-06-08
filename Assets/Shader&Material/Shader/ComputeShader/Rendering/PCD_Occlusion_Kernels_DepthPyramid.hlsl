@@ -84,45 +84,28 @@ void ApplyAdaptiveGradientCorrection(uint3 id : SV_DispatchThreadID)
     int level = _NeighborhoodSizeMap[fullResUV];
     int correctedLevel = level;
 
-    if (level > 0)
+    // 粗いレベル（大きい探索半径）から細かいレベルへ向かって回帰的にチェックし、境界を絞り込む
+    for (int l = level; l > 0; --l)
     {
         float gradient = 0.0;
-        uint2 uv_lowres;
+        uint2 uv_lowres = fullResUV >> (uint)l;
 
-        if (level == 1)
-        {
-            uv_lowres = fullResUV / 2u;
-            gradient = SobelOnPyramid(_DepthPyramidL1, uv_lowres);
-        }
-        else if (level == 2)
-        {
-            uv_lowres = fullResUV / 4u;
-            gradient = SobelOnPyramid(_DepthPyramidL2, uv_lowres);
-        }
-        else if (level == 3)
-        {
-            uv_lowres = fullResUV / 8u;
-            gradient = SobelOnPyramid(_DepthPyramidL3, uv_lowres);
-        }
-        else if (level == 4)
-        {
-            uv_lowres = fullResUV / 16u;
-            gradient = SobelOnPyramid(_DepthPyramidL4, uv_lowres);
-        }
-        else if (level == 5)
-        {
-            uv_lowres = fullResUV / 32u;
-            gradient = SobelOnPyramid(_DepthPyramidL5, uv_lowres);
-        }
-        else
-        {
-            uv_lowres = fullResUV / 64u;
-            gradient = SobelOnPyramid(_DepthPyramidL6, uv_lowres);
-        }
+        if (l == 1)      gradient = SobelOnPyramid(_DepthPyramidL1, uv_lowres);
+        else if (l == 2) gradient = SobelOnPyramid(_DepthPyramidL2, uv_lowres);
+        else if (l == 3) gradient = SobelOnPyramid(_DepthPyramidL3, uv_lowres);
+        else if (l == 4) gradient = SobelOnPyramid(_DepthPyramidL4, uv_lowres);
+        else if (l == 5) gradient = SobelOnPyramid(_DepthPyramidL5, uv_lowres);
+        else             gradient = SobelOnPyramid(_DepthPyramidL6, uv_lowres);
 
         if (gradient > _GradientThreshold_g_th)
         {
-            correctedLevel = max(0, level - 1);
+            // このレベルの探索範囲内にはエッジが存在するため、さらに1段階縮小する
+            correctedLevel = l - 1;
+        }
+        else
+        {
+            // このレベルの探索範囲内にはエッジが存在しないため、これ以上縮小する必要はない
+            break;
         }
     }
     _CorrectedNeighborhoodSizeMap_RW[fullResUV] = correctedLevel;

@@ -69,6 +69,8 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
     float occlusionSum = 0.0;
     uint validSectorCount = 0u;
+    uint binaryOccludedCount = 0u;
+    float softOccludedCount = 0.0;
 
     // ==========================================
     // 2. 共通ピラミッドサンプリングと遮蔽評価
@@ -122,27 +124,59 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
             occlusionSum += occlusionValue;
             validSectorCount++;
+
+            // Accumulate sector threshold metrics
+            if (occlusionValue < _OcclusionThreshold)
+            {
+                binaryOccludedCount++;
+            }
+            if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+            {
+                float halfFade = _OcclusionFadeWidth * 0.5;
+                float fadeStart = max(0.0, _OcclusionThreshold - halfFade);
+                float fadeEnd = min(2.0, _OcclusionThreshold + halfFade);
+                float sectorAlpha = smoothstep(fadeStart, fadeEnd, occlusionValue);
+                softOccludedCount += (1.0 - sectorAlpha);
+            }
         }
     }
 
-    // 遮蔽度の平均値を算出 (8方向の均等重み付け)
-    float avgOcclusion = (validSectorCount > 0u) ? (occlusionSum / 8.0) : 1.0;
-
-    // HPR/Pintusの定義上、値が小さい(0に近い)ほど遮蔽されている
-    // → 閾値未満であれば遮蔽と判定
+    // 遮蔽度の評価と平均値の算出
+    float avgOcclusion = 1.0;
     float alpha = 1.0;
 
-    if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+    if (_EvaluationMode == 0) // Average Mode
     {
-        float halfFade = _OcclusionFadeWidth * 0.5;
-        float fadeStart = max(0.0, _OcclusionThreshold - halfFade);
-        float fadeEnd = min(2.0, _OcclusionThreshold + halfFade);
-        alpha = smoothstep(fadeStart, fadeEnd, avgOcclusion);
+        avgOcclusion = (validSectorCount > 0u) ? (occlusionSum / 8.0) : 1.0;
+
+        if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+        {
+            float halfFade = _OcclusionFadeWidth * 0.5;
+            float fadeStart = max(0.0, _OcclusionThreshold - halfFade);
+            float fadeEnd = min(2.0, _OcclusionThreshold + halfFade);
+            alpha = smoothstep(fadeStart, fadeEnd, avgOcclusion);
+        }
+        else
+        {
+            if (avgOcclusion < _OcclusionThreshold)
+                alpha = 0.0;
+        }
     }
-    else
+    else // SectorThreshold Mode (Each Mode)
     {
-        if (avgOcclusion < _OcclusionThreshold)
-            alpha = 0.0;
+        if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+        {
+            float countFadeStart = max(0.0, (float)_MinOccludedSectors - 1.0);
+            float countFadeEnd = (float)_MinOccludedSectors;
+            alpha = 1.0 - smoothstep(countFadeStart, countFadeEnd, softOccludedCount);
+            avgOcclusion = 1.0 - (softOccludedCount / 8.0);
+        }
+        else
+        {
+            if (binaryOccludedCount >= (uint)_MinOccludedSectors)
+                alpha = 0.0;
+            avgOcclusion = 1.0 - ((float)binaryOccludedCount / 8.0);
+        }
     }
 
     if (alpha <= 0.0)

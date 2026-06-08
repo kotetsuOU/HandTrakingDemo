@@ -1,50 +1,51 @@
 // ==========================================
 // PCD_Occulusion.compute
-// 繝｡繧､繝ｳ縺ｮ繧ｳ繝ｳ繝斐Η繝ｼ繝医す繧ｧ繝ｼ繝繝ｼ繧ｨ繝ｳ繝医Μ繝昴う繝ｳ繝・
-// 蜷・ヱ繧ｹ・医き繝ｼ繝阪Ν・峨ｒ螳夂ｾｩ縺励・未騾｣縺吶ｋHLSL繝輔ぃ繧､繝ｫ繧偵う繝ｳ繧ｯ繝ｫ繝ｼ繝峨＠縺ｾ縺吶・
+// メインのコンピュートシェーダーエントリポイント
+// 各パス（カーネル）を定義し、関連するHLSLファイルをインクルードします。
 // ==========================================
-// --- Preprocess (蜑榊・逅・ ---
+// --- Preprocess (前処理) ---
 #pragma multi_compile _ GRID_SIZE_8 GRID_SIZE_16 GRID_SIZE_32
 
-#pragma kernel ClearMaps                 // 繝槭ャ繝怜・譛溷喧
-#pragma kernel ClearCounter              // 髱咏噪繝｡繝・す繝･縺ｮ繧ｫ繧ｦ繝ｳ繧ｿ繝ｼ蛻晄悄蛹・
-#pragma kernel ProjectPoints             // 轤ｹ鄒､繧偵せ繧ｯ繝ｪ繝ｼ繝ｳ遨ｺ髢薙↓謚募ｽｱ縺玲ｷｱ蠎ｦ繝舌ャ繝輔ぃ繧呈ｧ狗ｯ・
-#pragma kernel CalculateGridZMin         // 繧ｰ繝ｪ繝・ラ縺斐→縺ｮ譛蟆乗ｷｱ蠎ｦ(Z-Min)繧定ｨ育ｮ・
-#pragma kernel CalculateDensity          // 繧ｰ繝ｪ繝・ラ蜀・・轤ｹ鄒､縺ｮ蟇・ｺｦ繧定ｨ育ｮ・
-#pragma kernel CalculateGridLevel        // 蟇・ｺｦ縺ｫ蝓ｺ縺･縺・※霑大ｍ謗｢邏｢逕ｨ縺ｮ繝ｬ繝吶Ν(蜊雁ｾ・・謖・ｨ・繧堤ｮ怜・
-#pragma kernel GridMedianFilter          // 蜻ｨ蝗ｲ縺ｮ繧ｰ繝ｪ繝・ラ繝ｬ繝吶Ν縺ｫ蟇ｾ縺吶ｋ繝｡繝・ぅ繧｢繝ｳ繝輔ぅ繝ｫ繧ｿ縺ｫ繧医ｋ蟷ｳ貊大喧
-#pragma kernel CalculateNeighborhoodSize // 繝斐け繧ｻ繝ｫ蜊倅ｽ阪・霑大ｍ繧ｵ繧､繧ｺ繝槭ャ繝励ｒ逕滓・
+#pragma kernel ClearMaps                 // マップ初期化
+#pragma kernel ClearCounter              // 静的メッシュのカウンター初期化
+#pragma kernel ProjectPoints             // 点群をスクリーン空間に投影し深度バッファを構築
+#pragma kernel CalculateGridZMin         // グリッドごとの最小深度(Z-Min)を計算
+#pragma kernel CalculateDensity          // グリッド内の点群の密度を計算
+#pragma kernel CalculateGridLevel        // 密度に基づいて近傍探索用のレベル(半径の指標)を算出
+#pragma kernel GridMedianFilter          // 周囲のグリッドレベルに対するメディアンフィルタによる平滑化
+#pragma kernel CalculateNeighborhoodSize // ピクセル単位の近傍サイズマップを生成
+#pragma kernel FillNeighborhoodSizeWithMinLevel // 密度LOD無効時に探索サイズを最小レベルで一括初期化
 
-// --- Occlusion (繧ｪ繧ｯ繝ｫ繝ｼ繧ｸ繝ｧ繝ｳ險育ｮ励・繝輔ぅ繝ｫ繧ｿ繝ｪ繝ｳ繧ｰ) ---
-#pragma kernel BuildDepthPyramidL1       // 豺ｱ蠎ｦ繝斐Λ繝溘ャ繝・繝ｬ繝吶Ν1逕滓・
-#pragma kernel BuildDepthPyramidL2       // 豺ｱ蠎ｦ繝斐Λ繝溘ャ繝・繝ｬ繝吶Ν2逕滓・
-#pragma kernel BuildDepthPyramidL3       // 豺ｱ蠎ｦ繝斐Λ繝溘ャ繝・繝ｬ繝吶Ν3逕滓・
-#pragma kernel BuildDepthPyramidL4       // 豺ｱ蠎ｦ繝斐Λ繝溘ャ繝・繝ｬ繝吶Ν4逕滓・
-#pragma kernel BuildDepthPyramidL5       // 豺ｱ蠎ｦ繝斐Λ繝溘ャ繝・繝ｬ繝吶Ν5逕滓・
-#pragma kernel BuildDepthPyramidL6       // 豺ｱ蠎ｦ繝斐Λ繝溘ャ繝・繝ｬ繝吶Ν6逕滓・
-#pragma kernel ApplyAdaptiveGradientCorrection // 豺ｱ蠎ｦ蜍ｾ驟・繧ｨ繝・ず)縺ｫ蝓ｺ縺･縺城←蠢懃噪縺ｪ霑大ｍ謗｢邏｢繧ｵ繧､繧ｺ縺ｮ陬懈ｭ｣
-#pragma kernel ComputeOcclusion          // 轤ｹ鄒､縺悟ｭ伜惠縺吶ｋ繝斐け繧ｻ繝ｫ逕ｨ縺ｮ繧ｪ繧ｯ繝ｫ繝ｼ繧ｸ繝ｧ繝ｳ險育ｮ・
-#pragma kernel CopyColorToOcclusion      // 繧ｪ繧ｯ繝ｫ繝ｼ繧ｸ繝ｧ繝ｳ險育ｮ励ｒ繧ｹ繧ｭ繝・・縺励※逶ｴ謗･濶ｲ繧偵さ繝斐・
-#pragma kernel FillHoles                 // 轤ｹ鄒､縺悟ｭ伜惠縺励↑縺・ｼ育ｩｺ縺搾ｼ峨ヴ繧ｯ繧ｻ繝ｫ逕ｨ縺ｮ繧ｪ繧ｯ繝ｫ繝ｼ繧ｸ繝ｧ繝ｳ陬憺俣・医ヰ繧､繝ｩ繝・Λ繝ｫ繝輔ぅ繝ｫ繧ｿ・・
-#pragma kernel FillHolesPullPushInit     // Pull-Push豕包ｼ壼・譛溷喧
-#pragma kernel FillHolesPull             // Pull-Push豕包ｼ壹ム繧ｦ繝ｳ繧ｵ繝ｳ繝励Ν・・ull・・
-#pragma kernel FillHolesPush             // Pull-Push豕包ｼ壹い繝・・繧ｵ繝ｳ繝励Ν縺ｨ遨ｴ蝓九ａ・・ush・・
-#pragma kernel FillHolesPullPushFinalize // Pull-Push豕包ｼ壽怙邨らｵ先棡繧貞・縺ｮ繝槭ャ繝励↓譖ｸ縺肴綾縺・
-#pragma kernel MorphologyErode          // 繝｢繝ｫ繝輔か繝ｭ繧ｸ繝ｼ蜿守ｸｮ貍皮ｮ・
-#pragma kernel MorphologyDilate         // 繝｢繝ｫ繝輔か繝ｭ繧ｸ繝ｼ閹ｨ蠑ｵ貍皮ｮ・
-#pragma kernel MorphologyCopy           // 繝｢繝ｫ繝輔か繝ｭ繧ｸ繝ｼ荳ｭ髢薙ヰ繝・ヵ繧｡繧ｳ繝斐・
-#pragma kernel BuildMorphPyramidL1
-#pragma kernel BuildMorphPyramidL2
-#pragma kernel BuildMorphPyramidL3
-#pragma kernel BuildMorphPyramidL4
-#pragma kernel BuildMorphPyramidL5
-#pragma kernel BuildMorphPyramidL6
+// --- Occlusion (オクルージョン計算と深度ピラミッド構築) ---
+#pragma kernel BuildDepthPyramidL1       // 深度ピラミッドレベル1構築
+#pragma kernel BuildDepthPyramidL2       // 深度ピラミッドレベル2構築
+#pragma kernel BuildDepthPyramidL3       // 深度ピラミッドレベル3構築
+#pragma kernel BuildDepthPyramidL4       // 深度ピラミッドレベル4構築
+#pragma kernel BuildDepthPyramidL5       // 深度ピラミッドレベル5構築
+#pragma kernel BuildDepthPyramidL6       // 深度ピラミッドレベル6構築
+#pragma kernel ApplyAdaptiveGradientCorrection // 勾配補正適用
+#pragma kernel ComputeOcclusion          // オクルージョン計算
+#pragma kernel CopyColorToOcclusion      // 色情報をオクルージョン結果にコピー
+#pragma kernel FillHoles                 // 穴埋め処理
+#pragma kernel FillHolesPullPushInit     // Pull-Push初期化
+#pragma kernel FillHolesPull             // Pull-Push(Pull)
+#pragma kernel FillHolesPush             // Pull-Push(Push)
+#pragma kernel FillHolesPullPushFinalize // Pull-Push終了
+#pragma kernel MorphologyErode          // 収縮処理
+#pragma kernel MorphologyDilate         // 膨張処理
+#pragma kernel MorphologyCopy           // 複製
+#pragma kernel BuildMorphPyramidL1      // モルフォロジーピラミッドレベル1構築
+#pragma kernel BuildMorphPyramidL2      // モルフォロジーピラミッドレベル2構築
+#pragma kernel BuildMorphPyramidL3      // モルフォロジーピラミッドレベル3構築
+#pragma kernel BuildMorphPyramidL4      // モルフォロジーピラミッドレベル4構築
+#pragma kernel BuildMorphPyramidL5      // モルフォロジーピラミッドレベル5構築
+#pragma kernel BuildMorphPyramidL6      // モルフォロジーピラミッドレベル6構築
 
-// --- Post & Utility (繝昴せ繝医・繝ｭ繧ｻ繧ｹ繝ｻ繝ｦ繝ｼ繝・ぅ繝ｪ繝・ぅ) ---
-#pragma kernel Interpolate               // 髫咎俣(遨ｴ)繧貞沂繧√ｋ縺溘ａ縺ｮ1繝斐け繧ｻ繝ｫ陬憺俣(Dilation)
-#pragma kernel MergeBuffer               // 隍・焚縺ｮ轤ｹ鄒､繝舌ャ繝輔ぃ繧・縺､縺ｮ繝舌ャ繝輔ぃ縺ｫ邨仙粋縺吶ｋ繝ｦ繝ｼ繝・ぅ繝ｪ繝・ぅ
-#pragma kernel InitFromCamera            // URP繧ｫ繝｡繝ｩ縺ｮ繧ｫ繝ｩ繝ｼ繝ｻ豺ｱ蠎ｦ諠・ｱ繧偵・繝ｼ繧ｹ繝槭ャ繝励→縺励※蛻晄悄蛹・莉ｮ諠ｳ繧ｪ繝悶ず繧ｧ繧ｯ繝亥粋謌千畑)
-#pragma kernel VisualizeOcclusionDebug   // OcclusionValue繧・6濶ｲ繝ｫ繝ｼ繝ｫ縺ｧ蜿ｯ隕門喧縺励※OriginDebugMap縺ｸ蜃ｺ蜉・
+// --- Post & Utility (ポスト処理とユーティリティ) ---
+#pragma kernel Interpolate               // 補間処理(DepthMapから1ピクセル単位の深度バッファを生成)
+#pragma kernel MergeBuffer               // 2つのバッファをマージ
+#pragma kernel InitFromCamera            // カメラからの初期化
+#pragma kernel VisualizeOcclusionDebug   // デバッグ可視化
 
 #include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl"
 #include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl"

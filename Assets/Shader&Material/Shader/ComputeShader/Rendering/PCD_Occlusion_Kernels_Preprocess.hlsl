@@ -164,11 +164,15 @@ void CalculateGridLevel(uint3 id : SV_DispatchThreadID)
         return;
 
     float density = _DensityMap[id.xy];
-    int level = 0;
-    if (density > 0.0001)
+    int level = 0; // 点が存在しない（密度が極めて低い）場合は最大の探索レベル 6 を初期値とする
+    
+    // 1点が存在するときの密度の半分を閾値とする（グリッドサイズ依存の動的閾値）
+    float min_density_threshold = 0.5 / float(GRID_SIZE * GRID_SIZE);
+    
+    if (density > min_density_threshold)
     {
         float L = _NeighborhoodParam_p_prime / sqrt(density);
-        level = (int) floor(log2(L));
+        level = min(6, (int) floor(log2(L))); // 最大レベル 6 でクランプしてサンプリング境界を保証
     }
     _GridLevelMap_RW[id.xy] = max(0, level);
 }
@@ -224,7 +228,7 @@ void CalculateNeighborhoodSize(uint3 id : SV_DispatchThreadID)
 
     uint2 gridID = id.xy / GRID_SIZE;
     int level = _FilteredGridLevelMap[gridID];
-    _NeighborhoodSizeMap_RW[id.xy] = level;
+    _NeighborhoodSizeMap_RW[id.xy] = max(_MinSearchLevel, level);
 }
 
 // 7.5 CopyColorToOcclusion (Skip Occlusion Kernel)
@@ -237,6 +241,16 @@ void CopyColorToOcclusion(uint3 id : SV_DispatchThreadID)
 
     // 背景(2u)も含めて全ピクセルをコピー(上書き)し、事前のClear処理を不要にする
     _OcclusionResultMap_RW[id.xy] = _ColorMap[id.xy];
+}
+
+// 7.6 Fill Neighborhood Size with Min Level (Density LOD disabled)
+[numthreads(8, 8, 1)]
+void FillNeighborhoodSizeWithMinLevel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _ScreenParams.x || id.y >= (uint) _ScreenParams.y)
+        return;
+
+    _NeighborhoodSizeMap_RW[id.xy] = _MinSearchLevel;
 }
 
 #endif // PCD_OCCLUSION_KERNELS_PREPROCESS_INCLUDED

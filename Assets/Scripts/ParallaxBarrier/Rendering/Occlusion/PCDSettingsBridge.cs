@@ -6,11 +6,13 @@ public class PCDSettingsBridge
     private PCDRenderSettings _fallbackSettings = new PCDRenderSettings
     {
         kernelType = PCD_OcclusionKernel.Bouchiba,
-        binningMethod = PCD_OcclusionBinning.Soft,
-        directionCount = PCD_OcclusionDirectionCount.Single,
+        evaluationMode = PCD_OcclusionEvaluationMode.Average,
+        minOccludedSectors = 1,
+        minSearchLevel = 0,
         exponentAlpha = 0f,
         densityThreshold_e = 0.04f,
         neighborhoodParam_p_prime = 4.8f,
+        enableDensityBasedLOD = true,
         enableGradientCorrection = true,
         gradientThreshold_g_th = 0.05f,
         occlusionThreshold = 0.8f,
@@ -45,23 +47,33 @@ public class PCDSettingsBridge
         }
     }
 
-    public PCD_OcclusionBinning binningMethod
+    public PCD_OcclusionEvaluationMode evaluationMode
     {
-        get => Controller != null ? Controller.binningMethod : _fallbackSettings.binningMethod;
+        get => Controller != null ? Controller.evaluationMode : _fallbackSettings.evaluationMode;
         set
         {
-            if (Controller != null) Controller.binningMethod = value;
-            else _fallbackSettings.binningMethod = value;
+            if (Controller != null) Controller.evaluationMode = value;
+            else _fallbackSettings.evaluationMode = value;
         }
     }
 
-    public PCD_OcclusionDirectionCount directionCount
+    public int minOccludedSectors
     {
-        get => Controller != null ? Controller.directionCount : _fallbackSettings.directionCount;
+        get => Controller != null ? Controller.minOccludedSectors : _fallbackSettings.minOccludedSectors;
         set
         {
-            if (Controller != null) Controller.directionCount = value;
-            else _fallbackSettings.directionCount = value;
+            if (Controller != null) Controller.minOccludedSectors = value;
+            else _fallbackSettings.minOccludedSectors = value;
+        }
+    }
+
+    public int minSearchLevel
+    {
+        get => Controller != null ? Controller.minSearchLevel : _fallbackSettings.minSearchLevel;
+        set
+        {
+            if (Controller != null) Controller.minSearchLevel = value;
+            else _fallbackSettings.minSearchLevel = value;
         }
     }
 
@@ -92,6 +104,16 @@ public class PCDSettingsBridge
         {
             if (Controller != null) Controller.neighborhoodParam_p_prime = value;
             else _fallbackSettings.neighborhoodParam_p_prime = value;
+        }
+    }
+
+    public bool enableDensityBasedLOD
+    {
+        get => Controller != null ? Controller.enableDensityBasedLOD : _fallbackSettings.enableDensityBasedLOD;
+        set
+        {
+            if (Controller != null) Controller.enableDensityBasedLOD = value;
+            else _fallbackSettings.enableDensityBasedLOD = value;
         }
     }
 

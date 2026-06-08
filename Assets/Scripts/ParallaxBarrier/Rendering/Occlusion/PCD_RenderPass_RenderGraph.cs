@@ -294,15 +294,18 @@ public partial class PCDRenderPass
             neighborCountMapHandle_RG = renderGraph.ImportTexture(_neighborCountMapHandle);
             data.neighborCountMap = neighborCountMapHandle_RG;
 
-            // 密度とグリッドレベル用の縮小バッファを生成
-            var gridDesc = new TextureDesc(gridGroupsX, gridHeight) { enableRandomWrite = true };
-            gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
-            data.gridZMinMap = renderGraph.CreateTexture(gridDesc);
-            gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
-            data.gridLevelMap = renderGraph.CreateTexture(gridDesc);
-            data.filteredGridLevelMap = renderGraph.CreateTexture(gridDesc);
-            gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RFloat, false);
-            data.densityMap = renderGraph.CreateTexture(gridDesc);
+            if (data.settings.enableDensityBasedLOD)
+            {
+                // 密度とグリッドレベル用の縮小バッファを生成
+                var gridDesc = new TextureDesc(gridGroupsX, gridHeight) { enableRandomWrite = true };
+                gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
+                data.gridZMinMap = renderGraph.CreateTexture(gridDesc);
+                gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
+                data.gridLevelMap = renderGraph.CreateTexture(gridDesc);
+                data.filteredGridLevelMap = renderGraph.CreateTexture(gridDesc);
+                gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RFloat, false);
+                data.densityMap = renderGraph.CreateTexture(gridDesc);
+            }
 
             if (needsDepthPyramid)
             {
@@ -432,10 +435,13 @@ public partial class PCDRenderPass
             builder.UseTexture(data.colorMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.depthMap, AccessFlags.ReadWrite);
             builder.UseTexture(data.viewPositionMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.gridZMinMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.densityMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.gridLevelMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.filteredGridLevelMap, AccessFlags.ReadWrite);
+            if (data.settings.enableDensityBasedLOD)
+            {
+                builder.UseTexture(data.gridZMinMap, AccessFlags.ReadWrite);
+                builder.UseTexture(data.densityMap, AccessFlags.ReadWrite);
+                builder.UseTexture(data.gridLevelMap, AccessFlags.ReadWrite);
+                builder.UseTexture(data.filteredGridLevelMap, AccessFlags.ReadWrite);
+            }
             builder.UseTexture(data.neighborhoodSizeMap, AccessFlags.ReadWrite);
             if (needsDepthPyramid)
             {

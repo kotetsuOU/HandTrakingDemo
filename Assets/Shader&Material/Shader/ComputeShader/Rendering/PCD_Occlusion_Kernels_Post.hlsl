@@ -65,16 +65,11 @@ void Interpolate(uint3 id : SV_DispatchThreadID)
 // URPなどの描画パイプラインから取得したカメラの現在の深度およびカラーをベースにする。
 // 点群を描画する前にこれを初期状態としてマップに反映することで、
 // 通常の3D仮想オブジェクト（メッシュ）などが点群と相互に正しく遮蔽(オクルージョン)されるようにする。
-groupshared uint shared_mesh_counter;
+groupshared uint shared_mesh_counters[64];
 
 [numthreads(8, 8, 1)]
 void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIndex)
 {
-    if (groupIndex == 0)
-        shared_mesh_counter = 0;
-
-    GroupMemoryBarrierWithGroupSync();
-
     uint local_hit = 0;
 
     if (id.x < (uint) _ScreenParams.x && id.y < (uint) _ScreenParams.y)
@@ -113,16 +108,47 @@ void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIn
         }
     }
 
-    if (local_hit == 1)
-    {
-        InterlockedAdd(shared_mesh_counter, 1);
-    }
-
+    // 共有メモリを用いた高効率な並列リダクションによりアトミック競合を回避
+    shared_mesh_counters[groupIndex] = local_hit;
     GroupMemoryBarrierWithGroupSync();
 
-    if (groupIndex == 0 && shared_mesh_counter > 0)
+    if (groupIndex < 32)
     {
-        InterlockedAdd(_StaticMeshCounter_RW[0], shared_mesh_counter);
+        shared_mesh_counters[groupIndex] += shared_mesh_counters[groupIndex + 32];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (groupIndex < 16)
+    {
+        shared_mesh_counters[groupIndex] += shared_mesh_counters[groupIndex + 16];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (groupIndex < 8)
+    {
+        shared_mesh_counters[groupIndex] += shared_mesh_counters[groupIndex + 8];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (groupIndex < 4)
+    {
+        shared_mesh_counters[groupIndex] += shared_mesh_counters[groupIndex + 4];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (groupIndex < 2)
+    {
+        shared_mesh_counters[groupIndex] += shared_mesh_counters[groupIndex + 2];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    if (groupIndex == 0)
+    {
+        uint total_group_hits = shared_mesh_counters[0] + shared_mesh_counters[1];
+        if (total_group_hits > 0)
+        {
+            InterlockedAdd(_StaticMeshCounter_RW[0], total_group_hits);
+        }
     }
 }
 

@@ -15,18 +15,10 @@ public class PCDRendererFeature : ScriptableRendererFeature
         DepthOnly = 4
     }
 
-    public enum PCD_OcclusionBinning
+    public enum PCD_OcclusionEvaluationMode
     {
-        Soft = 0,
-        Hard = 1
-    }
-
-    public enum PCD_OcclusionDirectionCount
-    {
-        Single = 1,
-        Bins3 = 3,
-        Bins6 = 6,
-        Bins8 = 8 // 8方向分割の追加
+        Average = 0,
+        SectorThreshold = 1
     }
 
     public enum PCD_HoleFillingMethod
@@ -49,12 +41,14 @@ public class PCDRendererFeature : ScriptableRendererFeature
     public struct PCDRenderSettings
     {
         public PCD_OcclusionKernel kernelType;
-        public PCD_OcclusionBinning binningMethod;
-        public PCD_OcclusionDirectionCount directionCount;
+        public PCD_OcclusionEvaluationMode evaluationMode;
+        [Range(1, 8)] public int minOccludedSectors;
+        [Range(0, 6)] public int minSearchLevel;
 
         public float exponentAlpha;
         public float densityThreshold_e;
         public float neighborhoodParam_p_prime;
+        public bool enableDensityBasedLOD;
         public bool enableGradientCorrection;
         public float gradientThreshold_g_th;
         [Range(0f, 1f)] public float occlusionThreshold;

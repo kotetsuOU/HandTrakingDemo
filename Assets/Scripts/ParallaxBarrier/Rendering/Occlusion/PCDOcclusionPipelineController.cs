@@ -10,11 +10,16 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     [Tooltip("オクルージョン計算に用いるカーネル関数")]
     public PCD_OcclusionKernel kernelType = PCD_OcclusionKernel.Bouchiba;
 
-    [Tooltip("空間分割時のビニング手法（重みの計算方法）")]
-    public PCD_OcclusionBinning binningMethod = PCD_OcclusionBinning.Soft;
+    [Tooltip("オクルージョン判定の評価方法（平均値 or 各セクターごと）")]
+    public PCD_OcclusionEvaluationMode evaluationMode = PCD_OcclusionEvaluationMode.Average;
 
-    [Tooltip("空間の分割方向数")]
-    public PCD_OcclusionDirectionCount directionCount = PCD_OcclusionDirectionCount.Single;
+    [Tooltip("各セクターごと評価時に、オクルージョン判定となるために閾値を超える必要がある最小セクター数")]
+    [Range(1, 8)]
+    public int minOccludedSectors = 1;
+
+    [Tooltip("オクルージョン近傍探索の最小レベル(0〜6)。値を上げるとより広い範囲を常に探索し、隙間を埋めやすくなります。")]
+    [Range(0, 6)]
+    public int minSearchLevel = 0;
 
     [Header("Algorithm Parameters")]
     [Tooltip("指数関数の減衰係数 (Expモード専用)")]
@@ -27,6 +32,9 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     public float neighborhoodParam_p_prime = 4.8f;
 
     [Header("Gradient Correction")]
+    [Tooltip("密度に基づく動的LOD探索を有効にするか。OFFの場合は常にminSearchLevelをベースに探索します。")]
+    public bool enableDensityBasedLOD = true;
+
     [Tooltip("勾配を用いた補正を有効にする")]
     public bool enableGradientCorrection = true;
 
@@ -142,11 +150,13 @@ public class PCDOcclusionPipelineController : MonoBehaviour
         return new PCDRenderSettings
         {
             kernelType = this.kernelType,
-            binningMethod = this.binningMethod,
-            directionCount = this.directionCount,
+            evaluationMode = this.evaluationMode,
+            minOccludedSectors = this.minOccludedSectors,
+            minSearchLevel = this.minSearchLevel,
             exponentAlpha = this.exponentAlpha,
             densityThreshold_e = this.densityThreshold_e,
             neighborhoodParam_p_prime = this.neighborhoodParam_p_prime,
+            enableDensityBasedLOD = this.enableDensityBasedLOD,
             enableGradientCorrection = this.enableGradientCorrection,
             gradientThreshold_g_th = this.gradientThreshold_g_th,
             occlusionThreshold = this.occlusionThreshold,
