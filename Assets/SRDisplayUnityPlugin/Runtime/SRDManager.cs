@@ -89,6 +89,9 @@ namespace SRD.Core
         [Tooltip("ステレオカメラのパターンを切り替えるコントローラー")]
         public Utils.StereoCameraController StereoCameraController;
 
+        [Tooltip("キャリブレーションモード（左目に緑、右目に赤を表示します）")]
+        public bool EnableCalibrationMode = false;
+
         private SRDSystemDescription _description;
 
 
