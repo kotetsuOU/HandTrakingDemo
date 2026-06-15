@@ -4,9 +4,8 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// •¡”‚ÌRealSenseƒJƒƒ‰‚â“ü—ÍƒfƒoƒCƒX‚©‚ç‚Ì“_ŒQ‚ğˆê‚Â‚É“‡‚µA
-/// ‘S‘Ì‚É‘Î‚·‚éPCAiå¬•ª•ªÍj‚âƒJƒƒ‰EƒtƒBƒ‹ƒ^‚ÌƒIƒ“ƒIƒt§Œä‚ğs‚¤ƒOƒ[ƒoƒ‹ƒ}ƒl[ƒWƒƒB
-/// ƒXƒNƒŠƒvƒg•ªŠ„‚É‚æ‚èAMerge(‡¬)APCA(å¬•ª•ªÍ)AStats(“Œvî•ñ) ‚Ìˆ—‚Í•Êƒtƒ@ƒCƒ‹‚ÅŠÇ—‚³‚ê‚Ä‚¢‚Ü‚·B
+/// RealSenseã‚«ãƒ¡ãƒ©ãƒ‡ãƒã‚¤ã‚¹ã®ç‚¹ç¾¤ã‚’çµ±åˆã—ã€
+/// å…¨ä½“ã«å¯¾ã™ã‚‹PCAï¼ˆä¸»æˆåˆ†åˆ†æï¼‰ã‚„ãƒ•ã‚£ãƒ«ã‚¿ã®åˆ¶å¾¡ã‚’è¡Œã†ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒãƒãƒ¼ã‚¸ãƒ£ã‚¯ãƒ©ã‚¹ã€‚
 /// </summary>
 public partial class RsGlobalPointCloudManager : MonoBehaviour
 {
@@ -14,53 +13,41 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
 
     public enum OutputMode
     {
-        MergeAll,      // ‘S‚Ä‚ÌƒJƒƒ‰“_ŒQ‚ğ“‡‚·‚é
-        SingleCamera,  // “Á’è‚Ìˆê‚Â‚ÌƒJƒƒ‰“_ŒQ‚Ì‚İo—Í‚·‚é
-        None           // o—Í‚µ‚È‚¢
+        MergeAll,      // ã™ã¹ã¦ã®ã‚«ãƒ¡ãƒ©ã®ç‚¹ç¾¤ã‚’çµ±åˆ
+        SingleCamera,  // ç‰¹å®šã®1å°ã®ã‚«ãƒ¡ãƒ©ã®ç‚¹ç¾¤ã®ã¿å‡ºåŠ›
+        None           // å‡ºåŠ›ã—ãªã„
     }
 
     public enum PCAMode
     {
-        Individual, // ŠeƒJƒƒ‰‘¤‚ÅŒÂ•Ê‚ÉPCAŒvZ‚ğs‚¤
-        Integrated, // ‘SƒJƒƒ‰‚Ì“_ŒQ‚ğ“‡‚µ‚½ó‘Ô‚ÅPCAŒvZ‚ğs‚¤
-        None        // PCA‚ğs‚í‚È‚¢
+        Individual, // å„ã‚«ãƒ¡ãƒ©å€‹åˆ¥ã«PCAã‚’è¨ˆç®—
+        Integrated, // çµ±åˆã•ã‚ŒãŸç‚¹ç¾¤ã‚’ç”¨ã„ã¦PCAã‚’è¨ˆç®—
+        None        // PCAã‚’è¡Œã‚ãªã„
     }
 
     [Header("Settings")]
-    [Tooltip("ŠeƒJƒƒ‰‚Ì“_ŒQ‚ğ1‚Â‚Ìƒoƒbƒtƒ@‚É‚Ü‚Æ‚ß‚é‚½‚ß‚ÌComputeShader")]
+    [Tooltip("è¤‡æ•°ã®ç‚¹ç¾¤ã‚’1ã¤ã®ãƒãƒƒãƒ•ã‚¡ã«çµåˆã™ã‚‹ãŸã‚ã®ComputeShader")]
     public ComputeShader mergeComputeShader;
-    [Tooltip("“‡Œã‚Ì“_ŒQ‚ÌÅ‘å‹–—e”")]
+    [Tooltip("çµåˆã™ã‚‹ç‚¹ç¾¤ã®æœ€å¤§æ•°")]
     public int maxTotalPoints = 3000000;
 
     [Header("Debug Options")]
-    [Tooltip("o—Íƒ‚[ƒh‚ğ‘I‘ği‘S‚Ä“‡A’PˆêƒJƒƒ‰Ao—Í‚È‚µj")]
+    [Tooltip("å‡ºåŠ›ãƒ¢ãƒ¼ãƒ‰ã®è¨­å®šï¼ˆã™ã¹ã¦çµ±åˆã€ã‚«ãƒ¡ãƒ©æŒ‡å®šã€è¡¨ç¤ºãªã—ï¼‰")]
     public OutputMode outputMode = OutputMode.MergeAll;
 
-    [Tooltip("SingleCameraƒ‚[ƒh‚É•\¦‚·‚éƒJƒƒ‰‚ÌƒCƒ“ƒfƒbƒNƒX")]
+    [Tooltip("SingleCameraãƒ¢ãƒ¼ãƒ‰ã§è¡¨ç¤ºã™ã‚‹ã‚«ãƒ¡ãƒ©ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹")]
     public int debugCameraIndex = 0;
 
     [Header("PCA Settings")]
-    [Tooltip("PCA„’èƒ‚[ƒhFIndividual=ŠeƒJƒƒ‰ŒÂ•ÊAIntegrated=“‡ŒãANone=‚È‚µ")]
+    [Tooltip("PCAãƒ¢ãƒ¼ãƒ‰ã®é¸æŠ")]
     public PCAMode pcaMode = PCAMode.Integrated;
 
     [Header("References")]
-    [Tooltip("ŠÇ—‘ÎÛ‚Æ‚È‚éŠePCƒŒƒ“ƒ_ƒ‰[‚ÌƒŠƒXƒgB‹ó‚Ìê‡‚Í©“®‚ÅqƒIƒuƒWƒFƒNƒg‚©‚çæ“¾‚µ‚Ü‚·B")]
+    [Tooltip("ç®¡ç†å¯¾è±¡ã¨ã™ã‚‹ç‚¹ç¾¤ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ã®ãƒªã‚¹ãƒˆã€‚ç©ºã®å ´åˆã¯å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‹ã‚‰å–å¾—ã—ã¾ã™ã€‚")]
     public List<RsPointCloudRenderer> renderers = new List<RsPointCloudRenderer>();
 
     private ComputeBuffer _globalBuffer;
     private int _kernelMerge;
-
-    [Header("Debug Statistics")]
-    [Tooltip("ƒpƒtƒH[ƒ}ƒ“ƒX“™‚Ì“Œvî•ñ‚Ì’ÇÕ‚ğ—LŒø‚É‚·‚é‚©‚Ç‚¤‚©")]
-    [SerializeField] private bool _statsEnabled = true;
-
-    [Tooltip("PCA‚âƒLƒƒƒbƒVƒ…‚Ì“Œv‚ğƒtƒ@ƒCƒ‹‚Ö”ñ“¯Šú‚Å‘‚«o‚·‚©")]
-    [SerializeField] private bool _asyncLoggingEnabled = false;
-
-    [Tooltip("GPUŒvZ‚Ìƒvƒƒtƒ@ƒCƒ‹î•ñ‚ğCSV‚Ö‘‚«o‚·‚©")]
-    [SerializeField] private bool _gpuProfilerEnabled = false;
-
-    public string GpuProfilerFilePath => _gpuProfiler != null ? _gpuProfiler.FilePath : string.Empty;
 
     public int CurrentTotalCount { get; private set; } = 0;
 
@@ -73,28 +60,10 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
         Instance = this;
         _globalBuffer = new ComputeBuffer(maxTotalPoints, STRIDE);
         _kernelMerge = mergeComputeShader.FindKernel("MergePoints");
-        
-        if (_asyncLoggingEnabled)
-        {
-            _asyncLogger = new RsAsyncStatsLogger("GlobalPCMStats.csv");
-            Debug.Log($"[GlobalPCM] Async logging enabled: {_asyncLogger.GetLogFilePath()}");
-        }
-
-        ApplyGpuProfilerState();
-    }
-
-    private void OnValidate()
-    {
-        if (!Application.isPlaying) return;
-        ApplyGpuProfilerState();
     }
 
     private void LateUpdate()
     {
-        _gpuProfiler?.BeginProfile();
-
-        UpdateDebugStats();
-
         if (pcaMode == PCAMode.None)
         {
             ApplyToAllRenderers(r => r.IsGlobalRangeFilterEnabled = false);
@@ -117,21 +86,10 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
         {
             ComputeIntegratedPCA();
         }
-        
-        if (_statsEnabled)
-        {
-            LogDebugStats();
-        }
-
-        _gpuProfiler?.EndProfile(Time.frameCount, CurrentTotalCount, _globalBuffer);
     }
 
-    public int PcaCallsPerSec => _pcaCallsPerSec;
-    public int PcaCacheHitsPerSec => _pcaCacheHitsPerSec;
-    public int PcaCacheMissesPerSec => _pcaCacheMissesPerSec;
-
     /// <summary>
-    /// Œ‹‡‚³‚ê‚½‘S‚Ä‚Ì“_ŒQƒf[ƒ^‚ªŠi”[‚³‚ê‚éƒOƒ[ƒoƒ‹ƒoƒbƒtƒ@‚ğæ“¾‚·‚é
+    /// çµ±åˆã•ã‚ŒãŸã™ã¹ã¦ã®ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ï¼ˆã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒãƒƒãƒ•ã‚¡ï¼‰ã‚’å–å¾—ã—ã¾ã™ã€‚
     /// </summary>
     public ComputeBuffer GetGlobalBuffer()
     {
@@ -139,8 +97,8 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ŠÇ—‘ÎÛ‚Æ‚È‚é‘S‚Ä‚Ì RsPointCloudRenderer ‚ğæ“¾‚·‚éƒCƒeƒŒ[ƒ^B
-    /// ƒŠƒXƒg‚ªİ’è‚³‚ê‚Ä‚¢‚ê‚Î‚»‚ê‚ğAİ’è‚³‚ê‚Ä‚¢‚È‚¯‚ê‚ÎqƒIƒuƒWƒFƒNƒg‚ğŒŸõ‚µ‚Ä•Ô‚·B
+    /// ç®¡ç†å¯¾è±¡ã¨ãªã‚‹ã™ã¹ã¦ã® RsPointCloudRenderer ã‚’å–å¾—ã™ã‚‹ã‚¤ãƒ†ãƒ¬ãƒ¼ã‚¿ã€‚
+    /// ãƒªã‚¹ãƒˆãŒè¨­å®šã•ã‚Œã¦ã„ã‚Œã°ãã‚Œã‚’ã€è¨­å®šã•ã‚Œã¦ã„ãªã‘ã‚Œã°å­ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‹ã‚‰å–å¾—ã—ã¦è¿”ã—ã¾ã™ã€‚
     /// </summary>
     public IEnumerable<RsPointCloudRenderer> GetChildRenderers()
     {
@@ -168,7 +126,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ŠÇ—‘ÎÛ‚Æ‚È‚Á‚Ä‚¢‚éÅ‰‚Ì RsPointCloudRenderer ‚ğæ“¾‚·‚é
+    /// ç®¡ç†å¯¾è±¡ã¨ãªã£ã¦ã„ã‚‹æœ€åˆã® RsPointCloudRenderer ã‚’å–å¾—ã—ã¾ã™ã€‚
     /// </summary>
     public RsPointCloudRenderer GetFirstRenderer()
     {
@@ -181,7 +139,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ‘S‚Ä‚ÌŠÇ—‘ÎÛƒŒƒ“ƒ_ƒ‰[‚É‘Î‚µ‚ÄAw’è‚µ‚½ƒAƒNƒVƒ‡ƒ“‚ğˆêŠ‡‚ÅÀs‚·‚é
+    /// ã™ã¹ã¦ã®ç®¡ç†å¯¾è±¡ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ã«å¯¾ã—ã¦ã€æŒ‡å®šã—ãŸã‚¢ã‚¯ã‚·ãƒ§ãƒ³ã‚’ä¸€æ‹¬ã§å®Ÿè¡Œã—ã¾ã™ã€‚
     /// </summary>
     public void ApplyToAllRenderers(Action<RsPointCloudRenderer> action)
     {
@@ -194,7 +152,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ‘SƒJƒƒ‰‚Ì”ÍˆÍƒtƒBƒ‹ƒ^[(GlobalRangeFilter)‚Ì—LŒø/–³Œøó‘Ô‚ğØ‚è‘Ö‚¦‚é
+    /// å…¨ã‚«ãƒ¡ãƒ©ã®ç¯„å›²ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼ (GlobalRangeFilter) ã®æœ‰åŠ¹/ç„¡åŠ¹ã‚’åˆ‡ã‚Šæ›¿ãˆã¾ã™ã€‚
     /// </summary>
     public void ToggleAllRangeFilters()
     {
@@ -202,7 +160,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ‘S‚Ä‚ÌƒJƒƒ‰‚Å”ÍˆÍƒtƒBƒ‹ƒ^[‚ª—LŒø‚É‚È‚Á‚Ä‚¢‚é‚©‚Ç‚¤‚©‚ğ”»’è‚·‚é
+    /// ã™ã¹ã¦ã®ã‚«ãƒ¡ãƒ©ã®ç¯„å›²ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼ãŒæœ‰åŠ¹ã«ãªã£ã¦ã„ã‚‹ã‹ã©ã†ã‹ã‚’åˆ¤å®šã—ã¾ã™ã€‚
     /// </summary>
     public bool AreAllRangeFiltersEnabled()
     {
@@ -221,7 +179,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ˆê‚Â‚Å‚à”ÍˆÍƒtƒBƒ‹ƒ^[‚ª—LŒø‚É‚È‚Á‚Ä‚¢‚éƒJƒƒ‰‚ª‘¶İ‚·‚é‚©‚Ç‚¤‚©‚ğ”»’è‚·‚é
+    /// ã„ãšã‚Œã‹ã®ã‚«ãƒ¡ãƒ©ã®ç¯„å›²ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼ãŒæœ‰åŠ¹ã«ãªã£ã¦ã„ã‚‹ã‹ã©ã†ã‹ã‚’åˆ¤å®šã—ã¾ã™ã€‚
     /// </summary>
     public bool AreAnyRangeFiltersEnabled()
     {
@@ -237,7 +195,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ‘S‚Ä‚ÌƒJƒƒ‰‚Ì”ÍˆÍƒtƒBƒ‹ƒ^[ó‘Ô‚ğˆêŠ‡‚Åİ’è‚·‚é
+    /// ã™ã¹ã¦ã®ã‚«ãƒ¡ãƒ©ã®ç¯„å›²ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼çŠ¶æ…‹ã‚’ä¸€æ‹¬ã§è¨­å®šã—ã¾ã™ã€‚
     /// </summary>
     public void SetAllRangeFilters(bool enabled)
     {
@@ -245,7 +203,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// ŠÇ—‘ÎÛ‚Æ‚È‚Á‚Ä‚¢‚éƒŒƒ“ƒ_ƒ‰[‚Ì‘”‚ğæ“¾‚·‚é
+    /// ç®¡ç†å¯¾è±¡ã¨ãªã£ã¦ã„ã‚‹ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ã®ç·æ•°ã‚’å–å¾—ã—ã¾ã™ã€‚
     /// </summary>
     public int GetRendererCount()
     {
@@ -260,9 +218,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        // Šm•Û‚µ‚Ä‚¢‚éƒOƒ[ƒoƒ‹ƒoƒbƒtƒ@“™‚ÌƒlƒCƒeƒBƒuƒŠƒ\[ƒX‚ğ‰ğ•ú
+        // ç¢ºä¿ã•ã‚Œã¦ã„ã‚‹ã‚°ãƒ­ãƒ¼ãƒãƒ«ãƒãƒƒãƒ•ã‚¡ï¼ˆComputeBufferï¼‰ã‚’è§£æ”¾ã—ã¾ã™
         _globalBuffer?.Release();
-        _asyncLogger?.Dispose();
-        _gpuProfiler?.Dispose();
     }
 }

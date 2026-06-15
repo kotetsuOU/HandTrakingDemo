@@ -25,7 +25,7 @@
 
 ## 1. システム概要と提供価値
 
-本システムは、実環境からリアルタイムに取得した点群（あるいはデバッグ用の合成データ）をスクリーン空間に投影し、Unity の仮想3D空間に配置されたオブジェクトとの前後関係（オクルージョン）をリアルタイムに計算する仕組みです。
+本システムは、実環境からリアルタイムに取得した点群をスクリーン空間に投影し、Unity の仮想3D空間に配置されたオブジェクトとの前後関係（オクルージョン）をリアルタイムに計算する仕組みです。
 
 ```
 [RealSense カメラ / 再生ファイル]
@@ -129,8 +129,6 @@ sequenceDiagram
 │   │       ├── [Device](./Assets/Scripts/RealSense/Device)  
 │   │       │   ├── [RsDevice.cs](./Assets/Scripts/RealSense/Device/RsDevice.cs) — Pipeline をラップしたストリーム管理・エラーハンドリング (別スレッドポーリング、エラー自動リカバリ)  
 │   │       │   └── [RsDeviceController.cs](./Assets/Scripts/RealSense/Device/RsDeviceController.cs) — カメラの接続確認および起動制御  
-│   │       ├── [Debug](./Assets/Scripts/RealSense/Debug)  
-│   │       │   └── [RsAsyncStatsLogger.cs](./Assets/Scripts/RealSense/Debug/RsAsyncStatsLogger.cs) — 点群処理パフォーマンスなどの非同期ログ出力制御  
 │   │       ├── [RsConfiguration.cs](./Assets/Scripts/RealSense/RsConfiguration.cs) — RealSense カメラのストリーム構成 (解像度・フォーマット・FPS) 設定  
 │   │       ├── [RsDeviceInspector.cs](./Assets/Scripts/RealSense/RsDeviceInspector.cs) — 接続デバイス情報や詳細パラメータのインスペクション・デバッグ表示  
 │   │       ├── [RsFrameProvider.cs](./Assets/Scripts/RealSense/RsFrameProvider.cs) — フレームデータを提供するプロバイダーインターフェース  
@@ -162,24 +160,20 @@ sequenceDiagram
 │   │       │       └── [RsCullingDebugExporter.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsCullingDebugExporter.cs) — カリング検証用 BMP 非同期エクスポート  
 │   │       └── [PointCloud](./Assets/Scripts/RealSense/PointCloud)  
 │   │           ├── [RsPointCloudRenderer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudRenderer.cs) — 個別点群の初期化・ライフサイクル制御、バッファ提供  
-│   │           ├── [RsPointCloudInitializer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudInitializer.cs) — 実機/合成データ/統合点群の初期化切り替え  
+│   │           ├── [RsPointCloudInitializer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudInitializer.cs) — 実機/統合点群の初期化切り替え  
 │   │           ├── [RsGlobalPointCloudManager.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.cs) — グローバル統合点群管理 (GlobalManager)  
 │   │           ├── [RsGlobalPointCloudManager.Merge.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Merge.cs) — GPU CommandBuffer 非同期マージ実装  
 │   │           ├── [RsGlobalPointCloudManager.PCA.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.PCA.cs) — 統合点群の主成分分析 (PCA) による簡易中心姿勢推定  
-│   │           ├── [RsGlobalPointCloudManager.Stats.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Stats.cs) — 統合点群の有効点数やバウンディングボックス等の統計情報計算  
 │   │           ├── [RsComputeStats.cs](./Assets/Scripts/RealSense/PointCloud/RsComputeStats.cs) — 単体点群用の統計値計算 Compute Shader インターフェース  
 │   │           ├── [RsDataProvider.cs](./Assets/Scripts/RealSense/PointCloud/RsDataProvider.cs) — 頂点/カラーデータの供給インターフェース  
 │   │           ├── [RsFilterPassExecutor.cs](./Assets/Scripts/RealSense/PointCloud/RsFilterPassExecutor.cs) — 点群に対する追加フィルタパスのスケジューラ  
 │   │           ├── [RsFilterShaderDispatcher.cs](./Assets/Scripts/RealSense/PointCloud/RsFilterShaderDispatcher.cs) — 汎用点群フィルタ用 Compute Shader のディスパッチャー  
-│   │           ├── [RsGpuProfiler.cs](./Assets/Scripts/RealSense/PointCloud/RsGpuProfiler.cs) — 各点群パスの GPU 実行時間のプロファイリング管理  
 │   │           ├── [RsMaterialController.cs](./Assets/Scripts/RealSense/PointCloud/RsMaterialController.cs) — 点群のサイズやブレンドなど、マテリアルの動的制御  
-│   │           ├── [RsPerformanceLogger.cs](./Assets/Scripts/RealSense/PointCloud/RsPerformanceLogger.cs) — 点群処理のスループットやレンダリング性能を計測・記録  
 │   │           ├── [RsPointCloudAsyncReadback.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudAsyncReadback.cs) — ComputeBuffer から CPU 配列への非同期読み戻し (AsyncGPUReadback)  
 │   │           ├── [RsPointCloudCapturer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudCapturer.cs) — 点群フレームのバイナリキャプチャ・保存・再生用マネージャー  
 │   │           ├── [RsPointCloudCompute.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudCompute.cs) — 頂点生成およびノイズ除去フィルタ用 Compute Shader 制御  
 │   │           ├── [RsPointCloudFrameProcessor.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudFrameProcessor.cs) — フレーム単位の点群データ加工・フロー制御  
 │   │           ├── [RsPointCloudPCA.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudPCA.cs) — 個別点群に対する PCA (主成分分析) 実行クラス  
-│   │           ├── [RsPointCloudSyntheticData.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudSyntheticData.cs) — デバッグ・検証用の合成点群 (球、直方体等) の生成  
 │   │           ├── [RsPointCloudVisualization.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudVisualization.cs) — Point Cloud のトポロジーや簡易ワイヤーフレーム表示制御  
 │   │           └── [RsTransformController.cs](./Assets/Scripts/RealSense/PointCloud/RsTransformController.cs) — 各カメラのトランスフォーム変更の動的同期・適用  
 │   └── [Shader&Material/Shader/ComputeShader/Rendering](./Assets/Shader&Material/Shader/ComputeShader/Rendering)  
@@ -521,3 +515,19 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 
 ### B. 動的テスト（デバッグ時）
 *   パラメータの動的変更（Hole Filling 手法の切り替えや、PCV での Source 変更）を行った際に、コンソールに `[PCV] Switched to ...` のログが出力され、メモリリークを伴わずに画面上の遮蔽表現が切り替わることを確認してください。
+
+---
+
+## 10. 最近の変更履歴 (Recent Updates)
+
+### 2026年6月
+*   **RealSense スキャン範囲設定の簡素化**:
+    *   従来の相対位置オフセットによる表現 (`rsScanRange`, `frameWidth`, `extraLength`) を廃止し、境界の絶対座標を直接指定する `ScanMin` と `ScanMax` (Vector3) に統一しました。これにより、CPU/GPU（Compute Shader）双方での境界チェックがシンプル化され、直感的な範囲設定が可能になりました。
+    *   過去のシーンファイルとの互換性を維持するため、`RsDeviceController` に `ISerializationCallbackReceiver` を実装し、ロード時に旧パラメータから `ScanMin` / `ScanMax` へ自動マイグレーションする処理を追加しました。
+*   **直感的な境界調整（Scene View Gizmo Handle）の実装**:
+    *   `RsGlobalPointCloudManagerEditor.cs` にて、Unity エディタの `BoxBoundsHandle` を用いたインタラクティブな境界変更機能を Scene View 上に追加しました。黄色のバウンディングボックスの面をドラッグ操作することで、`ScanMin` / `ScanMax` がリアルタイムに書き換わり、`Undo` 操作や自動シリアライズ保存にも完全対応しています。
+*   **不要なデバッグ統計・プロファイラ・合成データコードのクリーンアップ**:
+    *   本運用のパフォーマンス向上とコードの簡素化を目的に、実機を使用しないダミー点群生成機能 (`RsPointCloudSyntheticData.cs`)、CSV 出力スループットロガー (`RsPerformanceLogger.cs`)、非同期パフォーマンスロガー (`RsAsyncStatsLogger.cs`)、GPU プロファイラー (`RsGpuProfiler.cs`)、および `RsGlobalPointCloudManager` の統計分割ファイル (`RsGlobalPointCloudManager.Stats.cs`) を完全に削除しました。関連する MonoBehaviour インスペクター表示や関数呼び出しもすべてクリーンアップされました。
+*   **Unity 6 シリアライズ警告への対策**:
+    *   `UnityEngine.ProBuilder.Shapes` 等のパッケージクラスが `[SerializeReference]` を伴ってシリアライズされる際に発生する警告（`missing [Serializable] attribute`）を回避するため、`[assembly: MakeSerializable]` アセンブリ属性による定義を追加しました。
+

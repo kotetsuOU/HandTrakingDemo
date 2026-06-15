@@ -46,16 +46,16 @@ public class RsPointCloudCompute : IDisposable
 
     #region Constructor
 
-    // コンストラクタ：各種リソースの初期化、ヘルパークラスの生成
+    // コンストラクタ（各種リソースの初期化、ヘルパークラスの生成）
     public RsPointCloudCompute(
         ComputeShader filterShader,
         ComputeShader transformShader,
-        Vector3 rsScanRange,
-        float frameWidth)
+        Vector3 scanMin,
+        Vector3 scanMax)
     {
         _dispatcher = new RsFilterShaderDispatcher(filterShader, transformShader);
-        _globalThreshold1 = new Vector3(frameWidth, frameWidth, frameWidth);
-        _globalThreshold2 = rsScanRange - _globalThreshold1;
+        _globalThreshold1 = scanMin;
+        _globalThreshold2 = scanMax;
         _asyncReadback = new RsPointCloudAsyncReadback(_stats);
 
         _filterPassExecutor = new RsFilterPassExecutor(

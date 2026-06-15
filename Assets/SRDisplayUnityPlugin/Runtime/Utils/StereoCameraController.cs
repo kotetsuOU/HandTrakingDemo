@@ -10,7 +10,7 @@ namespace SRD.Utils
 
     /// <summary>
     /// 2Dパターンと3Dパターンの切り替えによって、使用するカメラを制御するコントローラー。
-    /// 各カメラにはCameraAdjuster.csがアタッチされている想定。
+    /// ハーフミラー環境における座標反転と視点スワップを統合管理する。
     /// </summary>
     public class StereoCameraController : MonoBehaviour
     {
@@ -27,16 +27,19 @@ namespace SRD.Utils
         [Header("SRD Settings")]
         [Tooltip("顔トラッキング情報を取得するためのSRDManager")]
         public SRD.Core.SRDManager srdManager;
-
-        [Tooltip("基準となるディスプレイを表すTransform（指定しない場合はSRDManagerのTransformを使用）")]
+        
+        [Tooltip("基準となるディスプレイを表すTransform（虚像の位置を設定）")]
         public Transform displayTransform;
 
         [Tooltip("毎フレーム自動的にカメラ位置を視点(左目・右目)に追従させるか")]
         public bool autoTrackEyes = true;
 
         [Header("Mirror Settings")]
-        [Tooltip("ハーフミラー環境用にトラッキング座標とフラスタムを反転させるか")]
+        [Tooltip("ハーフミラー環境用にトラッキング座標を補正（スワップ＆オフセット）するか")]
         public bool isHalfMirrorEnabled = false;
+        
+        [Tooltip("ハーフミラーの光学配置に応じた空間反転の乗数。通常、鏡像化にはXに-1を指定する。")]
+        public Vector3 flipAxes = new Vector3(-1, 1, 1);
 
         [Header("Current Mode")]
         [SerializeField]
@@ -53,7 +56,6 @@ namespace SRD.Utils
         /// <summary>
         /// パターンを変更し、有効なカメラを切り替える
         /// </summary>
-        /// <param name="pattern">変更するパターン</param>
         public void SetPattern(CameraPattern pattern)
         {
             currentPattern = pattern;
@@ -77,16 +79,12 @@ namespace SRD.Utils
                     break;
             }
             
-            Debug.Log($"[StereoCameraController] Camera pattern changed to: {pattern}");
+            UnityEngine.Debug.Log($"[StereoCameraController] Camera pattern changed to: {pattern}");
         }
 
-        /// <summary>
-        /// インスペクター上で値を変更した際にも即座に反映させるための処理
-        /// </summary>
         private void OnValidate()
         {
-            // Playモード中のみ即座に反映させる
-            if (Application.isPlaying)
+            if (UnityEngine.Application.isPlaying)
             {
                 ApplyPattern(currentPattern);
             }
@@ -94,98 +92,98 @@ namespace SRD.Utils
 
         private Vector3 _debugRawL;
         private Vector3 _debugRawR;
-
         private Transform _eyeAnchorL;
         private Transform _eyeAnchorR;
 
         private void LateUpdate()
         {
-            if (currentPattern == CameraPattern.Pattern3D && autoTrackEyes && srdManager != null)
+            if (currentPattern != CameraPattern.Pattern3D || !autoTrackEyes || srdManager == null) return;
+
+            if (_eyeAnchorL == null) _eyeAnchorL = FindInHierarchy(srdManager.transform, "LeftEyeAnchor");
+            if (_eyeAnchorR == null) _eyeAnchorR = FindInHierarchy(srdManager.transform, "RightEyeAnchor");
+            if (_eyeAnchorL == null || _eyeAnchorR == null) return;
+
+            // 1. SDKが認識している生の相対座標を抽出
+            Vector3 nativeLocalL = srdManager.transform.InverseTransformPoint(_eyeAnchorL.position);
+            Vector3 nativeLocalR = srdManager.transform.InverseTransformPoint(_eyeAnchorR.position);
+
+            Vector3 worldL;
+            Vector3 worldR;
+
+            // 2. ハーフミラー有効時、虚像ディスプレイのトランスフォームを基準に反転処理を適用
+            if (isHalfMirrorEnabled && displayTransform != null)
             {
-                // ネイティブプラグイン側のトラッキングキューを破壊しないよう、
-                // SDKが自動更新しているアンカーから座標を読み取る
-                if (_eyeAnchorL == null)
-                {
-                    var goL = GameObject.Find("EyeCameraAnchorL");
-                    if (goL != null) _eyeAnchorL = goL.transform;
-                }
-                if (_eyeAnchorR == null)
-                {
-                    var goR = GameObject.Find("EyeCameraAnchorR");
-                    if (goR != null) _eyeAnchorR = goR.transform;
-                }
+                // 2-1. 指定された軸（通常はX軸）の座標を反転し、空間全体を鏡像化する
+                Vector3 flippedLocalL = new Vector3(nativeLocalL.x * flipAxes.x, nativeLocalL.y * flipAxes.y, nativeLocalL.z * flipAxes.z);
+                Vector3 flippedLocalR = new Vector3(nativeLocalR.x * flipAxes.x, nativeLocalR.y * flipAxes.y, nativeLocalR.z * flipAxes.z);
 
-                if (_eyeAnchorL != null && _eyeAnchorR != null)
-                {
-                    Transform targetDisplay = displayTransform != null ? displayTransform : srdManager.transform;
+                // 2-2. X軸が反転された場合、物理的な右目が仮想空間の左側に移動するため、スワップして割り当てる
+                Vector3 virtualLocalL = (flipAxes.x < 0) ? flippedLocalR : flippedLocalL;
+                Vector3 virtualLocalR = (flipAxes.x < 0) ? flippedLocalL : flippedLocalR;
 
-                    // アンカーの座標はすでにワールド座標
-                    Vector3 worldL = _eyeAnchorL.position;
-                    Vector3 worldR = _eyeAnchorR.position;
+                // 2-3. SRDManagerの傾きを維持した仮想空間行列を合成
+                Matrix4x4 virtualSpaceMatrix = Matrix4x4.TRS(
+                    displayTransform.position, 
+                    srdManager.transform.rotation, 
+                    Vector3.one
+                );
 
-                    // Gizmo用に生のワールド座標をキャッシュしておく
-                    _debugRawL = worldL;
-                    _debugRawR = worldR;
-
-                    if (isHalfMirrorEnabled)
-                    {
-                        // ターゲットディスプレイのローカル座標に変換（スケール影響は逆変換で相殺される）
-                        Vector3 localL = targetDisplay.InverseTransformPoint(worldL);
-                        Vector3 localR = targetDisplay.InverseTransformPoint(worldR);
-
-                        // ハーフミラーの場合は、鏡像反射により実際の移動方向(X軸)が逆転し、
-                        // トラッカーが認識する左右の目も逆転するため自動補正する
-                        localL.x = -localL.x;
-                        localR.x = -localR.x;
-
-                        Vector3 temp = localL;
-                        localL = localR;
-                        localR = temp;
-
-                        // ワールド座標に戻す（スケール影響はここで元に戻る）
-                        worldL = targetDisplay.TransformPoint(localL);
-                        worldR = targetDisplay.TransformPoint(localR);
-                    }
-
-                    if (camera3DLeft != null)
-                    {
-                        camera3DLeft.transform.position = worldL;
-                    }
-
-                    if (camera3DRight != null)
-                    {
-                        camera3DRight.transform.position = worldR;
-                    }
-                }
+                worldL = virtualSpaceMatrix.MultiplyPoint3x4(virtualLocalL);
+                worldR = virtualSpaceMatrix.MultiplyPoint3x4(virtualLocalR);
             }
+            else
+            {
+                // 通常環境（標準のトランスフォーム変換）
+                worldL = srdManager.transform.TransformPoint(nativeLocalL);
+                worldR = srdManager.transform.TransformPoint(nativeLocalR);
+            }
+
+            /*
+            if (Time.frameCount % 60 == 0)
+            {
+                UnityEngine.Debug.Log($"[Tracking] nativeLocal L={nativeLocalL.ToString("F5")} R={nativeLocalR.ToString("F5")}");
+                UnityEngine.Debug.Log($"[Tracking] world L={worldL.ToString("F5")} R={worldR.ToString("F5")}");
+            }
+            */
+
+            _debugRawL = worldL;
+            _debugRawR = worldR;
+
+            if (camera3DLeft != null) camera3DLeft.transform.position = worldL;
+            if (camera3DRight != null) camera3DRight.transform.position = worldR;
+        }
+
+        private Transform FindInHierarchy(Transform root, string name)
+        {
+            if (root.name == name) return root;
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == name) return child;
+            }
+            return null;
         }
 
         private void OnDrawGizmos()
         {
-            if (!Application.isPlaying || srdManager == null || currentPattern != CameraPattern.Pattern3D || !autoTrackEyes) return;
+            if (!UnityEngine.Application.isPlaying || srdManager == null || currentPattern != CameraPattern.Pattern3D || !autoTrackEyes) return;
 
-            // 左目(Raw)を緑のワイヤーで描画
             Gizmos.color = Color.green;
             Gizmos.DrawWireSphere(_debugRawL, 0.03f);
-            // 右目(Raw)を赤のワイヤーで描画
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(_debugRawR, 0.03f);
 
-                // 最終的にカメラが置かれている位置（補正後）を塗りつぶしで描画
-                if (camera3DLeft != null)
-                {
-                    Gizmos.color = new Color(0, 1, 0, 0.7f);
-                    Gizmos.DrawSphere(camera3DLeft.transform.position, 0.015f);
-                    // Rawからの移動先を線で結ぶ
-                    Gizmos.DrawLine(_debugRawL, camera3DLeft.transform.position);
-                }
-                
-                if (camera3DRight != null)
-                {
-                    Gizmos.color = new Color(1, 0, 0, 0.7f);
-                    Gizmos.DrawSphere(camera3DRight.transform.position, 0.015f);
-                    Gizmos.DrawLine(_debugRawR, camera3DRight.transform.position);
-                }
+            if (camera3DLeft != null)
+            {
+                Gizmos.color = new Color(0, 1, 0, 0.7f);
+                Gizmos.DrawSphere(camera3DLeft.transform.position, 0.015f);
+                Gizmos.DrawLine(_debugRawL, camera3DLeft.transform.position);
+            }
+            if (camera3DRight != null)
+            {
+                Gizmos.color = new Color(1, 0, 0, 0.7f);
+                Gizmos.DrawSphere(camera3DRight.transform.position, 0.015f);
+                Gizmos.DrawLine(_debugRawR, camera3DRight.transform.position);
+            }
         }
     }
 }

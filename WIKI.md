@@ -2,7 +2,7 @@
 
 本プロジェクトは、Intel RealSense 等のセンサーから取得したリアルタイム点群（Point Cloud）を基盤とし、**「視覚的な遮蔽処理（レンダリング・オクルージョン）」**と**「物理的な接触判定・触覚提示（ハプティクス）」**という 2つの高度なサブシステムを軸に構成されています。
 
-本ドキュメントは、プロジェクト全体の設計思想・関数仕様を一元管理する統合ポータル（ハブ）です。詳細な機能やアルゴリズムの解説は、以下の 3つの専用機能ノード（詳細ドキュメント）に分離されて構成されています。
+本ドキュメントは、プロジェクト全体の設計思想・関数仕様を一元管理する統合ポータル（ハブ）です。詳細な機能やアルゴリズムの解説は、以下の専用機能ノード（詳細ドキュメント）に分離されて構成されています。
 
 ---
 
@@ -18,6 +18,7 @@ graph TD
     classDef haptic fill:#78281F,stroke:#C0392B,stroke-width:2px,color:#FDEDEC;
     classDef debug fill:#6C3483,stroke:#8E44AD,stroke-width:2px,color:#F5EEF8;
     classDef common fill:#1E8449,stroke:#27AE60,stroke-width:2px,color:#EAF8F2;
+    classDef display fill:#D35400,stroke:#E67E22,stroke-width:2px,color:#FDEDEC;
 
     %% ノード定義
     WIKI["📄 統合ポータル<br/>(WIKI.md)"]:::main
@@ -26,6 +27,7 @@ graph TD
     WIKI -->|"🎨 視覚オクルージョン"| RenderNode["🎨 レンダリング・オクルージョン設計思想<br/>(RENDERING.md)"]:::render
     WIKI -->|"⚡ 触覚物理衝突検出"| HapticsNode["⚡ 空中超音波ハプティクス設計思想<br/>(HAPTICS.md)"]:::haptic
     WIKI -->|"🔍 デバッグ空間検索"| DebugNode["🔍 PCV デバッグ空間演算システム<br/>(DEBUG_PCV.md)"]:::debug
+    WIKI -->|"👓 3D立体視・ミラー制御"| DisplayNode["👓 3D立体視・ハーフミラー制御設計思想<br/>(DISPLAY_3D.md)"]:::display
 
     %% 共通データハブ
     GlobalManager["📦 RsGlobalPointCloudManager (統合点群ハブ)"]:::common
@@ -73,6 +75,15 @@ graph TD
     *   `PCV_VoxelGrid`: CPU 側 26 近傍 $O(1)$ 検索ハッシュ。
     *   `PCV_GpuVoxelGrid`: `RsVoxelGridBuilder.compute` を用いた GPU 空間ハッシュ・アトミックチェーン・アトミックバケットソート並列構築。
 *   **詳細はこちら ──> [DEBUG_PCV.md](./DEBUG_PCV.md) を読む**
+
+---
+
+### 👓 4. [3D立体視・ハーフミラー制御システム](./DISPLAY_3D.md)
+*   **目的**: 物理的な視線トラッキングセンサー（SRDisplay等）が取得した座標を、ハーフミラーを用いた光学配置に合わせて正確に補正し、現実と1ミリの狂いもなく同期する仮想カメラ制御を行います。
+*   **コアモジュールと特徴**:
+    *   `StereoCameraController.cs`: 物理センサーと虚像ディスプレイ間の空間オフセット（Z軸ギャップ）を完全に吸収する「仮想空間マトリックス合成」。
+    *   ハーフミラー空間特有の反転に対応するための「鏡像化＆クロススワップ処理」。
+*   **詳細はこちら ──> [DISPLAY_3D.md](./DISPLAY_3D.md) を読む**
 
 ---
 

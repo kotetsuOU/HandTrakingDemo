@@ -26,8 +26,6 @@ public class RsPointCloudRendererEditor : Editor
 
         _isVerticesSaved = RsPointCloudExportTool.DrawExportUI(renderer, _exportFileNameProp, _isVerticesSaved);
 
-        DrawPerformanceLoggerUI(renderer);
-
         DrawRangeFilterUI(renderer);
 
         RsPointCloudSceneGizmo.DrawPCAModeInfo();
@@ -39,41 +37,6 @@ public class RsPointCloudRendererEditor : Editor
     {
         RsPointCloudRenderer renderer = (RsPointCloudRenderer)target;
         RsPointCloudSceneGizmo.DrawPCAEstimationGizmo(renderer);
-    }
-
-    private void DrawPerformanceLoggerUI(RsPointCloudRenderer renderer)
-    {
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Performance Logger", EditorStyles.boldLabel);
-
-        EditorGUI.BeginDisabledGroup(!Application.isPlaying);
-
-        GUIStyle buttonStyle = new GUIStyle(GUI.skin.button)
-        {
-            fontSize = 12,
-            fontStyle = FontStyle.Bold,
-            fixedHeight = 25
-        };
-
-        if (renderer.IsPerformanceLogging)
-        {
-            GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
-            if (GUILayout.Button("Stop Performance Logging", buttonStyle))
-            {
-                renderer.StopPerformanceLog();
-            }
-        }
-        else
-        {
-            GUI.backgroundColor = new Color(0.6f, 1f, 0.6f);
-            if (GUILayout.Button("Start Performance Logging", buttonStyle))
-            {
-                renderer.StartPerformanceLog();
-            }
-        }
-        GUI.backgroundColor = Color.white;
-
-        EditorGUI.EndDisabledGroup();
     }
 
     private void DrawRangeFilterUI(RsPointCloudRenderer renderer)

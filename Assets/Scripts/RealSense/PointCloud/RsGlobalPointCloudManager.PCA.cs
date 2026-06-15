@@ -52,7 +52,6 @@ public partial class RsGlobalPointCloudManager
     /// </summary>
     private void ComputeIntegratedPCA()
     {
-        _pcaCallsCounter++;
         _samplingResults.Clear();
 
         // アクティブなすべての子レンダラーを巡回取得
@@ -73,12 +72,6 @@ public partial class RsGlobalPointCloudManager
                 // 新しい結果がない場合（計算中やフレームドロップ時）は、
                 // 前回キャッシュされた有効なサンプリング結果で代用（補完）する
                 _samplingResults.Add(cached);
-                _pcaCacheHitsCounter++; // ヒット回数を記録（パフォーマンス監視用）
-            }
-            else
-            {
-                // 結果も更新もなく、キャッシュも無効な場合（完全な失敗）
-                _pcaCacheMissesCounter++;
             }
         }
 

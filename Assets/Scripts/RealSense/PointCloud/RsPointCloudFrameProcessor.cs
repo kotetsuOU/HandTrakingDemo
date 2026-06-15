@@ -4,8 +4,6 @@ using UnityEngine;
 public class RsPointCloudFrameProcessor
 {
     private readonly RsPointCloudCompute _compute;
-    private readonly RsPerformanceLogger _logger;
-    private readonly System.Diagnostics.Stopwatch _stopwatch;
 
     private Vector3 _estimatedPoint = Vector3.zero; // PCAなどで推定された中心点
     private Vector3 _estimatedDir = Vector3.forward; // PCAなどで推定された方向ベクトル
@@ -15,25 +13,9 @@ public class RsPointCloudFrameProcessor
     public Vector3 EstimatedPoint => _estimatedPoint;
     public Vector3 EstimatedDir => _estimatedDir;
 
-    public RsPointCloudFrameProcessor(RsPointCloudCompute compute, RsPerformanceLogger logger, System.Diagnostics.Stopwatch stopwatch)
+    public RsPointCloudFrameProcessor(RsPointCloudCompute compute)
     {
         _compute = compute;
-        _logger = logger;
-        _stopwatch = stopwatch;
-    }
-
-    // 合成(ダミー)データ用の点群を処理する
-    public ComputeBuffer ProcessSyntheticFrame(
-        ComputeBuffer rawVerticesBuffer,
-        int totalPointCount,
-        Vector3 linePoint,
-        Vector3 lineDir,
-        bool isGlobalRangeFilterEnabled,
-        float maxPlaneDistance)
-    {
-        if (_compute == null || rawVerticesBuffer == null) return null;
-
-        return ProcessWithFilter(rawVerticesBuffer, totalPointCount, linePoint, lineDir, isGlobalRangeFilterEnabled, -1, maxPlaneDistance);
     }
 
     // 複数カメラから統合された点群バッファを処理する
@@ -121,13 +103,6 @@ public class RsPointCloudFrameProcessor
             // フィルタを実行せず点群に直接トランスフォーム(Matrix適用など)をかける
             argsBuffer = _compute.TransformIndirect(sourceBuffer, pointCount);
             discardedCount = 0;
-        }
-
-        // 計測ログにパフォーマンスデータを記録
-        if (frameCounter >= 0 && _logger != null && _logger.IsLogging)
-        {
-            _stopwatch?.Stop();
-            _logger.LogFrame(frameCounter, _stopwatch?.Elapsed.TotalMilliseconds ?? 0, discardedCount, totalCount, isGlobalRangeFilterEnabled);
         }
 
         return argsBuffer;

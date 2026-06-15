@@ -1,73 +1,34 @@
+using System;
 using System.Reflection;
 using UnityEditor;
+using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
 [CustomEditor(typeof(RsGlobalPointCloudManager))]
 public class RsGlobalPointCloudManagerEditor : Editor
 {
-    // ŒÃ‚¢Œ`®‚Ì‘‚«o‚µ‚È‚Ç‚ÉA•Û‘¶‚ªŠ®—¹‚µ‚Ä‚¢‚é‚©‚Ìó‘Ô‚ğ•Û‚·‚éƒtƒ‰ƒO
+    private readonly BoxBoundsHandle _boundsHandle = new BoxBoundsHandle();
     private bool _isVerticesSaved;
     private RsGlobalPointCloudManager _manager;
-
-    // ƒpƒtƒH[ƒ}ƒ“ƒX‚â“Œv‚È‚ÇAƒCƒ“ƒXƒyƒNƒ^‚É•\¦E‰B•Á‚·‚é‚½‚ß‚ÌƒVƒŠƒAƒ‰ƒCƒYƒvƒƒpƒeƒBŒQ
-    private SerializedProperty _statsEnabledProp;
-    private SerializedProperty _asyncLoggingEnabledProp;
-    private SerializedProperty _gpuProfilerEnabledProp;
 
     private void OnEnable()
     {
         _manager = (RsGlobalPointCloudManager)target;
-
-        _statsEnabledProp = serializedObject.FindProperty("_statsEnabled");
-        _asyncLoggingEnabledProp = serializedObject.FindProperty("_asyncLoggingEnabled");
-        _gpuProfilerEnabledProp = serializedObject.FindProperty("_gpuProfilerEnabled");
     }
 
     public override void OnInspectorGUI()
     {
-        // •ÏX‚ğƒVƒŠƒAƒ‰ƒCƒY‚³‚ê‚½“à•”ƒIƒuƒWƒFƒNƒg‚É“¯Šú‚·‚é
         serializedObject.Update();
 
-        // “Æ©‚É•`‰æ‚·‚é“ŒvƒIƒvƒVƒ‡ƒ““™‚Ì•”•ª‚ğ•`‰æ‚©‚çœŠO‚µ‚Ä‚¨‚­
-        DrawPropertiesExcluding(
-            serializedObject,
-            "m_Script",
-            "_statsEnabled",
-            "_asyncLoggingEnabled",
-            "_gpuProfilerEnabled");
+        // Exclude script field from inspector drawing
+        DrawPropertiesExcluding(serializedObject, "m_Script");
 
-        // “ŒvƒIƒvƒVƒ‡ƒ“‚Ì•`‰æ‚ğÀs
-        DrawDebugStatisticsSection();
-
-        // •ÏX‚ğ”½‰f‚·‚é
         serializedObject.ApplyModifiedProperties();
         EditorGUILayout.Space();
 
-        // ƒGƒfƒBƒ^ê—p‚Ìƒoƒbƒ`ˆ—‚âPLY‘‚«o‚µ‚ğs‚¤ƒRƒ“ƒgƒ[ƒ‹UI‚ğ•`‰æ
+        // Draw batch controls
         DrawBatchControlSection();
         EditorGUILayout.Space(20);
-        DrawPerformanceLoggerSection();
-    }
-
-    private void DrawDebugStatisticsSection()
-    {
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Debug Statistics", EditorStyles.boldLabel);
-
-        EditorGUILayout.PropertyField(_statsEnabledProp, new GUIContent("Stats Enabled"));
-
-        using (new EditorGUI.IndentLevelScope())
-        {
-            if (_statsEnabledProp.boolValue)
-            {
-                EditorGUILayout.PropertyField(
-                    _asyncLoggingEnabledProp,
-                    new GUIContent("Log PCA/Cache Stats (Async)", "Write PCA/cache stats to file asynchronously"));
-                EditorGUILayout.PropertyField(
-                    _gpuProfilerEnabledProp,
-                    new GUIContent("GPU Profiler Enabled", "Write GPU compute stats to CSV"));
-            }
-        }
     }
 
     private void OnSceneGUI()
@@ -79,22 +40,16 @@ public class RsGlobalPointCloudManagerEditor : Editor
 
     #region Inspector Sections
 
-    /// <summary>
-    /// ŠeƒJƒƒ‰‚ÌˆêŠ‡İ’èi—á‚¦‚ÎƒtƒBƒ‹ƒ^ON/OFFj‚âA
-    /// PointCloud(PLY)‚ğ‘‚«o‚·‚½‚ß‚ÌUI‚ğ•`‰æEŠÇ—‚·‚éƒƒ\ƒbƒhB
-    /// </summary>
     private void DrawBatchControlSection()
     {
         EditorGUILayout.LabelField("Batch Control for RsPointCloudRenderer Children", EditorStyles.boldLabel);
 
-        // RsPointCloudCapturer ‚ªƒAƒ^ƒbƒ`‚³‚ê‚Ä‚¢‚ê‚ÎPLYo—Í‹@”\‚ğƒTƒ|[ƒg‚·‚é
         var capturer = _manager.GetComponent<RsPointCloudCapturer>();
         if (capturer != null)
         {
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("PointCloud Capture (PLY)", EditorStyles.boldLabel);
 
-            // ƒvƒŒƒC’†A‚ ‚é‚¢‚Í‚·‚Å‚ÉƒLƒƒƒvƒ`ƒƒ’†‚Ìê‡‚Íİ’è•ÏX‚È‚Ç‚Ì‘ŠŒİì—p‚ğƒƒbƒN‚·‚é
             EditorGUI.BeginDisabledGroup(capturer.IsCapturing || !Application.isPlaying);
 
             var so = new SerializedObject(capturer);
@@ -108,7 +63,6 @@ public class RsGlobalPointCloudManagerEditor : Editor
                 EditorGUILayout.HelpBox("Capturing PointCloud...", MessageType.Info);
             }
 
-            // ƒtƒŒ[ƒ€”‚ª•¡”‚Ìê‡‚ÍGround Truth—p‚Ì’·ŠÔƒLƒƒƒvƒ`ƒƒ‚Æ‚µ‚Äˆµ‚¤|‚ğ–¾¦
             GUI.backgroundColor = Color.cyan;
             string btnText = capturer.captureFrames > 1 ? $"Capture {capturer.captureFrames} Frames (Ground Truth)" : "Export Snapshot (1 Frame)";
 
@@ -120,7 +74,6 @@ public class RsGlobalPointCloudManagerEditor : Editor
             GUI.backgroundColor = Color.white;
             EditorGUI.EndDisabledGroup();
 
-            // Às’†iPlayƒ‚[ƒhj‚Å‚È‚¯‚ê‚ÎPLY‚Ì¶¬ˆ—‚ÍÀs‚Å‚«‚È‚¢‚½‚ßƒwƒ‹ƒv‚ğ•\¦
             if (!Application.isPlaying)
             {
                 EditorGUILayout.HelpBox("Capture is available only during Play Mode.", MessageType.Info);
@@ -129,7 +82,6 @@ public class RsGlobalPointCloudManagerEditor : Editor
         }
         else
         {
-            // ‹ŒŒ`®‚Ì•`‰æƒTƒ|[ƒgiCapturer‚ªƒAƒ^ƒbƒ`‚³‚ê‚Ä‚¢‚È‚¢ê‡j
             GUI.backgroundColor = Color.cyan;
             if (GUILayout.Button("Export All Current Vertices (Legacy txt)"))
             {
@@ -144,7 +96,6 @@ public class RsGlobalPointCloudManagerEditor : Editor
             }
         }
 
-        // ƒJƒƒ‰iƒŒƒ“ƒ_ƒ‰[j‚ÌƒOƒ[ƒoƒ‹ƒŒƒ“ƒWƒtƒBƒ‹ƒ^‚Ìó‘Ô‚ğæ“¾‚µ•\¦
         bool anyFiltersEnabled = _manager.AreAnyRangeFiltersEnabled();
         bool allFiltersEnabled = _manager.AreAllRangeFiltersEnabled();
         string filterStateLabel = allFiltersEnabled ? "ON" : anyFiltersEnabled ? "MIXED" : "OFF";
@@ -160,7 +111,6 @@ public class RsGlobalPointCloudManagerEditor : Editor
             SceneView.RepaintAll();
             Debug.Log("[RsGlobalPointCloudManager] Set Range Filter ON for All");
         }
-
         EditorGUI.EndDisabledGroup();
 
         GUI.backgroundColor = allFiltersEnabled ? new Color(1f, 0.6f, 0.6f) : new Color(0.7f, 0.7f, 0.7f);
@@ -174,45 +124,7 @@ public class RsGlobalPointCloudManagerEditor : Editor
         EditorGUI.EndDisabledGroup();
 
         EditorGUILayout.EndHorizontal();
-
         GUI.backgroundColor = Color.white;
-    }
-
-    private void DrawPerformanceLoggerSection()
-    {
-        EditorGUILayout.LabelField("Performance Logger (Batch Control)", EditorStyles.boldLabel);
-
-        EditorGUI.BeginDisabledGroup(!Application.isPlaying);
-
-        if (_manager.IsAnyPerformanceLogging())
-        {
-            GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
-            if (GUILayout.Button("Stop Performance Logging on All"))
-            {
-                _manager.StopAllPerformanceLogs();
-            }
-            GUI.backgroundColor = Color.white;
-        }
-        else
-        {
-            EditorGUILayout.BeginHorizontal();
-            GUI.backgroundColor = new Color(0.6f, 1f, 0.6f);
-
-            if (GUILayout.Button("Start Logging on All (New Files)"))
-            {
-                _manager.StartAllPerformanceLogs(append: false);
-            }
-
-            if (GUILayout.Button("Start Logging on All (Append)"))
-            {
-                _manager.StartAllPerformanceLogs(append: true);
-            }
-
-            GUI.backgroundColor = Color.white;
-            EditorGUILayout.EndHorizontal();
-        }
-
-        EditorGUI.EndDisabledGroup();
     }
 
     #endregion
@@ -221,27 +133,50 @@ public class RsGlobalPointCloudManagerEditor : Editor
 
     private void DrawScanRangeGizmo()
     {
-        var deviceController = Object.FindFirstObjectByType<RsDeviceController>();
+        var deviceController = UnityEngine.Object.FindFirstObjectByType<RsDeviceController>();
         if (deviceController == null)
         {
-            DrawWarningWindow("RsDeviceController ‚ªƒV[ƒ“‚ÉŒ©‚Â‚©‚è‚Ü‚¹‚ñBƒXƒLƒƒƒ“”ÍˆÍ‚ğ•`‰æ‚Å‚«‚Ü‚¹‚ñB");
+            DrawWarningWindow("RsDeviceController ãŒã‚·ãƒ¼ãƒ³ã«è¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚ã‚¹ã‚­ãƒ£ãƒ³ç¯„å›²ã‚’æç”»ã§ãã¾ã›ã‚“ã€‚");
             return;
         }
 
-        Vector3 scanRange = deviceController.RealSenseScanRange;
-        float frameWidth = deviceController.FrameWidth;
-
-        Vector3 minPoint = new Vector3(frameWidth, frameWidth, frameWidth);
-        Vector3 maxPoint = scanRange - minPoint;
-        Vector3 size = maxPoint - minPoint;
+        Vector3 scanMin = deviceController.ScanMin;
+        Vector3 scanMax = deviceController.ScanMax;
+        Vector3 size = scanMax - scanMin;
 
         if (size.x < 0 || size.y < 0 || size.z < 0) return;
 
-        Vector3 center = minPoint + size * 0.5f;
+        // Set up BoxBoundsHandle values
+        _boundsHandle.center = scanMin + size * 0.5f;
+        _boundsHandle.size = size;
+        _boundsHandle.handleColor = Color.yellow;
+        _boundsHandle.wireframeColor = new Color(1f, 0.92f, 0.016f, 0.7f); // Transparent yellow
 
+        // Draw the handle with the manager's transform matrix
+        Matrix4x4 originalMatrix = Handles.matrix;
         Handles.matrix = _manager.transform.localToWorldMatrix;
-        Handles.color = Color.yellow;
-        Handles.DrawWireCube(center, size);
+
+        EditorGUI.BeginChangeCheck();
+        _boundsHandle.DrawHandle();
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(deviceController, "Change RealSense Scan Range");
+
+            Vector3 newCenter = _boundsHandle.center;
+            Vector3 newSize = _boundsHandle.size;
+
+            // Enforce minimum dimensions to prevent negative bounds
+            newSize.x = Mathf.Max(0.01f, newSize.x);
+            newSize.y = Mathf.Max(0.01f, newSize.y);
+            newSize.z = Mathf.Max(0.01f, newSize.z);
+
+            deviceController.ScanMin = newCenter - newSize * 0.5f;
+            deviceController.ScanMax = newCenter + newSize * 0.5f;
+
+            EditorUtility.SetDirty(deviceController);
+        }
+
+        Handles.matrix = originalMatrix;
     }
 
     private void DrawWarningWindow(string message)
@@ -250,7 +185,7 @@ public class RsGlobalPointCloudManagerEditor : Editor
         GUILayout.Window(0, new Rect(10, 10, 320, 50), _ =>
         {
             EditorGUILayout.HelpBox(message, MessageType.Warning);
-        }, "ƒXƒLƒƒƒ“”ÍˆÍ Œx");
+        }, "ã‚¹ã‚­ãƒ£ãƒ³ç¯„å›² è­¦å‘Š");
         Handles.EndGUI();
     }
 

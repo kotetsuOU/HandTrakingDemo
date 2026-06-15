@@ -1,4 +1,4 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System.Diagnostics;
 using UnityEngine;
 
@@ -22,46 +22,16 @@ public class RsPointCloudRenderer : MonoBehaviour
     [SerializeField] public float maxPlaneDistance = 0.1f;
     [Tooltip("点群の描画時の基本色")]
     public Color pointCloudColor = new Color(241f / 255f, 187f / 255f, 147f / 255f, 1f);
+#pragma warning disable 0414
     [SerializeField, HideInInspector] private string exportFileName = "currentGlobalVertices.txt";
-
-    [Header("Debug Synthetic")]
-    [Tooltip("実機カメラを使わず、合成データ（ダミーの点群）でテストするかどうか")]
-    public bool useSyntheticData = false;
-    [Tooltip("合成データとして生成する形状の指定")]
-    public RsPointCloudSyntheticData.SyntheticShape syntheticShape = RsPointCloudSyntheticData.SyntheticShape.Cylinder;
-    [Tooltip("合成データとして生成する点の数")]
-    [Range(100, 100000)] public int syntheticPointCount = 10000;
-    [Tooltip("合成データの形状のサイズ倍率")]
-    public float syntheticScale = 1.0f;
-
-    [Header("Debug Output")]
-    [Tooltip("フィルタリングされた点群の一部をコンソールにログ出力するかどうか")]
-    public bool debugFilteredPoints = false;
-    [Tooltip("ログに出力する点の数")]
-    [Range(1, 20)] public int debugPointCount = 5;
-
-    [Header("Performance Logging Settings")]
-    [Tooltip("パフォーマンス計測ログの出力ファイル名のプレフィックス")]
-    public string logFilePrefix = "PointCloudPerfLog";
-    [Tooltip("計測を開始するフレーム数（起動時から数えて）")]
-    public long startFrame = 200;
-    [Tooltip("計測を終了するフレーム数")]
-    public long endFrame = 1400;
-    [Tooltip("既存のログファイルに追記するかどうか")]
-    public bool appendLog = false;
-
-    [Header("Debug")]
-    [Tooltip("現在の変換行列(ローカル>ワールド)を毎フレームログに出力するか")]
-    public bool showDebugMatrix = false;
+#pragma warning restore 0414
 
     #endregion
 
     #region Private Fields
 
     private RsPointCloudInitializer _initializer; // 点群処理の初期化と管理を担うヘルパークラス
-    private RsPerformanceLogger _logger;          // 処理時間などを記録してファイルに書き出すロガー
     private RsPointCloudVisualization _visualization; // `Graphics.DrawProcedural`等で点群を描画するヘルパークラス
-    private readonly Stopwatch _stopwatch = new Stopwatch(); // 処理時間計測用
     private int _frameCounter = 0; // スクリプトがアクティブになってからの実行フレーム数
 
     #endregion
@@ -98,7 +68,6 @@ public class RsPointCloudRenderer : MonoBehaviour
     }
 
     // 現在パフォーマンスログを計測中かどうか
-    public bool IsPerformanceLogging => Application.isPlaying && _logger != null && _logger.IsLogging;
 
     #endregion
 
@@ -145,9 +114,6 @@ public class RsPointCloudRenderer : MonoBehaviour
     {
         return _initializer?.Compute?.LastSamplingResult ?? new RsSamplingResult();
     }
-
-    public void StartPerformanceLog() => _logger?.StartLogging(logFilePrefix, appendLog, startFrame, endFrame);
-    public void StopPerformanceLog() => _logger?.StopLogging();
 
     /// <summary>
     /// ComputeShaderによってフィルタリング済みの頂点配列をCPU側に読み戻して取得する（同期実行のため重い処理）
@@ -208,20 +174,11 @@ public class RsPointCloudRenderer : MonoBehaviour
     void Start()
     {
         _cachedSourceName = gameObject.name;
-        _logger = new RsPerformanceLogger();
         _visualization = new RsPointCloudVisualization(GetComponent<MeshRenderer>());
         _initializer = new RsPointCloudInitializer(processingPipe, pointCloudFilterShader, pointCloudTransformerShader);
 
-        if (useSyntheticData)
-        {
-            // 合成データを使用する場合の初期化
-            _initializer.InitializeSynthetic(syntheticShape, syntheticPointCount, syntheticScale, maxPlaneDistance, transform.localToWorldMatrix, _logger, _stopwatch);
-        }
-        else
-        {
-            // RealSenseからデータを受け取るためストリーミング開始イベントを監視
-            processingPipe.OnStart += OnStartStreaming;
-        }
+        // RealSenseからデータを受け取るためストリーミング開始イベントを監視
+        processingPipe.OnStart += OnStartStreaming;
     }
 
     void LateUpdate()
@@ -235,27 +192,14 @@ public class RsPointCloudRenderer : MonoBehaviour
         }
 
         // 計測中で有ればストップウォッチをリセット
-        if (_logger.IsLogging) _stopwatch.Restart();
-
-        // オブジェクトのTransform行列のデバッグ出力を設定している場合
-        if (showDebugMatrix)
-        {
-            UnityEngine.Debug.Log($"[RsPointCloudRenderer] Current Transform Matrix:\n{transform.localToWorldMatrix}");
-        }
 
         _frameCounter++;
         // メインとなる毎フレームの点群処理（フィルタ、サンプリング、PCA等）の実行
         ComputeBuffer argsBuffer = ProcessCurrentFrame();
 
-        if (_stopwatch.IsRunning) _stopwatch.Stop();
-
         // 処理が成功し、描画用の引数(Args)バッファが返って来た場合、実際の描画プロセスへ進む
         if (argsBuffer != null)
         {
-            if (debugFilteredPoints)
-            {
-                RsPointCloudVisualization.DebugLogFilteredPoints(_initializer.Compute, debugPointCount);
-            }
             // `Graphics.DrawProcedural` または MeshRenderer を利用して点群を描画する
             _visualization.Draw(_initializer.Compute.GetFilteredVerticesBuffer(), argsBuffer, pointCloudColor, gameObject.layer);
         }
@@ -273,9 +217,8 @@ public class RsPointCloudRenderer : MonoBehaviour
     // パイプライン経由でカメラからプロファイル情報が渡されたときに呼び出される
     private void OnStartStreaming(PipelineProfile profile)
     {
-        if (useSyntheticData) return;
 
-        _initializer.InitializeOnStreaming(profile, rsDeviceController, maxPlaneDistance, _logger, _stopwatch);
+        _initializer.InitializeOnStreaming(profile, rsDeviceController, maxPlaneDistance);
 
         // RsGlobalPointCloudManagerなどから統合された点群を扱う設定がされた場合のイベント監視
         if (_initializer.UseIntegratedPointCloud)
@@ -302,14 +245,6 @@ public class RsPointCloudRenderer : MonoBehaviour
 
         // 他デバイスと結合されたPCA軸が存在する場合は取得する
         (Vector3 linePoint, Vector3 lineDir) = GetLineEstimation();
-
-        if (useSyntheticData)
-        {
-            return processor.ProcessSyntheticFrame(
-                _initializer.RawVerticesBuffer,
-                _initializer.RawVertices.Length,
-                linePoint, lineDir, IsGlobalRangeFilterEnabled, maxPlaneDistance);
-        }
 
         // ローカル点群ではなくグローバル空間で統合済みの点群を扱うモード
         if (_initializer.UseIntegratedPointCloud)
@@ -371,7 +306,6 @@ public class RsPointCloudRenderer : MonoBehaviour
 
         processingPipe.OnStart -= OnStartStreaming;
         _initializer?.Dispose();
-        _logger?.Dispose();
     }
 
     #endregion

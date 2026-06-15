@@ -43,45 +43,11 @@ public class RsPointCloudInitializer
         _transformShader = transformShader;
     }
 
-    // 実機の代わりにダミーの合成データ（円柱など）で点群を初期化する
-    public void InitializeSynthetic(
-        RsPointCloudSyntheticData.SyntheticShape shape,
-        int pointCount,
-        float scale,
-        float maxPlaneDistance,
-        Matrix4x4 localToWorldMatrix,
-        RsPerformanceLogger logger,
-        Stopwatch stopwatch)
-    {
-        UnityEngine.Debug.Log("[RsPointCloudInitializer] Initializing Synthetic Data...");
-
-        // ダミーデータ用のスキャン範囲（適当なサイズ）
-        Vector3 scanRange = new Vector3(10f, 10f, 10f);
-        _compute = new RsPointCloudCompute(_filterShader, _transformShader, scanRange, 640);
-        _compute.InitializeBuffers(pointCount, localToWorldMatrix);
-
-        _frameProcessor = new RsPointCloudFrameProcessor(_compute, logger, stopwatch);
-
-        _rawVertices = new Vector3[pointCount];
-        _rawVerticesBuffer = new ComputeBuffer(pointCount, sizeof(float) * 3);
-
-        // RsPointCloudSyntheticData を用いてダミー点群の頂点配列を生成する
-        var syntheticGenerator = new RsPointCloudSyntheticData(shape, pointCount, scale);
-        syntheticGenerator.GenerateInto(_rawVertices);
-        // 生成した配列をGPUのComputeBufferに送る
-        _rawVerticesBuffer.SetData(_rawVertices);
-
-        _isInitialized = true;
-        UnityEngine.Debug.Log($"[RsPointCloudInitializer] Synthetic Data Initialized with {pointCount} points.");
-    }
-
     // パイプライン(ストリーミング)に接続して各リソースを初期化する
     public void InitializeOnStreaming(
         PipelineProfile profile,
         RsDeviceController deviceController,
-        float maxPlaneDistance,
-        RsPerformanceLogger logger,
-        Stopwatch stopwatch)
+        float maxPlaneDistance)
     {
         int width = 0;
         int height = 0;
@@ -116,13 +82,13 @@ public class RsPointCloudInitializer
         _compute = new RsPointCloudCompute(
             _filterShader,
             _transformShader,
-            deviceController.RealSenseScanRange,
-            deviceController.FrameWidth);
+            deviceController.ScanMin,
+            deviceController.ScanMax);
 
         // 処理に必要な構造体や各ComputeBufferを作成
         _compute.InitializeBuffers(rsLength, Matrix4x4.identity);
 
-        _frameProcessor = new RsPointCloudFrameProcessor(_compute, logger, stopwatch);
+        _frameProcessor = new RsPointCloudFrameProcessor(_compute);
 
         // 統合点群モード以外の場合は、自前で点群情報を受け取るための配列・バッファを生成する
         if (!_useIntegratedPointCloud)

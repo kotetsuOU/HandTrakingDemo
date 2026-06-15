@@ -6,15 +6,19 @@
         },
         {
             "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesLeft.txt",
-            "useFile": true
-        },
-        {
-            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesBottom.txt",
             "useFile": false
         },
         {
-            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesTop.txt",
-            "useFile": true
+            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesTopLeft.txt",
+            "useFile": false
+        },
+        {
+            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesTopRight.txt",
+            "useFile": false
+        },
+        {
+            "filePath": "Assets/HandTrackingData\\GroundTruthHandData/GroundTruth_20260413_165438_fix_ver2.ply",
+            "useFile": false
         }
     ],
     "voxelSize": 0.00390625,
