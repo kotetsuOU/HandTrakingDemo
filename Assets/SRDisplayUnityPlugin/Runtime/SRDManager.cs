@@ -74,21 +74,6 @@ namespace SRD.Core
         [Tooltip("If the display such as shadows becomes strange, please try disabling it.")]
         public bool IsHighImageQualityMode = true;
 
-        [Tooltip("GPUから直接画像バッファ（外部リソース等）を受け取るかを設定します")]
-        public bool UseDirectGpuImageBuffer = false;
-
-        [HideInInspector]
-        public RenderTexture DirectGpuImageMap;
-
-        [HideInInspector]
-        public RenderTexture DirectGpuImageLeft;
-
-        [HideInInspector]
-        public RenderTexture DirectGpuImageRight;
-
-        [Tooltip("ステレオカメラのパターンを切り替えるコントローラー")]
-        public Utils.StereoCameraController StereoCameraController;
-
         [Tooltip("キャリブレーションモード（左目に緑、右目に赤を表示します）")]
         public bool EnableCalibrationMode = false;
 

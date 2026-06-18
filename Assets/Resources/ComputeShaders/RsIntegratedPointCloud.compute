@@ -37,7 +37,7 @@ struct CullingParams
 };
 
 ByteAddressBuffer _InputDepthBuffer;
-Texture2D<float4> _InputColorTexture;
+ByteAddressBuffer _InputColorBuffer;
 StructuredBuffer<RsIntrinsics> _DepthIntrinsics;
 StructuredBuffer<RsIntrinsics> _ColorIntrinsics;
 StructuredBuffer<RsExtrinsics> _DepthToColorExtrinsics;
@@ -176,11 +176,35 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    float4 colorPixel = _InputColorTexture.Load(int3(cx, cy, 0));
-    
-    float r = colorPixel.x;
-    float g = colorPixel.y;
-    float b = colorPixel.z;
+    uint cWidth = cIntrin.width;
+    uint pixelIndex = cy * cWidth + cx;
+    uint byteOffset = pixelIndex * 3;
+
+    uint alignedOffset = byteOffset & ~3;
+    uint byteShift = byteOffset & 3;
+
+    uint2 words = _InputColorBuffer.Load2(alignedOffset);
+    uint word0 = words.x;
+    uint word1 = words.y;
+
+    float r, g, b;
+    if (byteShift == 0) {
+        r = (float)(word0 & 0xFF) / 255.0f;
+        g = (float)((word0 >> 8) & 0xFF) / 255.0f;
+        b = (float)((word0 >> 16) & 0xFF) / 255.0f;
+    } else if (byteShift == 1) {
+        r = (float)((word0 >> 8) & 0xFF) / 255.0f;
+        g = (float)((word0 >> 16) & 0xFF) / 255.0f;
+        b = (float)((word0 >> 24) & 0xFF) / 255.0f;
+    } else if (byteShift == 2) {
+        r = (float)((word0 >> 16) & 0xFF) / 255.0f;
+        g = (float)((word0 >> 24) & 0xFF) / 255.0f;
+        b = (float)(word1 & 0xFF) / 255.0f;
+    } else {
+        r = (float)((word0 >> 24) & 0xFF) / 255.0f;
+        g = (float)(word1 & 0xFF) / 255.0f;
+        b = (float)((word1 >> 8) & 0xFF) / 255.0f;
+    }
 
     bool isTarget = false;
 

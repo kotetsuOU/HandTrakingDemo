@@ -11,7 +11,7 @@ on:
       - "HAPTICS.md"
       - "DEBUG_PCV.md"
       - "DISPLAY_3D.md"
-      - "KeyboardControls.md"
+      - "AnimationControls.md"
       - "INITIALIZATION.md"
 
 permissions:
@@ -38,8 +38,8 @@ jobs:
           cp DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
           cp DISPLAY_3D.md temp-wiki/DISPLAY_3D.md
           cp INITIALIZATION.md temp-wiki/INITIALIZATION.md
-          if [ -f KeyboardControls.md ]; then
-            cp KeyboardControls.md temp-wiki/KeyboardControls.md
+          if [ -f AnimationControls.md ]; then
+            cp AnimationControls.md temp-wiki/AnimationControls.md
           fi
           
           # リンクの書き換え処理 (ローカルの相対リンクを GitHub Wiki のフラットなリンク構造に変換)
@@ -51,7 +51,7 @@ jobs:
               "HAPTICS.md": "HAPTICS",
               "DEBUG_PCV.md": "DEBUG_PCV",
               "DISPLAY_3D.md": "DISPLAY_3D",
-              "KeyboardControls.md": "KeyboardControls",
+              "AnimationControls.md": "AnimationControls",
               "INITIALIZATION.md": "INITIALIZATION"
           }
           pattern = re.compile(r"\(\s*(?:\./)?([^/)]+\.md)\s*\)")

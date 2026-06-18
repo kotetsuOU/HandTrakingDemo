@@ -19,6 +19,7 @@ graph TD
     classDef debug fill:#6C3483,stroke:#8E44AD,stroke-width:2px,color:#F5EEF8;
     classDef common fill:#1E8449,stroke:#27AE60,stroke-width:2px,color:#EAF8F2;
     classDef display fill:#D35400,stroke:#E67E22,stroke-width:2px,color:#FDEDEC;
+    classDef control fill:#7D6608,stroke:#9A7D0A,stroke-width:2px,color:#FEF9E7;
 
     %% ノード定義
     WIKI["📄 統合ポータル<br/>(WIKI.md)"]:::main
@@ -29,6 +30,7 @@ graph TD
     WIKI -->|"🔍 デバッグ空間検索"| DebugNode["🔍 PCV デバッグ空間演算システム<br/>(DEBUG_PCV.md)"]:::debug
     WIKI -->|"👓 3D立体視・ミラー制御"| DisplayNode["👓 3D立体視・ハーフミラー制御設計思想<br/>(DISPLAY_3D.md)"]:::display
     WIKI -->|"⚙️ 初期化・キャリブレーション"| InitNode["⚙️ 初期化とアライメント・キャリブレーション<br/>(INITIALIZATION.md)"]:::common
+    WIKI -->|"🎮 操作・デモ制御"| ControlNode["🎮 アニメーション・操作キーシステム<br/>(AnimationControls.md)"]:::control
 
     %% 共通データハブ
     GlobalManager["📦 RsGlobalPointCloudManager (統合点群ハブ)"]:::common
@@ -91,11 +93,23 @@ graph TD
 ---
 
 ### 👓 4. [3D立体視・ハーフミラー制御システム](./DISPLAY_3D.md)
-*   **目的**: 物理的な視線トラッキングセンサー（SRDisplay等）が取得した座標を、ハーフミラーを用いた光学配置に合わせて正確に補正し、現実と1ミリの狂いもなく同期する仮想カメラ制御を行います。
+*   **目的**: 物理的な視線トラッキングセンサー（SRDisplay等）が取得した座標と、ハーフミラーを用いた鏡面世界（光学配置）の視差を完全に一致させます。
 *   **コアモジュールと特徴**:
-    *   `StereoCameraController.cs`: 物理センサーと虚像ディスプレイ間の空間オフセット（Z軸ギャップ）を完全に吸収する「仮想空間マトリックス合成」。
-    *   ハーフミラー空間特有の反転に対応するための「鏡像化＆クロススワップ処理」。
+    *   **SDK標準トラッキングの完全活用**: 独自の座標計算やカメラ同期（`StereoCameraController` 等）を廃止し、SDKの標準カメラ機能（`Use Direct GPU Image Buffer = OFF`）をそのまま活用することで、トラッキング精度とパフォーマンスを最大化。
+    *   **空間の鏡像反転 (`PCD_RenderPass_BindParams`)**: 
+        ハーフミラー越しの正しい視差（パララックス）を得るため、カメラ側の投影行列（フラスタム）は一切いじりません。代わりに、描画対象である点群データをコンピュートシェーダーへ送る直前に、ディスプレイ中心（`CameraAdjuster` の `displayTransform`）を基準としたローカルX軸反転を ViewMatrix に適用します。
+    *   **仮想オブジェクトの同期**: 点群の鏡面世界と空間を一致させるため、Unity上の仮想オブジェクト（例：狐など）は親TransformのスケールXを `-1` に設定するだけで、カリング（裏返り）の破綻なく正しい視差で描画されます。
 *   **詳細はこちら ──> [DISPLAY_3D.md](./DISPLAY_3D.md) を読む**
+
+---
+
+### 🎮 5. [アニメーション・操作キーシステム](./AnimationControls.md)
+*   **目的**: デモや実験時の評価を効率化するために、撮影やオブジェクト切り替え、オクルージョン手法のパラメータ切り替え、およびキャラクターの操作と視点（カメラ）への追従制御を行います。
+*   **コアモジュールと特徴**:
+    *   **キャラクターの視点追従**: `F` キーで切り替え可能。`Camera.main`（視点）へ向けてキャラクターをY軸回転で自動的かつ滑らかに追従させます。
+    *   **デバッグ・評価用キャプチャ機能**: `Enter`/`Return` キーによる複数デバッグマップ（オクルージョン、ピクセルタグ、統合デプス、近傍）と現在視点カメラ画像の同期保存。
+    *   **リアルタイムパラメータ操作**: 提案手法の一括/個別切り替え（Ablation）、滑らかさ幅（Fade Width）、カーネル関数や分割方向数の切り替えによるインタラクティブな評価。
+*   **詳細はこちら ──> [AnimationControls.md](./AnimationControls.md) を読む**
 
 ---
 

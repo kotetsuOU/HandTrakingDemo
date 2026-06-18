@@ -1,6 +1,6 @@
 # キーボード操作対応表 (Keyboard Controls)
 
-研究・実験時の撮影やデモを効率化するために、`KeyController.cs`に以下のショートカットキーがアサインされています。
+研究・実験時の撮影やデモを効率化するために、`AnimationController.cs`に以下のショートカットキーがアサインされています。
 このスクリプトはヒエラルキー上のどこか（例えば `Main Camera` や `GameManager`）にアタッチし、インスペクターから操作したい動的オブジェクト（キツネのTransformやAnimator）をセットして使用します。
 
 | アクション | キー (Key) | 詳細 |
@@ -21,6 +21,7 @@
 | **空間分割数の切り替え (Direction)** | `J` | 空間の分割方向数 (`Single`, `Bins3`, `Bins6`, `Bins8`) を順に切り替えます |
 | **カラーモードの切り替え (Color)** | `C` | 点群のカラーモード (`Skin`, `Black`, `Blue`, `Custom`) を順に切り替えます (`RsMaterialController` 内の `ChangeColorMode` を使用) |
 | **ゲーム終了 (Quit)** | `Esc` | エディタ再生、またはビルド後のアプリを終了させます (`QuitGame.cs`の統合) |
+| **視点追従の切り替え (LookAt)** | `F` | キャラクターがカメラ（視点）の方を自動で向く機能のON/OFFを切り替えます |
 
 ### オブジェクトの移動 (Transform Movement)
 対象オブジェクトのTransformがセットされている場合、以下のキーで3D空間内を自由に移動させることができます（移動速度は `moveSpeed` で調整可能）。

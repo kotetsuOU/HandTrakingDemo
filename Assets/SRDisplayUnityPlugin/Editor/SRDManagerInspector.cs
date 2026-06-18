@@ -20,7 +20,6 @@ namespace SRD.Editor
         private SerializedProperty _crosstalkCorrectionType;
         private SerializedProperty _isHighImageQualityMode;
         private SerializedProperty _useDirectGpuImageBuffer;
-        private SerializedProperty _stereoCameraController;
         private SerializedProperty _enableCalibrationMode;
         private SerializedProperty _scalingMode;
         private SerializedProperty _gizmoSize;
@@ -47,7 +46,6 @@ namespace SRD.Editor
             _crosstalkCorrectionType = serializedObject.FindProperty("CrosstalkCorrectionType");
             _isHighImageQualityMode = serializedObject.FindProperty("IsHighImageQualityMode");
             _useDirectGpuImageBuffer = serializedObject.FindProperty("UseDirectGpuImageBuffer");
-            _stereoCameraController = serializedObject.FindProperty("StereoCameraController");
             _enableCalibrationMode = serializedObject.FindProperty("EnableCalibrationMode");
             _scalingMode = serializedObject.FindProperty("_scalingMode");
             _gizmoSize = serializedObject.FindProperty("_GIZMOSize");
@@ -65,80 +63,7 @@ namespace SRD.Editor
         {
             serializedObject.Update();
 
-            if (_useDirectGpuImageBuffer == null)
-            {
-                base.OnInspectorGUI();
-                return;
-            }
-
-            bool useDirectGpu = _useDirectGpuImageBuffer.boolValue;
-
-            EditorGUILayout.PropertyField(_useDirectGpuImageBuffer);
-
-            if (useDirectGpu)
-            {
-                // Hide IsSpatialClippingActive and IsHighImageQualityMode when UseDirectGpuImageBuffer is True
-                EditorGUILayout.PropertyField(_stereoCameraController);
-                EditorGUILayout.PropertyField(_isSRRenderingActive);
-                
-                EditorGUILayout.PropertyField(_isCrosstalkCorrectionActive);
-                if (_isCrosstalkCorrectionActive.boolValue)
-                {
-                    EditorGUI.indentLevel++;
-                    EditorGUILayout.PropertyField(_crosstalkCorrectionType);
-                    EditorGUI.indentLevel--;
-                }
-
-                EditorGUILayout.PropertyField(_enableCalibrationMode);
-                EditorGUILayout.PropertyField(_scalingMode);
-                
-                if (_scalingMode.enumValueIndex == (int)SRDManager.ScalingMode.OriginalSize)
-                {
-                    EditorGUILayout.PropertyField(_gizmoSize);
-                }
-
-                EditorGUILayout.PropertyField(_isWallmountMode);
-                EditorGUILayout.PropertyField(_srdViewSpaceScale);
-
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("Events", EditorStyles.boldLabel);
-                EditorGUILayout.PropertyField(_onSRDViewSpaceScaleChangedEvent);
-                EditorGUILayout.PropertyField(_onFaceTrackStateEvent);
-            }
-            else
-            {
-                // Normal layout when UseDirectGpuImageBuffer is False
-                EditorGUILayout.PropertyField(_isSRRenderingActive);
-                EditorGUILayout.PropertyField(_isSpatialClippingActive);
-                
-                EditorGUILayout.PropertyField(_isCrosstalkCorrectionActive);
-                if (_isCrosstalkCorrectionActive.boolValue)
-                {
-                    EditorGUI.indentLevel++;
-                    EditorGUILayout.PropertyField(_crosstalkCorrectionType);
-                    EditorGUI.indentLevel--;
-                }
-                
-                EditorGUILayout.PropertyField(_isHighImageQualityMode);
-                EditorGUILayout.PropertyField(_stereoCameraController);
-                EditorGUILayout.PropertyField(_enableCalibrationMode);
-                EditorGUILayout.PropertyField(_scalingMode);
-                
-                if (_scalingMode.enumValueIndex == (int)SRDManager.ScalingMode.OriginalSize)
-                {
-                    EditorGUILayout.PropertyField(_gizmoSize);
-                }
-                
-                EditorGUILayout.PropertyField(_isWallmountMode);
-                EditorGUILayout.PropertyField(_srdViewSpaceScale);
-
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("Events", EditorStyles.boldLabel);
-                EditorGUILayout.PropertyField(_onSRDViewSpaceScaleChangedEvent);
-                EditorGUILayout.PropertyField(_onFaceTrackStateEvent);
-            }
-
-            serializedObject.ApplyModifiedProperties();
+            base.OnInspectorGUI();
         }
     }
 }

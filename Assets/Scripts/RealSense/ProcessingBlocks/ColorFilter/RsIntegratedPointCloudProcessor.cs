@@ -42,12 +42,15 @@ public class RsIntegratedPointCloudProcessor : IDisposable
     private ComputeBuffer _depthIntrinsicsBuffer;
     private ComputeBuffer _colorIntrinsicsBuffer;
     private ComputeBuffer _extrinsicsBuffer;
-    private ComputeBuffer _paramsBuffer;
-    private ComputeBuffer _inputDepthBuffer;
-    private ComputeBuffer _pointCloudBuffer;
-    private ComputeBuffer _pointCloudCountBuffer;
 
-    private Texture2D _colorTexture;
+    private ComputeBuffer[] _paramsBuffers = new ComputeBuffer[2];
+    private ComputeBuffer[] _inputDepthBuffers = new ComputeBuffer[2];
+    private ComputeBuffer[] _pointCloudBuffers = new ComputeBuffer[2];
+    private ComputeBuffer[] _pointCloudCountBuffers = new ComputeBuffer[2];
+    private ComputeBuffer[] _inputColorBuffers = new ComputeBuffer[2];
+
+    private int _bufferIndex = 0;
+    private int _lastDispatchedIndex = 0;
 
     private bool _countReadbackPending = false;
     private int _pendingPointCount = 0;
@@ -68,7 +71,7 @@ public class RsIntegratedPointCloudProcessor : IDisposable
     private volatile bool _hasPendingFrame = false;
     private readonly object _frameLock = new object();
 
-    public ComputeBuffer PointCloudBuffer => _pointCloudBuffer;
+    public ComputeBuffer PointCloudBuffer => _pointCloudBuffers != null ? _pointCloudBuffers[_lastDispatchedIndex] : null;
     public int LastPointCount => _latestPointCount;
     public bool HasNewPointCloud => _hasNewPointCloud;
 
@@ -115,29 +118,31 @@ public class RsIntegratedPointCloudProcessor : IDisposable
         _depthIntrinsicsBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(RsIntrinsics)));
         _colorIntrinsicsBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(RsIntrinsics)));
         _extrinsicsBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(RsExtrinsics)));
-        _paramsBuffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(CullingParams)));
 
         _depthIntrinsicsBuffer.SetData(new RsIntrinsics[] { _dIntrin });
         _colorIntrinsicsBuffer.SetData(new RsIntrinsics[] { _cIntrin });
         _extrinsicsBuffer.SetData(new RsExtrinsics[] { _extrin });
 
-        _colorTexture = new Texture2D(_cIntrin.width, _cIntrin.height, TextureFormat.RGB24, false);
-
+        int colorBytes = _cIntrin.width * _cIntrin.height * 3;
+        int alignedColorBytes = ((colorBytes + 3) / 4) * 4;
         int depthPixelCount = _dIntrin.width * _dIntrin.height;
         int totalBytes = depthPixelCount * sizeof(ushort);
-        _inputDepthBuffer = new ComputeBuffer(totalBytes / 4, 4, ComputeBufferType.Raw);
 
-        _pointCloudBuffer = new ComputeBuffer(depthPixelCount, sizeof(float) * 3, ComputeBufferType.Append);
-        _pointCloudCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
+        for (int i = 0; i < 2; i++)
+        {
+            _paramsBuffers[i] = new ComputeBuffer(1, Marshal.SizeOf(typeof(CullingParams)));
+            _inputColorBuffers[i] = new ComputeBuffer(alignedColorBytes / 4, 4, ComputeBufferType.Raw);
+            _inputDepthBuffers[i] = new ComputeBuffer(totalBytes / 4, 4, ComputeBufferType.Raw);
+            _pointCloudBuffers[i] = new ComputeBuffer(depthPixelCount, sizeof(float) * 3, ComputeBufferType.Append);
+            _pointCloudCountBuffers[i] = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
+        }
 
-        _colorDataCache = new byte[_cIntrin.width * _cIntrin.height * 3]; // RGB24
+        _colorDataCache = new byte[alignedColorBytes]; // RGB24 aligned
         _depthDataCache = new byte[totalBytes];
 
         _shader.SetBuffer(_kernelIndex, "_DepthIntrinsics", _depthIntrinsicsBuffer);
         _shader.SetBuffer(_kernelIndex, "_ColorIntrinsics", _colorIntrinsicsBuffer);
         _shader.SetBuffer(_kernelIndex, "_DepthToColorExtrinsics", _extrinsicsBuffer);
-        _shader.SetBuffer(_kernelIndex, "_InputDepthBuffer", _inputDepthBuffer);
-        _shader.SetBuffer(_kernelIndex, "_OutputPointCloud", _pointCloudBuffer);
     }
 
     /// <summary>
@@ -209,25 +214,31 @@ public class RsIntegratedPointCloudProcessor : IDisposable
         {
             _hasPendingFrame = false;
 
-            // テクスチャにカラーデータをロードしGPU側に反映させる
-            _colorTexture.LoadRawTextureData(_colorDataCache);
-            _colorTexture.Apply();
-            _shader.SetTexture(_kernelIndex, "_InputColorTexture", _colorTexture);
+            _bufferIndex = (_bufferIndex + 1) % 2;
+
+            // ComputeBufferにカラーデータを直接転送する
+            _inputColorBuffers[_bufferIndex].SetData(_colorDataCache);
 
             // 深度データをバッファにセット
-            _inputDepthBuffer.SetData(_depthDataCache);
+            _inputDepthBuffers[_bufferIndex].SetData(_depthDataCache);
 
             // カリング用のパラメータを更新
             _cullingParamsCache[0] = _pendingParams;
-            _paramsBuffer.SetData(_cullingParamsCache);
-            _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffer);
+            _paramsBuffers[_bufferIndex].SetData(_cullingParamsCache);
+
+            _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffers[_bufferIndex]);
+            _shader.SetBuffer(_kernelIndex, "_InputColorBuffer", _inputColorBuffers[_bufferIndex]);
+            _shader.SetBuffer(_kernelIndex, "_InputDepthBuffer", _inputDepthBuffers[_bufferIndex]);
+            _shader.SetBuffer(_kernelIndex, "_OutputPointCloud", _pointCloudBuffers[_bufferIndex]);
 
             // 出力用Appendバッファ内の要素数(カウンタ)を0にリセットして初期化する
-            _pointCloudBuffer.SetCounterValue(0);
+            _pointCloudBuffers[_bufferIndex].SetCounterValue(0);
 
             // 深度画像の総ピクセル数に応じたスレッドグループ数を計算してComputeShaderを実行
             int threadGroups = ((_dIntrin.width * _dIntrin.height) + 63) / 64;
             _shader.Dispatch(_kernelIndex, threadGroups, 1, 1);
+
+            _lastDispatchedIndex = _bufferIndex;
 
             // フィルタリングされた点群の数を非同期にCPUへ読み戻すリクエストを発行
             if (ForceReadbackEveryFrame || !_countReadbackPending) RequestAsyncReadback();
@@ -237,8 +248,8 @@ public class RsIntegratedPointCloudProcessor : IDisposable
     private void RequestAsyncReadback()
     {
         _countReadbackPending = true;
-        ComputeBuffer.CopyCount(_pointCloudBuffer, _pointCloudCountBuffer, 0);
-        AsyncGPUReadback.Request(_pointCloudCountBuffer, OnCountReadbackComplete);
+        ComputeBuffer.CopyCount(_pointCloudBuffers[_lastDispatchedIndex], _pointCloudCountBuffers[_lastDispatchedIndex], 0);
+        AsyncGPUReadback.Request(_pointCloudCountBuffers[_lastDispatchedIndex], OnCountReadbackComplete);
     }
 
     private void OnCountReadbackComplete(AsyncGPUReadbackRequest request)
@@ -280,8 +291,8 @@ public class RsIntegratedPointCloudProcessor : IDisposable
             applyTransform = p._applyTransform ? 1 : 0,
             coordinateConversion = (int)p._coordinateConversion
         };
-        _paramsBuffer.SetData(_cullingParamsCache);
-        _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffer);
+        _paramsBuffers[_bufferIndex].SetData(_cullingParamsCache);
+        _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffers[_bufferIndex]);
     }
 
     public void UpdateTransformMatrix(Matrix4x4 matrix)
@@ -296,11 +307,18 @@ public class RsIntegratedPointCloudProcessor : IDisposable
         if (_depthIntrinsicsBuffer != null) { _depthIntrinsicsBuffer.Release(); _depthIntrinsicsBuffer = null; }
         if (_colorIntrinsicsBuffer != null) { _colorIntrinsicsBuffer.Release(); _colorIntrinsicsBuffer = null; }
         if (_extrinsicsBuffer != null) { _extrinsicsBuffer.Release(); _extrinsicsBuffer = null; }
-        if (_paramsBuffer != null) { _paramsBuffer.Release(); _paramsBuffer = null; }
-        if (_inputDepthBuffer != null) { _inputDepthBuffer.Release(); _inputDepthBuffer = null; }
-        if (_pointCloudBuffer != null) { _pointCloudBuffer.Release(); _pointCloudBuffer = null; }
-        if (_pointCloudCountBuffer != null) { _pointCloudCountBuffer.Release(); _pointCloudCountBuffer = null; }
-        if (_colorTexture != null) { UnityEngine.Object.Destroy(_colorTexture); _colorTexture = null; }
+
+        if (_paramsBuffers != null)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                if (_paramsBuffers[i] != null) { _paramsBuffers[i].Release(); _paramsBuffers[i] = null; }
+                if (_inputDepthBuffers[i] != null) { _inputDepthBuffers[i].Release(); _inputDepthBuffers[i] = null; }
+                if (_pointCloudBuffers[i] != null) { _pointCloudBuffers[i].Release(); _pointCloudBuffers[i] = null; }
+                if (_pointCloudCountBuffers[i] != null) { _pointCloudCountBuffers[i].Release(); _pointCloudCountBuffers[i] = null; }
+                if (_inputColorBuffers[i] != null) { _inputColorBuffers[i].Release(); _inputColorBuffers[i] = null; }
+            }
+        }
     }
 
     public void Dispose() => ReleaseBuffers();

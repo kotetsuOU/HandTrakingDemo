@@ -3,7 +3,7 @@ using System.IO;
 using UnityEngine;
 using static PCDRendererFeature;
 
-public class KeyboardController : MonoBehaviour
+public class AnimationController : MonoBehaviour
 {
     [Header("Control Targets")]
     [Tooltip("アニメーションの再生/一時停止を切り替えるAnimator (現在はtoggleObjects内でアクティブなものから自動的に取得されます)")]
@@ -25,6 +25,12 @@ public class KeyboardController : MonoBehaviour
 
     [Tooltip("移動速度")]
     public float moveSpeed = 1.0f;
+
+    [Header("Look At Settings")]
+    [Tooltip("視点(カメラ)に自動で追従して向きを変えるか (Fキーで切替)")]
+    public bool lookAtCamera = true;
+    [Tooltip("向きを変える速度")]
+    public float lookAtSpeed = 5.0f;
 
     private void Start()
     {
@@ -74,7 +80,7 @@ public class KeyboardController : MonoBehaviour
                 PCDRendererFeature.Instance.settings.recordIntegratedDepthMap = true;
                 PCDRendererFeature.Instance.settings.recordNeighborhoodMap = true;
                 PCDRendererFeature.Instance.settings.recordNeighborCountMap = true;
-                Debug.Log("[KeyboardController] オクルージョン関連DebugMapの出力をリクエストしました");
+                Debug.Log("[AnimationController] オクルージョン関連DebugMapの出力をリクエストしました");
 
                 bool isTag = PCDRendererFeature.Instance.settings.enableTagBasedOptimization;
                 bool isDensity = PCDRendererFeature.Instance.settings.enableTypeAwareDensity;
@@ -101,7 +107,7 @@ public class KeyboardController : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning("[KeyboardController] CameraCaptureが設定・発見されなかったため、カメラ映像の保存はスキップされました。");
+                    Debug.LogWarning("[AnimationController] CameraCaptureが設定・発見されなかったため、カメラ映像の保存はスキップされました。");
                 }
             }
         }
@@ -131,11 +137,11 @@ public class KeyboardController : MonoBehaviour
                 // アクティブになったオブジェクトからAnimatorとTransformを取得し直す
                 UpdateActiveTargetReferences();
 
-                Debug.Log($"[KeyController] オブジェクトのActiveを {toggleObjects[currentActiveIndex]?.name} ({currentActiveIndex}番目) に切り替えました。");
+                Debug.Log($"[AnimationController] オブジェクトのActiveを {toggleObjects[currentActiveIndex]?.name} ({currentActiveIndex}番目) に切り替えました。");
             }
             else
             {
-                Debug.LogWarning("[KeyController] Inspectorで toggleObjects が設定されていません。");
+                Debug.LogWarning("[AnimationController] Inspectorで toggleObjects が設定されていません。");
             }
         }
 
@@ -148,11 +154,11 @@ public class KeyboardController : MonoBehaviour
             {
                 // Animatorの再生速度を0と1でスイッチする
                 targetAnimator.speed = (targetAnimator.speed > 0f) ? 0f : 1f;
-                Debug.Log($"[KeyController] アニメーション: {(targetAnimator.speed > 0f ? "再生" : "停止")}");
+                Debug.Log($"[AnimationController] アニメーション: {(targetAnimator.speed > 0f ? "再生" : "停止")}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] 現在アクティブなオブジェクトにAnimatorがアタッチされていません。");
+                Debug.LogWarning("[AnimationController] 現在アクティブなオブジェクトにAnimatorがアタッチされていません。");
             }
         }
 
@@ -177,7 +183,7 @@ public class KeyboardController : MonoBehaviour
                 PCDRendererFeature.Instance.settings.holeFillingMethod = toggleTo ? PCDRendererFeature.PCD_HoleFillingMethod.JointBilateral : PCDRendererFeature.PCD_HoleFillingMethod.None;
 
                 string methodStr = toggleTo ? "提案手法 (全てON)" : "従来手法 (全てOFF)";
-                Debug.Log($"[KeyController] 手法切り替え: {methodStr}");
+                Debug.Log($"[AnimationController] 手法切り替え: {methodStr}");
             }
         }
 
@@ -189,17 +195,17 @@ public class KeyboardController : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Alpha1))
             {
                 PCDRendererFeature.Instance.settings.enableTagBasedOptimization = !PCDRendererFeature.Instance.settings.enableTagBasedOptimization;
-                Debug.Log($"[KeyController] ① タグスキップ最適化: {(PCDRendererFeature.Instance.settings.enableTagBasedOptimization ? "ON" : "OFF")}");
+                Debug.Log($"[AnimationController] ① タグスキップ最適化: {(PCDRendererFeature.Instance.settings.enableTagBasedOptimization ? "ON" : "OFF")}");
             }
             if (Input.GetKeyDown(KeyCode.Alpha2))
             {
                 PCDRendererFeature.Instance.settings.enableTypeAwareDensity = !PCDRendererFeature.Instance.settings.enableTypeAwareDensity;
-                Debug.Log($"[KeyController] ② 密度計算補正: {(PCDRendererFeature.Instance.settings.enableTypeAwareDensity ? "ON" : "OFF")}");
+                Debug.Log($"[AnimationController] ② 密度計算補正: {(PCDRendererFeature.Instance.settings.enableTypeAwareDensity ? "ON" : "OFF")}");
             }
             if (Input.GetKeyDown(KeyCode.Alpha3))
             {
                 PCDRendererFeature.Instance.settings.enableSoftOcclusionFade = !PCDRendererFeature.Instance.settings.enableSoftOcclusionFade;
-                Debug.Log($"[KeyController] ③ ソフトフェード: {(PCDRendererFeature.Instance.settings.enableSoftOcclusionFade ? "ON" : "OFF")}");
+                Debug.Log($"[AnimationController] ③ ソフトフェード: {(PCDRendererFeature.Instance.settings.enableSoftOcclusionFade ? "ON" : "OFF")}");
             }
             if (Input.GetKeyDown(KeyCode.Alpha4))
             {
@@ -223,7 +229,7 @@ public class KeyboardController : MonoBehaviour
                 {
                     PCDRendererFeature.Instance.settings.holeFillingMethod = PCDRendererFeature.PCD_HoleFillingMethod.None;
                 }
-                Debug.Log($"[KeyController] ④ 穴埋め(Hole Filling): {PCDRendererFeature.Instance.settings.holeFillingMethod}");
+                Debug.Log($"[AnimationController] ④ 穴埋め(Hole Filling): {PCDRendererFeature.Instance.settings.holeFillingMethod}");
             }
         }
 
@@ -237,12 +243,12 @@ public class KeyboardController : MonoBehaviour
                 if (PCDRendererFeature.Instance.settings.occlusionFadeWidth > 0.05f)
                 {
                     PCDRendererFeature.Instance.settings.occlusionFadeWidth = 0.0f;
-                    Debug.Log("[KeyController] FadeWidth: 0.0 (くっきりマスク)");
+                    Debug.Log("[AnimationController] FadeWidth: 0.0 (くっきりマスク)");
                 }
                 else
                 {
                     PCDRendererFeature.Instance.settings.occlusionFadeWidth = 0.2f;
-                    Debug.Log("[KeyController] FadeWidth: 0.2 (滑らかマスク)");
+                    Debug.Log("[AnimationController] FadeWidth: 0.2 (滑らかマスク)");
                 }
             }
         }
@@ -257,16 +263,25 @@ public class KeyboardController : MonoBehaviour
                 // Enumの値をローテーションさせる
                 PointCloudColorMode nextMode = (PointCloudColorMode)(((int)materialController.colorMode + 1) % Enum.GetValues(typeof(PointCloudColorMode)).Length);
                 materialController.ChangeColorMode(nextMode);
-                Debug.Log($"[KeyController] カラーモード切り替え: {nextMode}");
+                Debug.Log($"[AnimationController] カラーモード切り替え: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] materialControllerが設定されていません。");
+                Debug.LogWarning("[AnimationController] materialControllerが設定されていません。");
             }
         }
 
         // ----------------------------------------------------
-        // 7. 対象オブジェクト(狐など)の移動 (W,A,S,D / Q,E)
+        // 14. 視点への追従 (Fキーで切り替え)
+        // ----------------------------------------------------
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            lookAtCamera = !lookAtCamera;
+            Debug.Log($"[AnimationController] 視点追従: {(lookAtCamera ? "ON" : "OFF")}");
+        }
+
+        // ----------------------------------------------------
+        // 7. 対象オブジェクト(狐など)の移動と向き (W,A,S,D / Q,E)
         // ----------------------------------------------------
         if (targetTransform != null)
         {
@@ -287,6 +302,18 @@ public class KeyboardController : MonoBehaviour
                 // カメラの向き等に関係なく、ワールド空間に対して自由に移動させる
                 targetTransform.Translate(move.normalized * (moveSpeed * Time.deltaTime), Space.World);
             }
+
+            // カメラ(視点)の方向を向く
+            if (lookAtCamera && Camera.main != null)
+            {
+                Vector3 directionToCamera = Camera.main.transform.position - targetTransform.position;
+                directionToCamera.y = 0; // Y軸のみの回転にする
+                if (directionToCamera != Vector3.zero)
+                {
+                    Quaternion targetRotation = Quaternion.LookRotation(directionToCamera);
+                    targetTransform.rotation = Quaternion.Slerp(targetTransform.rotation, targetRotation, lookAtSpeed * Time.deltaTime);
+                }
+            }
         }
 
         // ----------------------------------------------------
@@ -297,11 +324,11 @@ public class KeyboardController : MonoBehaviour
             if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
                 PCDRendererFeature.Instance.settings.enablePixelTagMap = !PCDRendererFeature.Instance.settings.enablePixelTagMap;
-                Debug.Log($"[KeyController] PixelTag Map: {(PCDRendererFeature.Instance.settings.enablePixelTagMap ? "ON" : "OFF")}");
+                Debug.Log($"[AnimationController] PixelTag Map: {(PCDRendererFeature.Instance.settings.enablePixelTagMap ? "ON" : "OFF")}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle PixelTag Map.");
+                Debug.LogWarning("[AnimationController] PCDRendererFeature.Instance or settings is null; cannot toggle PixelTag Map.");
             }
         }
 
@@ -313,11 +340,11 @@ public class KeyboardController : MonoBehaviour
             if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
             {
                 PCDRendererFeature.Instance.settings.enableOcclusionMap = !PCDRendererFeature.Instance.settings.enableOcclusionMap;
-                Debug.Log($"[KeyController] Occlusion Map: {(PCDRendererFeature.Instance.settings.enableOcclusionMap ? "ON" : "OFF")}");
+                Debug.Log($"[AnimationController] Occlusion Map: {(PCDRendererFeature.Instance.settings.enableOcclusionMap ? "ON" : "OFF")}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Occlusion Map.");
+                Debug.LogWarning("[AnimationController] PCDRendererFeature.Instance or settings is null; cannot toggle Occlusion Map.");
             }
         }
 
@@ -330,11 +357,11 @@ public class KeyboardController : MonoBehaviour
             {
                 PCD_OcclusionKernel nextMode = (PCD_OcclusionKernel)(((int)PCDRendererFeature.Instance.settings.kernelType + 1) % Enum.GetValues(typeof(PCD_OcclusionKernel)).Length);
                 PCDRendererFeature.Instance.settings.kernelType = nextMode;
-                Debug.Log($"[KeyController] Kernel Type: {nextMode}");
+                Debug.Log($"[AnimationController] Kernel Type: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Kernel Type.");
+                Debug.LogWarning("[AnimationController] PCDRendererFeature.Instance or settings is null; cannot toggle Kernel Type.");
             }
         }
 
@@ -347,11 +374,11 @@ public class KeyboardController : MonoBehaviour
             {
                 PCD_OcclusionEvaluationMode nextMode = (PCD_OcclusionEvaluationMode)(((int)PCDRendererFeature.Instance.settings.evaluationMode + 1) % Enum.GetValues(typeof(PCD_OcclusionEvaluationMode)).Length);
                 PCDRendererFeature.Instance.settings.evaluationMode = nextMode;
-                Debug.Log($"[KeyController] Evaluation Mode: {nextMode}");
+                Debug.Log($"[AnimationController] Evaluation Mode: {nextMode}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Evaluation Mode.");
+                Debug.LogWarning("[AnimationController] PCDRendererFeature.Instance or settings is null; cannot toggle Evaluation Mode.");
             }
         }
 
@@ -366,11 +393,11 @@ public class KeyboardController : MonoBehaviour
                 if (nextCount > 8) nextCount = 1;
 
                 PCDRendererFeature.Instance.settings.minOccludedSectors = nextCount;
-                Debug.Log($"[KeyController] Min Occluded Sectors: {nextCount}");
+                Debug.Log($"[AnimationController] Min Occluded Sectors: {nextCount}");
             }
             else
             {
-                Debug.LogWarning("[KeyController] PCDRendererFeature.Instance or settings is null; cannot toggle Min Occluded Sectors.");
+                Debug.LogWarning("[AnimationController] PCDRendererFeature.Instance or settings is null; cannot toggle Min Occluded Sectors.");
             }
         }
     }

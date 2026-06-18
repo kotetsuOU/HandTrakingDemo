@@ -11,7 +11,30 @@ public partial class PCDRenderPass
         data.computeShader = pointCloudCompute;
         data.pointCount = activeCount;
         data.screenParams = new Vector4(screenWidth, screenHeight, 0, 0);
-        data.viewMatrix = camera.worldToCameraMatrix;
+
+        Matrix4x4 vMatrix = camera.worldToCameraMatrix;
+        var adjuster = camera.GetComponent<CameraAdjuster>();
+        if (adjuster != null && adjuster.isHalfMirrorEnabled)
+        {
+            if (adjuster.displayTransform != null)
+            {
+                // 鏡面世界（ハーフミラー）用に、Display中心で点群をローカルX軸方向に反転させます
+                Vector3 center = adjuster.displayTransform.position;
+                Quaternion rotation = adjuster.displayTransform.rotation;
+                Matrix4x4 displayTRS = Matrix4x4.TRS(center, rotation, Vector3.one);
+                Matrix4x4 flipX = Matrix4x4.Scale(new Vector3(-1, 1, 1));
+                Matrix4x4 displayInverse = displayTRS.inverse;
+                
+                vMatrix = vMatrix * displayTRS * flipX * displayInverse;
+            }
+            else
+            {
+                // displayTransformが未設定の場合は、ワールド原点中心でX反転
+                vMatrix = vMatrix * Matrix4x4.Scale(new Vector3(-1, 1, 1));
+            }
+        }
+        data.viewMatrix = vMatrix;
+
         data.projectionMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, false);
         data.settings = _settings;
         data.kernelClear = _kernelClear;

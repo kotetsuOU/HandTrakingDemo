@@ -131,66 +131,7 @@ public partial class PCDRenderPass
         int screenWidth = cameraData.cameraTargetDescriptor.width;
         int screenHeight = cameraData.cameraTargetDescriptor.height;
 
-        // SRDManagerからダイレクトGPUバッファ出力フラグを取得
-        var srdManager = GetSRDManager();
-        bool useDirectGpuImageBuffer = srdManager != null && srdManager.UseDirectGpuImageBuffer;
 
-        // ダイレクトパスが有効な場合、必要に応じてグローバルRenderTextureおよびRTHandleを再生成
-        if (useDirectGpuImageBuffer && srdManager != null)
-        {
-            if (srdManager.StereoCameraController != null && srdManager.StereoCameraController.CurrentPattern == SRD.Utils.CameraPattern.Pattern3D)
-            {
-                // 左目用
-                bool needsReallocLeft = false;
-                if (srdManager.DirectGpuImageLeft == null || srdManager.DirectGpuImageLeft.width != screenWidth || srdManager.DirectGpuImageLeft.height != screenHeight)
-                {
-                    if (srdManager.DirectGpuImageLeft != null) srdManager.DirectGpuImageLeft.Release();
-                    srdManager.DirectGpuImageLeft = new RenderTexture(screenWidth, screenHeight, 0, UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat);
-                    srdManager.DirectGpuImageLeft.enableRandomWrite = true;
-                    srdManager.DirectGpuImageLeft.Create();
-                    needsReallocLeft = true;
-                }
-                if (needsReallocLeft || _directGpuImageLeftHandle == null || _directGpuImageLeftHandle.rt != srdManager.DirectGpuImageLeft)
-                {
-                    _directGpuImageLeftHandle?.Release();
-                    _directGpuImageLeftHandle = RTHandles.Alloc(srdManager.DirectGpuImageLeft);
-                }
-
-                // 右目用
-                bool needsReallocRight = false;
-                if (srdManager.DirectGpuImageRight == null || srdManager.DirectGpuImageRight.width != screenWidth || srdManager.DirectGpuImageRight.height != screenHeight)
-                {
-                    if (srdManager.DirectGpuImageRight != null) srdManager.DirectGpuImageRight.Release();
-                    srdManager.DirectGpuImageRight = new RenderTexture(screenWidth, screenHeight, 0, UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat);
-                    srdManager.DirectGpuImageRight.enableRandomWrite = true;
-                    srdManager.DirectGpuImageRight.Create();
-                    needsReallocRight = true;
-                }
-                if (needsReallocRight || _directGpuImageRightHandle == null || _directGpuImageRightHandle.rt != srdManager.DirectGpuImageRight)
-                {
-                    _directGpuImageRightHandle?.Release();
-                    _directGpuImageRightHandle = RTHandles.Alloc(srdManager.DirectGpuImageRight);
-                }
-            }
-            else
-            {
-                bool needsRealloc = false;
-                if (srdManager.DirectGpuImageMap == null || srdManager.DirectGpuImageMap.width != screenWidth || srdManager.DirectGpuImageMap.height != screenHeight)
-                {
-                    if (srdManager.DirectGpuImageMap != null) srdManager.DirectGpuImageMap.Release();
-                    srdManager.DirectGpuImageMap = new RenderTexture(screenWidth, screenHeight, 0, UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat);
-                    srdManager.DirectGpuImageMap.enableRandomWrite = true;
-                    srdManager.DirectGpuImageMap.Create();
-                    needsRealloc = true;
-                }
-                
-                if (needsRealloc || _directGpuImageMapHandle == null || _directGpuImageMapHandle.rt != srdManager.DirectGpuImageMap)
-                {
-                    _directGpuImageMapHandle?.Release();
-                    _directGpuImageMapHandle = RTHandles.Alloc(srdManager.DirectGpuImageMap);
-                }
-            }
-        }
 
         // 選択されたサイズで分割されたグリッドマップの解像度を計算
         float gs = (float)_settings.gridSize;
@@ -550,46 +491,12 @@ public partial class PCDRenderPass
             // --- 生成された点群（またはデバッグマップ）を最終画面に描画する(Blit)パス ---
             using (var builder = renderGraph.AddRasterRenderPass<BlitPassData>("PCD Blit Pass", out var data))
             {
-            // ダイレクト出力有効時はインポートしたテクスチャ、無効時は通常のカメラテクスチャをアタッチメントにする
-            if (useDirectGpuImageBuffer && srdManager != null)
-            {
-                RTHandle targetHandle = _directGpuImageMapHandle;
-                RenderTexture targetRT = srdManager.DirectGpuImageMap;
-
-                if (srdManager.StereoCameraController != null && srdManager.StereoCameraController.CurrentPattern == SRD.Utils.CameraPattern.Pattern3D)
-                {
-                    if (camera == srdManager.StereoCameraController.camera3DLeft)
-                    {
-                        targetHandle = _directGpuImageLeftHandle;
-                        targetRT = srdManager.DirectGpuImageLeft;
-                    }
-                    else if (camera == srdManager.StereoCameraController.camera3DRight)
-                    {
-                        targetHandle = _directGpuImageRightHandle;
-                        targetRT = srdManager.DirectGpuImageRight;
-                    }
-                }
-
-                if (targetHandle != null)
-                {
-                    data.cameraTarget = renderGraph.ImportTexture(targetHandle);
-                    data.directGpuImageMap = targetRT;
-                }
-                else
-                {
-                    data.cameraTarget = resourceData.activeColorTexture; 
-                    data.directGpuImageMap = null;
-                }
-            }
-            else
-            {
-                data.cameraTarget = resourceData.activeColorTexture; 
-                data.directGpuImageMap = null;
-            }
+            data.cameraTarget = resourceData.activeColorTexture; 
+            data.directGpuImageMap = null;
             
             data.enablePixelTagMap = _settings.enablePixelTagMap;
             data.enableOcclusionMap = _settings.enableOcclusionMap;
-            data.useDirectGpuImageBuffer = useDirectGpuImageBuffer;
+            data.useDirectGpuImageBuffer = false;
 
             // オリジンデバッグが有効ならそちらを描画元とし、無効なら最終画像をソースとする
             if (data.enablePixelTagMap || data.enableOcclusionMap)

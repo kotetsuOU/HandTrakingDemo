@@ -70,12 +70,10 @@ namespace SRD.Core
             _outputTexture = outputTexture;
         }
 
-        private Texture _prevDirectGpuLeft;
-        private Texture _prevDirectGpuRight;
-        private Texture _prevDirectGpuMap;
-        
         private Texture2D _calibrationLeftTex;
         private Texture2D _calibrationRightTex;
+
+        private bool _isCalibrationRegistered = false;
 
         public void Composite()
         {
@@ -94,60 +92,26 @@ namespace SRD.Core
 
             if (_srdManager.EnableCalibrationMode)
             {
-                if (!_isStereoTextureRegistered || _prevDirectGpuLeft != _calibrationLeftTex || _prevDirectGpuRight != _calibrationRightTex)
+                if (!_isStereoTextureRegistered || !_isCalibrationRegistered)
                 {
                     _stereoCompositer.RegisterSourceStereoTextures(_calibrationLeftTex, _calibrationRightTex);
-                    _prevDirectGpuLeft = _calibrationLeftTex;
-                    _prevDirectGpuRight = _calibrationRightTex;
                     _isStereoTextureRegistered = true;
+                    _isCalibrationRegistered = true;
                 }
                 _stereoCompositer.RenderStereoComposition(_outputTexture);
                 return; // キャリブレーション時は以降の通常の描画をスキップ
             }
-            if (_srdManager.UseDirectGpuImageBuffer)
+            
+            if(!_isStereoTextureRegistered || _isCalibrationRegistered)
             {
-                if (_srdManager.StereoCameraController != null && _srdManager.StereoCameraController.CurrentPattern == SRD.Utils.CameraPattern.Pattern3D)
-                {
-                    // 3Dパターンの場合は、左目用と右目用のRenderTextureを個別に流し込む
-                    if (_srdManager.DirectGpuImageLeft != null && _srdManager.DirectGpuImageRight != null)
-                    {
-                        if (!_isStereoTextureRegistered || _prevDirectGpuLeft != _srdManager.DirectGpuImageLeft || _prevDirectGpuRight != _srdManager.DirectGpuImageRight)
-                        {
-                            _stereoCompositer.RegisterSourceStereoTextures(_srdManager.DirectGpuImageLeft, _srdManager.DirectGpuImageRight);
-                            _prevDirectGpuLeft = _srdManager.DirectGpuImageLeft;
-                            _prevDirectGpuRight = _srdManager.DirectGpuImageRight;
-                            _isStereoTextureRegistered = true;
-                        }
-                        _stereoCompositer.RenderStereoComposition(_outputTexture);
-                    }
-                }
-                else
-                {
-                    // 2Dパターンの場合は、PCDRenderPassで描画されたグローバルなRenderTextureを両目に流し込む
-                    if (_srdManager.DirectGpuImageMap != null)
-                    {
-                        if (!_isStereoTextureRegistered || _prevDirectGpuMap != _srdManager.DirectGpuImageMap)
-                        {
-                            _stereoCompositer.RegisterSourceStereoTextures(_srdManager.DirectGpuImageMap, _srdManager.DirectGpuImageMap);
-                            _prevDirectGpuMap = _srdManager.DirectGpuImageMap;
-                            _isStereoTextureRegistered = true;
-                        }
-                        _stereoCompositer.RenderStereoComposition(_outputTexture);
-                    }
-                }
+                _stereoCompositer.RegisterSourceStereoTextures(_eyeViewRenderer.GetLeftEyeViewTexture(),
+                                                               _eyeViewRenderer.GetRightEyeViewTexture());
+                _isStereoTextureRegistered = true;
+                _isCalibrationRegistered = false;
             }
             else
             {
-                if(!_isStereoTextureRegistered)
-                {
-                    _stereoCompositer.RegisterSourceStereoTextures(_eyeViewRenderer.GetLeftEyeViewTexture(),
-                                                                   _eyeViewRenderer.GetRightEyeViewTexture());
-                    _isStereoTextureRegistered = true;
-                }
-                else
-                {
-                    _stereoCompositer.RenderStereoComposition(_outputTexture);
-                }
+                _stereoCompositer.RenderStereoComposition(_outputTexture);
             }
         }
 
