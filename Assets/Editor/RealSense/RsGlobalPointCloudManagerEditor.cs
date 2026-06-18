@@ -42,14 +42,9 @@ public class RsGlobalPointCloudManagerEditor : Editor
 
     private void DrawBatchControlSection()
     {
-        EditorGUILayout.LabelField("Batch Control for RsPointCloudRenderer Children", EditorStyles.boldLabel);
-
         var capturer = _manager.GetComponent<RsPointCloudCapturer>();
         if (capturer != null)
         {
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("PointCloud Capture (PLY)", EditorStyles.boldLabel);
-
             EditorGUI.BeginDisabledGroup(capturer.IsCapturing || !Application.isPlaying);
 
             var so = new SerializedObject(capturer);
@@ -107,7 +102,9 @@ public class RsGlobalPointCloudManagerEditor : Editor
         EditorGUI.BeginDisabledGroup(allFiltersEnabled);
         if (GUILayout.Button("Set Range Filter ON for All"))
         {
+            foreach (var renderer in _manager.GetChildRenderers()) { Undo.RecordObject(renderer, "Set Range Filter ON for All"); }
             _manager.SetAllRangeFilters(true);
+            foreach (var renderer in _manager.GetChildRenderers()) { EditorUtility.SetDirty(renderer); }
             SceneView.RepaintAll();
             Debug.Log("[RsGlobalPointCloudManager] Set Range Filter ON for All");
         }
@@ -117,7 +114,9 @@ public class RsGlobalPointCloudManagerEditor : Editor
         EditorGUI.BeginDisabledGroup(!allFiltersEnabled);
         if (GUILayout.Button("Set Range Filter OFF for All"))
         {
+            foreach (var renderer in _manager.GetChildRenderers()) { Undo.RecordObject(renderer, "Set Range Filter OFF for All"); }
             _manager.SetAllRangeFilters(false);
+            foreach (var renderer in _manager.GetChildRenderers()) { EditorUtility.SetDirty(renderer); }
             SceneView.RepaintAll();
             Debug.Log("[RsGlobalPointCloudManager] Set Range Filter OFF for All");
         }

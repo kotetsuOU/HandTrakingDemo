@@ -60,6 +60,20 @@ git lfs pull
 ※ Unityで実行する際は、`Project` ウィンドウから `Scenes` フォルダ内の `RealTimeOcclusion` シーンを開いてください。
   そのシーンをアクティブにしてから再生（Play）ボタンで動作確認を行ってください。
 
+### ⚙️ 初期化とアライメント・キャリブレーション (Camera Alignment & Calibration)
+
+複数台の RealSense カメラの位置合わせ（アライメント）や保存・復元は、シーン内の **`RsGlobalPointCloudManager`** および **`RsTransformController`** から制御します。
+
+1. **ガイド表示**: `RsTransformController` の `Show Calibration Guide` を有効にすると、位置合わせの目安となる緑のボックス（Gizmo）がシーンビューに表示されます。
+2. **位置微調整**: `RsGlobalPointCloudManager` が認識した子オブジェクト（各RealSenseカメラのレンダラー）の `Transform` を調整し、ガイドボックスに合わせます。
+3. **JSON保存・読み込み**: 
+   - 調整完了後、`RsTransformController` の Inspector に表示される **「Save Transforms to JSON」** ボタンを押すと、カメラ位置姿勢が `Assets/Config/RealSense/[saveFileName].json` に保存されます。
+   - 以前の設定を反映させたいときは **「Load Transforms from JSON」** ボタンで一括読み込み復元が可能です（ロード処理は Undo（Ctrl+Z）に対応しています）。
+
+詳細な設計と手順については、[初期化とアライメント・キャリブレーションシステム (INITIALIZATION.md)](./INITIALIZATION.md) を参照してください。
+
+---
+
 ### オクルージョン設定の管理とデバッグ機能の使い方
 
 本プロジェクトのオクルージョン設定（カーネル手法、しきい値、各種デバッグ/モルフォロジー設定等）は、シーン内の **`OcclusionPipelineController`** という GameObject にアタッチされた **`PCDRenderController`** コンポーネントから一元的に制御します。エディタ再生中・非再生中を問わず、パラメータを変更すると即座にレンダリング表示に反映されます。

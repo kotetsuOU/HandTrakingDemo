@@ -128,17 +128,17 @@ struct PointData
   3. **侵入距離の二乗比較**:
      平方根計算（`sqrt`）は GPU 負荷が高いため、距離の二乗（ドット積）を用い、半径の二乗（`RadiusSqr`）と比較します。
 
-      $$
+      ```math
       \mathbf{d} = \mathbf{p}_{\text{point}} - \mathbf{p}_{\text{target}}
-      $$
+      ```
 
-      $$
+      ```math
       \text{distSq} = \text{dot}(\mathbf{d}, \mathbf{d})
-      $$
+      ```
 
-      $$
+      ```math
       \text{if } (\text{distSq} \le \text{RadiusSqr})
-      $$
+      ```
 
   4. **アトミック衝突フラグ書き換えと情報記録**:
      競合（レースコンディション）を防止するため、アトミック関数 `InterlockedCompareExchange` を用い、衝突フラグをスレッドセーフに `1` に書き換えます。
@@ -180,17 +180,17 @@ struct PointData
      
      以下のいずれか1つでも満たす場合、衝突の可能性はありません。
 
-      $$
+      ```math
       x_p < x_{\text{min}} \quad \text{or} \quad x_p > x_{\text{max}}
-      $$
+      ```
 
-      $$
+      ```math
       y_p < y_{\text{min}} \quad \text{or} \quad y_p > y_{\text{max}}
-      $$
+      ```
 
-      $$
+      ```math
       z_p < z_{\text{min}} \quad \text{or} \quad z_p > z_{\text{max}}
-      $$
+      ```
      
      この条件に一致した場合、即座に早期リターン（`return`）します。これにより、各頂点に対する Narrow-Phase の距離総当たりループを `O(1)` でスキップし、演算コストをほぼゼロに削減します。
   2. **Narrow-Phase Sampling (詳細総当たり判定)**:
@@ -198,25 +198,25 @@ struct PointData
      - **VertexSubstep による間引き**:
        計算負荷を調整するため、`VertexSubstep`（例: 10頂点おき）のステップ幅 `S` で検証する頂点をスキップします。
 
-       $$
+       ```math
        \text{Index}_i = i \times S \quad (i = 0, 1, 2, \dots)
-       $$
+       ```
 
      - **ワールド空間への座標投影**:
        BakeMesh によって得られた頂点はローカル座標系であるため、毎フレーム更新される `4 * 4` 行列 `M_LocalToWorld` を用いてワールド座標へ射影します。
 
-       $$
+       ```math
        \mathbf{p}_{\text{world}} = \mathbf{M}_{\text{LocalToWorld}} \cdot \begin{pmatrix} \mathbf{p}_{\text{local}} \\ 1 \end{pmatrix}
-       $$
+       ```
 
        (ここで `p_local` は BakeMesh から得られたローカル頂点座標を表します)
      - **距離比較とアトミック記録**:
        ワールド頂点と点群頂点の距離の二乗が `RadiusSqr` 以下である場合、アトミック関数で排他的に書き込みロックを確立。
        最初に書き込みに成功したスレッドが、BakeMesh から得られたローカル法線 `n_local` をワールド空間法線 `n_world` に変形して記録します。
 
-       $$
+       ```math
        \mathbf{n}_{\text{world}} = \text{normalize}\left( \mathbf{M}_{\text{LocalToWorld, 3x3}} \cdot \mathbf{n}_{\text{local}} \right)
-       $$
+       ```
        
        衝突した頂点情報と法線は以下のように記録されます：
        ```hlsl

@@ -11,10 +11,6 @@ public class RsMaterialControllerEditor : Editor
 
         RsMaterialController controller = (RsMaterialController)target;
 
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Control Panel", EditorStyles.boldLabel);
-        EditorGUILayout.Space();
-
         if (controller.materials != null && controller.materials.Count > 0)
         {
             EditorGUILayout.LabelField("Material Selection", EditorStyles.boldLabel);

@@ -329,24 +329,25 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 
 1.  **射影変換**:
 
-    $$
+    ```math
     \mathbf{p}_{\text{clip}} = \mathbf{M}_{\text{VP}} \cdot \mathbf{p}_{\text{world}}
-    $$
+    ```
 
-    $$
+    ```math
     \mathbf{p}_{\text{ndc}} = \frac{\mathbf{p}_{\text{clip}}.xyz}{\mathbf{p}_{\text{clip}}.w}
-    $$
+    ```
 
-    $$
+    ```math
     \mathbf{p}_{\text{screen}} = \left( \frac{\mathbf{p}_{\text{ndc}}.xy + \mathbf{1.0}}{2.0} \right) \cdot \mathbf{v}_{\text{ScreenSize}}
-    $$
+    ```
 
 2.  **超並列深度アトミック書き込み**:
     投影された座標 `(x_screen, y_screen)` が画面内にある場合、頂点深度 `z_ndc` をスケーリングし、アトミック最小演算 `InterlockedMin` を用いて深度テクスチャ `_DepthMap_RW` に記録します。これによって、複数頂点が同一ピクセルに重なった際に「最も手前にある（カメラに最も近い）頂点」のみが確実に記録されます。
 
-    $$
+    ```math
     \text{DepthUint} = \text{clamp}\left( z_{\text{ndc}} \times D_{\text{max}}, 0, D_{\text{max}} \right)
-    $$
+    ```
+
 
     (ここで `D_max` は最大深度定数 `DEPTH_MAX_UINT` を表します)
 
@@ -417,35 +418,35 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 
     *   深度許容差（`depthTolerance`）の定義:
 
-        $$
+        ```math
         \text{depthTolerance} = \frac{D_{\text{max}}}{1000} + (d_{\text{min}} \times 0.02)
-        $$
+        ```
 
         (ここで `D_max` は `DEPTH_MAX_UINT`、`d_min` は `minDepth` を表します)
 
     *   空間ウェイト（距離の二乗による減衰）:
 
-        $$
+        ```math
         \text{spatialWeight} = \frac{1}{1.0 + \text{distSq} \times 0.5}
-        $$
+        ```
 
     *   深度ウェイト（`minDepth` から離れるほど急速に減衰）:
 
-        $$
+        ```math
         \text{depthWeight} = 1.0 - \text{smoothstep}\left(0.0, 1.0, \frac{d_n - d_{\text{min}}}{\text{depthTolerance}}\right)
-        $$
+        ```
 
         (ここで `d_n` は `nDepth` を表します)
 
     *   合成重みによる加重平均:
 
-        $$
+        ```math
         \text{Occlusion}_{\text{final}} = \frac{\sum (\text{Color}_i \times \text{Weight}_i)}{\sum \text{Weight}_i}
-        $$
+        ```
 
-        $$
+        ```math
         \text{Weight}_i = \text{spatialWeight}_i \times \text{depthWeight}_i
-        $$
+        ```
 
 #### 2. Pull-Push ピラミッド法 (`FillHolesPullPushInit` ~ `FillHolesPush`)
 多スケール（ピラミッド階層）表現を用いて、どれほど広大で巨大な点群の穴でも計算負荷 $O(N)$ のまま滑らかに穴埋めする画像補間アルゴリズムです。
@@ -462,25 +463,25 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 2.  **`FillHolesPull` (アップサンプリング/縮小)**:
     解像度を段階的に `1/2` に縮小しながらピラミッドを登ります。各ピクセルは、対応する下位レイヤーの `2 * 2` ブロックの単純平均を算出し、ウェイトとカラーを累積します。
 
-    $$
+    ```math
     \mathbf{v}_{\text{parent}} = \frac{\mathbf{v}_{00} + \mathbf{v}_{10} + \mathbf{v}_{01} + \mathbf{v}_{11}}{4.0}
-    $$
+    ```
 
 3.  **`FillHolesPush` (ダウンサンプリング/拡大復元)**:
     ピラミッドを降りながら解像度を拡大し、等倍に戻します。
     下位の粗い階層からバイリニア補間（`frac` および `lerp`）で拡大した補間値 `v_interp` を取得します。
     現在のピクセルのウェイト（`w_current = v_current.a`）が不完全（`1.0` 未満）な箇所について、拡大された補間値をウェイトの残量に基づいてブレンドします。
 
-    $$
+    ```math
     \mathbf{v}_{\text{blended}} = \mathbf{v}_{\text{current}} + (1.0 - w_{\text{current}}) \cdot \mathbf{v}_{\text{interp}}
-    $$
+    ```
 
 4.  **`FillHolesPullPushFinalize` (最終結果書き戻し)**:
     等倍解像度に戻ったピラミッドの最下層から、累積されたオクルージョンカラーを書き戻します。
 
-    $$
+    ```math
     \text{Color}_{\text{final}} = \frac{\mathbf{v}_{\text{blended}}.rgb}{\mathbf{v}_{\text{blended}}.a} \quad (\text{if } \mathbf{v}_{\text{blended}}.a > 0.0001)
-    $$
+    ```
 
 #### 3. 数学的モルフォロジー演算 (`MorphologyErode` / `MorphologyDilate`)
 カラー画像および点群存在フラグマップ（`_MorphTypeIn`）に対し、二値画像の数学的モルフォロジー（膨張・収縮）をグレースケールカラーと連動させて実行します。
@@ -515,19 +516,3 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 
 ### B. 動的テスト（デバッグ時）
 *   パラメータの動的変更（Hole Filling 手法の切り替えや、PCV での Source 変更）を行った際に、コンソールに `[PCV] Switched to ...` のログが出力され、メモリリークを伴わずに画面上の遮蔽表現が切り替わることを確認してください。
-
----
-
-## 10. 最近の変更履歴 (Recent Updates)
-
-### 2026年6月
-*   **RealSense スキャン範囲設定の簡素化**:
-    *   従来の相対位置オフセットによる表現 (`rsScanRange`, `frameWidth`, `extraLength`) を廃止し、境界の絶対座標を直接指定する `ScanMin` と `ScanMax` (Vector3) に統一しました。これにより、CPU/GPU（Compute Shader）双方での境界チェックがシンプル化され、直感的な範囲設定が可能になりました。
-    *   過去のシーンファイルとの互換性を維持するため、`RsDeviceController` に `ISerializationCallbackReceiver` を実装し、ロード時に旧パラメータから `ScanMin` / `ScanMax` へ自動マイグレーションする処理を追加しました。
-*   **直感的な境界調整（Scene View Gizmo Handle）の実装**:
-    *   `RsGlobalPointCloudManagerEditor.cs` にて、Unity エディタの `BoxBoundsHandle` を用いたインタラクティブな境界変更機能を Scene View 上に追加しました。黄色のバウンディングボックスの面をドラッグ操作することで、`ScanMin` / `ScanMax` がリアルタイムに書き換わり、`Undo` 操作や自動シリアライズ保存にも完全対応しています。
-*   **不要なデバッグ統計・プロファイラ・合成データコードのクリーンアップ**:
-    *   本運用のパフォーマンス向上とコードの簡素化を目的に、実機を使用しないダミー点群生成機能 (`RsPointCloudSyntheticData.cs`)、CSV 出力スループットロガー (`RsPerformanceLogger.cs`)、非同期パフォーマンスロガー (`RsAsyncStatsLogger.cs`)、GPU プロファイラー (`RsGpuProfiler.cs`)、および `RsGlobalPointCloudManager` の統計分割ファイル (`RsGlobalPointCloudManager.Stats.cs`) を完全に削除しました。関連する MonoBehaviour インスペクター表示や関数呼び出しもすべてクリーンアップされました。
-*   **Unity 6 シリアライズ警告への対策**:
-    *   `UnityEngine.ProBuilder.Shapes` 等のパッケージクラスが `[SerializeReference]` を伴ってシリアライズされる際に発生する警告（`missing [Serializable] attribute`）を回避するため、`[assembly: MakeSerializable]` アセンブリ属性による定義を追加しました。
-

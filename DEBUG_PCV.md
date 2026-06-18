@@ -62,9 +62,9 @@
 1.  **ボクセルインデックスの算出**:
     空間内の点 `p = (x, y, z)^T` に対し、ボクセルサイズ `d_size` で除算して整数化（切り捨て）し、ボクセル座標 `v = (x_v, y_v, z_v)^T` を算出します。
 
-    $$
+    ```math
     x_v = \lfloor x / d_{\text{size}} \rfloor, \quad y_v = \lfloor y / d_{\text{size}} \rfloor, \quad z_v = \lfloor z / d_{\text{size}} \rfloor
-    $$
+    ```
 
 2.  **ハッシュ登録**:
     算出したボクセル座標 `v` をキーとし、該当する頂点のインデックス `i` をリストにアペンドしてハッシュバケットを構築します（`BuildCpuGrid`）。
@@ -114,9 +114,9 @@ GPU 上でスレッドセーフに空間ハッシュおよびソート済みイ�
 *   **動作仕様**:
     1.  頂点の 3D グリッド座標からハッシュ値を計算します：
 
-        $$
+        ```math
         H = \text{Hash}(\mathbf{v})
-        $$
+        ```
 
     2.  アトミック操作でハッシュテーブルスロット `_VoxelHashTable[H]` を獲得します：
         ```hlsl
@@ -146,17 +146,3 @@ GPU 上でスレッドセーフに空間ハッシュおよびソート済みイ�
 ### B. デバッグ検証
 *   PCV デバッグビューアをアクティブにし、インスペクターから探索半径を変更した際に、Gizmo で示された 26 近傍のボクセルバケットが正常に更新され、線形探索に比べて CPU/GPU 負荷が劇的に低下していることをプロファイラ（Unity Profiler / GPU Profiler）で検証します。
 *   アセンブリリロードを複数回実行し、Unity コンソールにメモリリーク警告（`ComputeBuffer was not released`）が出力されないことを確認します。
-
----
-
-## 6. 最近の共通基盤・デバッグ更新履歴 (Recent Shared Infrastructure Updates)
-
-### 2026年6月
-*   **RealSense スキャン範囲の境界表現のシンプル化**:
-    *   従来の相対位置オフセットから、絶対座標の最小境界 `ScanMin` と最大境界 `ScanMax` (Vector3) へと移行しました。これにより、CPU・GPU のスキャン境界チェックが合理化されました。
-    *   `RsGlobalPointCloudManagerEditor.cs` にて、Unity の `BoxBoundsHandle` を用いた Scene View 上のインタラクティブドラッグ操作でスキャン範囲を調整できるようになりました。黄色のボックス面をドラッグするだけで、直感的に調整可能です。
-*   **不要なパフォーマンスログ・プロファイラ・ダミー生成機能のクリーンアップ**:
-    *   パフォーマンス負荷の最小化のため、非同期ロガー (`RsAsyncStatsLogger.cs`)、CSV スループットロガー (`RsPerformanceLogger.cs`)、GPU プロファイラー (`RsGpuProfiler.cs`)、統計分割ファイル (`RsGlobalPointCloudManager.Stats.cs`)、およびデバッグ用合成点群生成機能 (`RsPointCloudSyntheticData.cs`) を完全に削除しました。
-*   **Unity 6 シリアライズ警告（ProBuilder）の抑制**:
-    *   `UnityEngine.ProBuilder.Shapes` クラス（Cube 等）が `[SerializeReference]` 経由でシリアライズされた際に `[Serializable]` が不足しているとして発生する警告に対し、`[assembly: MakeSerializable]` によるアセンブリ属性定義 ([SerializationSuppressions.cs](file:///C:/Users/hongo/Documents/tsutsumi/RealTimeOcclusion/Assets/Scripts/SerializationSuppressions.cs)) を追加してコンソール警告をクリアしました。
-

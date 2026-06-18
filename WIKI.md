@@ -28,12 +28,14 @@ graph TD
     WIKI -->|"⚡ 触覚物理衝突検出"| HapticsNode["⚡ 空中超音波ハプティクス設計思想<br/>(HAPTICS.md)"]:::haptic
     WIKI -->|"🔍 デバッグ空間検索"| DebugNode["🔍 PCV デバッグ空間演算システム<br/>(DEBUG_PCV.md)"]:::debug
     WIKI -->|"👓 3D立体視・ミラー制御"| DisplayNode["👓 3D立体視・ハーフミラー制御設計思想<br/>(DISPLAY_3D.md)"]:::display
+    WIKI -->|"⚙️ 初期化・キャリブレーション"| InitNode["⚙️ 初期化とアライメント・キャリブレーション<br/>(INITIALIZATION.md)"]:::common
 
     %% 共通データハブ
     GlobalManager["📦 RsGlobalPointCloudManager (統合点群ハブ)"]:::common
     RenderNode -.->|ゼロコピー頂点バッファ参照 & 非同期マージ| GlobalManager
     HapticsNode -.->|ゼロコピー頂点バッファ参照| GlobalManager
     DebugNode -.->|CPU/GPU 空間検索ソース| GlobalManager
+    InitNode -.->|アライメント対象の取得元| GlobalManager
 ```
 
 ---
@@ -41,6 +43,16 @@ graph TD
 ## 2. 各ノード（サブシステム）へのナビゲーション
 
 それぞれの機能やアルゴリズムの詳細、関数構成、Compute Shader 仕様、最適化ポリシーは以下の詳細 Wiki をご参照ください。
+
+### ⚙️ 0. [初期化とアライメント・キャリブレーションシステム](./INITIALIZATION.md)
+*   **目的**: 複数台の RealSense カメラの初期化および位置合わせ（アライメント）を管理し、調整した Transform 情報を JSON ファイルとして保存・復元します。
+*   **コアモジュールと主要設計特徴**:
+    *   **共通データハブとの連携**: `RsGlobalPointCloudManager` が提供するレンダラーリストを元に動作し、`RsMaterialController` とも共通のカメラ参照を共有。
+    *   **JSONベースの設定保存・復元**: 各カメラのローカル位置・回転・スケール情報を `Assets/Config/RealSense/ChildTransforms.json` にエクスポートおよびインポート。
+    *   **エディタのUndo対応**: JSONからのロード時、誤操作を防ぐための Undo/Redo (Ctrl+Z) 履歴登録と、エディタ画面の即時更新。
+*   **詳細はこちら ──> [INITIALIZATION.md](./INITIALIZATION.md) を読む**
+
+---
 
 ### 🎨 1. [視覚オクルージョン・レンダリングシステム](./RENDERING.md)
 *   **目的**: 実環境の点群と Unity 仮想オブジェクトの前後遮蔽（オクルージョン）を URP RenderGraph 上で超高速に計算し、エッジ保存型の Hole Filling（穴埋め）を施して滑らかに描画します。

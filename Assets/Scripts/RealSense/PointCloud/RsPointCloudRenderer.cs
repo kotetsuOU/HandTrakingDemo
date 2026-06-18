@@ -39,7 +39,14 @@ public class RsPointCloudRenderer : MonoBehaviour
     #region Public Properties
 
     // フィルタリング処理（例えば遠すぎる点の除外）などを有効にするかどうか
-    public bool IsGlobalRangeFilterEnabled { get; set; } = true;
+    [SerializeField]
+    private bool isGlobalRangeFilterEnabled = true;
+
+    public bool IsGlobalRangeFilterEnabled
+    {
+        get => isGlobalRangeFilterEnabled;
+        set => isGlobalRangeFilterEnabled = value;
+    }
 
     // PCA等によって推定された主要軸の基準点
     public Vector3 EstimatedPoint
@@ -67,7 +74,7 @@ public class RsPointCloudRenderer : MonoBehaviour
         }
     }
 
-    // 現在パフォーマンスログを計測中かどうか
+
 
     #endregion
 

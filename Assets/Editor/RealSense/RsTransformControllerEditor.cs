@@ -1,4 +1,4 @@
-﻿using UnityEditor;
+using UnityEditor;
 using UnityEngine;
 
 [CustomEditor(typeof(RsTransformController))]
@@ -11,6 +11,7 @@ public class RsTransformControllerEditor : Editor
     private SerializedProperty showCalibrationGuideProp;
     private SerializedProperty guideFrameColorProp;
     private SerializedProperty cornerMarkerColorProp;
+    private SerializedProperty saveFileNameProp;
 
     private void OnEnable()
     {
@@ -21,6 +22,7 @@ public class RsTransformControllerEditor : Editor
         showCalibrationGuideProp = serializedObject.FindProperty("showCalibrationGuide");
         guideFrameColorProp = serializedObject.FindProperty("guideFrameColor");
         cornerMarkerColorProp = serializedObject.FindProperty("cornerMarkerColor");
+        saveFileNameProp = serializedObject.FindProperty("saveFileName");
     }
 
     private SerializedProperty GetCurrentSlotProp()
@@ -38,6 +40,8 @@ public class RsTransformControllerEditor : Editor
     {
         serializedObject.Update();
 
+        RsTransformController controller = (RsTransformController)target;
+
         EditorGUILayout.LabelField("Configuration", EditorStyles.boldLabel);
 
         EditorGUILayout.BeginHorizontal();
@@ -49,12 +53,53 @@ public class RsTransformControllerEditor : Editor
         }
         EditorGUILayout.EndHorizontal();
 
+        EditorGUILayout.PropertyField(saveFileNameProp);
+        EditorGUILayout.Space(2);
+        
+        EditorGUILayout.BeginHorizontal();
+
+        GUI.backgroundColor = new Color(0.6f, 1f, 0.6f); // Light Green for Save
+        if (GUILayout.Button("Save Transforms to JSON", GUILayout.Height(30)))
+        {
+            controller.SaveTransformsToJson();
+        }
+
+        GUI.backgroundColor = new Color(0.6f, 0.8f, 1f); // Light Blue for Load
+        if (GUILayout.Button("Load Transforms from JSON", GUILayout.Height(30)))
+        {
+            var globalManager = controller.GetComponent<RsGlobalPointCloudManager>();
+            if (globalManager != null)
+            {
+                foreach (var renderer in globalManager.GetChildRenderers())
+                {
+                    if (renderer != null)
+                    {
+                        Undo.RecordObject(renderer.transform, "Load Child Transforms");
+                    }
+                }
+            }
+
+            controller.LoadTransformsFromJson();
+
+            if (globalManager != null)
+            {
+                foreach (var renderer in globalManager.GetChildRenderers())
+                {
+                    if (renderer != null)
+                    {
+                        EditorUtility.SetDirty(renderer.transform);
+                    }
+                }
+            }
+            SceneView.RepaintAll();
+        }
+        EditorGUILayout.EndHorizontal();
+        GUI.backgroundColor = Color.white; // Reset color
+
         EditorGUILayout.Space();
 
         if (!UnityEngine.Application.isPlaying)
         {
-            EditorGUILayout.LabelField("Calibration Guide", EditorStyles.boldLabel);
-
             EditorGUILayout.PropertyField(showCalibrationGuideProp);
 
             if (showCalibrationGuideProp.boolValue)

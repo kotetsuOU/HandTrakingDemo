@@ -49,7 +49,9 @@ public class RsPointCloudRendererEditor : Editor
             GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
             if (GUILayout.Button("Disable Range Filter"))
             {
+                Undo.RecordObject(renderer, "Disable Range Filter");
                 renderer.IsGlobalRangeFilterEnabled = false;
+                EditorUtility.SetDirty(renderer);
                 SceneView.RepaintAll();
             }
         }
@@ -58,7 +60,9 @@ public class RsPointCloudRendererEditor : Editor
             GUI.backgroundColor = new Color(0.6f, 1f, 0.6f);
             if (GUILayout.Button("Enable Range Filter"))
             {
+                Undo.RecordObject(renderer, "Enable Range Filter");
                 renderer.IsGlobalRangeFilterEnabled = true;
+                EditorUtility.SetDirty(renderer);
                 SceneView.RepaintAll();
             }
         }

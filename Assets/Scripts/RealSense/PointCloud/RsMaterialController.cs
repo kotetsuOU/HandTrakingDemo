@@ -12,15 +12,11 @@ public enum PointCloudColorMode
 public class RsMaterialController : MonoBehaviour
 {
     [Header("Material Settings")]
-    [Tooltip("Ø‚è‘Ö‚¦‚Ég—p‚·‚éƒ}ƒeƒŠƒAƒ‹‚ÌƒŠƒXƒg")]
+    [Tooltip("åˆ‡ã‚Šæ›¿ãˆã«ä½¿ç”¨ã™ã‚‹ãƒãƒ†ãƒªã‚¢ãƒ«ã®ãƒªã‚¹ãƒˆ")]
     public List<Material> materials;
 
-    [Header("Target Settings")]
-    [Tooltip("‘€ì‘ÎÛ‚Æ‚·‚éRsPointCloudRenderer‚ÌƒŠƒXƒgBMeshRenderer‚Í‚±‚±‚©‚ç©“®æ“¾‚³‚ê‚Ü‚·B")]
-    public List<RsPointCloudRenderer> targetPointCloudRenderers;
-
     [Header("Color Settings")]
-    [Tooltip("“_ŒQ‚ÌF‚Ìƒ‚[ƒh‘I‘ğ")]
+    [Tooltip("ç‚¹ç¾¤ã®è‰²ã®ãƒ¢ãƒ¼ãƒ‰é¸æŠ")]
     [HideInInspector]
     public PointCloudColorMode colorMode = PointCloudColorMode.Skin;
 
@@ -35,6 +31,24 @@ public class RsMaterialController : MonoBehaviour
     private readonly Color _blackColor = Color.black;
     private readonly Color _blueColor = Color.blue;
 
+    private RsGlobalPointCloudManager _globalManager;
+
+    private RsGlobalPointCloudManager GlobalManager
+    {
+        get
+        {
+            if (_globalManager == null)
+            {
+                _globalManager = RsGlobalPointCloudManager.Instance;
+                if (_globalManager == null)
+                {
+                    _globalManager = GetComponent<RsGlobalPointCloudManager>();
+                }
+            }
+            return _globalManager;
+        }
+    }
+
     void Start()
     {
         InitializeRenderers();
@@ -47,9 +61,9 @@ public class RsMaterialController : MonoBehaviour
         _cachedMeshRenderers.Clear();
         _initialColors.Clear();
 
-        if (targetPointCloudRenderers == null) return;
+        if (GlobalManager == null) return;
 
-        foreach (var pcRenderer in targetPointCloudRenderers)
+        foreach (var pcRenderer in GlobalManager.GetChildRenderers())
         {
             if (pcRenderer != null)
             {
@@ -61,7 +75,7 @@ public class RsMaterialController : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"[RsMaterialController] {pcRenderer.name} ‚É MeshRenderer ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB", pcRenderer);
+                    Debug.LogWarning($"[RsMaterialController] {pcRenderer.name} ã« MeshRenderer ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚", pcRenderer);
                 }
 
                 if (!_initialColors.ContainsKey(pcRenderer))
@@ -76,19 +90,19 @@ public class RsMaterialController : MonoBehaviour
     {
         if (materials == null || materials.Count == 0)
         {
-            Debug.LogWarning("[RsMaterialController] ƒ}ƒeƒŠƒAƒ‹ƒŠƒXƒg‚ªİ’è‚³‚ê‚Ä‚¢‚Ü‚¹‚ñB", this);
+            Debug.LogWarning("[RsMaterialController] ãƒãƒ†ãƒªã‚¢ãƒ«ãƒªã‚¹ãƒˆãŒè¨­å®šã•ã‚Œã¦ã„ã¾ã›ã‚“ã€‚", this);
             return;
         }
 
         if (index < 0 || index >= materials.Count)
         {
-            Debug.LogError($"[RsMaterialController] ƒ}ƒeƒŠƒAƒ‹‚ÌƒCƒ“ƒfƒbƒNƒX‚ª”ÍˆÍŠO‚Å‚·: {index}", this);
+            Debug.LogError($"[RsMaterialController] ãƒãƒ†ãƒªã‚¢ãƒ«ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãŒç¯„å›²å¤–ã§ã™: {index}", this);
             return;
         }
 
         if (materials[index] == null)
         {
-            Debug.LogWarning($"[RsMaterialController] ƒCƒ“ƒfƒbƒNƒX {index} ‚Ìƒ}ƒeƒŠƒAƒ‹‚ªNULL‚Å‚·B", this);
+            Debug.LogWarning($"[RsMaterialController] ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ {index} ã®ãƒãƒ†ãƒªã‚¢ãƒ«ãŒNULLã§ã™ã€‚", this);
             return;
         }
 
@@ -127,12 +141,9 @@ public class RsMaterialController : MonoBehaviour
 
     public void ApplyColorMode()
     {
-        if (targetPointCloudRenderers == null || targetPointCloudRenderers.Count == 0)
-        {
-            return;
-        }
+        if (GlobalManager == null) return;
 
-        foreach (var pRenderer in targetPointCloudRenderers)
+        foreach (var pRenderer in GlobalManager.GetChildRenderers())
         {
             if (pRenderer == null) continue;
 

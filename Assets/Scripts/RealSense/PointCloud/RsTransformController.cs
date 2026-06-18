@@ -1,20 +1,38 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using UnityEngine;
+
+[Serializable]
+public class ChildTransformData
+{
+    public string name;
+    public Vector3 localPosition;
+    public Quaternion localRotation;
+    public Vector3 localScale;
+}
+
+[Serializable]
+public class ChildTransformDataList
+{
+    public List<ChildTransformData> transforms = new List<ChildTransformData>();
+}
 
 public class RsTransformController : MonoBehaviour
 {
     [Serializable]
     public class CalibrationSlot
     {
-        [Tooltip("’¼•û‘Ì‚Ì‹N“_‚Æ‚È‚éÀ•Wie‚©‚ç‚Ìƒ[ƒJƒ‹À•Wj")]
+        [Tooltip("ç›´æ–¹ä½“ã®èµ·ç‚¹ã¨ãªã‚‹åº§æ¨™ï¼ˆè¦ªã‹ã‚‰ã®ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ï¼‰")]
         public Vector3 origin = new Vector3(0.30f, 0.0f, 0.25f);
 
-        [Tooltip("’¼•û‘Ì‚ÌƒTƒCƒYi•E‚‚³E‰œs‚«j")]
+        [Tooltip("ç›´æ–¹ä½“ã®ã‚µã‚¤ã‚ºï¼ˆå¹…ãƒ»é«˜ã•ãƒ»å¥¥è¡Œãï¼‰")]
         public Vector3 boxSize = new Vector3(0.29f, 0.405f, 0.08f);
     }
 
     [Header("Config")]
-    [Tooltip("Œ»İ‘I‘ğ’†‚ÌƒXƒƒbƒg”Ô† (0-2)")]
+    [Tooltip("ç¾åœ¨é¸æŠä¸­ã®ã‚¹ãƒ­ãƒƒãƒˆç•ªå· (0-2)")]
     [Range(0, 2)]
     public int currentSlotIndex = 0;
 
@@ -23,14 +41,18 @@ public class RsTransformController : MonoBehaviour
     public CalibrationSlot slot2 = new CalibrationSlot();
     public CalibrationSlot slot3 = new CalibrationSlot();
 
+    [Header("Save/Load Settings")]
+    [Tooltip("ä¿å­˜ã™ã‚‹JSONãƒ•ã‚¡ã‚¤ãƒ«ã®åå‰")]
+    public string saveFileName = "ChildTransforms.json";
+
     [Header("Calibration Box Guide")]
-    [Tooltip("ƒV[ƒ“ƒrƒ…[‚ÉˆÊ’u‡‚í‚¹—p‚ÌƒKƒCƒhƒ{ƒbƒNƒX‚ğ•\¦‚·‚é‚©")]
+    [Tooltip("ã‚·ãƒ¼ãƒ³ãƒ“ãƒ¥ãƒ¼ã«ä½ç½®åˆã‚ã›ç”¨ã®ã‚¬ã‚¤ãƒ‰ãƒœãƒƒã‚¯ã‚¹ã‚’è¡¨ç¤ºã™ã‚‹ã‹")]
     public bool showCalibrationGuide = true;
 
-    [Tooltip("ƒ{ƒbƒNƒX˜gü‚ÌF")]
+    [Tooltip("ãƒœãƒƒã‚¯ã‚¹æ ç·šã®è‰²")]
     public Color guideFrameColor = Color.green;
 
-    [Tooltip("Še’¸“_‚Ìƒ}[ƒJ[F")]
+    [Tooltip("å„é ‚ç‚¹ã®ãƒãƒ¼ã‚«ãƒ¼è‰²")]
     public Color cornerMarkerColor = Color.red;
 
     public CalibrationSlot CurrentSlot
@@ -84,5 +106,83 @@ public class RsTransformController : MonoBehaviour
         {
             Gizmos.DrawWireSphere(point, markerRadius);
         }
+    }
+
+    [ContextMenu("Save Transforms to JSON")]
+    public void SaveTransformsToJson()
+    {
+        var globalManager = GetComponent<RsGlobalPointCloudManager>();
+        if (globalManager == null)
+        {
+            Debug.LogError("[RsTransformController] RsGlobalPointCloudManagerãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚");
+            return;
+        }
+
+        var renderers = globalManager.GetChildRenderers().ToList();
+        if (renderers.Count == 0)
+        {
+            Debug.LogWarning("[RsTransformController] ä¿å­˜å¯¾è±¡ã®ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚");
+            return;
+        }
+
+        ChildTransformDataList dataList = new ChildTransformDataList();
+        foreach (var renderer in renderers)
+        {
+            if (renderer != null)
+            {
+                Transform childTransform = renderer.transform;
+                dataList.transforms.Add(new ChildTransformData
+                {
+                    name = childTransform.name,
+                    localPosition = childTransform.localPosition,
+                    localRotation = childTransform.localRotation,
+                    localScale = childTransform.localScale
+                });
+            }
+        }
+
+        string json = JsonUtility.ToJson(dataList, true);
+        string directoryPath = Path.Combine(Application.dataPath, "Config", "RealSense");
+        if (!Directory.Exists(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+        string filePath = Path.Combine(directoryPath, saveFileName);
+        File.WriteAllText(filePath, json);
+        Debug.Log($"[RsTransformController] Transforms saved to {filePath}");
+    }
+
+    [ContextMenu("Load Transforms from JSON")]
+    public void LoadTransformsFromJson()
+    {
+        string directoryPath = Path.Combine(Application.dataPath, "Config", "RealSense");
+        string filePath = Path.Combine(directoryPath, saveFileName);
+        if (!File.Exists(filePath))
+        {
+            Debug.LogWarning($"[RsTransformController] ãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: {filePath}");
+            return;
+        }
+
+        string json = File.ReadAllText(filePath);
+        ChildTransformDataList dataList = JsonUtility.FromJson<ChildTransformDataList>(json);
+
+        var globalManager = GetComponent<RsGlobalPointCloudManager>();
+        if (globalManager == null) return;
+
+        var renderers = globalManager.GetChildRenderers().ToList();
+
+        foreach (var data in dataList.transforms)
+        {
+            var targetRenderer = renderers.FirstOrDefault(r => r != null && r.transform.name == data.name);
+            if (targetRenderer != null)
+            {
+                Transform childTransform = targetRenderer.transform;
+                childTransform.localPosition = data.localPosition;
+                childTransform.localRotation = data.localRotation;
+                childTransform.localScale = data.localScale;
+            }
+        }
+
+        Debug.Log($"[RsTransformController] Transforms loaded from {filePath}");
     }
 }
