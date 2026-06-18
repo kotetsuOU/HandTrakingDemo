@@ -53,7 +53,7 @@ public class PCV_ControllerEditor : Editor
         {
             settingsObject = new SerializedObject(settingsComponent);
 
-            renderingSourceProp = settingsObject.FindProperty("renderingSource"); // ’Ç‰Á
+            renderingSourceProp = settingsObject.FindProperty("renderingSource");
 
             fileSettingsProp = settingsObject.FindProperty("fileSettings");
             pointSizeProp = settingsObject.FindProperty("pointSize");
@@ -143,7 +143,7 @@ public class PCV_ControllerEditor : Editor
             if (GUILayout.Button("Apply Transform (Rot & Pos)"))
             {
                 if (EditorUtility.DisplayDialog("Apply Transform",
-                    "Œ»İ‚ÌViewer‚ÌyˆÊ’u‚Æ‰ñ“]z‚ğƒ^[ƒQƒbƒg‚É”½‰f‚µ‚Ü‚·B\ns—ñ‰‰Z‚É‚æ‚èA‰ñ“]‚É”º‚¤ˆÊ’u‚¸‚ê‚à•â³‚³‚ê‚Ü‚·B\n”½‰fŒãAViewer‚ÍƒŠƒZƒbƒg‚³‚ê‚Ü‚·B\n‚æ‚ë‚µ‚¢‚Å‚·‚©H", "Yes", "Cancel"))
+                    "Viewerã®ç¾åœ¨ã®ä½ç½®ãƒ»å›è»¢ã‚’ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã«é©ç”¨ã—ã¾ã™ã€‚\nã“ã®æ“ä½œã¯å…ƒã«æˆ»ã›ã¾ã›ã‚“ï¼ˆâ€»ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã®Transformã¯Undoå¯èƒ½ã§ã™ãŒã€Viewerå§¿å‹¢ã¯ãƒªã‚»ãƒƒãƒˆã•ã‚Œã¾ã™ï¼‰ã€‚\nå®Ÿè¡Œã—ã¾ã™ã‹ï¼Ÿ", "Yes", "Cancel"))
                 {
                     controller.ApplyTransformCorrection();
                 }
@@ -154,19 +154,19 @@ public class PCV_ControllerEditor : Editor
 
         EditorGUILayout.BeginHorizontal();
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f);
-        if (GUILayout.Button("‚·‚×‚ÄON")) SetAllFileUsage(true);
+        if (GUILayout.Button("å…¨ãƒ•ã‚¡ã‚¤ãƒ« ON")) SetAllFileUsage(true);
         GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
-        if (GUILayout.Button("‚·‚×‚ÄOFF")) SetAllFileUsage(false);
+        if (GUILayout.Button("å…¨ãƒ•ã‚¡ã‚¤ãƒ« OFF")) SetAllFileUsage(false);
         EditorGUILayout.EndHorizontal();
 
         GUI.backgroundColor = new Color(0.8f, 0.8f, 0.6f);
-        if (GUILayout.Button("“_ŒQ‚ğÄ\’z")) controller.RebuildPointCloud();
+        if (GUILayout.Button("ç‚¹ç¾¤ã®å†æ§‹ç¯‰")) controller.RebuildPointCloud();
         GUI.backgroundColor = Color.white;
 
         if (showDataFiles)
         {
             EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(fileSettingsProp, true);
+            DrawFileSettingsList();
             EditorGUI.indentLevel--;
         }
         EditorGUILayout.Space();
@@ -174,7 +174,7 @@ public class PCV_ControllerEditor : Editor
         showNeighborSearch = EditorGUILayout.Foldout(showNeighborSearch, "Neighbor Search & Filtering", true, EditorStyles.foldoutHeader);
 
         GUI.backgroundColor = new Color(0.7f, 0.9f, 0.7f);
-        if (GUILayout.Button("Voxel‚²‚Æ‚Ì“_ŒQ”‚ğCSVo—Í"))
+        if (GUILayout.Button("ãƒœã‚¯ã‚»ãƒ«ç‚¹ç¾¤æ•°ã‚’CSVå‡ºåŠ›"))
         {
             controller.ExportVoxelCountsToCSV();
         }
@@ -183,12 +183,12 @@ public class PCV_ControllerEditor : Editor
 
         EditorGUILayout.BeginHorizontal();
         GUI.backgroundColor = new Color(0.8f, 1f, 0.8f);
-        if (GUILayout.Button("ƒ{ƒNƒZƒ‹–§“xƒtƒBƒ‹ƒ^ƒŠƒ“ƒO‚ğÀs"))
+        if (GUILayout.Button("ãƒœã‚¯ã‚»ãƒ«å¯†åº¦ãƒ•ã‚£ãƒ«ã‚¿å®Ÿè¡Œ"))
         {
             controller.StartVoxelDensityFiltering();
         }
         GUI.backgroundColor = new Color(0.6f, 0.8f, 1f);
-        if (GUILayout.Button("‹ß–T’TõƒtƒBƒ‹ƒ^‚ğÀs"))
+        if (GUILayout.Button("è¿‘å‚ãƒã‚¤ã‚ºãƒ•ã‚£ãƒ«ã‚¿å®Ÿè¡Œ"))
         {
             controller.StartNeighborFiltering();
         }
@@ -210,7 +210,7 @@ public class PCV_ControllerEditor : Editor
         showMorpologyOperation = EditorGUILayout.Foldout(showMorpologyOperation, "Morpology Operation", true, EditorStyles.foldoutHeader);
 
         GUI.backgroundColor = new Color(1f, 0.8f, 0.6f);
-        if (GUILayout.Button("ƒ‚ƒ‹ƒtƒHƒƒW[‰‰Z‚ğÀs (Morpology)"))
+        if (GUILayout.Button("ãƒ¢ãƒ«ãƒ•ã‚©ãƒ­ã‚¸ãƒ¼æ¼”ç®—å®Ÿè¡Œ (Morpology)"))
         {
             controller.StartMorpologyOperation();
         }
@@ -228,7 +228,7 @@ public class PCV_ControllerEditor : Editor
         showDensityComplementation = EditorGUILayout.Foldout(showDensityComplementation, "Density Complementation", true, EditorStyles.foldoutHeader);
 
         GUI.backgroundColor = new Color(1f, 0.7f, 1f);
-        if (GUILayout.Button("–§“x•âŠ®‚ğÀs"))
+        if (GUILayout.Button("å¯†åº¦è£œå®Œå®Ÿè¡Œ"))
         {
             controller.StartDensityComplementation();
         }
@@ -258,18 +258,18 @@ public class PCV_ControllerEditor : Editor
 
         EditorGUILayout.BeginHorizontal();
         GUI.backgroundColor = new Color(0.6f, 1f, 0.6f);
-        if (GUILayout.Button("‚·‚×‚Ä GPU ON")) SetAllGpuUsage(true);
+        if (GUILayout.Button("å…¨GPUå‡¦ç† ON")) SetAllGpuUsage(true);
         GUI.backgroundColor = new Color(1f, 0.6f, 0.6f);
-        if (GUILayout.Button("‚·‚×‚Ä GPU OFF (CPU)")) SetAllGpuUsage(false);
+        if (GUILayout.Button("å…¨GPUå‡¦ç† OFF (CPU)")) SetAllGpuUsage(false);
         EditorGUILayout.EndHorizontal();
         GUI.backgroundColor = Color.white;
 
         if (showGpuAcceleration)
         {
             EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(useGpuNoiseFilterProp, new GUIContent("‹ß–T’TõƒtƒBƒ‹ƒ^ (GPU)"));
-            EditorGUILayout.PropertyField(useGpuDensityFilterProp, new GUIContent("ƒ{ƒNƒZƒ‹–§“xƒtƒBƒ‹ƒ^ (GPU)"));
-            EditorGUILayout.PropertyField(useGpuDensityComplementationProp, new GUIContent("–§“x•âŠ® (GPU)"));
+            EditorGUILayout.PropertyField(useGpuNoiseFilterProp, new GUIContent("è¿‘å‚ãƒ•ã‚£ãƒ«ã‚¿ (GPU)"));
+            EditorGUILayout.PropertyField(useGpuDensityFilterProp, new GUIContent("ãƒœã‚¯ã‚»ãƒ«å¯†åº¦ãƒ•ã‚£ãƒ«ã‚¿ (GPU)"));
+            EditorGUILayout.PropertyField(useGpuDensityComplementationProp, new GUIContent("å¯†åº¦è£œå®Œ (GPU)"));
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Compute Shader Assets", EditorStyles.boldLabel);
@@ -296,6 +296,54 @@ public class PCV_ControllerEditor : Editor
         settingsObject.ApplyModifiedProperties();
     }
 
+    private void DrawFileSettingsList()
+    {
+        EditorGUILayout.LabelField("File Settings List", EditorStyles.boldLabel);
+        for (int i = 0; i < fileSettingsProp.arraySize; i++)
+        {
+            SerializedProperty element = fileSettingsProp.GetArrayElementAtIndex(i);
+            SerializedProperty useFile = element.FindPropertyRelative("useFile");
+            SerializedProperty filePath = element.FindPropertyRelative("filePath");
+            SerializedProperty color = element.FindPropertyRelative("color");
+            SerializedProperty useFileColor = element.FindPropertyRelative("useFileColor");
+            SerializedProperty targetObject = element.FindPropertyRelative("targetObject");
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            
+            useFile.boolValue = EditorGUILayout.ToggleLeft($"File {i + 1} (Use: {useFile.boolValue})", useFile.boolValue, EditorStyles.boldLabel);
+            
+            if (useFile.boolValue)
+            {
+                EditorGUI.indentLevel++;
+
+                // File Path Selection row
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.PropertyField(filePath, new GUIContent("File Path"));
+                if (GUILayout.Button("Browse", EditorStyles.miniButton, GUILayout.Width(60)))
+                {
+                    var path = EditorUtility.OpenFilePanel("Select Point Cloud File", "Assets", "txt;ply");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        settingsObject.Update();
+                        filePath.stringValue = MakeRelativePath(path);
+                        settingsObject.ApplyModifiedProperties();
+                        GUI.FocusControl(null);
+                    }
+                    GUIUtility.ExitGUI();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.PropertyField(color, new GUIContent("Gizmo Color"));
+                EditorGUILayout.PropertyField(useFileColor, new GUIContent("Use File Color (PLY)"));
+                EditorGUILayout.PropertyField(targetObject, new GUIContent("Target Object"));
+
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.Space(2);
+        }
+    }
+
     private void SetAllFileUsage(bool value)
     {
         for (int i = 0; i < fileSettingsProp.arraySize; i++)
@@ -311,5 +359,25 @@ public class PCV_ControllerEditor : Editor
         useGpuNoiseFilterProp.boolValue = value;
         useGpuDensityFilterProp.boolValue = value;
         useGpuDensityComplementationProp.boolValue = value;
+    }
+
+    private static string MakeRelativePath(string absolutePath)
+    {
+        if (string.IsNullOrEmpty(absolutePath)) return absolutePath;
+        absolutePath = absolutePath.Replace("\\", "/");
+
+        string projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..")).Replace("\\", "/");
+
+        if (absolutePath.StartsWith(projectRoot, System.StringComparison.OrdinalIgnoreCase))
+        {
+            string relativePath = absolutePath.Substring(projectRoot.Length);
+            if (relativePath.StartsWith("/"))
+            {
+                relativePath = relativePath.Substring(1);
+            }
+            return relativePath;
+        }
+
+        return absolutePath;
     }
 }

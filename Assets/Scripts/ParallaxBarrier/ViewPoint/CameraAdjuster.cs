@@ -25,6 +25,9 @@ public class CameraAdjuster : MonoBehaviour
     [Tooltip("ハーフミラー環境用に左右のフラスタム（投影）を反転するかどうか")]
     public bool isHalfMirrorEnabled = true;
 
+    [Tooltip("手動でプロジェクション行列（視錐台）を計算するかどうか。Falseの場合、SDKの行列をそのまま使用し、反転処理のみ適用します。")]
+    public bool calculateProjectionMatrix = true;
+
     [Tooltip("MoveToDefaultPosition()で移動させる際のデフォルト座標")]
     public Vector3 defaultPosition = new Vector3(0.3f, 0.85f, 0.15f);
 
@@ -34,6 +37,14 @@ public class CameraAdjuster : MonoBehaviour
     private void Awake()
     {
         InitializeCamera();
+    }
+
+    private void Start()
+    {
+        // 念のため、他のプラグイン（SRD SDKなど）がコールバックを登録した「後」に
+        // こちらのコールバックが呼ばれるように、一度解除して再登録し、実行順を最後尾に回します。
+        RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+        RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
     }
 
     private void Reset()
@@ -94,6 +105,19 @@ public class CameraAdjuster : MonoBehaviour
         if (isHalfMirrorEnabled && camera == _activeCamera)
         {
             GL.invertCulling = true;
+
+            // If we are relying on the SDK's projection matrix but still need the half-mirror flip,
+            // we manually invert the X-axis of the projection matrix here.
+            if (!calculateProjectionMatrix)
+            {
+                Matrix4x4 p = camera.projectionMatrix;
+                // Multiply by a scale matrix (-1, 1, 1) on the left to invert the X-axis
+                p.m00 = -p.m00;
+                p.m01 = -p.m01;
+                p.m02 = -p.m02;
+                p.m03 = -p.m03;
+                camera.projectionMatrix = p;
+            }
         }
     }
 
@@ -131,60 +155,63 @@ public class CameraAdjuster : MonoBehaviour
         }
 
         // --- ディスプレイの四隅の座標をワールド空間で計算 ---
-        Vector3 displayCenter = displayTransform.position;
-        
-        // ディスプレイの傾きに対応するため、displayTransformのローカル軸（right, forward）を使用します
-        Vector3 displayRight = displayTransform.right * displayTransform.localScale.x / 2;
-        Vector3 displayUp = displayTransform.forward * displayTransform.localScale.z / 2;
-
-        // ボトムレフト、ボトムライト、トップレフトの座標
-        Vector3 bl = displayCenter - displayRight - displayUp;
-        Vector3 br = displayCenter + displayRight - displayUp;
-        Vector3 tl = displayCenter - displayRight + displayUp;
-
-        // --- ワールド座標をカメラのローカル座標(ビュー空間)に変換 ---
-        Matrix4x4 cameraTransform = _activeCamera.worldToCameraMatrix;
-        bl = cameraTransform.MultiplyPoint(bl);
-        br = cameraTransform.MultiplyPoint(br);
-        tl = cameraTransform.MultiplyPoint(tl);
-
-        // --- カメラのニアクリップ面(Near Plane)でのディスプレイ投影サイズを計算 ---
-        float nearPlane = _activeCamera.nearClipPlane;
-        float farPlane = _activeCamera.farClipPlane;
-
-        // 相似比を利用して、ディスプレイ面のZ距離(-z)からニアクリップ面上のx,yサイズを求める
-        // Z距離が0に近い場合や裏側にある場合は計算しない
-        if (bl.z >= -0.001f || br.z >= -0.001f || tl.z >= -0.001f)
+        if (calculateProjectionMatrix)
         {
-            return;
-        }
+            Vector3 displayCenter = displayTransform.position;
+            
+            // ディスプレイの傾きに対応するため、displayTransformのローカル軸（right, forward）を使用します
+            Vector3 displayRight = displayTransform.right * displayTransform.localScale.x / 2;
+            Vector3 displayUp = displayTransform.forward * displayTransform.localScale.z / 2;
 
-        float right = br.x * (nearPlane / -br.z);
-        float left = bl.x * (nearPlane / -bl.z);
-        float top = tl.y * (nearPlane / -tl.z);
-        float bottom = bl.y * (nearPlane / -bl.z);
+            // ボトムレフト、ボトムライト、トップレフトの座標
+            Vector3 bl = displayCenter - displayRight - displayUp;
+            Vector3 br = displayCenter + displayRight - displayUp;
+            Vector3 tl = displayCenter - displayRight + displayUp;
 
-        // --- 非対称な投影行列を構築してカメラに適用 ---
-        // 計算結果がNaNや無限大にならないかチェック
-        if (float.IsNaN(right) || float.IsNaN(left) || float.IsNaN(top) || float.IsNaN(bottom) ||
-            float.IsInfinity(right) || float.IsInfinity(left) || float.IsInfinity(top) || float.IsInfinity(bottom))
-        {
-            return;
-        }
+            // --- ワールド座標をカメラのローカル座標(ビュー空間)に変換 ---
+            Matrix4x4 cameraTransform = _activeCamera.worldToCameraMatrix;
+            bl = cameraTransform.MultiplyPoint(bl);
+            br = cameraTransform.MultiplyPoint(br);
+            tl = cameraTransform.MultiplyPoint(tl);
 
-        Matrix4x4 p;
-        if (isHalfMirrorEnabled)
-        {
-            // ハーフミラーの場合、左右の端を反転させる (right, left of frustum)
-            p = Matrix4x4.Frustum(right, left, bottom, top, nearPlane, farPlane);
-        }
-        else
-        {
-            // 通常の場合
-            p = Matrix4x4.Frustum(left, right, bottom, top, nearPlane, farPlane);
-        }
+            // --- カメラのニアクリップ面(Near Plane)でのディスプレイ投影サイズを計算 ---
+            float nearPlane = _activeCamera.nearClipPlane;
+            float farPlane = _activeCamera.farClipPlane;
 
-        _activeCamera.projectionMatrix = p;
+            // 相似比を利用して、ディスプレイ面のZ距離(-z)からニアクリップ面上のx,yサイズを求める
+            // Z距離が0に近い場合や裏側にある場合は計算しない
+            if (bl.z >= -0.001f || br.z >= -0.001f || tl.z >= -0.001f)
+            {
+                return;
+            }
+
+            float right = br.x * (nearPlane / -br.z);
+            float left = bl.x * (nearPlane / -bl.z);
+            float top = tl.y * (nearPlane / -tl.z);
+            float bottom = bl.y * (nearPlane / -bl.z);
+
+            // --- 非対称な投影行列を構築してカメラに適用 ---
+            // 計算結果がNaNや無限大にならないかチェック
+            if (float.IsNaN(right) || float.IsNaN(left) || float.IsNaN(top) || float.IsNaN(bottom) ||
+                float.IsInfinity(right) || float.IsInfinity(left) || float.IsInfinity(top) || float.IsInfinity(bottom))
+            {
+                return;
+            }
+
+            Matrix4x4 p;
+            if (isHalfMirrorEnabled)
+            {
+                // ハーフミラーの場合、左右の端を反転させる (right, left of frustum)
+                p = Matrix4x4.Frustum(right, left, bottom, top, nearPlane, farPlane);
+            }
+            else
+            {
+                // 通常の場合
+                p = Matrix4x4.Frustum(left, right, bottom, top, nearPlane, farPlane);
+            }
+
+            _activeCamera.projectionMatrix = p;
+        }
     }
 
     /// <summary>
