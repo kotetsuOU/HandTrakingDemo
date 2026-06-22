@@ -150,7 +150,8 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 2.  **リアルタイム姿勢行列の適用**:
     カメラのキャリブレーション姿勢変換行列（`Matrix4x4`）を `RsIntegratedPointCloud.UpdateTransformMatrix(matrix)` 経由で毎フレーム更新し、`RsIntegratedPointCloudProcessor` を介して直接 GPU 側の座標変換に適用します。
 3.  **マルチスレッド・ディスパッチ転送**:
-    非同期スレッドからキャプチャした RAW 画像バッファは、アンマネージド領域から C# キャッシュバッファへと高速に `Marshal.Copy` されます。その後、メインスレッド用のディスパッチャである `RsUnityMainThreadDispatcher` を介して `ProcessPendingFrame` が駆動され、GPU（Compute Shader および `Texture2D.LoadRawTextureData`）へ非同期転送・並列処理されます。
+    非同期スレッドからキャプチャした RAW 画像バッファは、アンマネージド領域から C# キャッシュバッファへと高速に `Marshal.Copy` されます。その後、メインスレッド用のディスパッチャである `RsUnityMainThreadDispatcher` を介して `ProcessPendingFrame` が駆動され、GPU（Compute Shader）へ非同期転送・並列処理されます。
+    *   **帯域幅の最適化 (YUYV サポート)**: `RsDevice` のプロファイルでカラーフォーマットを `Yuyv` に指定した場合、従来の RGB8 (24bit) と比較して 1ピクセルあたりのデータ転送量が 3バイトから 2バイトへ縮小します。これによりカメラ〜CPU間のUSB転送帯域、およびCPU〜GPU間のPCIeメモリ転送帯域がそれぞれ **33% 削減**されます。GPU 側の Compute Shader 内で YUYV データを直接デコードするため、CPU の変換オーバーヘッドはゼロに抑えられています。
 
 ### D. `ProcessingBlocks/ColorFilter/` 配下の役割と設計仕様
 手の形状抽出や背景カットといった特定の切り出し（カリング）や、カラー-深度センサー間の位置補正を高速に行うための事前処理フィルタ群です。
@@ -163,6 +164,8 @@ GC で回収されないため、フレームワーク側で明示的に解放�
     深度カメラとカラーカメラ間のピクセルアライメント（幾何学的アライメント補正）を行います。`VideoStreamProfile` から取得した深度カメラの内参（Intrinsics）、カラーカメラの内参、および両カメラ間の外参（Extrinsics - 回転・平行移動行列）を用いて、深度座標系からカラー座標系への精密な 3D 逆射影・座標変換・2D 再投影（`MapDepthToColor`）の数理演算をリアルタイムで実行します。
 *   **`RsHsvConverter.cs` / `RsYCbCrConverter.cs`**:
     RGB カラーをそれぞれ HSV（Hue, Saturation, Value）および YCbCr（Luminance, Chrominance Blue, Chrominance Red、ITU-R BT.601 規格）へ高速変換する数学ユーティリティです。
+*   **カラーフォーマット最適化 (YUYV Direct Decode)**:
+    帯域幅不足を解決するため、ストリーミングされた `YUYV` (16bit) 画像バッファを CPU 側で展開せず、そのまま ComputeBuffer へ転送し GPU 上でオンザフライデコードします。とくにカリングに YCbCr モードを選択している場合、色空間変換自体をスキップして直接判定できるため、メモリ帯域幅削減に加えて GPU 演算負荷の低下にも寄与しています。
 *   **`RsCullingDebugExporter.cs`**:
     閾値チューニングを支援する強力なデバッグエクスポート機能です。`SaveDebugFrames` が有効になると、現在のフレームから「元のカラー画像」「各色成分ごとの階調可視化画像」「フィルタ適用後の切り抜き画像」など計5枚のビットマップ（BMP）画像をローカルディレクトリ（`Assets/RealSenseDebug/`）へ即時に非同期で保存し、調整用の視覚的フィードバックを提供します。
 

@@ -33,6 +33,7 @@ public class RsIntegratedPointCloudProcessor : IDisposable
         public int minY, maxY, minCb, maxCb, minCr, maxCr;
         public Matrix4x4 transformMatrix;
         public int coordinateConversion;
+        public int colorFormat; // 0: RGB8, 1: YUYV
     }
 
     private ComputeShader _shader;
@@ -189,7 +190,8 @@ public class RsIntegratedPointCloudProcessor : IDisposable
                 minCr = parent._minCr,
                 maxCr = parent._maxCr,
                 transformMatrix = parent._transformMatrix,
-                coordinateConversion = (int)parent._coordinateConversion
+                coordinateConversion = (int)parent._coordinateConversion,
+                colorFormat = (colorFrame.Profile.Format == Format.Yuyv) ? 1 : 0
             };
             _hasPendingFrame = true;
         }
@@ -286,7 +288,8 @@ public class RsIntegratedPointCloudProcessor : IDisposable
             minCr = p._minCr,
             maxCr = p._maxCr,
             transformMatrix = p._transformMatrix,
-            coordinateConversion = (int)p._coordinateConversion
+            coordinateConversion = (int)p._coordinateConversion,
+            colorFormat = _pendingParams.colorFormat
         };
         _paramsBuffers[_bufferIndex].SetData(_cullingParamsCache);
         _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffers[_bufferIndex]);

@@ -33,6 +33,7 @@ struct CullingParams
     int minCr, maxCr;
     float4x4 transformMatrix;
     int coordinateConversion;
+    int colorFormat;
 };
 
 ByteAddressBuffer _InputDepthBuffer;
@@ -177,56 +178,107 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
     uint cWidth = cIntrin.width;
     uint pixelIndex = cy * cWidth + cx;
-    uint byteOffset = pixelIndex * 3;
-
-    uint alignedOffset = byteOffset & ~3;
-    uint byteShift = byteOffset & 3;
-
-    uint2 words = _InputColorBuffer.Load2(alignedOffset);
-    uint word0 = words.x;
-    uint word1 = words.y;
-
-    float r, g, b;
-    if (byteShift == 0) {
-        r = (float)(word0 & 0xFF) / 255.0f;
-        g = (float)((word0 >> 8) & 0xFF) / 255.0f;
-        b = (float)((word0 >> 16) & 0xFF) / 255.0f;
-    } else if (byteShift == 1) {
-        r = (float)((word0 >> 8) & 0xFF) / 255.0f;
-        g = (float)((word0 >> 16) & 0xFF) / 255.0f;
-        b = (float)((word0 >> 24) & 0xFF) / 255.0f;
-    } else if (byteShift == 2) {
-        r = (float)((word0 >> 16) & 0xFF) / 255.0f;
-        g = (float)((word0 >> 24) & 0xFF) / 255.0f;
-        b = (float)(word1 & 0xFF) / 255.0f;
-    } else {
-        r = (float)((word0 >> 24) & 0xFF) / 255.0f;
-        g = (float)(word1 & 0xFF) / 255.0f;
-        b = (float)((word1 >> 8) & 0xFF) / 255.0f;
-    }
-
+    
     bool isTarget = false;
 
-    if (p.mode == 0)
+    if (p.colorFormat == 1) // YUYV
     {
-        float3 hsv;
-        RgbToHsv(r, g, b, hsv);
-        if (hsv.x >= p.minHue && hsv.x <= p.maxHue &&
-            hsv.y >= p.minSat && hsv.y <= p.maxSat &&
-            hsv.z >= p.minVal && hsv.z <= p.maxVal)
+        uint pairIndex = pixelIndex / 2;
+        bool isOdd = (pixelIndex % 2) != 0;
+        uint byteOffset = pairIndex * 4; // 4 bytes per 2 pixels
+        uint alignedOffset = byteOffset & ~3;
+        
+        uint packed = _InputColorBuffer.Load(alignedOffset);
+        
+        // Y0 U0 Y1 V0
+        uint y0 = packed & 0xFF;
+        uint u  = (packed >> 8) & 0xFF;
+        uint y1 = (packed >> 16) & 0xFF;
+        uint v  = (packed >> 24) & 0xFF;
+        
+        int y = isOdd ? (int)y1 : (int)y0;
+        int cb_val = (int)u;
+        int cr_val = (int)v;
+
+        if (p.mode == 0) // HSV mode
         {
-            isTarget = true;
+            float y_f = (float)y;
+            float u_f = (float)cb_val - 128.0f;
+            float v_f = (float)cr_val - 128.0f;
+            
+            float r = saturate((y_f + 1.402f * v_f) / 255.0f);
+            float g = saturate((y_f - 0.344136f * u_f - 0.714136f * v_f) / 255.0f);
+            float b = saturate((y_f + 1.772f * u_f) / 255.0f);
+
+            float3 hsv;
+            RgbToHsv(r, g, b, hsv);
+            if (hsv.x >= p.minHue && hsv.x <= p.maxHue &&
+                hsv.y >= p.minSat && hsv.y <= p.maxSat &&
+                hsv.z >= p.minVal && hsv.z <= p.maxVal)
+            {
+                isTarget = true;
+            }
+        }
+        else // YCbCr mode
+        {
+            if (y >= p.minY && y <= p.maxY &&
+                cb_val >= p.minCb && cb_val <= p.maxCb &&
+                cr_val >= p.minCr && cr_val <= p.maxCr)
+            {
+                isTarget = true;
+            }
         }
     }
-    else
+    else // RGB8
     {
-        int3 ycbcr;
-        RgbToYCbCr(r, g, b, ycbcr);
-        if (ycbcr.x >= p.minY && ycbcr.x <= p.maxY &&
-            ycbcr.y >= p.minCb && ycbcr.y <= p.maxCb &&
-            ycbcr.z >= p.minCr && ycbcr.z <= p.maxCr)
+        uint byteOffset = pixelIndex * 3;
+        uint alignedOffset = byteOffset & ~3;
+        uint byteShift = byteOffset & 3;
+
+        uint2 words = _InputColorBuffer.Load2(alignedOffset);
+        uint word0 = words.x;
+        uint word1 = words.y;
+
+        float r, g, b;
+        if (byteShift == 0) {
+            r = (float)(word0 & 0xFF) / 255.0f;
+            g = (float)((word0 >> 8) & 0xFF) / 255.0f;
+            b = (float)((word0 >> 16) & 0xFF) / 255.0f;
+        } else if (byteShift == 1) {
+            r = (float)((word0 >> 8) & 0xFF) / 255.0f;
+            g = (float)((word0 >> 16) & 0xFF) / 255.0f;
+            b = (float)((word0 >> 24) & 0xFF) / 255.0f;
+        } else if (byteShift == 2) {
+            r = (float)((word0 >> 16) & 0xFF) / 255.0f;
+            g = (float)((word0 >> 24) & 0xFF) / 255.0f;
+            b = (float)(word1 & 0xFF) / 255.0f;
+        } else {
+            r = (float)((word0 >> 24) & 0xFF) / 255.0f;
+            g = (float)(word1 & 0xFF) / 255.0f;
+            b = (float)((word1 >> 8) & 0xFF) / 255.0f;
+        }
+
+        if (p.mode == 0)
         {
-            isTarget = true;
+            float3 hsv;
+            RgbToHsv(r, g, b, hsv);
+            if (hsv.x >= p.minHue && hsv.x <= p.maxHue &&
+                hsv.y >= p.minSat && hsv.y <= p.maxSat &&
+                hsv.z >= p.minVal && hsv.z <= p.maxVal)
+            {
+                isTarget = true;
+            }
+        }
+        else
+        {
+            int3 ycbcr;
+            RgbToYCbCr(r, g, b, ycbcr);
+            if (ycbcr.x >= p.minY && ycbcr.x <= p.maxY &&
+                ycbcr.y >= p.minCb && ycbcr.y <= p.maxCb &&
+                ycbcr.z >= p.minCr && ycbcr.z <= p.maxCr)
+            {
+                isTarget = true;
+            }
         }
     }
 
