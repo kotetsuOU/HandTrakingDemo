@@ -25,7 +25,7 @@ graph TD
     WIKI["📄 統合ポータル<br/>(WIKI.md)"]:::main
     
     %% サブシステム分離
-    WIKI -->|"📸 点群統合パイプライン"| PointCloudNode["📸 点群ストリーミング・統合設計思想<br/>(POINTCLOUD_PIPELINE.md)"]:::render
+    WIKI -->|"📸 点群・データハブ"| PointCloudNode["📦 点群ストリーミング・統合ハブ<br/>(POINTCLOUD_PIPELINE.md)"]:::common
     WIKI -->|"🎨 視覚オクルージョン"| RenderNode["🎨 レンダリング・オクルージョン設計思想<br/>(OCCLUSION_RENDERING.md)"]:::render
     WIKI -->|"⚡ 触覚物理衝突検出"| HapticsNode["⚡ 空中超音波ハプティクス設計思想<br/>(HAPTICS.md)"]:::haptic
     WIKI -->|"🔍 デバッグ空間検索"| DebugNode["🔍 PCV デバッグ空間演算システム<br/>(DEBUG_PCV.md)"]:::debug
@@ -33,13 +33,11 @@ graph TD
     WIKI -->|"⚙️ 初期化・キャリブレーション"| InitNode["⚙️ 初期化とアライメント・キャリブレーション<br/>(INITIALIZATION.md)"]:::common
     WIKI -->|"🎮 操作・デモ制御"| ControlNode["🎮 アニメーション・操作キーシステム<br/>(AnimationControls.md)"]:::control
 
-    %% 共通データハブ
-    GlobalManager["📦 RsGlobalPointCloudManager (統合点群ハブ)"]:::common
-    PointCloudNode -.->|ストリーミング＆非同期マージ| GlobalManager
-    RenderNode -.->|ゼロコピー頂点バッファ参照| GlobalManager
-    HapticsNode -.->|ゼロコピー頂点バッファ参照| GlobalManager
-    DebugNode -.->|CPU/GPU 空間検索ソース| GlobalManager
-    InitNode -.->|アライメント対象の取得元| GlobalManager
+    %% 共通データハブへの依存関係 (RsGlobalPointCloudManager)
+    RenderNode -.->|ゼロコピー頂点バッファ参照| PointCloudNode
+    HapticsNode -.->|ゼロコピー頂点バッファ参照| PointCloudNode
+    DebugNode -.->|CPU/GPU 空間検索ソース| PointCloudNode
+    InitNode -.->|アライメント対象の取得元| PointCloudNode
 ```
 
 ---
