@@ -46,7 +46,7 @@ git lfs pull
 
 ## 使い方
 基本的な使い方は以下の通りです。
-詳細なキーボード操作については、[こちらのガイド](./Docs/KeyboardControls.md)を確認してください。
+詳細なキーボード操作については、[こちらのガイド](./Docs/AnimationControls.md)を確認してください。
 
 ※ Unityで実行する際は、`Project` ウィンドウから `Scenes` フォルダ内の `RealTimeOcclusion` シーンを開いてください。
   そのシーンをアクティブにしてから再生（Play）ボタンで動作確認を行ってください。

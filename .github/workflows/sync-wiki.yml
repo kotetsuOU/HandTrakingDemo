@@ -58,7 +58,7 @@ jobs:
               "AnimationControls.md": "AnimationControls",
               "INITIALIZATION.md": "INITIALIZATION"
           }
-          pattern = re.compile(r"\(\s*(?:\./)?([^/)]+\.md)\s*\)")
+          pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):
               filename = match.group(1)
               if filename in mapping:

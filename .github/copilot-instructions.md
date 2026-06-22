@@ -5,6 +5,7 @@
 - The project documentation should be consolidated into README.md and Home.md, as Markdown files under the .github directory are difficult to access.
 - When adding debugging features to this repository, prioritize implementations that minimize processing load.
 - The user is working on adding an 'OcclusionMode 3' with a directional binning model (majority voting mechanism for 3 directions) and optimizations for loop-invariant code motion (e.g., pulling coordinate inverse squared magnitude computations out of the loop).
+- **Documentation Sync:** When adding or modifying markdown files in the `Docs/` directory, ensure that those changes are reflected in `.github/workflows/sync-wiki.yml` mapping so they sync properly to the GitHub Wiki.
 
 ## Code Functionality
 - Ensure that the RsDeviceEditor.cs script's PlaybackMode Open button correctly updates the selected bag file by including `serializedObject.ApplyModifiedProperties()` in the implementation.
