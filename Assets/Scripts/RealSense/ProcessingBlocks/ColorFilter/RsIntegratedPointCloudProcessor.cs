@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -32,7 +32,6 @@ public class RsIntegratedPointCloudProcessor : IDisposable
         public float minDist, maxDist, minHue, maxHue, minSat, maxSat, minVal, maxVal;
         public int minY, maxY, minCb, maxCb, minCr, maxCr;
         public Matrix4x4 transformMatrix;
-        public int applyTransform;
         public int coordinateConversion;
     }
 
@@ -190,7 +189,6 @@ public class RsIntegratedPointCloudProcessor : IDisposable
                 minCr = parent._minCr,
                 maxCr = parent._maxCr,
                 transformMatrix = parent._transformMatrix,
-                applyTransform = parent._applyTransform ? 1 : 0,
                 coordinateConversion = (int)parent._coordinateConversion
             };
             _hasPendingFrame = true;
@@ -288,12 +286,13 @@ public class RsIntegratedPointCloudProcessor : IDisposable
             minCr = p._minCr,
             maxCr = p._maxCr,
             transformMatrix = p._transformMatrix,
-            applyTransform = p._applyTransform ? 1 : 0,
             coordinateConversion = (int)p._coordinateConversion
         };
         _paramsBuffers[_bufferIndex].SetData(_cullingParamsCache);
         _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffers[_bufferIndex]);
     }
+
+
 
     public void UpdateTransformMatrix(Matrix4x4 matrix)
     {

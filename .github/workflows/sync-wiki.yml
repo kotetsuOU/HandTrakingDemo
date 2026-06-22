@@ -7,12 +7,13 @@ on:
       - main
     paths:
       - "WIKI.md"
-      - "POINTCLOUD_PIPELINE.md"
-      - "OCCLUSION_RENDERING.md"
-      - "HAPTICS.md"
-      - "DEBUG_PCV.md"
-      - "DISPLAY_3D.md"
-      - "AnimationControls.md"
+      - "Docs/POINTCLOUD_PIPELINE.md"
+      - "Docs/OCCLUSION_RENDERING.md"
+      - "Docs/HAPTICS.md"
+      - "Docs/DEBUG_PCV.md"
+      - "Docs/DISPLAY_3D.md"
+      - "Docs/INITIALIZATION.md"
+      - "Docs/AnimationControls.md"
       - "INITIALIZATION.md"
 
 permissions:
@@ -34,14 +35,14 @@ jobs:
           
           # ドキュメントを配置 (WIKI.md は Home.md として配置)
           cp WIKI.md temp-wiki/Home.md
-          cp POINTCLOUD_PIPELINE.md temp-wiki/POINTCLOUD_PIPELINE.md
-          cp OCCLUSION_RENDERING.md temp-wiki/OCCLUSION_RENDERING.md
-          cp HAPTICS.md temp-wiki/HAPTICS.md
-          cp DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
-          cp DISPLAY_3D.md temp-wiki/DISPLAY_3D.md
-          cp INITIALIZATION.md temp-wiki/INITIALIZATION.md
-          if [ -f AnimationControls.md ]; then
-            cp AnimationControls.md temp-wiki/AnimationControls.md
+          cp Docs/POINTCLOUD_PIPELINE.md temp-wiki/POINTCLOUD_PIPELINE.md
+          cp Docs/OCCLUSION_RENDERING.md temp-wiki/OCCLUSION_RENDERING.md
+          cp Docs/HAPTICS.md temp-wiki/HAPTICS.md
+          cp Docs/DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
+          cp Docs/DISPLAY_3D.md temp-wiki/DISPLAY_3D.md
+          cp Docs/INITIALIZATION.md temp-wiki/INITIALIZATION.md
+          if [ -f Docs/AnimationControls.md ]; then
+            cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           fi
           
           # リンクの書き換え処理 (ローカルの相対リンクを GitHub Wiki のフラットなリンク構造に変換)

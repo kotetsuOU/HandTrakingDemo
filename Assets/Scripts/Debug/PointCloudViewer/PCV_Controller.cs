@@ -48,7 +48,6 @@ public class PCV_Controller : MonoBehaviour
     private void Start()
     {
         if (!UnityEngine.Application.isPlaying) return;
-        pointCloudRenderer.InitializeOutline(settings.outline, settings.outlineColor);
         pointCloudRenderer.UpdatePointSize(settings.pointSize);
         StartCoroutine(RebuildPointCloudAfterFrame());
     }
@@ -74,7 +73,6 @@ public class PCV_Controller : MonoBehaviour
         else if (settings.HasRenderingSettingsChanged())
         {
             pointCloudRenderer.UpdatePointSize(settings.pointSize);
-            pointCloudRenderer.InitializeOutline(settings.outline, settings.outlineColor);
             settings.SaveInspectorState();
         }
 

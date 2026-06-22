@@ -1,4 +1,4 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System;
 using UnityEngine;
 
@@ -34,11 +34,10 @@ public class RsIntegratedPointCloud : RsProcessingBlock
     [Tooltip("デバッグ画像の保存先フォルダ")]
     public string DebugSavePath = "Assets/RealSenseDebug";
 
-    [Header("Debug Matrix")]
-    [Tooltip("特定の変換行列を点群に適用するかどうか")]
-    public bool _applyTransform = false;
-    [Tooltip("適用する4x4トランスフォーム行列")]
+    [HideInInspector]
     public Matrix4x4 _transformMatrix = Matrix4x4.identity;
+    
+    [Header("Coordinate Conversion")]
     [Tooltip("Unityの世界に合わせるための座標系の反転モード")]
     public CoordinateConversion _coordinateConversion = CoordinateConversion.FlipY;
 
@@ -110,13 +109,14 @@ public class RsIntegratedPointCloud : RsProcessingBlock
         }
     }
 
+
+
     /// <summary>
     /// デバイス座標からワールド空間等への変換行列を更新する
     /// </summary>
     public void UpdateTransformMatrix(Matrix4x4 matrix)
     {
         _transformMatrix = matrix;
-        _applyTransform = true;
         if (_gpuProcessor != null)
         {
             _gpuProcessor.UpdateTransformMatrix(matrix);

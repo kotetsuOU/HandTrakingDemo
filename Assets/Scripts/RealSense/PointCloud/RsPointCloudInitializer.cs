@@ -1,4 +1,4 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System.Diagnostics;
 using System.Linq;
 using UnityEngine;

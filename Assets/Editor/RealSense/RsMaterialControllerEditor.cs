@@ -1,6 +1,5 @@
 using UnityEditor;
 using UnityEngine;
-using System.Linq;
 
 [CustomEditor(typeof(RsMaterialController))]
 public class RsMaterialControllerEditor : Editor

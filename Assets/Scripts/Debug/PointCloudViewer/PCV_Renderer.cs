@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
@@ -84,23 +84,6 @@ public class PCV_Renderer : MonoBehaviour
             pointCloudMesh = null;
         }
         meshFilter.mesh = null;
-    }
-
-    public void InitializeOutline(GameObject outlineObject, Color color)
-    {
-        Initialize();
-        if (!isInitialized) return;
-
-        if (outlineObject != null)
-        {
-            var renderers = outlineObject.GetComponentsInChildren<MeshRenderer>();
-            foreach (var rend in renderers)
-            {
-                var mat = new Material(Shader.Find("Unlit/PointCloudViewerOutline"));
-                mat.color = color;
-                rend.material = mat;
-            }
-        }
     }
 
     public void HighlightPoints(int centerIndex, List<int> neighborIndices, PCV_Data currentData, Color highlightColor, Color neighborColor)

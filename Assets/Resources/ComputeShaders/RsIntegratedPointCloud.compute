@@ -32,7 +32,6 @@ struct CullingParams
     int minCb, maxCb;
     int minCr, maxCr;
     float4x4 transformMatrix;
-    int applyTransform;
     int coordinateConversion;
 };
 
@@ -257,11 +256,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             finalPoint = point3d;
         }
 
-        if (p.applyTransform != 0)
-        {
-            float4 transformed = mul(p.transformMatrix, float4(finalPoint, 1.0));
-            finalPoint = transformed.xyz;
-        }
+        // Always apply transformMatrix (defaults to identity matrix if unset)
+        float4 transformed = mul(p.transformMatrix, float4(finalPoint, 1.0));
+        finalPoint = transformed.xyz;
 
         _OutputPointCloud.Append(finalPoint);
     }
