@@ -8,9 +8,12 @@ using System.Runtime.InteropServices;
 /// </summary>
 public class HCD_Pipeline : MonoBehaviour
 {
-    [Header("Processors")]
-    [Tooltip("実行するプロセッサの MonoBehaviour を上から順に登録してください。")]
-    public List<MonoBehaviour> processorBehaviors;
+    [Header("Processors (Settings)")]
+    [Tooltip("距離・接触判定プロセッサの設定")]
+    public HCD_DistanceProcessor distanceProcessor = new HCD_DistanceProcessor();
+
+    [Tooltip("空間クラスタリングプロセッサの設定")]
+    public HCD_SpatialClusteringProcessor clusteringProcessor = new HCD_SpatialClusteringProcessor();
     
     [Header("Debug")]
     [Tooltip("選択時にクラスタの重心をGizmoで描画します")]
@@ -34,18 +37,14 @@ public class HCD_Pipeline : MonoBehaviour
 
     private void Start()
     {
-        foreach (var mb in processorBehaviors)
+        // 内部でプロセッサをリスト化し、順番にセットアップ
+        _processors.Add(distanceProcessor);
+        _processors.Add(clusteringProcessor);
+
+        foreach (var processor in _processors)
         {
-            if (mb is IHCD_Processor processor)
-            {
-                _processors.Add(processor);
-                processor.Setup(this);
-                Debug.Log($"[HCD_Pipeline] Processor loaded: {processor.ProcessorName}");
-            }
-            else if (mb != null)
-            {
-                Debug.LogWarning($"[HCD_Pipeline] {mb.name} は IHCD_Processor を実装していません。");
-            }
+            processor.Setup(this);
+            Debug.Log($"[HCD_Pipeline] Processor loaded: {processor.ProcessorName}");
         }
     }
 

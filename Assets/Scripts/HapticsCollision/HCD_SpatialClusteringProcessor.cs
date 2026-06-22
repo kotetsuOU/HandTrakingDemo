@@ -1,7 +1,9 @@
 using UnityEngine;
+using System;
 using System.Runtime.InteropServices;
 
-public class HCD_SpatialClusteringProcessor : MonoBehaviour, IHCD_Processor
+[Serializable]
+public class HCD_SpatialClusteringProcessor : IHCD_Processor
 {
     public string ProcessorName => "SpatialHashClustering";
 

@@ -1,6 +1,8 @@
 using UnityEngine;
+using System;
 
-public class HCD_DistanceProcessor : MonoBehaviour, IHCD_Processor
+[Serializable]
+public class HCD_DistanceProcessor : IHCD_Processor
 {
     public string ProcessorName => "DistanceCalculator";
 
@@ -181,6 +183,6 @@ public class HCD_DistanceProcessor : MonoBehaviour, IHCD_Processor
         _meshNormalsBuffer?.Release();
         _meshIndicesBuffer?.Release();
         _gridBuffer?.Release();
-        if (_bakedMesh != null) Destroy(_bakedMesh);
+        if (_bakedMesh != null) UnityEngine.Object.Destroy(_bakedMesh);
     }
 }
