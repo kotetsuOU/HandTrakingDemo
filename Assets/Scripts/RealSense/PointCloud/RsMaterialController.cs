@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 public enum PointCloudColorMode
@@ -12,16 +12,13 @@ public enum PointCloudColorMode
 public class RsMaterialController : MonoBehaviour
 {
     [Header("Material Settings")]
-    [Tooltip("切り替えに使用するマテリアルのリスト")]
-    public List<Material> materials;
+    [Tooltip("適用するマテリアル")]
+    public Material material;
 
     [Header("Color Settings")]
     [Tooltip("点群の色のモード選択")]
     [HideInInspector]
     public PointCloudColorMode colorMode = PointCloudColorMode.Skin;
-
-    [SerializeField, HideInInspector]
-    private int _currentMaterialIndex = 0;
 
     private List<MeshRenderer> _cachedMeshRenderers = new List<MeshRenderer>();
 
@@ -52,7 +49,7 @@ public class RsMaterialController : MonoBehaviour
     void Start()
     {
         InitializeRenderers();
-        ApplyCurrentMaterial();
+        ApplyMaterial();
         ApplyColorMode();
     }
 
@@ -86,49 +83,18 @@ public class RsMaterialController : MonoBehaviour
         }
     }
 
-    public void ChangeMaterial(int index)
+    public void ApplyMaterial()
     {
-        if (materials == null || materials.Count == 0)
-        {
-            Debug.LogWarning("[RsMaterialController] マテリアルリストが設定されていません。", this);
-            return;
-        }
-
-        if (index < 0 || index >= materials.Count)
-        {
-            Debug.LogError($"[RsMaterialController] マテリアルのインデックスが範囲外です: {index}", this);
-            return;
-        }
-
-        if (materials[index] == null)
-        {
-            Debug.LogWarning($"[RsMaterialController] インデックス {index} のマテリアルがNULLです。", this);
-            return;
-        }
-
-        _currentMaterialIndex = index;
-        ApplyCurrentMaterial();
-    }
-
-    private void ApplyCurrentMaterial()
-    {
-        if (materials == null || materials.Count == 0 || _cachedMeshRenderers.Count == 0)
+        if (_cachedMeshRenderers.Count == 0)
         {
             return;
         }
-
-        if (_currentMaterialIndex >= materials.Count || materials[_currentMaterialIndex] == null)
-        {
-            return;
-        }
-
-        Material materialToApply = materials[_currentMaterialIndex];
 
         foreach (var renderer in _cachedMeshRenderers)
         {
-            if (renderer != null)
+            if (renderer != null && material != null)
             {
-                renderer.material = materialToApply;
+                renderer.material = material;
             }
         }
     }
@@ -183,8 +149,4 @@ public class RsMaterialController : MonoBehaviour
         }
     }
 
-    public int GetCurrentMaterialIndex()
-    {
-        return _currentMaterialIndex;
-    }
 }
