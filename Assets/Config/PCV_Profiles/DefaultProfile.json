@@ -1,0 +1,55 @@
+{
+    "fileSettings": [
+        {
+            "filePath": "Assets/HandTrackingData/PointCloudData\\currentGlobalVerticesRight.txt",
+            "useFile": false
+        },
+        {
+            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesLeft.txt",
+            "useFile": false
+        },
+        {
+            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesTopLeft.txt",
+            "useFile": false
+        },
+        {
+            "filePath": "Assets/HandTrackingData/PointCloudData/currentGlobalVerticesTopRight.txt",
+            "useFile": false
+        },
+        {
+            "filePath": "Assets/HandTrackingData\\GroundTruthHandData/GroundTruth_20260413_165438_fix_ver2.ply",
+            "useFile": false
+        }
+    ],
+    "voxelSize": 0.00390625,
+    "searchRadius": 0.0078125,
+    "neighborColor": {
+        "r": 0.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "neighborThreshold": 250,
+    "voxelDensityThreshold": 15,
+    "erosionIterations": 1,
+    "dilationIterations": 1,
+    "complementationDensityThreshold": 1,
+    "complementationPointsPerAxis": 2,
+    "complementationPointColor": {
+        "r": 0.6274510025978088,
+        "g": 0.125490203499794,
+        "b": 0.9411764740943909,
+        "a": 1.0
+    },
+    "complementationRandomPlacement": true,
+    "pointSize": 0.009999999776482582,
+    "outlineColor": {
+        "r": 1.0,
+        "g": 0.0,
+        "b": 0.0,
+        "a": 0.545098066329956
+    },
+    "useGpuNoiseFilter": true,
+    "useGpuDensityFilter": true,
+    "useGpuDensityComplementation": true
+}

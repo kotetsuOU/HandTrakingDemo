@@ -1,0 +1,214 @@
+#ifndef PCD_OCCLUSION_KERNELS_OCCLUSION_INCLUDED
+#define PCD_OCCLUSION_KERNELS_OCCLUSION_INCLUDED
+
+#include "PCD_Occlusion_Kernels_Occlusion_SingleDirection.hlsl"
+
+[numthreads(8, 8, 1)]
+void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _ScreenParams.x || id.y >= (uint) _ScreenParams.y)
+        return;
+
+    uint2 fullResUV = id.xy;
+    uint originType = _OriginTypeMap_RW[fullResUV];
+    float4 currentPos = _ViewPositionMap[fullResUV];
+
+    bool useTagOptimization = (_EnableTagBasedOptimization > 0);
+
+    // ==========================================
+    // 1. 動的演算スキップ (ジオメトリバッファ利用)
+    // ==========================================
+    // 対象が物理点群(0u)または背景(2u)なら演算をスキップ
+    // 【新規性要素】仮想オブジェクト(1u)の境界領域のみに計算を限定する
+    if (useTagOptimization && (originType == 0u || originType == 2u))
+    {
+        if (_RecordOcclusionDebug > 0)
+        {
+            _OcclusionValueMap_RW[fullResUV] = (originType == 0u) ? float2(-3.0, 0.0) : float2(-1.0, 0.0);
+            _NeighborCountMap_RW[fullResUV] = 0u;
+        }
+
+        _OcclusionResultMap_RW[fullResUV] = _ColorMap[fullResUV];
+        if (originType == 0u)
+            _OriginMap_RW[fullResUV] = float4(0, 0, 0, 1);
+        return;
+    }
+
+    // !useTagOptimizationの場合、背景はオクルージョン判定のため仮想的な遠方に配置
+    if (!useTagOptimization && originType == 2u)
+    {
+        // currentPos はすでに_ViewPositionMapからの値(wが1e9など)かもしれないので、
+        // 適切なビュー空間方向に設定し直す。_ViewPositionMapのw=1e9のピクセルでも、
+        // x,y,zにクリップ空間やUVから逆算したレイベクトルが格納されていればそれを使えるが、
+        // 現在の構成では100m奥に押し込む処理を行う
+        float3 ray = (currentPos.w >= 1e9 && length(currentPos.xyz) > 0.001) ? currentPos.xyz : float3(0, 0, 1);
+        currentPos = float4(normalize(ray) * 100.0, 100.0);
+    }
+
+    // 対象が仮想オブジェクト(1u)の場合のみ以下を実行
+    if (currentPos.w >= 1e9)
+    {
+        _OcclusionResultMap_RW[fullResUV] = _ColorMap[fullResUV];
+        return;
+    }
+
+    // 事前計算
+    float3 x = currentPos.xyz;
+    float len_x = length(x);
+    float currentPosSq = dot(x, x);
+    float invCurrentPosSq = 1.0 / max(currentPosSq, 0.0001);
+
+    int level = _FinalNeighborhoodSizeMap[fullResUV];
+
+    // 8方向のサンプリングオフセット
+    const int2 sectorOffsets[8] = {
+        int2(-1, -1), int2(0, -1), int2(1, -1),
+        int2(-1,  0),              int2(1,  0),
+        int2(-1,  1), int2(0,  1), int2(1,  1)
+    };
+
+    float occlusionSum = 0.0;
+    uint validSectorCount = 0u;
+    uint binaryOccludedCount = 0u;
+    float softOccludedCount = 0.0;
+
+    // ==========================================
+    // 2. 共通ピラミッドサンプリングと遮蔽評価
+    // ==========================================
+    // ピラミッドは構築時フィルタリング(Step3)により物理点群(0u)のみで構成されている。
+    // 深度プリチェックで近傍がカメラ側にある場合のみ遮蔽を評価する。
+    [unroll]
+    for (int s = 0; s < 8; ++s)
+    {
+        float4 neighborPos = FetchPyramidPosition(level, fullResUV, sectorOffsets[s]);
+
+        // 深度プリチェック: センチネル値を排除し、近傍が対象より0.01以上手前にある場合のみ評価
+        if (neighborPos.w < 1e9 && (currentPos.w - neighborPos.w) > 0.01)
+        {
+            // TagOptimizationがONの場合、ピラミッド(Level>=1)は既に物理点群(0u)のみにフィルタ済。
+            // しかし、Level 0 の場合はフル解像度の_ViewPositionMapから直接取得するため、
+            // 仮想オブジェクト(1u)などが混ざっている。ここで確実に除外する。
+            if (useTagOptimization && level == 0)
+            {
+                uint2 nUV = clamp(fullResUV + sectorOffsets[s], 0, _ScreenParams.xy - 1);
+                if (_OriginTypeMap_RW[nUV] != 0u)
+                    continue; // 物理点群以外はオクルーダーとして扱わない
+            }
+
+            float3 y = neighborPos.xyz;
+            float occlusionValue = 0.0;
+
+            // ==========================================
+            // 3. カーネルごとの関数適用
+            // ==========================================
+            if (_KernelType == 0) // Pintus Operator (UI表記: Bouchiba)
+            {
+                // Pintus式: dot(normalize(y-x), normalize(-x))
+                // 対象点自身の視点からの遮蔽を純粋に評価する。
+                // ジオメトリバッファによる異種レイヤー分離により自己遮蔽は原理的に不発生のため、
+                // Bouchibaの -y 補正は不要。
+                float3 y_minus_x = y - x;
+                float len_y_minus_x = length(y_minus_x);
+
+                if (len_y_minus_x > 0.0001 && len_x > 0.0001)
+                {
+                    float dotP = dot((y_minus_x / len_y_minus_x), (-x / len_x));
+                    occlusionValue = max(0.0, 1.0 - dotP);
+                }
+            }
+            else // Exponential (1) or Linear (2) or DepthOnly (4)
+            {
+                // 既存の関数をそのまま流用し、遮蔽度を計算
+                occlusionValue = ComputeOcclusionValue_SingleDirection(x, currentPosSq, invCurrentPosSq, y);
+            }
+
+            occlusionSum += occlusionValue;
+            validSectorCount++;
+
+            // Accumulate sector threshold metrics
+            if (occlusionValue < _OcclusionThreshold)
+            {
+                binaryOccludedCount++;
+            }
+            if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+            {
+                float halfFade = _OcclusionFadeWidth * 0.5;
+                float fadeStart = max(0.0, _OcclusionThreshold - halfFade);
+                float fadeEnd = min(2.0, _OcclusionThreshold + halfFade);
+                float sectorAlpha = smoothstep(fadeStart, fadeEnd, occlusionValue);
+                softOccludedCount += (1.0 - sectorAlpha);
+            }
+        }
+    }
+
+    // 遮蔽度の評価と平均値の算出
+    float avgOcclusion = 1.0;
+    float alpha = 1.0;
+
+    if (_EvaluationMode == 0) // Average Mode
+    {
+        avgOcclusion = (validSectorCount > 0u) ? (occlusionSum / 8.0) : 1.0;
+
+        if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+        {
+            float halfFade = _OcclusionFadeWidth * 0.5;
+            float fadeStart = max(0.0, _OcclusionThreshold - halfFade);
+            float fadeEnd = min(2.0, _OcclusionThreshold + halfFade);
+            alpha = smoothstep(fadeStart, fadeEnd, avgOcclusion);
+        }
+        else
+        {
+            if (avgOcclusion < _OcclusionThreshold)
+                alpha = 0.0;
+        }
+    }
+    else // SectorThreshold Mode (Each Mode)
+    {
+        if (_EnableSoftOcclusionFade > 0 && _OcclusionFadeWidth > 1e-4)
+        {
+            float countFadeStart = max(0.0, (float)_MinOccludedSectors - 1.0);
+            float countFadeEnd = (float)_MinOccludedSectors;
+            alpha = 1.0 - smoothstep(countFadeStart, countFadeEnd, softOccludedCount);
+            avgOcclusion = 1.0 - (softOccludedCount / 8.0);
+        }
+        else
+        {
+            if (binaryOccludedCount >= (uint)_MinOccludedSectors)
+                alpha = 0.0;
+            avgOcclusion = 1.0 - ((float)binaryOccludedCount / 8.0);
+        }
+    }
+
+    if (alpha <= 0.0)
+    {
+        if (_EnableJointBilateralHoleFilling > 0)
+        {
+            _OcclusionResultMap_RW[fullResUV] = float4(0, 0, 0, 1.0);
+        }
+        else
+        {
+            _OcclusionResultMap_RW[fullResUV] = float4(0, 0, 0, 1.0);
+            _OriginTypeMap_RW[fullResUV] = 0u;
+        }
+    }
+    else
+    {
+        float4 col = _ColorMap[fullResUV];
+        col.a *= alpha;
+        _OcclusionResultMap_RW[fullResUV] = col;
+        _OriginMap_RW[fullResUV] = float4(1, 1, 1, 1);
+    }
+
+    // デバッグ情報の記録
+    if (_RecordOcclusionDebug > 0)
+    {
+        float debugLabel = alpha;
+        if (originType == 0u) debugLabel = -3.0; // 実点群は緑
+        else if (originType == 2u) debugLabel = -1.0; // 背景は白
+
+        _OcclusionValueMap_RW[fullResUV] = float2(debugLabel, avgOcclusion);
+        _NeighborCountMap_RW[fullResUV] = validSectorCount;
+    }
+}
+
+#endif // PCD_OCCLUSION_KERNELS_OCCLUSION_INCLUDED

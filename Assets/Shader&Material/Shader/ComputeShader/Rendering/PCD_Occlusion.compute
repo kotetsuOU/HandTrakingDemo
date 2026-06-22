@@ -1,0 +1,57 @@
+// ==========================================
+// PCD_Occulusion.compute
+// メインのコンピュートシェーダーエントリポイント
+// 各パス（カーネル）を定義し、関連するHLSLファイルをインクルードします。
+// ==========================================
+// --- Preprocess (前処理) ---
+#pragma multi_compile _ GRID_SIZE_8 GRID_SIZE_16 GRID_SIZE_32
+
+#pragma kernel ClearMaps                 // マップ初期化
+#pragma kernel ClearCounter              // 静的メッシュのカウンター初期化
+#pragma kernel ProjectPoints             // 点群をスクリーン空間に投影し深度バッファを構築
+#pragma kernel CalculateGridZMin         // グリッドごとの最小深度(Z-Min)を計算
+#pragma kernel CalculateDensity          // グリッド内の点群の密度を計算
+#pragma kernel CalculateGridLevel        // 密度に基づいて近傍探索用のレベル(半径の指標)を算出
+#pragma kernel GridMedianFilter          // 周囲のグリッドレベルに対するメディアンフィルタによる平滑化
+#pragma kernel CalculateNeighborhoodSize // ピクセル単位の近傍サイズマップを生成
+#pragma kernel FillNeighborhoodSizeWithMinLevel // 密度LOD無効時に探索サイズを最小レベルで一括初期化
+
+// --- Occlusion (オクルージョン計算と深度ピラミッド構築) ---
+#pragma kernel BuildDepthPyramidL1       // 深度ピラミッドレベル1構築
+#pragma kernel BuildDepthPyramidL2       // 深度ピラミッドレベル2構築
+#pragma kernel BuildDepthPyramidL3       // 深度ピラミッドレベル3構築
+#pragma kernel BuildDepthPyramidL4       // 深度ピラミッドレベル4構築
+#pragma kernel BuildDepthPyramidL5       // 深度ピラミッドレベル5構築
+#pragma kernel BuildDepthPyramidL6       // 深度ピラミッドレベル6構築
+#pragma kernel ApplyAdaptiveGradientCorrection // 勾配補正適用
+#pragma kernel ComputeOcclusion          // オクルージョン計算
+#pragma kernel CopyColorToOcclusion      // 色情報をオクルージョン結果にコピー
+#pragma kernel FillHoles                 // 穴埋め処理
+#pragma kernel FillHolesPullPushInit     // Pull-Push初期化
+#pragma kernel FillHolesPull             // Pull-Push(Pull)
+#pragma kernel FillHolesPush             // Pull-Push(Push)
+#pragma kernel FillHolesPullPushFinalize // Pull-Push終了
+#pragma kernel MorphologyErode          // 収縮処理
+#pragma kernel MorphologyDilate         // 膨張処理
+#pragma kernel MorphologyCopy           // 複製
+#pragma kernel BuildMorphPyramidL1      // モルフォロジーピラミッドレベル1構築
+#pragma kernel BuildMorphPyramidL2      // モルフォロジーピラミッドレベル2構築
+#pragma kernel BuildMorphPyramidL3      // モルフォロジーピラミッドレベル3構築
+#pragma kernel BuildMorphPyramidL4      // モルフォロジーピラミッドレベル4構築
+#pragma kernel BuildMorphPyramidL5      // モルフォロジーピラミッドレベル5構築
+#pragma kernel BuildMorphPyramidL6      // モルフォロジーピラミッドレベル6構築
+
+// --- Post & Utility (ポスト処理とユーティリティ) ---
+#pragma kernel Interpolate               // 補間処理(DepthMapから1ピクセル単位の深度バッファを生成)
+#pragma kernel MergeBuffer               // 2つのバッファをマージ
+#pragma kernel InitFromCamera            // カメラからの初期化
+#pragma kernel VisualizeOcclusionDebug   // デバッグ可視化
+
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl"
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl"
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl"
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl"
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl"
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl"
+#include "Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Post.hlsl"
+ 

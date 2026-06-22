@@ -1,0 +1,224 @@
+﻿using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+/// <summary>
+/// RealSenseカメラデバイスの点群を統合し、
+/// 全体に対するPCA（主成分分析）やフィルタの制御を行うグローバルマネージャクラス。
+/// </summary>
+public partial class RsGlobalPointCloudManager : MonoBehaviour
+{
+    public static RsGlobalPointCloudManager Instance { get; private set; }
+
+    public enum OutputMode
+    {
+        MergeAll,      // すべてのカメラの点群を統合
+        SingleCamera,  // 特定の1台のカメラの点群のみ出力
+        None           // 出力しない
+    }
+
+    public enum PCAMode
+    {
+        Individual, // 各カメラ個別にPCAを計算
+        Integrated, // 統合された点群を用いてPCAを計算
+        None        // PCAを行わない
+    }
+
+    [Header("Settings")]
+    [Tooltip("複数の点群を1つのバッファに結合するためのComputeShader")]
+    public ComputeShader mergeComputeShader;
+    [Tooltip("結合する点群の最大数")]
+    public int maxTotalPoints = 3000000;
+
+    [Header("Debug Options")]
+    [Tooltip("出力モードの設定（すべて統合、カメラ指定、表示なし）")]
+    public OutputMode outputMode = OutputMode.MergeAll;
+
+    [Tooltip("SingleCameraモードで表示するカメラのインデックス")]
+    public int debugCameraIndex = 0;
+
+    [Header("PCA Settings")]
+    [Tooltip("PCAモードの選択")]
+    public PCAMode pcaMode = PCAMode.Integrated;
+
+    [Header("References")]
+    [Tooltip("管理対象とする点群レンダラーのリスト。空の場合は子オブジェクトから取得します。")]
+    public List<RsPointCloudRenderer> renderers = new List<RsPointCloudRenderer>();
+
+    private ComputeBuffer _globalBuffer;
+    private int _kernelMerge;
+
+    public int CurrentTotalCount { get; private set; } = 0;
+
+    public bool IsIntegratedPCAMode => pcaMode == PCAMode.Integrated;
+
+    public bool IsPCADisabled => pcaMode == PCAMode.None;
+
+    private void Awake()
+    {
+        Instance = this;
+        _globalBuffer = new ComputeBuffer(maxTotalPoints, STRIDE);
+        _kernelMerge = mergeComputeShader.FindKernel("MergePoints");
+    }
+
+    private void LateUpdate()
+    {
+        if (pcaMode == PCAMode.None)
+        {
+            ApplyToAllRenderers(r => r.IsGlobalRangeFilterEnabled = false);
+        }
+        
+        switch (outputMode)
+        {
+            case OutputMode.MergeAll:
+                ProcessMergeAll();
+                break;
+            case OutputMode.SingleCamera:
+                ProcessSingleCamera();
+                break;
+            case OutputMode.None:
+                CurrentTotalCount = 0;
+                break;
+        }
+
+        if (pcaMode == PCAMode.Integrated)
+        {
+            ComputeIntegratedPCA();
+        }
+    }
+
+    /// <summary>
+    /// 統合されたすべての点群データ（グローバルバッファ）を取得します。
+    /// </summary>
+    public ComputeBuffer GetGlobalBuffer()
+    {
+        return _globalBuffer;
+    }
+
+    /// <summary>
+    /// 管理対象となるすべての RsPointCloudRenderer を取得するイテレータ。
+    /// リストが設定されていればそれを、設定されていなければ子オブジェクトから取得して返します。
+    /// </summary>
+    public IEnumerable<RsPointCloudRenderer> GetChildRenderers()
+    {
+        if (renderers != null && renderers.Count > 0)
+        {
+            foreach (var renderer in renderers)
+            {
+                if (renderer != null)
+                {
+                    yield return renderer;
+                }
+            }
+
+            yield break;
+        }
+
+        foreach (Transform child in transform)
+        {
+            var renderer = child.GetComponent<RsPointCloudRenderer>();
+            if (renderer != null)
+            {
+                yield return renderer;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 管理対象となっている最初の RsPointCloudRenderer を取得します。
+    /// </summary>
+    public RsPointCloudRenderer GetFirstRenderer()
+    {
+        foreach (var renderer in GetChildRenderers())
+        {
+            return renderer;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// すべての管理対象レンダラーに対して、指定したアクションを一括で実行します。
+    /// </summary>
+    public void ApplyToAllRenderers(Action<RsPointCloudRenderer> action)
+    {
+        if (action == null) return;
+
+        foreach (var renderer in GetChildRenderers())
+        {
+            action.Invoke(renderer);
+        }
+    }
+
+    /// <summary>
+    /// 全カメラの範囲フィルター (GlobalRangeFilter) の有効/無効を切り替えます。
+    /// </summary>
+    public void ToggleAllRangeFilters()
+    {
+        ApplyToAllRenderers(r => r.IsGlobalRangeFilterEnabled = !r.IsGlobalRangeFilterEnabled);
+    }
+
+    /// <summary>
+    /// すべてのカメラの範囲フィルターが有効になっているかどうかを判定します。
+    /// </summary>
+    public bool AreAllRangeFiltersEnabled()
+    {
+        bool hasRenderer = false;
+
+        foreach (var renderer in GetChildRenderers())
+        {
+            hasRenderer = true;
+            if (!renderer.IsGlobalRangeFilterEnabled)
+            {
+                return false;
+            }
+        }
+
+        return hasRenderer;
+    }
+
+    /// <summary>
+    /// いずれかのカメラの範囲フィルターが有効になっているかどうかを判定します。
+    /// </summary>
+    public bool AreAnyRangeFiltersEnabled()
+    {
+        foreach (var renderer in GetChildRenderers())
+        {
+            if (renderer.IsGlobalRangeFilterEnabled)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// すべてのカメラの範囲フィルター状態を一括で設定します。
+    /// </summary>
+    public void SetAllRangeFilters(bool enabled)
+    {
+        ApplyToAllRenderers(r => r.IsGlobalRangeFilterEnabled = enabled);
+    }
+
+    /// <summary>
+    /// 管理対象となっているレンダラーの総数を取得します。
+    /// </summary>
+    public int GetRendererCount()
+    {
+        int count = 0;
+        foreach (var _ in GetChildRenderers())
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    private void OnDestroy()
+    {
+        // 確保されているグローバルバッファ（ComputeBuffer）を解放します
+        _globalBuffer?.Release();
+    }
+}
