@@ -1,10 +1,8 @@
 {
-    "name": "Haptics",
+    "name": "HapticsCollision",
     "rootNamespace": "",
     "references": [
-        "RealSense",
-        "autd3",
-        "HapticsCollision"
+        "RealSense"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

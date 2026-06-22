@@ -35,11 +35,17 @@ public class HCD_Pipeline : MonoBehaviour
         _sharedBuffers[name] = buffer;
     }
 
+    // 事前確保されたクラスタデータ格納用配列（GC Alloc防止）
+    private ClusterData[] _clusterResults;
+
     private void Start()
     {
         // 内部でプロセッサをリスト化し、順番にセットアップ
         _processors.Add(distanceProcessor);
         _processors.Add(clusteringProcessor);
+
+        // 配列の事前確保
+        _clusterResults = new ClusterData[clusteringProcessor.maxClusters];
 
         foreach (var processor in _processors)
         {
@@ -62,6 +68,29 @@ public class HCD_Pipeline : MonoBehaviour
         {
             processor.Dispatch(globalBuffer, pointsCount);
         }
+    }
+
+    /// <summary>
+    /// GPUから現在の衝突重心（クラスタ）座標を取得します。
+    /// GC Alloc（ガベージコレクション）を発生させない最適化されたメソッドです。
+    /// </summary>
+    public List<Vector3> GetActiveCentroids()
+    {
+        var centroids = new List<Vector3>();
+        var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
+        if (clusterBuffer == null) return centroids;
+
+        // GC Allocを防ぐため、事前に確保した配列に上書きコピー
+        clusterBuffer.GetData(_clusterResults);
+
+        foreach (var data in _clusterResults)
+        {
+            if (data.count > 0)
+            {
+                centroids.Add(new Vector3(data.posX, data.posY, data.posZ) / (data.count * 10000.0f));
+            }
+        }
+        return centroids;
     }
 
     private void OnDestroy()
@@ -91,22 +120,13 @@ public class HCD_Pipeline : MonoBehaviour
     {
         if (!showDebugGizmos || !Application.isPlaying) return;
 
-        var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
-        if (clusterBuffer == null) return;
-
-        ClusterData[] results = new ClusterData[clusterBuffer.count];
-        clusterBuffer.GetData(results);
+        var centroids = GetActiveCentroids();
+        if (centroids.Count == 0) return;
 
         Gizmos.color = Color.magenta;
-
-        foreach (var data in results)
+        foreach (var centroid in centroids)
         {
-            if (data.count > 0)
-            {
-                // GPU側で固定小数点(x10000)として足し込まれているので、要素数と10000.0で割る
-                Vector3 centroid = new Vector3(data.posX, data.posY, data.posZ) / (data.count * 10000.0f);
-                Gizmos.DrawWireSphere(centroid, 0.02f);
-            }
+            Gizmos.DrawWireSphere(centroid, 0.02f);
         }
     }
 }
