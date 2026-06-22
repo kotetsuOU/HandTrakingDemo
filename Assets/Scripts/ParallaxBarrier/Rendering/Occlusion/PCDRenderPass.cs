@@ -321,55 +321,56 @@ public partial class PCDRenderPass : ScriptableRenderPass
         internal ComputeBuffer pointBuffer;
         internal ComputeBuffer staticMeshCounterBuffer;
 
-        internal TextureHandle colorMap;
-        internal TextureHandle depthMap;
+        internal RTHandle colorMap;
+        internal RTHandle depthMap;
         internal TextureHandle virtualDepthTexture;
         internal TextureHandle cameraColorTexture;
         internal bool hasVirtualDepth;
         internal bool hasVirtualObjects;
         internal bool depthMapOnlyMode;
         internal Matrix4x4 inverseProjectionMatrix;
-        internal TextureHandle viewPositionMap;
-        internal TextureHandle gridZMinMap;
-        internal TextureHandle densityMap;
-        internal TextureHandle gridLevelMap;
-        internal TextureHandle filteredGridLevelMap;
-        internal TextureHandle neighborhoodSizeMap;
-        internal TextureHandle depthPyramidL1;
-        internal TextureHandle depthPyramidL2;
-        internal TextureHandle depthPyramidL3;
-        internal TextureHandle depthPyramidL4;
-        internal TextureHandle depthPyramidL5;
-        internal TextureHandle depthPyramidL6;
-        internal TextureHandle correctedNeighborhoodSizeMap;
-        internal TextureHandle occlusionResultMap;
+        internal RTHandle viewPositionMap;
+        internal RTHandle gridZMinMap;
+        internal RTHandle densityMap;
+        internal RTHandle gridLevelMap;
+        internal RTHandle filteredGridLevelMap;
+        internal RTHandle neighborhoodSizeMap;
+        internal RTHandle depthPyramidL1;
+        internal RTHandle depthPyramidL2;
+        internal RTHandle depthPyramidL3;
+        internal RTHandle depthPyramidL4;
+        internal RTHandle depthPyramidL5;
+        internal RTHandle depthPyramidL6;
+        internal RTHandle correctedNeighborhoodSizeMap;
+        internal RTHandle occlusionResultMap;
 
         // Pull-Push pyramid
-        internal TextureHandle[] pullPushPyramid;
+        internal RTHandle[] pullPushPyramid;
  
         // Morphology Temp
-        internal TextureHandle morphColorTemp;
-        internal TextureHandle morphTypeTemp;
+        internal RTHandle morphColorTemp;
+        internal RTHandle morphTypeTemp;
 
-        internal TextureHandle morphTypePyramidL1;
-        internal TextureHandle morphTypePyramidL2;
-        internal TextureHandle morphTypePyramidL3;
-        internal TextureHandle morphTypePyramidL4;
-        internal TextureHandle morphTypePyramidL5;
-        internal TextureHandle morphTypePyramidL6;
+        // Morphology Pyramid
+        internal RTHandle morphTypePyramidL1;
+        internal RTHandle morphTypePyramidL2;
+        internal RTHandle morphTypePyramidL3;
+        internal RTHandle morphTypePyramidL4;
+        internal RTHandle morphTypePyramidL5;
+        internal RTHandle morphTypePyramidL6;
 
-        internal TextureHandle morphColorPyramidL1;
-        internal TextureHandle morphColorPyramidL2;
-        internal TextureHandle morphColorPyramidL3;
-        internal TextureHandle morphColorPyramidL4;
-        internal TextureHandle morphColorPyramidL5;
-        internal TextureHandle morphColorPyramidL6;
- 
-        internal TextureHandle occlusionValueMap;
-        internal TextureHandle finalImage;
-        internal TextureHandle originTypeMap;
-        internal TextureHandle debugDisplayMap;
-        internal TextureHandle neighborCountMap;
+        internal RTHandle morphColorPyramidL1;
+        internal RTHandle morphColorPyramidL2;
+        internal RTHandle morphColorPyramidL3;
+        internal RTHandle morphColorPyramidL4;
+        internal RTHandle morphColorPyramidL5;
+        internal RTHandle morphColorPyramidL6;
+
+        internal RTHandle originTypeMap;
+        internal RTHandle debugDisplayMap;
+        internal RTHandle occlusionValueMap;
+        internal RTHandle neighborCountMap;
+        internal RTHandle finalImage;
     }
 
     private class BlitPassData

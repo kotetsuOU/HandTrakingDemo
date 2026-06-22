@@ -1,8 +1,39 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class PCDPointBufferManager
 {
+    // --- RTHandles for Internal Compute ---
+    public RTHandle _colorMapHandle;
+    public RTHandle _depthMapHandle;
+    public RTHandle _viewPositionMapHandle;
+    public RTHandle _originTypeMapHandle;
+    public RTHandle _gridZMinMapHandle;
+    public RTHandle _densityMapHandle;
+    public RTHandle _gridLevelMapHandle;
+    public RTHandle _filteredGridLevelMapHandle;
+    public RTHandle _neighborhoodSizeMapHandle;
+    public RTHandle _correctedNeighborhoodSizeMapHandle;
+    
+    // Output / Result Maps
+    public RTHandle _occlusionResultMapHandle;
+    public RTHandle _occlusionValueMapHandle;
+    public RTHandle _debugDisplayMapHandle;
+    public RTHandle _neighborCountMapHandle;
+    public RTHandle _integratedDepthMapHandle;
+    public RTHandle _neighborhoodMapHandle;
+    public RTHandle _finalImageHandle;
+
+    public RTHandle depthPyramidL1, depthPyramidL2, depthPyramidL3, depthPyramidL4, depthPyramidL5, depthPyramidL6;
+    public RTHandle[] pullPushPyramid;
+    
+    public RTHandle _morphColorTempHandle;
+    public RTHandle _morphTypeTempHandle;
+
+    public RTHandle morphTypePyramidL1, morphTypePyramidL2, morphTypePyramidL3, morphTypePyramidL4, morphTypePyramidL5, morphTypePyramidL6;
+    public RTHandle morphColorPyramidL1, morphColorPyramidL2, morphColorPyramidL3, morphColorPyramidL4, morphColorPyramidL5, morphColorPyramidL6;
+
     // 点群データの1点分を表す構造体
     public struct Point
     {

@@ -190,6 +190,12 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // t[??ARenderGraph?pXGL[
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
+        // Sceneビューなど解像度の異なるカメラが混ざることで、RTHandleが毎フレーム破棄・再構築されるのを防ぐため、Game/VRのみ許可する
+        if (renderingData.cameraData.cameraType != CameraType.Game && renderingData.cameraData.cameraType != CameraType.VR)
+        {
+            return;
+        }
+
         // 毎フレーム、メッシュのカリング設定やレイヤーを強制適用する
         EnforceSettingsEveryFrame();
 

@@ -177,7 +177,7 @@ public partial class PCDRenderPass
         }
 
         // デバッグマップのアロケーション（外部ファイル化）
-        AllocateDebugMapHandles(screenWidth, screenHeight);
+        AllocateInternalHandles(screenWidth, screenHeight);
 
         TextureHandle finalImageHandle;
         TextureHandle debugDisplayMapHandle_RG = default;
@@ -187,7 +187,7 @@ public partial class PCDRenderPass
         TextureHandle integratedDepthMapHandle_RG = default;
 
         // コンピュートシェーダーを実行するパスをRenderGraphに追加
-        using (var builder = renderGraph.AddComputePass<ComputePassData>(PROFILER_TAG, out var data))
+        using (var builder = renderGraph.AddUnsafePass<ComputePassData>(PROFILER_TAG, out var data))
         {
             builder.AllowGlobalStateModification(true);
             // パスへ渡すパラメータ（シェーダーや各種データ）を登録
@@ -228,99 +228,102 @@ public partial class PCDRenderPass
             builder.UseTexture(data.cameraColorTexture, AccessFlags.Read);
 
             // 中間処理で使用する各種バッファを生成（カラー、深度、座標情報など）
+            
+            
+            data.depthPyramidL1 = _bufferManager.depthPyramidL1;
+            data.depthPyramidL2 = _bufferManager.depthPyramidL2;
+            data.depthPyramidL3 = _bufferManager.depthPyramidL3;
+            data.depthPyramidL4 = _bufferManager.depthPyramidL4;
+            data.depthPyramidL5 = _bufferManager.depthPyramidL5;
+            data.depthPyramidL6 = _bufferManager.depthPyramidL6;
+            data.pullPushPyramid = _bufferManager.pullPushPyramid;
+            data.morphTypePyramidL1 = _bufferManager.morphTypePyramidL1;
+            data.morphTypePyramidL2 = _bufferManager.morphTypePyramidL2;
+            data.morphTypePyramidL3 = _bufferManager.morphTypePyramidL3;
+            data.morphTypePyramidL4 = _bufferManager.morphTypePyramidL4;
+            data.morphTypePyramidL5 = _bufferManager.morphTypePyramidL5;
+            data.morphTypePyramidL6 = _bufferManager.morphTypePyramidL6;
+            data.morphColorPyramidL1 = _bufferManager.morphColorPyramidL1;
+            data.morphColorPyramidL2 = _bufferManager.morphColorPyramidL2;
+            data.morphColorPyramidL3 = _bufferManager.morphColorPyramidL3;
+            data.morphColorPyramidL4 = _bufferManager.morphColorPyramidL4;
+            data.morphColorPyramidL5 = _bufferManager.morphColorPyramidL5;
+            data.morphColorPyramidL6 = _bufferManager.morphColorPyramidL6;
+
             var desc = new TextureDesc(screenWidth, screenHeight) { enableRandomWrite = true };
             desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
-            data.colorMap = renderGraph.CreateTexture(desc);
-            data.viewPositionMap = renderGraph.CreateTexture(desc);
+            data.colorMap = _bufferManager._colorMapHandle;
+            data.viewPositionMap = _bufferManager._viewPositionMapHandle;
 
             // 深度情報はRInt（整数型）として格納
             desc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
             if (data.settings.recordIntegratedDepthMap)
             {
-                integratedDepthMapHandle_RG = renderGraph.ImportTexture(_integratedDepthMapHandle);
-                data.depthMap = integratedDepthMapHandle_RG;
+                integratedDepthMapHandle_RG = renderGraph.ImportTexture(_bufferManager._integratedDepthMapHandle);
+                data.depthMap = _bufferManager._integratedDepthMapHandle;
             }
             else
             {
-                data.depthMap = renderGraph.CreateTexture(desc);
+                data.depthMap = _bufferManager._depthMapHandle;
             }
             desc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
             if (data.settings.recordNeighborhoodMap)
             {
-                neighborhoodMapHandle_RG = renderGraph.ImportTexture(_neighborhoodMapHandle);
+                neighborhoodMapHandle_RG = renderGraph.ImportTexture(_bufferManager._neighborhoodMapHandle);
                 if (data.settings.enableGradientCorrection)
                 {
                     data.correctedNeighborhoodSizeMap = neighborhoodMapHandle_RG;
-                    data.neighborhoodSizeMap = renderGraph.CreateTexture(desc);
+                    data.neighborhoodSizeMap = _bufferManager._neighborhoodSizeMapHandle;
                 }
                 else
                 {
-                    data.neighborhoodSizeMap = neighborhoodMapHandle_RG;
-                    data.correctedNeighborhoodSizeMap = renderGraph.CreateTexture(desc);
+                    data.neighborhoodSizeMap = _bufferManager._neighborhoodMapHandle;
+                    data.correctedNeighborhoodSizeMap = _bufferManager._correctedNeighborhoodSizeMapHandle;
                 }
             }
             else
             {
-                data.neighborhoodSizeMap = renderGraph.CreateTexture(desc);
-                data.correctedNeighborhoodSizeMap = renderGraph.CreateTexture(desc);
+                data.neighborhoodSizeMap = _bufferManager._neighborhoodSizeMapHandle;
+                data.correctedNeighborhoodSizeMap = _bufferManager._correctedNeighborhoodSizeMapHandle;
             }
 
             desc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
-            data.originTypeMap = renderGraph.CreateTexture(desc);
+            data.originTypeMap = _bufferManager._originTypeMapHandle;
 
             // 常にImportしてバインドさせる
-            neighborCountMapHandle_RG = renderGraph.ImportTexture(_neighborCountMapHandle);
-            data.neighborCountMap = neighborCountMapHandle_RG;
+            neighborCountMapHandle_RG = renderGraph.ImportTexture(_bufferManager._neighborCountMapHandle);
+            data.neighborCountMap = _bufferManager._neighborCountMapHandle;
 
             if (data.settings.enableDensityBasedLOD)
             {
                 // 密度とグリッドレベル用の縮小バッファを生成
                 var gridDesc = new TextureDesc(gridGroupsX, gridHeight) { enableRandomWrite = true };
                 gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt;
-                data.gridZMinMap = renderGraph.CreateTexture(gridDesc);
+                data.gridZMinMap = _bufferManager._gridZMinMapHandle;
                 gridDesc.colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_SInt;
-                data.gridLevelMap = renderGraph.CreateTexture(gridDesc);
-                data.filteredGridLevelMap = renderGraph.CreateTexture(gridDesc);
+                data.gridLevelMap = _bufferManager._gridLevelMapHandle;
+                data.filteredGridLevelMap = _bufferManager._filteredGridLevelMapHandle;
                 gridDesc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RFloat, false);
-                data.densityMap = renderGraph.CreateTexture(gridDesc);
+                data.densityMap = _bufferManager._densityMapHandle;
             }
 
             if (needsDepthPyramid)
             {
                 var descL1 = new TextureDesc(l1_Width, l1_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
-                data.depthPyramidL1 = renderGraph.CreateTexture(descL1);
+                
                 var descL2 = new TextureDesc(l2_Width, l2_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
-                data.depthPyramidL2 = renderGraph.CreateTexture(descL2);
+                
                 var descL3 = new TextureDesc(l3_Width, l3_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
-                data.depthPyramidL3 = renderGraph.CreateTexture(descL3);
+                
                 var descL4 = new TextureDesc(l4_Width, l4_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
-                data.depthPyramidL4 = renderGraph.CreateTexture(descL4);
+                
                 var descL5 = new TextureDesc(l5_Width, l5_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
-                data.depthPyramidL5 = renderGraph.CreateTexture(descL5);
+                
                 var descL6 = new TextureDesc(l6_Width, l6_Height) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
-                data.depthPyramidL6 = renderGraph.CreateTexture(descL6);
+                
             }
 
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
-            {
-                if (data.pullPushPyramid == null || data.pullPushPyramid.Length != 5)
-                {
-                    data.pullPushPyramid = new TextureHandle[5];
-                }
-                var ppDesc = new TextureDesc(screenWidth, screenHeight) { enableRandomWrite = true, colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false) };
-                data.pullPushPyramid[0] = renderGraph.CreateTexture(ppDesc);
-                
-                int pw = screenWidth;
-                int ph = screenHeight;
-                for (int i = 1; i < 5; i++)
-                {
-                    pw = Mathf.Max(1, (pw + 1) / 2);
-                    ph = Mathf.Max(1, (ph + 1) / 2);
-                    ppDesc.width = pw;
-                    ppDesc.height = ph;
-                    data.pullPushPyramid[i] = renderGraph.CreateTexture(ppDesc);
-                }
-            }
+            
 
             if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
                 data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO)
@@ -330,42 +333,42 @@ public partial class PCDRenderPass
                     enableRandomWrite = true,
                     colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false)
                 };
-                data.morphColorTemp = renderGraph.CreateTexture(morphColorDesc);
+                data.morphColorTemp = _bufferManager._morphColorTempHandle;
 
                 var morphTypeDesc = new TextureDesc(screenWidth, screenHeight)
                 {
                     enableRandomWrite = true,
                     colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt
                 };
-                data.morphTypeTemp = renderGraph.CreateTexture(morphTypeDesc);
+                data.morphTypeTemp = _bufferManager._morphTypeTempHandle;
 
                 // Morph Pyramids
                 var typeDesc = new TextureDesc(1, 1) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32_UInt };
                 var colDesc = new TextureDesc(1, 1) { enableRandomWrite = true, colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_SFloat };
                 
                 typeDesc.width = colDesc.width = l1_Width; typeDesc.height = colDesc.height = l1_Height;
-                data.morphTypePyramidL1 = renderGraph.CreateTexture(typeDesc);
-                data.morphColorPyramidL1 = renderGraph.CreateTexture(colDesc);
+                
+                
 
                 typeDesc.width = colDesc.width = l2_Width; typeDesc.height = colDesc.height = l2_Height;
-                data.morphTypePyramidL2 = renderGraph.CreateTexture(typeDesc);
-                data.morphColorPyramidL2 = renderGraph.CreateTexture(colDesc);
+                
+                
 
                 typeDesc.width = colDesc.width = l3_Width; typeDesc.height = colDesc.height = l3_Height;
-                data.morphTypePyramidL3 = renderGraph.CreateTexture(typeDesc);
-                data.morphColorPyramidL3 = renderGraph.CreateTexture(colDesc);
+                
+                
 
                 typeDesc.width = colDesc.width = l4_Width; typeDesc.height = colDesc.height = l4_Height;
-                data.morphTypePyramidL4 = renderGraph.CreateTexture(typeDesc);
-                data.morphColorPyramidL4 = renderGraph.CreateTexture(colDesc);
+                
+                
 
                 typeDesc.width = colDesc.width = l5_Width; typeDesc.height = colDesc.height = l5_Height;
-                data.morphTypePyramidL5 = renderGraph.CreateTexture(typeDesc);
-                data.morphColorPyramidL5 = renderGraph.CreateTexture(colDesc);
+                
+                
 
                 typeDesc.width = colDesc.width = l6_Width; typeDesc.height = colDesc.height = l6_Height;
-                data.morphTypePyramidL6 = renderGraph.CreateTexture(typeDesc);
-                data.morphColorPyramidL6 = renderGraph.CreateTexture(colDesc);
+                
+                
             }
 
             bool useHoleFilling = data.settings.holeFillingMethod != PCDRendererFeature.PCD_HoleFillingMethod.None;
@@ -374,7 +377,7 @@ public partial class PCDRenderPass
             if (needsOcclusionResultMap)
             {
                 desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
-                data.occlusionResultMap = renderGraph.CreateTexture(desc);
+                data.occlusionResultMap = _bufferManager._occlusionResultMapHandle;
             }
             else
             {
@@ -384,97 +387,35 @@ public partial class PCDRenderPass
             if (data.settings.recordOcclusionDebugMap || data.settings.recordPixelTagMap)
             {
                 occlusionValueMapHandle_RG = renderGraph.ImportTexture(_occlusionValueMapHandle);
-                data.occlusionValueMap = occlusionValueMapHandle_RG;
+                data.occlusionValueMap = _occlusionValueMapHandle;
             }
             else
             {
                 desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RGFloat, false);
-                data.occlusionValueMap = renderGraph.CreateTexture(desc);
+                data.occlusionValueMap = _bufferManager._occlusionValueMapHandle;
             }
             
             if (useHoleFilling)
             {
                 desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
-                data.finalImage = renderGraph.CreateTexture(desc);
+                data.finalImage = _bufferManager._finalImageHandle;
             }
 
             if (data.settings.enablePixelTagMap || data.settings.enableOcclusionMap)
             {
                 debugDisplayMapHandle_RG = renderGraph.ImportTexture(_debugDisplayMapHandle);
-                data.debugDisplayMap = debugDisplayMapHandle_RG;
+                data.debugDisplayMap = _debugDisplayMapHandle;
             }
             else
             {
                 desc.colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false);
-                data.debugDisplayMap = renderGraph.CreateTexture(desc);
+                data.debugDisplayMap = _bufferManager._debugDisplayMapHandle;
             }
 
-            // --- 変換および演算で読み書き(ReadWrite)するテクスチャを一括登録 ---
-            builder.UseTexture(data.colorMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.depthMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.viewPositionMap, AccessFlags.ReadWrite);
-            if (data.settings.enableDensityBasedLOD)
-            {
-                builder.UseTexture(data.gridZMinMap, AccessFlags.ReadWrite);
-                builder.UseTexture(data.densityMap, AccessFlags.ReadWrite);
-                builder.UseTexture(data.gridLevelMap, AccessFlags.ReadWrite);
-                builder.UseTexture(data.filteredGridLevelMap, AccessFlags.ReadWrite);
-            }
-            builder.UseTexture(data.neighborhoodSizeMap, AccessFlags.ReadWrite);
-            if (needsDepthPyramid)
-            {
-                builder.UseTexture(data.depthPyramidL1, AccessFlags.ReadWrite);
-                builder.UseTexture(data.depthPyramidL2, AccessFlags.ReadWrite);
-                builder.UseTexture(data.depthPyramidL3, AccessFlags.ReadWrite);
-                builder.UseTexture(data.depthPyramidL4, AccessFlags.ReadWrite);
-                builder.UseTexture(data.depthPyramidL5, AccessFlags.ReadWrite);
-                builder.UseTexture(data.depthPyramidL6, AccessFlags.ReadWrite);
-            }
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.PullPush)
-            {
-                for (int i = 0; i < 5; i++)
-                {
-                    builder.UseTexture(data.pullPushPyramid[i], AccessFlags.ReadWrite);
-                }
-            }
-            if (data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_OC ||
-                data.settings.holeFillingMethod == PCDRendererFeature.PCD_HoleFillingMethod.Morphology_CO)
-            {
-                builder.UseTexture(data.morphColorTemp, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphTypeTemp, AccessFlags.ReadWrite);
-
-                builder.UseTexture(data.morphTypePyramidL1, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphTypePyramidL2, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphTypePyramidL3, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphTypePyramidL4, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphTypePyramidL5, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphTypePyramidL6, AccessFlags.ReadWrite);
-
-                builder.UseTexture(data.morphColorPyramidL1, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphColorPyramidL2, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphColorPyramidL3, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphColorPyramidL4, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphColorPyramidL5, AccessFlags.ReadWrite);
-                builder.UseTexture(data.morphColorPyramidL6, AccessFlags.ReadWrite);
-            }
-            builder.UseTexture(data.correctedNeighborhoodSizeMap, AccessFlags.ReadWrite);
-            if (needsOcclusionResultMap)
-            {
-                builder.UseTexture(data.occlusionResultMap, AccessFlags.ReadWrite);
-            }
-            builder.UseTexture(data.occlusionValueMap, AccessFlags.ReadWrite);
-            if (useHoleFilling)
-            {
-                builder.UseTexture(data.finalImage, AccessFlags.ReadWrite);
-            }
-            builder.UseTexture(data.originTypeMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.debugDisplayMap, AccessFlags.ReadWrite);
-            builder.UseTexture(data.neighborCountMap, AccessFlags.ReadWrite);
-
-            finalImageHandle = useHoleFilling ? data.finalImage : data.occlusionResultMap;
+            finalImageHandle = renderGraph.ImportTexture(useHoleFilling ? _bufferManager._finalImageHandle : _bufferManager._occlusionResultMapHandle);
 
             // アロケーションが終わったら、実際のComputeShader実行関数を登録
-            builder.SetRenderFunc((ComputePassData passData, ComputeGraphContext context) =>
+            builder.SetRenderFunc((ComputePassData passData, UnsafeGraphContext context) =>
             {
                 ExecuteComputePass(passData, context);
             });

@@ -4,10 +4,13 @@ using UnityEngine.Rendering.RenderGraphModule;
 
 public partial class PCDRenderPass
 {
-    private static void ExecuteComputePass(ComputePassData passData, ComputeGraphContext context)
+    private void ExecuteComputePass(ComputePassData passData, UnsafeGraphContext context)
     {
-        var cmd = context.cmd;
+        CommandBuffer cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
         var cs = passData.computeShader;
+
+        // リバースZバッファへの対応フラグをセット（DX11等で正しいオクルージョン判定を行うため）
+        cmd.SetComputeIntParam(cs, Shader.PropertyToID("_IsReversedZ"), SystemInfo.usesReversedZBuffer ? 1 : 0);
 
         // 外部バッファと内部バッファの両方が存在する場合、それらを結合します
         if (passData.useExternal && passData.externalCount > 0 && passData.internalCount > 0)
@@ -241,9 +244,6 @@ public partial class PCDRenderPass
             }
         }
 
-        // リバースZバッファへの対応フラグをセット（DX11等で正しいオクルージョン判定を行うため）
-        cmd.SetComputeIntParam(cs, Shader.PropertyToID("_IsReversedZ"), SystemInfo.usesReversedZBuffer ? 1 : 0);
-
         // --- ステージ10: ピラミッドサンプリングによるオクルージョン判定 ---
         if (passData.hasVirtualObjects)
         {
@@ -371,10 +371,10 @@ public partial class PCDRenderPass
 
             System.Action<int, string> runMorphPass = (kernelId, passName) =>
             {
-                TextureHandle colorIn = currentInTemp ? passData.morphColorTemp : passData.occlusionResultMap;
-                TextureHandle typeIn = currentInTemp ? passData.morphTypeTemp : passData.originTypeMap;
-                TextureHandle colorOut = currentInTemp ? passData.occlusionResultMap : passData.morphColorTemp;
-                TextureHandle typeOut = currentInTemp ? passData.originTypeMap : passData.morphTypeTemp;
+                RTHandle colorIn = currentInTemp ? passData.morphColorTemp : passData.occlusionResultMap;
+                RTHandle typeIn = currentInTemp ? passData.morphTypeTemp : passData.originTypeMap;
+                RTHandle colorOut = currentInTemp ? passData.occlusionResultMap : passData.morphColorTemp;
+                RTHandle typeOut = currentInTemp ? passData.originTypeMap : passData.morphTypeTemp;
 
                 // Build Morph Pyramid first
                 int l1_w = Mathf.Max(1, (sw + 1) / 2);
