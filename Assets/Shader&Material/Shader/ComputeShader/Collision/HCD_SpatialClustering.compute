@@ -1,0 +1,66 @@
+#pragma kernel ClearClusters
+#pragma kernel AccumulateClusters
+
+struct PointCollisionData
+{
+    int isColliding;
+    float3 hitPoint;
+    float3 hitNormal;
+};
+
+struct ClusterData
+{
+    int count;
+    int posX;
+    int posY;
+    int posZ;
+};
+
+StructuredBuffer<PointCollisionData> CollisionBuffer;
+RWStructuredBuffer<ClusterData> ClusterBuffer;
+
+uint PointsCount;
+float CellSize;
+uint MaxClusters;
+
+// Spatial Hash Function
+uint Hash(int3 gridPos)
+{
+    uint h = (uint)(gridPos.x * 73856093 ^ gridPos.y * 19349663 ^ gridPos.z * 83492791);
+    return h % MaxClusters;
+}
+
+[numthreads(256, 1, 1)]
+void ClearClusters(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= MaxClusters) return;
+    
+    ClusterBuffer[id.x].count = 0;
+    ClusterBuffer[id.x].posX = 0;
+    ClusterBuffer[id.x].posY = 0;
+    ClusterBuffer[id.x].posZ = 0;
+}
+
+[numthreads(256, 1, 1)]
+void AccumulateClusters(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= PointsCount) return;
+
+    PointCollisionData col = CollisionBuffer[id.x];
+    if (col.isColliding == 1)
+    {
+        // Voxel based clustering
+        int3 gridPos = (int3)floor(col.hitPoint / CellSize);
+        uint hashIndex = Hash(gridPos);
+
+        // Fixed point scaling
+        int fx = (int)(col.hitPoint.x * 10000.0);
+        int fy = (int)(col.hitPoint.y * 10000.0);
+        int fz = (int)(col.hitPoint.z * 10000.0);
+
+        InterlockedAdd(ClusterBuffer[hashIndex].count, 1);
+        InterlockedAdd(ClusterBuffer[hashIndex].posX, fx);
+        InterlockedAdd(ClusterBuffer[hashIndex].posY, fy);
+        InterlockedAdd(ClusterBuffer[hashIndex].posZ, fz);
+    }
+}

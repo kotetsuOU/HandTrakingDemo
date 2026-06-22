@@ -7,13 +7,13 @@ on:
       - AUTD
       - main
     paths:
-      - "WIKI.md"
-      - "Docs/POINTCLOUD_PIPELINE.md"
-      - "Docs/OCCLUSION_RENDERING.md"
-      - "Docs/HAPTICS.md"
-      - "Docs/DEBUG_PCV.md"
-      - "Docs/DISPLAY_3D.md"
-      - "Docs/INITIALIZATION.md"
+      - "Wiki.md"
+      - "Docs/PointCloudPipeline.md"
+      - "Docs/OcclusionRendering.md"
+      - "Docs/Collision.md"
+      - "Docs/DebugPCV.md"
+      - "Docs/Display3D.md"
+      - "Docs/Initialization.md"
       - "Docs/AnimationControls.md"
   workflow_dispatch:
 
@@ -33,13 +33,13 @@ jobs:
         run: |
           git clone "$WIKI_REPO" temp-wiki
           
-          cp WIKI.md temp-wiki/Home.md
-          cp Docs/POINTCLOUD_PIPELINE.md temp-wiki/POINTCLOUD_PIPELINE.md
-          cp Docs/OCCLUSION_RENDERING.md temp-wiki/OCCLUSION_RENDERING.md
-          cp Docs/HAPTICS.md temp-wiki/HAPTICS.md
-          cp Docs/DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
-          cp Docs/DISPLAY_3D.md temp-wiki/DISPLAY_3D.md
-          cp Docs/INITIALIZATION.md temp-wiki/INITIALIZATION.md
+          cp Wiki.md temp-wiki/Home.md
+          cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
+          cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
+          cp Docs/Collision.md temp-wiki/Collision.md
+          cp Docs/DebugPCV.md temp-wiki/DebugPCV.md
+          cp Docs/Display3D.md temp-wiki/Display3D.md
+          cp Docs/Initialization.md temp-wiki/Initialization.md
           if [ -f Docs/AnimationControls.md ]; then
             cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           fi
@@ -47,14 +47,14 @@ jobs:
           python3 -c '
           import os, re
           mapping = {
-              "WIKI.md": "Home",
-              "POINTCLOUD_PIPELINE.md": "POINTCLOUD_PIPELINE",
-              "OCCLUSION_RENDERING.md": "OCCLUSION_RENDERING",
-              "HAPTICS.md": "HAPTICS",
-              "DEBUG_PCV.md": "DEBUG_PCV",
-              "DISPLAY_3D.md": "DISPLAY_3D",
+              "Wiki.md": "Home",
+              "PointCloudPipeline.md": "PointCloudPipeline",
+              "OcclusionRendering.md": "OcclusionRendering",
+              "Collision.md": "Collision",
+              "DebugPCV.md": "DebugPCV",
+              "Display3D.md": "Display3D",
               "AnimationControls.md": "AnimationControls",
-              "INITIALIZATION.md": "INITIALIZATION"
+              "Initialization.md": "Initialization"
           }
           pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):

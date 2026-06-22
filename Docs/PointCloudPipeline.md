@@ -2,13 +2,13 @@
 
 本ドキュメントは、Intel RealSense 等のセンサーから取得したリアルタイム点群（Point Cloud）を CPU/GPU で効率よくストリーミング・フィルタリングし、複数の点群を非同期でマージする「点群ストリーミング・統合パイプライン」の設計思想およびモジュール仕様を記載しています。
 
-視覚オクルージョンのレンダリングパスについては、[OCCLUSION_RENDERING.md](./OCCLUSION_RENDERING.md) を参照してください。
+視覚オクルージョンのレンダリングパスについては、[OcclusionRendering.md](./OcclusionRendering.md) を参照してください。
 
 ---
 
 ## 🔗 統合プロジェクトポータル
 
-本システムは、プロジェクトのメインポータルである **[RealTimeOcclusion システム統合 Wiki (WIKI.md)](./WIKI.md)** の一部です。
+本システムは、プロジェクトのメインポータルである **[RealTimeOcclusion システム統合 Wiki (Wiki.md)](./Wiki.md)** の一部です。
 
 ---
 

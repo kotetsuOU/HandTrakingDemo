@@ -1,0 +1,260 @@
+#pragma kernel ClearMeshGrid
+#pragma kernel BuildMeshGrid
+#pragma kernel CheckCollisionTransform
+#pragma kernel CheckCollisionMesh
+
+struct PointCollisionData
+{
+    int isColliding;
+    float3 hitPoint;
+    float3 hitNormal;
+};
+
+StructuredBuffer<float4> PointCloudBuffer;
+RWStructuredBuffer<PointCollisionData> ResultBuffer;
+
+uint PointsCount;
+
+// TransformOnly
+float3 TargetPosition;
+
+// Distance Thresholds
+float SurfaceDistanceThreshold;
+float BackfaceDistanceThreshold;
+
+// Mesh
+StructuredBuffer<float3> MeshVerticesBuffer;
+StructuredBuffer<float3> MeshNormalsBuffer;
+StructuredBuffer<int> MeshIndicesBuffer;
+uint MeshTrianglesCount;
+float4x4 LocalToWorldMatrix;
+float3 MeshBoundsMin;
+float3 MeshBoundsMax;
+
+// Voxel Grid for Mesh
+RWStructuredBuffer<int> GridBuffer;
+float3 GridBoundsMin;
+float3 GridCellSize;
+int3 GridResolution; // default (8,8,8)
+
+[numthreads(256, 1, 1)]
+void ClearMeshGrid (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= 512) return; // 8x8x8
+    GridBuffer[id.x * 32] = 0;
+}
+
+[numthreads(256, 1, 1)]
+void BuildMeshGrid (uint3 id : SV_DispatchThreadID)
+{
+    uint triIdx = id.x;
+    if (triIdx >= MeshTrianglesCount) return;
+
+    int idxA = MeshIndicesBuffer[triIdx*3];
+    int idxB = MeshIndicesBuffer[triIdx*3+1];
+    int idxC = MeshIndicesBuffer[triIdx*3+2];
+    
+    float3 localA = MeshVerticesBuffer[idxA];
+    float3 localB = MeshVerticesBuffer[idxB];
+    float3 localC = MeshVerticesBuffer[idxC];
+    
+    float3 worldA = mul(LocalToWorldMatrix, float4(localA, 1.0)).xyz;
+    float3 worldB = mul(LocalToWorldMatrix, float4(localB, 1.0)).xyz;
+    float3 worldC = mul(LocalToWorldMatrix, float4(localC, 1.0)).xyz;
+
+    float3 triMin = min(worldA, min(worldB, worldC));
+    float3 triMax = max(worldA, max(worldB, worldC));
+
+    int3 minCell = max(int3(0,0,0), int3((triMin - GridBoundsMin) / GridCellSize));
+    int3 maxCell = min(GridResolution - int3(1,1,1), int3((triMax - GridBoundsMin) / GridCellSize));
+
+    for (int z = minCell.z; z <= maxCell.z; z++)
+    {
+        for (int y = minCell.y; y <= maxCell.y; y++)
+        {
+            for (int x = minCell.x; x <= maxCell.x; x++)
+            {
+                int cellIdx = x + y * GridResolution.x + z * GridResolution.x * GridResolution.y;
+                int count;
+                InterlockedAdd(GridBuffer[cellIdx * 32], 1, count);
+                if (count < 31)
+                {
+                    GridBuffer[cellIdx * 32 + 1 + count] = triIdx;
+                }
+            }
+        }
+    }
+}
+
+// Utility: Closest point on a triangle
+float3 ClosestPointOnTriangle(float3 p, float3 a, float3 b, float3 c)
+{
+    float3 ab = b - a;
+    float3 ac = c - a;
+    float3 ap = p - a;
+    float d1 = dot(ab, ap);
+    float d2 = dot(ac, ap);
+    if (d1 <= 0.0 && d2 <= 0.0) return a; // barycentric (1,0,0)
+
+    float3 bp = p - b;
+    float d3 = dot(ab, bp);
+    float d4 = dot(ac, bp);
+    if (d3 >= 0.0 && d4 <= d3) return b; // barycentric (0,1,0)
+
+    float vc = d1*d4 - d3*d2;
+    if (vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0)
+    {
+        float v = d1 / (d1 - d3);
+        return a + v * ab;
+    }
+
+    float3 cp = p - c;
+    float d5 = dot(ab, cp);
+    float d6 = dot(ac, cp);
+    if (d6 >= 0.0 && d5 <= d6) return c; // barycentric (0,0,1)
+
+    float vb = d5*d2 - d1*d6;
+    if (vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0)
+    {
+        float w = d2 / (d2 - d6);
+        return a + w * ac;
+    }
+
+    float va = d3*d6 - d5*d4;
+    if (va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0)
+    {
+        float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return b + w * (c - b);
+    }
+
+    float denom = 1.0 / (va + vb + vc);
+    float v2 = vb * denom;
+    float w2 = vc * denom;
+    return a + ab * v2 + ac * w2;
+}
+
+[numthreads(256, 1, 1)]
+void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= PointsCount) return;
+
+    float3 p = PointCloudBuffer[id.x].xyz;
+    float3 diff = p - TargetPosition;
+    float dist = length(diff);
+
+    PointCollisionData res;
+    if (dist <= SurfaceDistanceThreshold)
+    {
+        res.isColliding = 1;
+        res.hitPoint = TargetPosition;
+        res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+    }
+    else
+    {
+        res.isColliding = 0;
+        res.hitPoint = float3(0, 0, 0);
+        res.hitNormal = float3(0, 0, 0);
+    }
+    
+    ResultBuffer[id.x] = res;
+}
+
+[numthreads(256, 1, 1)]
+void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= PointsCount) return;
+
+    float3 p = PointCloudBuffer[id.x].xyz;
+    PointCollisionData res;
+    res.isColliding = 0;
+    res.hitPoint = float3(0, 0, 0);
+    res.hitNormal = float3(0, 0, 0);
+
+    // Broad-phase AABB check
+    if (p.x < MeshBoundsMin.x || p.y < MeshBoundsMin.y || p.z < MeshBoundsMin.z ||
+        p.x > MeshBoundsMax.x || p.y > MeshBoundsMax.y || p.z > MeshBoundsMax.z)
+    {
+        ResultBuffer[id.x] = res;
+        return;
+    }
+
+    float minDistSqr = 9999999.0;
+    float3 bestClosestP = float3(0,0,0);
+    float3 bestNormal = float3(0,0,0);
+    float bestSignedDist = 9999999.0;
+
+    // Determine grid cells for point P
+    float maxThresh = max(SurfaceDistanceThreshold, BackfaceDistanceThreshold);
+    float3 pMin = p - float3(maxThresh, maxThresh, maxThresh);
+    float3 pMax = p + float3(maxThresh, maxThresh, maxThresh);
+
+    int3 minCell = max(int3(0,0,0), int3((pMin - GridBoundsMin) / GridCellSize));
+    int3 maxCell = min(GridResolution - int3(1,1,1), int3((pMax - GridBoundsMin) / GridCellSize));
+
+    for (int z = minCell.z; z <= maxCell.z; z++)
+    {
+        for (int y = minCell.y; y <= maxCell.y; y++)
+        {
+            for (int x = minCell.x; x <= maxCell.x; x++)
+            {
+                int cellIdx = x + y * GridResolution.x + z * GridResolution.x * GridResolution.y;
+                int count = min(31, GridBuffer[cellIdx * 32]);
+                
+                for (int i = 0; i < count; i++)
+                {
+                    uint triIdx = GridBuffer[cellIdx * 32 + 1 + i];
+                    
+                    int idxA = MeshIndicesBuffer[triIdx*3];
+                    int idxB = MeshIndicesBuffer[triIdx*3+1];
+                    int idxC = MeshIndicesBuffer[triIdx*3+2];
+                    
+                    float3 localA = MeshVerticesBuffer[idxA];
+                    float3 localB = MeshVerticesBuffer[idxB];
+                    float3 localC = MeshVerticesBuffer[idxC];
+                    
+                    float3 worldA = mul(LocalToWorldMatrix, float4(localA, 1.0)).xyz;
+                    float3 worldB = mul(LocalToWorldMatrix, float4(localB, 1.0)).xyz;
+                    float3 worldC = mul(LocalToWorldMatrix, float4(localC, 1.0)).xyz;
+                    
+                    float3 closestP = ClosestPointOnTriangle(p, worldA, worldB, worldC);
+                    float3 diff = p - closestP;
+                    float dSqr = dot(diff, diff);
+                    
+                    if (dSqr < minDistSqr)
+                    {
+                        minDistSqr = dSqr;
+                        bestClosestP = closestP;
+                        
+                        float3 worldN = normalize(cross(worldB - worldA, worldC - worldA));
+                        bestNormal = worldN;
+                        
+                        float planeDist = dot(p - worldA, worldN);
+                        bestSignedDist = (planeDist < 0.0) ? -sqrt(dSqr) : sqrt(dSqr);
+                    }
+                }
+            }
+        }
+    }
+
+    if (minDistSqr < 9999999.0)
+    {
+        bool hit = false;
+        if (bestSignedDist > 0.0 && bestSignedDist <= SurfaceDistanceThreshold)
+        {
+            hit = true; 
+        }
+        else if (bestSignedDist <= 0.0 && bestSignedDist >= -BackfaceDistanceThreshold)
+        {
+            hit = true; 
+        }
+        
+        if (hit)
+        {
+            res.isColliding = 1;
+            res.hitPoint = bestClosestP;
+            res.hitNormal = bestNormal;
+        }
+    }
+    
+    ResultBuffer[id.x] = res;
+}

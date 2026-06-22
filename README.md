@@ -61,7 +61,7 @@ git lfs pull
    - 調整完了後、`RsTransformController` の Inspector に表示される **「Save Transforms to JSON」** ボタンを押すと、カメラ位置姿勢が `Assets/Config/RealSense/[saveFileName].json` に保存されます。
    - 以前の設定を反映させたいときは **「Load Transforms from JSON」** ボタンで一括読み込み復元が可能です（ロード処理は Undo（Ctrl+Z）に対応しています）。
 
-詳細な設計と手順については、[初期化とアライメント・キャリブレーションシステム (INITIALIZATION.md)](./Docs/INITIALIZATION.md) を参照してください。
+詳細な設計と手順については、[初期化とアライメント・キャリブレーションシステム (Initialization.md)](./Docs/Initialization.md) を参照してください。
 
 ---
 
