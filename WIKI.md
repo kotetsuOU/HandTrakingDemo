@@ -25,7 +25,8 @@ graph TD
     WIKI["📄 統合ポータル<br/>(WIKI.md)"]:::main
     
     %% サブシステム分離
-    WIKI -->|"🎨 視覚オクルージョン"| RenderNode["🎨 レンダリング・オクルージョン設計思想<br/>(OCCLUSIONRENDERING.md)"]:::render
+    WIKI -->|"📸 点群統合パイプライン"| PointCloudNode["📸 点群ストリーミング・統合設計思想<br/>(POINTCLOUD_PIPELINE.md)"]:::render
+    WIKI -->|"🎨 視覚オクルージョン"| RenderNode["🎨 レンダリング・オクルージョン設計思想<br/>(OCCLUSION_RENDERING.md)"]:::render
     WIKI -->|"⚡ 触覚物理衝突検出"| HapticsNode["⚡ 空中超音波ハプティクス設計思想<br/>(HAPTICS.md)"]:::haptic
     WIKI -->|"🔍 デバッグ空間検索"| DebugNode["🔍 PCV デバッグ空間演算システム<br/>(DEBUG_PCV.md)"]:::debug
     WIKI -->|"👓 3D立体視・ミラー制御"| DisplayNode["👓 3D立体視・ハーフミラー制御設計思想<br/>(DISPLAY_3D.md)"]:::display
@@ -34,7 +35,8 @@ graph TD
 
     %% 共通データハブ
     GlobalManager["📦 RsGlobalPointCloudManager (統合点群ハブ)"]:::common
-    RenderNode -.->|ゼロコピー頂点バッファ参照 & 非同期マージ| GlobalManager
+    PointCloudNode -.->|ストリーミング＆非同期マージ| GlobalManager
+    RenderNode -.->|ゼロコピー頂点バッファ参照| GlobalManager
     HapticsNode -.->|ゼロコピー頂点バッファ参照| GlobalManager
     DebugNode -.->|CPU/GPU 空間検索ソース| GlobalManager
     InitNode -.->|アライメント対象の取得元| GlobalManager
@@ -56,7 +58,20 @@ graph TD
 
 ---
 
-### 🎨 1. [視覚オクルージョン・レンダリングシステム](./OCCLUSIONRENDERING.md)
+### 📸 1. [点群ストリーミング・統合パイプライン](./POINTCLOUD_PIPELINE.md)
+*   **目的**: RealSense からのデータ取得、事前フィルタリング、および複数点群の GPU 非同期マージを行います。
+*   **コアモジュールと主要設計特徴**:
+    *   **常時搭載の `RsIntegratedPointCloud` (GPU Direct Mode)**:
+        `RsProcessingPipe` パイプライン内に常時組み込まれ、非同期スレッドから Marshal.Copy されたデータを `RsUnityMainThreadDispatcher` 経由で GPU 上でダイレクト処理し、CPU負荷を最小化。
+    *   **`ColorFilter/` 事前処理**:
+        HSV/YCbCr 空間閾値に基づく肌色等の抽出カリング (`RsColorBasedDepthCulling` / `RsGpuCullingProcessor`)、幾何学的アライメント補正 (`RsDepthToColorCalibration`)、およびパラメータ調整支援 (`RsCullingDebugExporter`) を統合。
+    *   **GPU ゼロコピー・非同期 CommandBuffer マージ**:
+        `RsGlobalPointCloudManager` (GlobalManager) 内で、CommandBuffer (名称 `"RsPointCloud.GlobalMerge"`) を構築し、`Graphics.ExecuteCommandBuffer` により CPU 待機時間ゼロで GPU 上で点群をマージ。
+*   **詳細はこちら ──> [POINTCLOUD_PIPELINE.md](./POINTCLOUD_PIPELINE.md) を読む**
+
+---
+
+### 🎨 2. [視覚オクルージョン・レンダリングシステム](./OCCLUSION_RENDERING.md)
 *   **目的**: 実環境の点群と Unity 仮想オブジェクトの前後遮蔽（オクルージョン）を URP RenderGraph 上で超高速に計算し、エッジ保存型の Hole Filling（穴埋め）を施して滑らかに描画します。
 *   **コアモジュールと主要設計特徴**:
     *   **常時搭載の `RsIntegratedPointCloud` (GPU Direct Mode)**:
@@ -69,11 +84,11 @@ graph TD
         `PCDRenderPass.RecordRenderGraph` 内で、外部バッファ参照と点数を引き渡すことで、CPU を一切ブロックせずに URP の描画フローへシームレスに組み込み。
     *   **多段 Compute Shader カーネル (`PCD_Occlusion.compute`)**:
         Joint Bilateral 補間、Pull-Push 補完、モルフォロジー演算などの多段演算を GPU 側で実行。また、タグベースのオクルージョン最適化 (`EnableTagBasedOptimization`) による仮想オブジェクト同士のセルフオクルージョン防止制御や、D3D11 環境における SRV/UAV 同時バインドハザードを回避する堅牢なアーキテクチャを採用しています。
-*   **詳細はこちら ──> [OCCLUSIONRENDERING.md](./OCCLUSIONRENDERING.md) を読む**
+*   **詳細はこちら ──> [OCCLUSION_RENDERING.md](./OCCLUSION_RENDERING.md) を読む**
 
 ---
 
-### ⚡ 2. [空中超音波ハプティクス（触覚提示）システム](./HAPTICS.md)
+### ⚡ 3. [空中超音波ハプティクス（触覚提示）システム](./HAPTICS.md)
 *   **目的**: 統合点群と Unity 上の動的な仮想オブジェクトとの物理的な衝突判定を GPU で並列計算し、空中超音波触覚ディスプレイ（AUTD3等）と連携してリアルタイムに触覚フィードバックを提示します。
 *   **コアモジュールと特徴**:
     *   `HapCollisionDetectors.cs`: C# 衝突オーケストレーター、BakeMesh による GC 対策。
@@ -82,7 +97,7 @@ graph TD
 
 ---
 
-### 🔍 3. [PCV デバッグビューア](./DEBUG_PCV.md)
+### 🔍 4. [PCV デバッグビューア](./DEBUG_PCV.md)
 *   **目的**: 三次元点群空間を素早くプレビューし、位置合わせ（キャリブレーション）やビジュアル確認を行うためのシンプルなデバッグ基盤です。
 *   **コアモジュールと特徴**:
     *   `PCV_Controller` & `PCV_DataManager`: 点群データの保持と、実世界のデバイスと仮想空間のアライメントを容易にする動的な姿勢補正。
@@ -92,7 +107,7 @@ graph TD
 
 ---
 
-### 👓 4. [3D立体視・ハーフミラー制御システム](./DISPLAY_3D.md)
+### 👓 5. [3D立体視・ハーフミラー制御システム](./DISPLAY_3D.md)
 *   **目的**: 物理的な視線トラッキングセンサー（SRDisplay等）が取得した座標と、ハーフミラーを用いた鏡面世界（光学配置）の視差を完全に一致させます。
 *   **コアモジュールと特徴**:
     *   **SDK標準トラッキングの完全活用**: 独自の座標計算やカメラ同期（`StereoCameraController` 等）を廃止し、SDKの標準カメラ機能（`Use Direct GPU Image Buffer = OFF`）をそのまま活用することで、トラッキング精度とパフォーマンスを最大化。
@@ -103,7 +118,7 @@ graph TD
 
 ---
 
-### 🎮 5. [アニメーション・操作キーシステム](./AnimationControls.md)
+### 🎮 6. [アニメーション・操作キーシステム](./AnimationControls.md)
 *   **目的**: デモや実験時の評価を効率化するために、撮影やオブジェクト切り替え、オクルージョン手法のパラメータ切り替え、およびキャラクターの操作と視点（カメラ）への追従制御を行います。
 *   **コアモジュールと特徴**:
     *   **キャラクターの視点追従**: `F` キーで切り替え可能。`Camera.main`（視点）へ向けてキャラクターをY軸回転で自動的かつ滑らかに追従させます。

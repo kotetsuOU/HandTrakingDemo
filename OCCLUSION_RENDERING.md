@@ -14,12 +14,11 @@
 1. [システム概要と提供価値](#1-システム概要と提供価値)
 2. [全体アーキテクチャとデータフロー](#2-全体アーキテクチャとデータフロー)
 3. [主要フォルダ・ファイル構造](#3-主要フォルダ・ファイル構造)
-4. [RealSense ストリーミングパイプラインと ColorFilter 事前処理](#4-realsense-ストリーミングパイプラインと-colorfilter-事前処理)
-5. [非同期点群マージ＆データパッシング](#5-非同期点群マージデータパッシング)
-6. [オクルージョン制御モジュール (Occlusion Core)](#6-オクルージョン制御モジュール-occlusion-core)
-7. [Compute Shader パイプライン仕様](#7-compute-shader-パイプライン仕様)
-8. [パフォーマンス最適化の工夫](#8-パフォーマンス最適化の工夫)
-9. [動作検証 (Verification Plan)](#9-動作検証-verification-plan)
+4. [オクルージョン制御モジュール (Occlusion Core)](#4-オクルージョン制御モジュール-occlusion-core)
+5. [Compute Shader パイプライン仕様](#5-compute-shader-パイプライン仕様)
+6. [パフォーマンス最適化の工夫](#6-パフォーマンス最適化の工夫)
+7. [動作検証 (Verification Plan)](#7-動作検証-verification-plan)
+8. [Unity 6 RenderGraph マイグレーションとトラブルシューティング](#8-unity-6-rendergraph-マイグレーションとトラブルシューティング)
 
 ---
 
@@ -27,33 +26,13 @@
 
 本システムは、実環境からリアルタイムに取得した点群をスクリーン空間に投影し、Unity の仮想3D空間に配置されたオブジェクトとの前後関係（オクルージョン）をリアルタイムに計算する仕組みです。
 
-```
-[RealSense カメラ / 再生ファイル]
-        │ 
-        │ (非同期スレッドフレームキャプチャ: Worker Thread)
-        ▼
-   [RsDevice]
-        │ 
-        │ (常に搭載された RsIntegratedPointCloud フィルタパイプライン / ColorFilter)
-        │ ├─ RsColorBasedDepthCulling (HSV/YCbCr 色閾値カリング)
-        │ ├─ RsDepthToColorCalibration (幾何アライメント補正)
-        │ └─ RsUnityMainThreadDispatcher (非同期ディスパッチ転送)
-        ▼
-[RsProcessingPipe] ──> (GPU Direct Mode: RsPointCloudInitializer)
-        │
-        ▼ (ゼロコピー GPU 転送 / ComputeBuffer 共有)
-[RsPointCloudRenderer] 
-        │
-        │ (GetPCDSourceBuffer() による個別頂点バッファ共有)
-        ▼
-[RsGlobalPointCloudManager] 
-        │ 
-        │ (★ CommandBuffer "RsPointCloud.GlobalMerge" 構築)
-        │ (★ Graphics.ExecuteCommandBuffer により GPU 上で非同期に MergePoints 実行)
-        ▼ (CPUブロッキングゼロで _globalBuffer へのマージ完了)
-  [PCDRenderPass (URP RenderGraph)]
+```text
+[統合点群バッファ (_globalBuffer) / 静的メッシュバッファ]
         │ 
         │ (RecordRenderGraph でノンブロッキングにバッファと頂点数を引き渡し)
+        ▼
+   [PCDRenderPass (URP RenderGraph)]
+        │ 
         │ (多段 Compute Shader カーネルディスパッチ)
         ▼
 [PCD_Occlusion.compute]
@@ -77,24 +56,13 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant HW as RealSense Hardware
-    participant Dev as RsDevice (Worker Thread)
-    participant Pipe as RsProcessingPipe (Main Thread)
-    participant Render as RsPointCloudRenderer (GPU)
     participant Global as RsGlobalPointCloudManager (GPU)
     participant Pass as PCDRenderPass (RenderGraph)
     participant CS as PCD_Occlusion.compute (GPU)
 
-    HW->>Dev: RAW 深度 & カラーフレーム
-    Note over Dev: WaitForFrames() を別スレッドでポーリング<br/>10回連続エラー検出で自動停止
-    Dev->>Pipe: FrameSet 転送 (Unityスレッド同期)
-    Note over Pipe: 常に搭載されている RsIntegratedPointCloud ブロック稼働<br/>ColorFilter 配下 (HSV/YCbCr, Calibration) で抽出・アライメント補正
-    Pipe->>Render: 最終処理済みフレーム
-    Note over Render: GPU 側でダウンサンプル & PCA 姿勢推定<br/>ComputeBuffer を保持
-    Render->>Global: GetPCDSourceBuffer() による頂点バッファ共有
-    Note over Global: CommandBuffer (RsPointCloud.GlobalMerge) 構築<br/>Graphics.ExecuteCommandBuffer() により CPU を待たずに<br/>GPU上で非同期に MergePoints 統合マージを実行
-    Pass->>Global: RecordRenderGraph() 内でグローバルバッファと頂点数を取得
-    Global-->>Pass: _globalBuffer & CurrentTotalCount をノンブロッキングで引き渡し
+    Note over Global: 統合済みの globalBuffer と<br/>CurrentTotalCount を保持
+    Pass->>Global: RecordRenderGraph() 内で取得
+    Global-->>Pass: ノンブロッキングで引き渡し
     Note over Pass: RenderGraph に ComputePass を登録 (ExecuteComputePass)
     Pass->>CS: Dispatch (13カーネルのパイプライン実行)
     Note over CS: 投影 -> 密度補正 -> 勾配補正 -> Hole Filling -> 結合
@@ -108,186 +76,227 @@ sequenceDiagram
 
 ドキュメント内の各モジュールは、以下のリポジトリ構成と完全に対応しています。
 
-`c:\Users\hongo\Documents\tsutsumi\RealTimeOcclusion` (プロジェクトルート)  
-├── [Assets](./Assets)  
-│   ├── [Scripts](./Assets/Scripts)  
-│   │   ├── **[3DDisplay/Rendering/Occlusion]**  
-│   │   │   ├── [PCDRendererFeature.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDRendererFeature.cs) — URP レンダラーへのパス追加、シングルトンインスタンス管理  
-│   │   │   ├── [PCDSettingsBridge.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDSettingsBridge.cs) — レンダリングパラメータの取得とフォールバックの仲介  
-│   │   │   ├── [PCDOcclusionPipelineController.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDOcclusionPipelineController.cs) — インスペクターからの動的仲介  
-│   │   │   ├── [StaticMeshPCDRegistrar.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/StaticMeshPCDRegistrar.cs) — 空間内の静的/動的オブジェクトを自動検出・登録  
-│   │   │   ├── [PCDIntegratedDepthMapExporter.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDIntegratedDepthMapExporter.cs) — 統合DepthMapエクスポート  
-│   │   │   ├── [PCDOcclusionDebugExporter.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDOcclusionDebugExporter.cs) — 16色パレットPNG/CSV出力用デバッグユーティリティ  
-│   │   │   │   
-│   │   │   ├── **[PCDPointBufferManager] (外部バッファ・静的メッシュの調停)**  
-│   │   │   │   ├── [PCDPointBufferManager.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager.cs) — メインクラス  
-│   │   │   │   ├── [PCDPointBufferManager_Mesh.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager_Mesh.cs) — 静的メッシュの登録・解除  
-│   │   │   │   └── [PCDPointBufferManager_Merge.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager_Merge.cs) — 動的点群とメッシュの統合  
-│   │   │   │   
-│   │   │   └── **[PCDRenderPass] (オクルージョン描画パス)**  
-│   │   │       ├── [PCDRenderPass.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDRenderPass.cs) — メイン処理・初期化・ライフサイクル管理  
-│   │   │       ├── [PCD_RenderPass_API.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_API.cs) — 外部設定・実行API  
-│   │   │       ├── [PCD_RenderPass_Allocation.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Allocation.cs) — RenderGraphリソース確保  
-│   │   │       ├── [PCD_RenderPass_BindParams.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_BindParams.cs) — カーネル引数・定数のバインド  
-│   │   │       ├── [PCD_RenderPass_Debug.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Debug.cs) — 非同期 GPU Readback 制御  
-│   │   │       ├── [PCD_RenderPass_Kernels.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Kernels.cs) — カーネルインデックスとディスパッチ管理  
-│   │   │       │
-│   │   │       ├── *【 1. RecordRenderGraph: パス登録・バッファセットアップ 】*
-│   │   │       │   ├── [PCD_RenderPass_RenderGraph_Setup.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Setup.cs)
-│   │   │       │   ├── [PCD_RenderPass_RenderGraph_Compute.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Compute.cs)
-│   │   │       │   └── [PCD_RenderPass_RenderGraph_Blit.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Blit.cs)
-│   │   │       │
-│   │   │       └── *【 2. ExecuteComputePass: GPU パイプライン実行 】*
-│   │   │           ├── [PCD_RenderPass_Execute_Pre.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Pre.cs) — マップクリア、投影、密度・LOD
-│   │   │           ├── [PCD_RenderPass_Execute_Depth.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Depth.cs) — 深度ピラミッド構築・勾配補正
-│   │   │           ├── [PCD_RenderPass_Execute_Occlusion.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Occlusion.cs) — オクルージョン計算
-│   │   │           ├── [PCD_RenderPass_Execute_HoleFill.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_HoleFill.cs) — ホールフィリング
-│   │   │           └── [PCD_RenderPass_Execute_Post.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Post.cs) — デバッグ出力・合成等
-│   │   │
-│   │   ├── **[RealSense]**  
-│   │   │   ├── [RsConfiguration.cs](./Assets/Scripts/RealSense/RsConfiguration.cs) / [RsDeviceInspector.cs](./Assets/Scripts/RealSense/RsDeviceInspector.cs) / [RsProcessingPipe.cs](./Assets/Scripts/RealSense/RsProcessingPipe.cs) など  
-│   │   │   ├── **[Device]**  
-│   │   │   │   └── [RsDevice.cs](./Assets/Scripts/RealSense/Device/RsDevice.cs) / [RsDeviceController.cs](./Assets/Scripts/RealSense/Device/RsDeviceController.cs)
-│   │   │   ├── **[ProcessingBlocks]**  
-│   │   │   │   ├── 各種標準フィルタ群 (`RsAlign.cs`, `RsSpatialFilter.cs` 等)  
-│   │   │   │   └── **[ColorFilter]**  
-│   │   │   │       ├── [RsIntegratedPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) — GPU Direct 統合処理ブロック  
-│   │   │   │       ├── [RsColorBasedDepthCulling.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsColorBasedDepthCulling.cs) — HSV/YCbCr 深度カリング  
-│   │   │   │       └── [RsDepthToColorCalibration.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsDepthToColorCalibration.cs) — 幾何アライメント補正  
-│   │   │   └── **[PointCloud]**  
-│   │   │       ├── [RsPointCloudRenderer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudRenderer.cs) — 点群の初期化・ライフサイクル制御  
-│   │   │       ├── [RsPointCloudInitializer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudInitializer.cs) — 実機/統合点群の初期化切り替え  
-│   │   │       ├── **[RsGlobalPointCloudManager]**  
-│   │   │       │   ├── [RsGlobalPointCloudManager.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.cs)  
-│   │   │       │   ├── [RsGlobalPointCloudManager.Merge.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Merge.cs) — GPU 非同期マージ実装  
-│   │   │       │   └── [RsGlobalPointCloudManager.PCA.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.PCA.cs) — PCA 中心姿勢推定  
-│   │   │       └── その他フィルタ・変換制御クラス (`RsTransformController.cs`, `RsPointCloudCompute.cs` 等)
-│   │   │           
-│   └── **[Shader&Material/Shader/ComputeShader/Rendering]**  
-│       ├── [PCD_Occlusion.compute](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion.compute) — メイン計算エントリポイント  
-│       ├── [PCD_Occlusion_Data.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl) / [PCD_Occlusion_Helpers.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl)  
-│       ├── [PCD_Occlusion_Kernels_Preprocess.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl) — 投影・最小Z生成・密度計算  
-│       ├── [PCD_Occlusion_Kernels_DepthPyramid.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl) — 深度ピラミッド L1～L6 構築  
-│       ├── [PCD_Occlusion_Kernels_Occlusion.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl) — メインオクルージョン計算  
-│       ├── [PCD_Occlusion_Kernels_Occlusion_Discrete*.hlsl] — 3, 6, 8, Single 方向サンプリング分岐  
-│       ├── [PCD_Occlusion_Kernels_Post.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Post.hlsl) — タグ・マップ最終出力  
-│       └── [PCD_Occlusion_Kernels_FillHoles.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl) — Joint Bilateral / Pull-Push / モルフォロジー  
+階層が深いため、主要な機能カテゴリごとに分割して記載します。
 
 ---
 
-### PCDRenderPass における大まかな処理フローと `partial` クラス構造
+### 3.1 視覚オクルージョンコア (`3DDisplay/Rendering/Occlusion`)
 
-`PCDRenderPass` は非常に多岐にわたる処理を実行するため、保守性向上の目的で `partial` クラスに細かく分割されています。基本的なデータの流れは以下の 3 ステップです。
+URP のレンダリングパイプラインに介入し、点群のオクルージョン計算を統括するコアモジュール群です。
 
-1. **`RecordRenderGraph()` (パスの登録・リソース準備)**
-   * URP RenderGraph に対して、「Compute Pass（オクルージョン計算）」と「Blit Pass（結果画像の転送）」の2つのパスを登録します。
-   * ここで、点群バッファの引き渡しと、深度ピラミッドなどの GPU テクスチャメモリの確保（Allocation）を宣言します。
-   * _担当クラス_: `PCD_RenderPass_RenderGraph_Setup`, `PCD_RenderPass_RenderGraph_Compute`, `PCD_RenderPass_RenderGraph_Blit`
-2. **`ExecuteComputePass()` (GPUパイプラインの実行)**
-   * GPU 上で Compute Shader のカーネルを順番に Dispatch します。
-   * 「投影・前処理 (`_Pre`)」→「深度ピラミッド構築 (`_Depth`)」→「オクルージョン判定 (`_Occlusion`)」→「穴埋め (`_HoleFill`)」→「後処理・可視化 (`_Post`)」という順番でパイプラインが進みます。
-   * _担当クラス_: `PCD_RenderPass_Execute_Pre` 〜 `_Post`
-3. **`ExecuteBlitPass()` (画面への反映)**
-   * 最終的な `OcclusionMap` を URP のカメラターゲットカラーにアルファ合成（合成マテリアルを使用）して画面に反映させます。
+* [ ] 基盤システム
+* [ ] バッファ調停マネージャ (`PCDPointBufferManager`)
+* [ ] オクルージョン描画パス (`PCDRenderPass`)
+
+<details>
+<summary>基盤システム</summary>
+
+URPとの統合や設定、デバッグなどを担当するクラス群です。
+
+* [PCDRendererFeature.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDRendererFeature.cs) — URP レンダラーへのパス追加、シングルトンインスタンス管理
+* [PCDSettingsBridge.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDSettingsBridge.cs) — レンダリングパラメータの取得とフォールバックの仲介
+* [PCDOcclusionPipelineController.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDOcclusionPipelineController.cs) — インスペクターからの動的仲介
+* [StaticMeshPCDRegistrar.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/StaticMeshPCDRegistrar.cs) — 空間内の静的/動的オブジェクトを自動検出・登録
+* [PCDIntegratedDepthMapExporter.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDIntegratedDepthMapExporter.cs) — 統合DepthMapエクスポート
+* [PCDOcclusionDebugExporter.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDOcclusionDebugExporter.cs) — 16色パレットPNG/CSV出力用デバッグユーティリティ
+
+</details>
+
+<details>
+<summary>バッファ調停マネージャ (PCDPointBufferManager)</summary>
+
+外部の点群バッファや静的メッシュの頂点データを調停・結合します。
+
+* [PCDPointBufferManager.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager.cs) — メインクラス
+* [PCDPointBufferManager_Mesh.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager_Mesh.cs) — 静的メッシュの登録・解除
+* [PCDPointBufferManager_Merge.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager_Merge.cs) — 動的点群とメッシュの統合
+
+</details>
+
+---
+
+#### PCDRenderPass
+
+This section describes the rendering pipeline and internal module structure of `PCDRenderPass`.
+`PCDRenderPass` は非常に多岐にわたる処理を実行するため、保守性向上の目的で `partial` クラスに細かく分割されています。
+
+##### 1. Pipeline Flow
+
+```mermaid
+flowchart TD
+    A[RecordRenderGraph] --> B[ExecuteComputePass]
+    B --> C[ExecuteBlitPass]
+```
+
+Main execution consists of three major stages:
+
+* [ ] RecordRenderGraph
+* [ ] ExecuteComputePass
+* [ ] ExecuteBlitPass
+
+##### 2. RecordRenderGraph
+
+Responsible for constructing the render graph and scheduling passes. URP RenderGraph に対して、「Compute Pass（オクルージョン計算）」と「Blit Pass（結果画像の転送）」の2つのパスを登録し、深度ピラミッドなどの GPU テクスチャメモリの確保（Allocation）を宣言します。
+
+* [ ] Setup resources
+* [ ] Register compute pass
+* [ ] Register blit pass
+
+<details>
+<summary>Setup resources</summary>
+
+Allocates all render targets and buffers required for compute and output stages.
+* [PCD_RenderPass_RenderGraph_Setup.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Setup.cs)
+</details>
+
+<details>
+<summary>Register compute pass</summary>
+
+Adds the compute pass to the render graph.
+* [PCD_RenderPass_RenderGraph_Compute.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Compute.cs)
+</details>
+
+<details>
+<summary>Register blit pass</summary>
+
+Adds the final output pass for displaying the rendered image.
+* [PCD_RenderPass_RenderGraph_Blit.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Blit.cs)
+</details>
+
+##### 3. ExecuteComputePass
+
+This is the core rendering stage. GPU 上で Compute Shader のカーネルを順番に Dispatch します。
+
+* [ ] Pre
+* [ ] Depth
+* [ ] Occlusion
+* [ ] HoleFill
+* [ ] Post
+
+<details>
+<summary>Pre (Preprocessing)</summary>
+
+Initial preprocessing of point cloud data and intermediate buffers.
+* [PCD_RenderPass_Execute_Pre.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Pre.cs) — マップクリア、投影、密度・LOD
+</details>
+
+<details>
+<summary>Depth (Depth processing)</summary>
+
+Computes depth-related information used for occlusion handling.
+* [PCD_RenderPass_Execute_Depth.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Depth.cs) — 深度ピラミッド構築・勾配補正
+</details>
+
+<details>
+<summary>Occlusion (Occlusion internals)</summary>
+
+Main occlusion computation stage.
+* [PCD_RenderPass_Execute_Occlusion.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Occlusion.cs) — オクルージョン計算
+</details>
+
+<details>
+<summary>HoleFill (Hole filling)</summary>
+
+Fills sparse regions caused by occlusion or point sparsity.
+* [PCD_RenderPass_Execute_HoleFill.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_HoleFill.cs) — ホールフィリング
+</details>
+
+<details>
+<summary>Post (Post processing)</summary>
+
+Final refinement before output.
+* [PCD_RenderPass_Execute_Post.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Post.cs) — デバッグ出力・合成等
+</details>
+
+##### 4. ExecuteBlitPass
+
+Final pass that writes the result to the screen. 最終的な `OcclusionMap` を URP のカメラターゲットカラーにアルファ合成（合成マテリアルを使用）して画面に反映させます。
+
+* [ ] Copy render texture
+* [ ] Output to display
+
+##### 5. Utility Modules
+
+These modules support the main pipeline but are not part of execution flow.
+
+* [ ] API
+* [ ] Allocation
+* [ ] BindParams
+* [ ] Debug
+* [ ] Kernels
+
+<details>
+<summary>API</summary>
+
+Provides external interfaces for controlling `PCDRenderPass`.
+* [PCD_RenderPass_API.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_API.cs) — 外部設定・実行API
+</details>
+
+<details>
+<summary>Allocation</summary>
+
+Handles GPU resource allocation.
+* [PCD_RenderPass_Allocation.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Allocation.cs) — RenderGraphリソース確保
+</details>
+
+<details>
+<summary>BindParams</summary>
+
+Binds parameters to compute shaders.
+* [PCD_RenderPass_BindParams.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_BindParams.cs) — カーネル引数・定数のバインド
+</details>
+
+<details>
+<summary>Debug</summary>
+
+Provides debug output and diagnostics.
+* [PCD_RenderPass_Debug.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Debug.cs) — 非同期 GPU Readback 制御
+</details>
+
+<details>
+<summary>Kernels</summary>
+
+Contains compute shader kernel definitions and dispatch settings.
+* [PCD_RenderPass_Kernels.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Kernels.cs) — カーネルインデックスとディスパッチ管理
+* [PCDRenderPass.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDRenderPass.cs) — メイン処理・初期化・ライフサイクル管理
+</details>
+
+---
+
+
+
+### 3.2 Compute Shader アルゴリズム (`ComputeShader/Rendering`)
+
+実際のオクルージョン計算やホールフィリングを担う HLSL ファイル群です。
+
+* [ ] メイン計算エントリポイント
+* [ ] 前処理・深度ピラミッド
+* [ ] オクルージョン計算
+* [ ] 後処理・ホールフィリング
+
+<details>
+<summary>ファイル構成</summary>
+
+* **メイン計算エントリポイント**
+  * [PCD_Occlusion.compute](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion.compute)
+  * [PCD_Occlusion_Data.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl) / [PCD_Occlusion_Helpers.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl)
+* **前処理・深度ピラミッド**
+  * [PCD_Occlusion_Kernels_Preprocess.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl) — 投影・最小Z生成・密度計算
+  * [PCD_Occlusion_Kernels_DepthPyramid.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl) — 深度ピラミッド L1～L6 構築
+* **オクルージョン計算**
+  * [PCD_Occlusion_Kernels_Occlusion.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl) — メインオクルージョン計算
+  * [PCD_Occlusion_Kernels_Occlusion_Discrete*.hlsl] — 3, 6, 8, Single 方向サンプリング分岐
+* **後処理・ホールフィリング**
+  * [PCD_Occlusion_Kernels_Post.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Post.hlsl) — タグ・マップ最終出力
+  * [PCD_Occlusion_Kernels_FillHoles.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl) — Joint Bilateral / Pull-Push / モルフォロジー
+
+</details>
   
 
 
 ---
 
-## 4. RealSense ストリーミングパイプラインと ColorFilter 事前処理
-
-オクルージョン計算の前段階として、センサーデータの取得からノイズフィルタリング、アライメント補正、特定領域の抽出までを CPU/GPU 連携で実行するパイプライン設計です。
-
-### A. デバイスポーリングとエラーハンドリング (`RsDevice.cs`)
-RealSense からのフレームキャプチャは、パフォーマンス要求に応じて 2つの処理モードを選択可能です。
-*   **マルチスレッド・モード (`Multithread`)**:
-    描画フレームレートの低下に影響されず、RealSense SDK の `WaitForFrames()` を別スレッド（Worker Thread）でループ処理します。メインスレッド側の負荷を削減し、データの取りこぼしを防ぎます。
-*   **ユニティスレッド・モード (`UnityThread`)**:
-    `Update()` 内で同期的かつスレッド安全に `PollForFrames()` を呼び出します。
-*   **安全停止閾値 (エラーリカバリ)**:
-    バス帯域不足やカメラ切断が発生した場合に備え、連続エラー検出回数が 10回 (`maxConsecutiveErrors = 10`) に達した段階で、デッドロックを防ぐためスレッドパイプラインを自動的に安全停止します。
-
-### B. ネイティブメモリ管理の徹底 (`RsProcessingPipe.cs`)
-RealSense SDK が提供する `Frame` 構造体は、C++ ネイティブメモリへのポインタをラップした C# 表現です。
-GC で回収されないため、フレームワーク側で明示的に解放しないと一瞬でメインメモリおよび GPU メモリがリークします。
-*   **対策**: `RsProcessingPipe` では、フィルタ処理を直列に適用する際、一時バッファを含め `using` ブロックおよび `try-finally` による確実な `frame.Dispose()` を徹底しています。
-
-### C. パイプラインに常時搭載される `RsIntegratedPointCloud` の役割
-[RsIntegratedPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) は、`RsProcessingPipe` のフィルタパイプライン内に**常に搭載されている**極めて重要なコアブロック（カスタム `RsProcessingBlock`）です。
-
-1.  **GPU Direct Mode への自動移行**:
-    `RsPointCloudInitializer.cs` は初期化時に、パイプラインのアクティブなフィルタ群から `RsIntegratedPointCloud` を自動検出します。検出されると `UseIntegratedPointCloud` フラグが有効になり、頂点バッファ処理が GPU 上で完結する「GPU Direct Mode」へと動的にシフトします。
-2.  **リアルタイム姿勢行列の適用**:
-    カメラのキャリブレーション姿勢変換行列（`Matrix4x4`）を `RsIntegratedPointCloud.UpdateTransformMatrix(matrix)` 経由で毎フレーム更新し、`RsIntegratedPointCloudProcessor` を介して直接 GPU 側の座標変換に適用します。
-3.  **マルチスレッド・ディスパッチ転送**:
-    非同期スレッドからキャプチャした RAW 画像バッファは、アンマネージド領域から C# キャッシュバッファへと高速に `Marshal.Copy` されます。その後、メインスレッド用のディスパッチャである `RsUnityMainThreadDispatcher` を介して `ProcessPendingFrame` が駆動され、GPU（Compute Shader および `Texture2D.LoadRawTextureData`）へ非同期転送・並列処理されます。
-
-### D. `ProcessingBlocks/ColorFilter/` 配下の役割と設計仕様
-手の形状抽出や背景カットといった特定の切り出し（カリング）や、カラー-深度センサー間の位置補正を高速に行うための事前処理フィルタ群です。
-
-*   **`RsColorBasedDepthCulling.cs`**:
-    特定の肌色やマーカー色など、指定された HSV または YCbCr 色空間の閾値に基づいて、範囲外ピクセルに対応する深度値を `0`（無効）に書き換える post-processing filter です。手の点群のみを抽出し、背景や腕の点群をパイプラインの最上流で高速カリングします。
-*   **`RsGpuCullingProcessor.cs`**:
-    上記のカリング判定を GPU 上で並列実行するためのディスパッチャーです。テクスチャのロード、並列スレッドの設定、Compute Shader カーネルの Dispatch を統制します。
-*   **`RsDepthToColorCalibration.cs`**:
-    深度カメラとカラーカメラ間のピクセルアライメント（幾何学的アライメント補正）を行います。`VideoStreamProfile` から取得した深度カメラの内参（Intrinsics）、カラーカメラの内参、および両カメラ間の外参（Extrinsics - 回転・平行移動行列）を用いて、深度座標系からカラー座標系への精密な 3D 逆射影・座標変換・2D 再投影（`MapDepthToColor`）の数理演算をリアルタイムで実行します。
-*   **`RsHsvConverter.cs` / `RsYCbCrConverter.cs`**:
-    RGB カラーをそれぞれ HSV（Hue, Saturation, Value）および YCbCr（Luminance, Chrominance Blue, Chrominance Red、ITU-R BT.601 規格）へ高速変換する数学ユーティリティです。
-*   **`RsCullingDebugExporter.cs`**:
-    閾値チューニングを支援する強力なデバッグエクスポート機能です。`SaveDebugFrames` が有効になると、現在のフレームから「元のカラー画像」「各色成分ごとの階調可視化画像」「フィルタ適用後の切り抜き画像」など計5枚のビットマップ（BMP）画像をローカルディレクトリ（`Assets/RealSenseDebug/`）へ即時に非同期で保存し、調整用の視覚的フィードバックを提供します。
-
----
-
-## 5. 非同期点群マージ＆データパッシング
-
-本システムは、CPU の処理を一切ブロッキングしない「GPU 完結型の非同期マージ＆データパッシングフロー」を確立しています。
-
-```
-[各 RsPointCloudRenderer] (個別頂点 ComputeBuffer 保持)
-           │
-           │ (GetPCDSourceBuffer() による GPU メモリ参照)
-           ▼
-[RsGlobalPointCloudManager] ─── (最大 300万点の _globalBuffer を確保)
-   │
-   ├─ 1. CommandBuffer "RsPointCloud.GlobalMerge" を新規構築
-   ├─ 2. mergeComputeShader の MergePoints カーネルパラメータを設定
-   ├─ 3. cmd.DispatchCompute により GPU コピー命令をスタック
-   ├─ 4. Graphics.ExecuteCommandBuffer(cmd) で GPU キューに即時投入 (非同期・CPU待機ゼロ)
-   └─ 5. cmd.Release() でメモリを確実に解放
-           │
-           ▼ (GPU上で非同期に globalBuffer へのマージ完了)
-[PCDRenderPass.RecordRenderGraph]
-   │
-   ├─ 1. URP RenderGraph のフレームパス登録フェーズ
-   ├─ 2. GlobalBufferMode が有効な場合、GlobalManager から globalBuffer 参照を取得
-   ├─ 3. 最新の点の総数 CurrentTotalCount を取得
-   ├─ 4. _bufferManager.SetExternalBuffer(globalBuffer, globalCount) を実行 (ノンブロッキング)
-   └─ 5. RenderGraph 内の ComputePass にて GPU 実行バリアとともに引き渡され、多段計算へ
-```
-
-### A. GPU ゼロコピー・非同期マージ (`RsGlobalPointCloudManager.Merge.cs`)
-複数または単一の RealSense カメラの頂点バッファを、CPU のメインメモリにコピーバックすることなく、GPU メモリ上で直接、単一のグローバル頂点バッファ（`_globalBuffer`、最大 300万点）へ結合・マージします。
-
-1.  **個別頂点バッファの共有**:
-    各カメラに対応する `RsPointCloudRenderer` から `GetPCDSourceBuffer()` および `GetPCDSourceCount()` を介して個別の `ComputeBuffer` を直接参照します。
-2.  **CommandBuffer を用いた非同期ディスパッチ (`Graphics.ExecuteCommandBuffer`)**:
-    マージ処理（Compute Shader `mergeComputeShader` の `MergePoints` カーネル実行）は、CPU をブロッキングする同期的呼び出しを行わず、`CommandBuffer` (名称 `"RsPointCloud.GlobalMerge"`) を構築してそこに処理をコマンドとして登録し、`Graphics.ExecuteCommandBuffer(cmd)` を介して即座に GPU 側のコマンドキューに流し込みます。
-    これによって CPU のメインスレッドは GPU 側のコピー完了を 1ミリ秒たりとも待つ（ブロッキングする）必要がなく、完全に非同期で GPU 上で並列にマージ処理がスケジュールされます。
-3.  **安全なバッファ解放**:
-    `Graphics.ExecuteCommandBuffer` 実行後、即座に `cmd.Release()` を呼び出すことで、描画スレッドでの CommandBuffer インスタンスの累積を防ぎ、GC の発生を防止します。
-
-### B. URP RenderGraph へのノンブロッキング・データパッシング
-毎フレームの `PCDRenderPass.RecordRenderGraph` 実行時に、描画パイプラインへバッファを安全かつノンブロッキングで受け渡します。
-
-1.  **外部バッファの動的セット**:
-    `PCDRendererFeature` の `IsGlobalBufferMode` が有効な場合、`RsGlobalPointCloudManager.Instance` からグローバル統合バッファ参照（`GetGlobalBuffer()`）と現在の有効な頂点総数（`CurrentTotalCount`）を直接取得します。
-2.  **ノンブロッキング・バッファパッシング**:
-    取得したバッファと頂点数を `_bufferManager.SetExternalBuffer(globalBuffer, globalCount)` に直接引き渡します。
-    CPU 側のスレッド待機や同期ズレを完全に排除し、GPU 内の実行順序（マージ処理から描画パスへの依存関係）のみで整合性を担保するため、極めて低いオーバーヘッドで URP の `PCDRenderPass`（ComputePass）へとバッファが非同期でパッシングされます。
-
----
-
-## 6. オクルージョン制御モジュール (Occlusion Core)
+## 4. オクルージョン制御モジュール (Occlusion Core)
 
 ### 1. `PCDRendererFeature`
 *   **設計思想**: URP に対するオクルージョン描画パスの追加を行うエントリポイントです。シングルトンパターンを実装し、PCVデバッグシステム等の外部クラスから動的に点群データバッファを登録できるインターフェースを提供します。
@@ -318,7 +327,7 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 
 ---
 
-## 7. Compute Shader パイプライン仕様
+## 5. Compute Shader パイプライン仕様
 
 点群の投影から遮蔽推定、そして高度な画像空間ホールフィリング（穴埋め）までを実行する `PCD_Occlusion.compute` および付属 HLSL カーネルの動作仕様とアルゴリズムの数理的・技術的詳細です。
 
@@ -497,7 +506,7 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 
 ---
 
-## 8. パフォーマンス最適化の工夫
+## 6. パフォーマンス最適化の工夫
 
 1.  **GC の徹底的排除**:
     *   Unity C# における毎フレームのメモリ確保（`new`）は GC によるヒープ破砕とカクつきを誘発します。
@@ -508,7 +517,7 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 
 ---
 
-## 9. 動作検証 (Verification Plan)
+## 7. 動作検証 (Verification Plan)
 
 ### A. 静的検証
 *   本ドキュメントに記載されたクラス・構造体・関数名が、実際のスクリプト（例: `RsPointCloudRenderer.cs`）の宣言と完全一致していることを相互チェックしてください。
@@ -520,7 +529,7 @@ DirectX 11 環境下では、同一の Compute Shader カーネル内で同じ�
 
 ---
 
-## 10. Unity 6 RenderGraph マイグレーションとトラブルシューティング
+## 8. Unity 6 RenderGraph マイグレーションとトラブルシューティング
 
 Unity 6 で導入された新しい RenderGraph アーキテクチャ (UnsafePass 含む) への完全対応と、その過程で解決された特有のエッジケースに関する技術的ナレッジです。
 

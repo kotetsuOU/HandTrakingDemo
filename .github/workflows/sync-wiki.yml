@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "WIKI.md"
+      - "POINTCLOUD_PIPELINE.md"
       - "OCCLUSION_RENDERING.md"
       - "HAPTICS.md"
       - "DEBUG_PCV.md"
@@ -33,6 +34,7 @@ jobs:
           
           # ドキュメントを配置 (WIKI.md は Home.md として配置)
           cp WIKI.md temp-wiki/Home.md
+          cp POINTCLOUD_PIPELINE.md temp-wiki/POINTCLOUD_PIPELINE.md
           cp OCCLUSION_RENDERING.md temp-wiki/OCCLUSION_RENDERING.md
           cp HAPTICS.md temp-wiki/HAPTICS.md
           cp DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
@@ -47,6 +49,7 @@ jobs:
           import os, re
           mapping = {
               "WIKI.md": "Home",
+              "POINTCLOUD_PIPELINE.md": "POINTCLOUD_PIPELINE",
               "OCCLUSION_RENDERING.md": "OCCLUSION_RENDERING",
               "HAPTICS.md": "HAPTICS",
               "DEBUG_PCV.md": "DEBUG_PCV",
