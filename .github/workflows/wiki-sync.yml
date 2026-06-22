@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 3DDisplay
+      - AUTD
       - main
     paths:
       - "WIKI.md"
@@ -14,7 +15,7 @@ on:
       - "Docs/DISPLAY_3D.md"
       - "Docs/INITIALIZATION.md"
       - "Docs/AnimationControls.md"
-      - "INITIALIZATION.md"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,10 +31,8 @@ jobs:
         env:
           WIKI_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
         run: |
-          # Wiki リポジトリを一時ディレクトリにクローン
           git clone "$WIKI_REPO" temp-wiki
           
-          # ドキュメントを配置 (WIKI.md は Home.md として配置)
           cp WIKI.md temp-wiki/Home.md
           cp Docs/POINTCLOUD_PIPELINE.md temp-wiki/POINTCLOUD_PIPELINE.md
           cp Docs/OCCLUSION_RENDERING.md temp-wiki/OCCLUSION_RENDERING.md
@@ -45,7 +44,6 @@ jobs:
             cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           fi
           
-          # リンクの書き換え処理 (ローカルの相対リンクを GitHub Wiki のフラットなリンク構造に変換)
           python3 -c '
           import os, re
           mapping = {
@@ -76,7 +74,6 @@ jobs:
                   print(f"Processed links in {fpath}")
           '
           
-          # 変更の有無を確認してコミット・プッシュ
           cd temp-wiki
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
