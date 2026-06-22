@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 public struct RsSamplingResult
@@ -93,7 +93,7 @@ public static class RsPointCloudPCA
         covariance.m20 = cxz; covariance.m21 = cyz; covariance.m22 = czz;
         covariance.m33 = 1;
 
-        Vector3 dir = PowerIteration(covariance, DEFAULT_ITERATIONS); // PowerIteration“à‚Å³‹K‰»Ï‚İ
+        Vector3 dir = PowerIteration(covariance, DEFAULT_ITERATIONS); // PowerIterationï¿½ï¿½ï¿½Åï¿½ï¿½Kï¿½ï¿½ï¿½Ï‚ï¿½
 
         return (centroid, dir);
     }

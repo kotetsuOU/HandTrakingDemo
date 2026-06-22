@@ -1,10 +1,10 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class DisplaySwitcher : MonoBehaviour
 {
     void Start()
     {
-        // Å‰‚ÌƒfƒBƒXƒvƒŒƒCˆÈŠO‚ğ—LŒø‰»‚·‚é
+        // æœ€åˆã®ãƒ‡ã‚£ã‚¹ãƒ—ãƒ¬ã‚¤ä»¥å¤–ã‚’æœ‰åŠ¹åŒ–ã™ã‚‹
         if (Display.displays.Length > 1)
         {
             Display.displays[1].Activate();
@@ -13,22 +13,22 @@ public class DisplaySwitcher : MonoBehaviour
 
     void Update()
     {
-        // SpaceƒL[‚ÅƒJƒƒ‰‚Ì•\¦æ‚ğØ‚è‘Ö‚¦‚é
+        // Spaceã‚­ãƒ¼ã§ã‚«ãƒ¡ãƒ©ã®è¡¨ç¤ºå…ˆã‚’åˆ‡ã‚Šæ›¿ãˆã‚‹
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            // Œ»İ‚ÌƒJƒƒ‰‚ğæ“¾
+            // ç¾åœ¨ã®ã‚«ãƒ¡ãƒ©ã‚’å–å¾—
             Camera mainCamera = Camera.main;
 
-            // Œ»İ‚Ìƒ^[ƒQƒbƒgƒfƒBƒXƒvƒŒƒC‚ğæ“¾
+            // ç¾åœ¨ã®ã‚¿ãƒ¼ã‚²ãƒƒãƒˆãƒ‡ã‚£ã‚¹ãƒ—ãƒ¬ã‚¤ã‚’å–å¾—
             int currentTargetDisplay = mainCamera.targetDisplay;
 
-            // Ÿ‚Ìƒ^[ƒQƒbƒgƒfƒBƒXƒvƒŒƒC‚ğŒvZ
+            // æ¬¡ã®ã‚¿ãƒ¼ã‚²ãƒƒãƒˆãƒ‡ã‚£ã‚¹ãƒ—ãƒ¬ã‚¤ã‚’è¨ˆç®—
             int nextTargetDisplay = (currentTargetDisplay + 1) % Display.displays.Length;
 
-            // ƒJƒƒ‰‚Ìƒ^[ƒQƒbƒgƒfƒBƒXƒvƒŒƒC‚ğØ‚è‘Ö‚¦‚é
+            // ã‚«ãƒ¡ãƒ©ã®ã‚¿ãƒ¼ã‚²ãƒƒãƒˆãƒ‡ã‚£ã‚¹ãƒ—ãƒ¬ã‚¤ã‚’åˆ‡ã‚Šæ›¿ãˆã‚‹
             mainCamera.targetDisplay = nextTargetDisplay;
 
-            Debug.Log("ƒJƒƒ‰‚Ì•\¦æ‚ğƒfƒBƒXƒvƒŒƒC " + nextTargetDisplay + " ‚ÉØ‚è‘Ö‚¦‚Ü‚µ‚½B");
+            Debug.Log("ã‚«ãƒ¡ãƒ©ã®è¡¨ç¤ºå…ˆã‚’ãƒ‡ã‚£ã‚¹ãƒ—ãƒ¬ã‚¤ " + nextTargetDisplay + " ã«åˆ‡ã‚Šæ›¿ãˆã¾ã—ãŸã€‚");
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -42,7 +42,7 @@ public class LineEstimation : MonoBehaviour
 
         if (allPoints.Count < 2)
         {
-            UnityEngine.Debug.LogWarning("“_‚ª­‚È‚·‚¬‚Ä’¼ü„’è‚Å‚«‚Ü‚¹‚ñ");
+            UnityEngine.Debug.LogWarning("ï¿½_ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½Ä’ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½");
             return;
         }
 
@@ -101,7 +101,7 @@ public class LineEstimation : MonoBehaviour
         };
 
         direction = EigenMaxVector(cov).normalized;
-        UnityEngine.Debug.Log($"’¼ü•ûŒü: {direction}, ’Ê‰ß“_: {centroid}");
+        UnityEngine.Debug.Log($"ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: {direction}, ï¿½Ê‰ß“_: {centroid}");
     }
 
     private void CreateCylinder()
@@ -162,7 +162,7 @@ public class LineEstimation : MonoBehaviour
                 writer.WriteLine($"{distanceRange},{bins[i]}");
             }
         }
-        UnityEngine.Debug.Log($"’¼ü‚©‚ç‚Ì‹——£ƒqƒXƒgƒOƒ‰ƒ€ƒf[ƒ^‚ð {outputFilePath} ‚É•Û‘¶‚µ‚Ü‚µ‚½B");
+        UnityEngine.Debug.Log($"ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì‹ï¿½ï¿½ï¿½ï¿½qï¿½Xï¿½gï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½fï¿½[ï¿½^ï¿½ï¿½ {outputFilePath} ï¿½É•Û‘ï¿½ï¿½ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½ï¿½B");
     }
 
     private Vector3 EigenMaxVector(float[,] cov)

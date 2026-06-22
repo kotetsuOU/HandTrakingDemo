@@ -1,4 +1,4 @@
-using SRD.Core;
+﻿using SRD.Core;
 using System;
 using System.Collections;
 using System.Collections.Generic;

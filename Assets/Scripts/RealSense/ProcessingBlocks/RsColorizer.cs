@@ -1,4 +1,4 @@
-using Intel.RealSense;
+﻿using Intel.RealSense;
 using UnityEngine;
 
 [ProcessingBlockDataAttribute(typeof(Colorizer))]

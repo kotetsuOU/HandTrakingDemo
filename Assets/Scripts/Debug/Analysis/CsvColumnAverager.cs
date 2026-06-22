@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,26 +17,26 @@ public enum FileType
 [AddComponentMenu("Tools/Folder Averager")]
 public class FolderAverager : MonoBehaviour
 {
-    [Header("y‹@”\à–¾z")]
-    [Tooltip("Žw’è‚³‚ê‚½ƒtƒHƒ‹ƒ_“à‚ÌCSV‚Ü‚½‚ÍTXTƒtƒ@ƒCƒ‹‚Ì•½‹Ï’l‚ðŒvŽZ‚µAƒRƒ“ƒ\[ƒ‹‚Éo—Í‚µ‚Ü‚·B")]
+    [Header("ã€æ©Ÿèƒ½èª¬æ˜Žã€‘")]
+    [Tooltip("æŒ‡å®šã•ã‚ŒãŸãƒ•ã‚©ãƒ«ãƒ€å†…ã®CSVã¾ãŸã¯TXTãƒ•ã‚¡ã‚¤ãƒ«ã®å¹³å‡å€¤ã‚’è¨ˆç®—ã—ã€ã‚³ãƒ³ã‚½ãƒ¼ãƒ«ã«å‡ºåŠ›ã—ã¾ã™ã€‚")]
     [TextArea(2, 4)]
-    public string description = "‰º‚Ìƒvƒ‹ƒ_ƒEƒ“‚Åƒtƒ@ƒCƒ‹Œ`Ž®‚ð‘I‘ð‚µAƒ{ƒ^ƒ“‚ð‰Ÿ‚µ‚ÄŽÀs‚µ‚Ä‚­‚¾‚³‚¢B";
+    public string description = "ä¸‹ã®ãƒ—ãƒ«ãƒ€ã‚¦ãƒ³ã§ãƒ•ã‚¡ã‚¤ãƒ«å½¢å¼ã‚’é¸æŠžã—ã€ãƒœã‚¿ãƒ³ã‚’æŠ¼ã—ã¦å®Ÿè¡Œã—ã¦ãã ã•ã„ã€‚";
 
-    [Header("yÝ’è€–Úz")]
-    [Tooltip("ˆ—‚·‚éƒtƒ@ƒCƒ‹Œ`Ž®iCSV‚Ü‚½‚ÍTXTj‚ð‘I‘ð‚µ‚Ü‚·B")]
+    [Header("ã€è¨­å®šé …ç›®ã€‘")]
+    [Tooltip("å‡¦ç†ã™ã‚‹ãƒ•ã‚¡ã‚¤ãƒ«å½¢å¼ï¼ˆCSVã¾ãŸã¯TXTï¼‰ã‚’é¸æŠžã—ã¾ã™ã€‚")]
     public FileType fileTypeToProcess = FileType.CSV;
 
-    [Tooltip("ƒtƒ@ƒCƒ‹‚ªŠi”[‚³‚ê‚Ä‚¢‚éƒtƒHƒ‹ƒ_‚ÌƒpƒX‚ðŽw’è‚µ‚Ü‚·B")]
+    [Tooltip("ãƒ•ã‚¡ã‚¤ãƒ«ãŒæ ¼ç´ã•ã‚Œã¦ã„ã‚‹ãƒ•ã‚©ãƒ«ãƒ€ã®ãƒ‘ã‚¹ã‚’æŒ‡å®šã—ã¾ã™ã€‚")]
     public string folderPath = "Assets/HandTrackingData/Filter";
 
-    [Header("yTXT—p è‡’lÝ’èz")]
-    [Tooltip("TXTƒtƒ@ƒCƒ‹ˆ—Žž‚Éè‡’lƒtƒBƒ‹ƒ^‚ð—LŒø‚É‚·‚é‚©B")]
+    [Header("ã€TXTç”¨ é–¾å€¤è¨­å®šã€‘")]
+    [Tooltip("TXTãƒ•ã‚¡ã‚¤ãƒ«å‡¦ç†æ™‚ã«é–¾å€¤ãƒ•ã‚£ãƒ«ã‚¿ã‚’æœ‰åŠ¹ã«ã™ã‚‹ã‹ã€‚")]
     public bool useThreshold = false;
 
-    [Tooltip("‚±‚Ì’l‚æ‚è¬‚³‚¢ƒf[ƒ^‚ÍŒvŽZ‚©‚çœŠO‚³‚ê‚Ü‚·B")]
+    [Tooltip("ã“ã®å€¤ã‚ˆã‚Šå°ã•ã„ãƒ‡ãƒ¼ã‚¿ã¯è¨ˆç®—ã‹ã‚‰é™¤å¤–ã•ã‚Œã¾ã™ã€‚")]
     public Vector3 minThreshold = new Vector3(-100f, -100f, -100f);
 
-    [Tooltip("‚±‚Ì’l‚æ‚è‘å‚«‚¢ƒf[ƒ^‚ÍŒvŽZ‚©‚çœŠO‚³‚ê‚Ü‚·B")]
+    [Tooltip("ã“ã®å€¤ã‚ˆã‚Šå¤§ãã„ãƒ‡ãƒ¼ã‚¿ã¯è¨ˆç®—ã‹ã‚‰é™¤å¤–ã•ã‚Œã¾ã™ã€‚")]
     public Vector3 maxThreshold = new Vector3(100f, 100f, 100f);
 
 
@@ -46,7 +46,7 @@ public class FolderAverager : MonoBehaviour
 
         if (!Directory.Exists(folderPath))
         {
-            UnityEngine.Debug.LogError("Žw’è‚³‚ê‚½ƒtƒHƒ‹ƒ_‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: " + folderPath);
+            UnityEngine.Debug.LogError("æŒ‡å®šã•ã‚ŒãŸãƒ•ã‚©ãƒ«ãƒ€ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: " + folderPath);
             return;
         }
 
@@ -54,11 +54,11 @@ public class FolderAverager : MonoBehaviour
 
         if (files.Length == 0)
         {
-            UnityEngine.Debug.LogWarning($"Žw’è‚³‚ê‚½ƒtƒHƒ‹ƒ_“à‚É{searchPattern}ƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB");
+            UnityEngine.Debug.LogWarning($"æŒ‡å®šã•ã‚ŒãŸãƒ•ã‚©ãƒ«ãƒ€å†…ã«{searchPattern}ãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚");
             return;
         }
 
-        UnityEngine.Debug.Log($"[{files.Length}]ŒÂ‚Ì{fileTypeToProcess}ƒtƒ@ƒCƒ‹‚Ìˆ—‚ðŠJŽn‚µ‚Ü‚·...");
+        UnityEngine.Debug.Log($"[{files.Length}]å€‹ã®{fileTypeToProcess}ãƒ•ã‚¡ã‚¤ãƒ«ã®å‡¦ç†ã‚’é–‹å§‹ã—ã¾ã™...");
 
         foreach (var path in files)
         {
@@ -76,10 +76,10 @@ public class FolderAverager : MonoBehaviour
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogError($"ƒtƒ@ƒCƒ‹‚Ìˆ—’†‚ÉƒGƒ‰[‚ª”­¶‚µ‚Ü‚µ‚½ ({Path.GetFileName(path)}): {ex.Message}");
+                UnityEngine.Debug.LogError($"ãƒ•ã‚¡ã‚¤ãƒ«ã®å‡¦ç†ä¸­ã«ã‚¨ãƒ©ãƒ¼ãŒç™ºç”Ÿã—ã¾ã—ãŸ ({Path.GetFileName(path)}): {ex.Message}");
             }
         }
-        UnityEngine.Debug.Log("‚·‚×‚Ä‚Ìƒtƒ@ƒCƒ‹‚Ìˆ—‚ªŠ®—¹‚µ‚Ü‚µ‚½B");
+        UnityEngine.Debug.Log("ã™ã¹ã¦ã®ãƒ•ã‚¡ã‚¤ãƒ«ã®å‡¦ç†ãŒå®Œäº†ã—ã¾ã—ãŸã€‚");
     }
 
     private void ProcessCsvFile(string path)
@@ -101,7 +101,7 @@ public class FolderAverager : MonoBehaviour
 
         if (rows.Count == 0)
         {
-            UnityEngine.Debug.LogWarning($"—LŒø‚Èƒf[ƒ^‚ª‘¶Ý‚µ‚Ü‚¹‚ñ: {Path.GetFileName(path)}");
+            UnityEngine.Debug.LogWarning($"æœ‰åŠ¹ãªãƒ‡ãƒ¼ã‚¿ãŒå­˜åœ¨ã—ã¾ã›ã‚“: {Path.GetFileName(path)}");
             return;
         }
 
@@ -144,12 +144,12 @@ public class FolderAverager : MonoBehaviour
                 v.z >= minThreshold.z && v.z <= maxThreshold.z
             ).ToList();
 
-            UnityEngine.Debug.Log($"è‡’lƒtƒBƒ‹ƒ^ƒŠƒ“ƒO ({Path.GetFileName(path)}): {originalCount}Œ ¨ {filteredVectors.Count}Œ");
+            UnityEngine.Debug.Log($"é–¾å€¤ãƒ•ã‚£ãƒ«ã‚¿ãƒªãƒ³ã‚° ({Path.GetFileName(path)}): {originalCount}ä»¶ â†’ {filteredVectors.Count}ä»¶");
         }
 
         if (filteredVectors.Count == 0)
         {
-            UnityEngine.Debug.LogWarning($"—LŒø‚Èƒf[ƒ^‚ª‘¶Ý‚µ‚Ü‚¹‚ñiƒtƒBƒ‹ƒ^Œãj: {Path.GetFileName(path)}");
+            UnityEngine.Debug.LogWarning($"æœ‰åŠ¹ãªãƒ‡ãƒ¼ã‚¿ãŒå­˜åœ¨ã—ã¾ã›ã‚“ï¼ˆãƒ•ã‚£ãƒ«ã‚¿å¾Œï¼‰: {Path.GetFileName(path)}");
             return;
         }
 
@@ -169,7 +169,7 @@ public class FolderAverager : MonoBehaviour
 [CanEditMultipleObjects]
 public class FolderAveragerEditor : Editor
 {
-    // SerializedProperty ‚ðŽg‚Á‚Ä•Ï”‚ðˆµ‚¤‚±‚Æ‚ÅAUndo‚âPrefab‚Ìã‘‚«‚È‚Ç‚ª³‚µ‚­‹@”\‚·‚é
+    // SerializedProperty ã‚’ä½¿ã£ã¦å¤‰æ•°ã‚’æ‰±ã†ã“ã¨ã§ã€Undoã‚„Prefabã®ä¸Šæ›¸ããªã©ãŒæ­£ã—ãæ©Ÿèƒ½ã™ã‚‹
     SerializedProperty fileTypeProp;
     SerializedProperty folderPathProp;
     SerializedProperty useThresholdProp;
@@ -178,7 +178,7 @@ public class FolderAveragerEditor : Editor
 
     void OnEnable()
     {
-        // ƒCƒ“ƒXƒyƒNƒ^[‚Å•\Ž¦E•ÒW‚·‚éƒvƒƒpƒeƒBi•Ï”j‚ð–¼‘O‚ÅŽæ“¾
+        // ã‚¤ãƒ³ã‚¹ãƒšã‚¯ã‚¿ãƒ¼ã§è¡¨ç¤ºãƒ»ç·¨é›†ã™ã‚‹ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ï¼ˆå¤‰æ•°ï¼‰ã‚’åå‰ã§å–å¾—
         fileTypeProp = serializedObject.FindProperty("fileTypeToProcess");
         folderPathProp = serializedObject.FindProperty("folderPath");
         useThresholdProp = serializedObject.FindProperty("useThreshold");
@@ -190,24 +190,24 @@ public class FolderAveragerEditor : Editor
     {
         serializedObject.Update();
 
-        EditorGUILayout.LabelField("y‹@”\à–¾z", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("Žw’è‚³‚ê‚½ƒtƒHƒ‹ƒ_“à‚ÌCSV‚Ü‚½‚ÍTXTƒtƒ@ƒCƒ‹‚Ì•½‹Ï’l‚ðŒvŽZ‚µAƒRƒ“ƒ\[ƒ‹‚Éo—Í‚µ‚Ü‚·B", MessageType.Info);
+        EditorGUILayout.LabelField("ã€æ©Ÿèƒ½èª¬æ˜Žã€‘", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("æŒ‡å®šã•ã‚ŒãŸãƒ•ã‚©ãƒ«ãƒ€å†…ã®CSVã¾ãŸã¯TXTãƒ•ã‚¡ã‚¤ãƒ«ã®å¹³å‡å€¤ã‚’è¨ˆç®—ã—ã€ã‚³ãƒ³ã‚½ãƒ¼ãƒ«ã«å‡ºåŠ›ã—ã¾ã™ã€‚", MessageType.Info);
         
         EditorGUILayout.Space(10);
         
-        EditorGUILayout.PropertyField(fileTypeProp, new GUIContent("ˆ—‚·‚éƒtƒ@ƒCƒ‹Œ`Ž®"));
-        EditorGUILayout.PropertyField(folderPathProp, new GUIContent("ƒtƒHƒ‹ƒ_‚ÌƒpƒX"));
+        EditorGUILayout.PropertyField(fileTypeProp, new GUIContent("å‡¦ç†ã™ã‚‹ãƒ•ã‚¡ã‚¤ãƒ«å½¢å¼"));
+        EditorGUILayout.PropertyField(folderPathProp, new GUIContent("ãƒ•ã‚©ãƒ«ãƒ€ã®ãƒ‘ã‚¹"));
         
         if (fileTypeProp.enumValueIndex == (int)FileType.TXT)
         {
             EditorGUILayout.Space(10);
             
-            EditorGUILayout.PropertyField(useThresholdProp, new GUIContent("è‡’l‚ðŽg—p‚·‚é"));
+            EditorGUILayout.PropertyField(useThresholdProp, new GUIContent("é–¾å€¤ã‚’ä½¿ç”¨ã™ã‚‹"));
 
             if (useThresholdProp.boolValue)
             {
-                EditorGUILayout.PropertyField(minThresholdProp, new GUIContent("Å¬è‡’l (X, Y, Z)"));
-                EditorGUILayout.PropertyField(maxThresholdProp, new GUIContent("Å‘åè‡’l (X, Y, Z)"));
+                EditorGUILayout.PropertyField(minThresholdProp, new GUIContent("æœ€å°é–¾å€¤ (X, Y, Z)"));
+                EditorGUILayout.PropertyField(maxThresholdProp, new GUIContent("æœ€å¤§é–¾å€¤ (X, Y, Z)"));
             }
         }
         
@@ -217,7 +217,7 @@ public class FolderAveragerEditor : Editor
         GUI.backgroundColor = new Color(0.6f, 0.8f, 1f);
 
         FolderAverager script = (FolderAverager)target;
-        string buttonText = $"{script.fileTypeToProcess} ƒtƒ@ƒCƒ‹‚Ì•½‹Ï’l‚ðŒvŽZ";
+        string buttonText = $"{script.fileTypeToProcess} ãƒ•ã‚¡ã‚¤ãƒ«ã®å¹³å‡å€¤ã‚’è¨ˆç®—";
 
         if (GUILayout.Button(buttonText))
         {

@@ -47,7 +47,7 @@ jobs:
           import os, re
           mapping = {
               "WIKI.md": "Home",
-              "RENDERING.md": "RENDERING",
+              "OCCLUSIONRENDERING.md": "OCCLUSIONRENDERING",
               "HAPTICS.md": "HAPTICS",
               "DEBUG_PCV.md": "DEBUG_PCV",
               "DISPLAY_3D.md": "DISPLAY_3D",

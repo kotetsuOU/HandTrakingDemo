@@ -25,7 +25,7 @@ graph TD
     WIKI["📄 統合ポータル<br/>(WIKI.md)"]:::main
     
     %% サブシステム分離
-    WIKI -->|"🎨 視覚オクルージョン"| RenderNode["🎨 レンダリング・オクルージョン設計思想<br/>(RENDERING.md)"]:::render
+    WIKI -->|"🎨 視覚オクルージョン"| RenderNode["🎨 レンダリング・オクルージョン設計思想<br/>(OCCLUSIONRENDERING.md)"]:::render
     WIKI -->|"⚡ 触覚物理衝突検出"| HapticsNode["⚡ 空中超音波ハプティクス設計思想<br/>(HAPTICS.md)"]:::haptic
     WIKI -->|"🔍 デバッグ空間検索"| DebugNode["🔍 PCV デバッグ空間演算システム<br/>(DEBUG_PCV.md)"]:::debug
     WIKI -->|"👓 3D立体視・ミラー制御"| DisplayNode["👓 3D立体視・ハーフミラー制御設計思想<br/>(DISPLAY_3D.md)"]:::display
@@ -56,7 +56,7 @@ graph TD
 
 ---
 
-### 🎨 1. [視覚オクルージョン・レンダリングシステム](./RENDERING.md)
+### 🎨 1. [視覚オクルージョン・レンダリングシステム](./OCCLUSIONRENDERING.md)
 *   **目的**: 実環境の点群と Unity 仮想オブジェクトの前後遮蔽（オクルージョン）を URP RenderGraph 上で超高速に計算し、エッジ保存型の Hole Filling（穴埋め）を施して滑らかに描画します。
 *   **コアモジュールと主要設計特徴**:
     *   **常時搭載の `RsIntegratedPointCloud` (GPU Direct Mode)**:
@@ -69,7 +69,7 @@ graph TD
         `PCDRenderPass.RecordRenderGraph` 内で、外部バッファ参照と点数を引き渡すことで、CPU を一切ブロックせずに URP の描画フローへシームレスに組み込み。
     *   **多段 Compute Shader カーネル (`PCD_Occlusion.compute`)**:
         Joint Bilateral 補間、Pull-Push 補完、モルフォロジー演算などの多段演算を GPU 側で実行。また、タグベースのオクルージョン最適化 (`EnableTagBasedOptimization`) による仮想オブジェクト同士のセルフオクルージョン防止制御や、D3D11 環境における SRV/UAV 同時バインドハザードを回避する堅牢なアーキテクチャを採用しています。
-*   **詳細はこちら ──> [RENDERING.md](./RENDERING.md) を読む**
+*   **詳細はこちら ──> [OCCLUSIONRENDERING.md](./OCCLUSIONRENDERING.md) を読む**
 
 ---
 
@@ -82,12 +82,12 @@ graph TD
 
 ---
 
-### 🔍 3. [PCV デバッグ空間演算システム](./DEBUG_PCV.md)
-*   **目的**: 点群データのリアルタイム可視化、CPU/GPU によるスパース点群の高速近傍検索、および空間情報のフィルタリングをサポートするデバッグ基盤です。
+### 🔍 3. [PCV デバッグビューア](./DEBUG_PCV.md)
+*   **目的**: 三次元点群空間を素早くプレビューし、位置合わせ（キャリブレーション）やビジュアル確認を行うためのシンプルなデバッグ基盤です。
 *   **コアモジュールと特徴**:
-    *   `PCV_Controller` & `PCV_DataManager`: アセンブリリロード時のバッファ解放制御および姿勢補正アライメント同期。
-    *   `PCV_VoxelGrid`: CPU 側 26 近傍 $O(1)$ 検索ハッシュ。
-    *   `PCV_GpuVoxelGrid`: `RsVoxelGridBuilder.compute` を用いた GPU 空間ハッシュ・アトミックチェーン・アトミックバケットソート並列構築。
+    *   `PCV_Controller` & `PCV_DataManager`: 点群データの保持と、実世界のデバイスと仮想空間のアライメントを容易にする動的な姿勢補正。
+    *   `PCV_Loader` & `PCV_Renderer`: 外部 PLY/TXT 形式の点群データを CPU で高速にロードし、Unity Mesh として即座にシーンへ描画。
+    *   **レンダリングソース切り替え**: PCV ファイル（CPU）と RealSense 統合点群（GPU Global Buffer）の描画ソースを瞬時に切り替え可能。
 *   **詳細はこちら ──> [DEBUG_PCV.md](./DEBUG_PCV.md) を読む**
 
 ---

@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections.Generic;
 using System.IO;
 using System;
@@ -28,7 +28,7 @@ public static class PCV_Loader
     {
         if (!File.Exists(path))
         {
-            UnityEngine.Debug.LogError($"ƒtƒ@ƒCƒ‹‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ: {path}");
+            UnityEngine.Debug.LogError($"ãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“: {path}");
             return;
         }
 
@@ -129,7 +129,7 @@ public static class PCV_Loader
 
             if (!isBinary)
             {
-                UnityEngine.Debug.LogError($"[PCV_Loader] ASCIIŒ`®‚ÌPLYƒtƒ@ƒCƒ‹‚É‚Í‘Î‰‚µ‚Ä‚¢‚Ü‚¹‚ñ: {path}");
+                UnityEngine.Debug.LogError($"[PCV_Loader] ASCIIå½¢å¼ã®PLYãƒ•ã‚¡ã‚¤ãƒ«ã«ã¯å¯¾å¿œã—ã¦ã„ã¾ã›ã‚“: {path}");
                 return;
             }
 

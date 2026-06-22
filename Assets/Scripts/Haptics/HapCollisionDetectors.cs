@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// RsGlobalPointCloudManager で統合された点群データに対して、指定した物体やメッシュが接触しているかを計算するクラス。

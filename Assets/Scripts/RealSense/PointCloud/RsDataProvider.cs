@@ -1,4 +1,4 @@
-using Intel.RealSense;
+﻿using Intel.RealSense;
 using System;
 using System.Linq;
 

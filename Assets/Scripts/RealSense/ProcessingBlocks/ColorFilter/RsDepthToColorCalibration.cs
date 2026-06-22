@@ -1,4 +1,4 @@
-using Intel.RealSense;
+ï»¿using Intel.RealSense;
 using System;
 using System.Diagnostics;
 using UnityEngine;
@@ -61,7 +61,7 @@ public class RsDepthToColorCalibration
 
     private float[] DeprojectPixelToPoint(Intrinsics intrinsics, int depthX, int depthY, ushort depthValue)
     {
-        float depth = depthValue / 1000f;  // ƒ~ƒŠƒ[ƒgƒ‹ ¨ ƒ[ƒgƒ‹
+        float depth = depthValue / 1000f;  // ï¿½~ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½gï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½[ï¿½gï¿½ï¿½
 
         float x = (depthX - intrinsics.ppx) / intrinsics.fx;
         float y = (depthY - intrinsics.ppy) / intrinsics.fy;

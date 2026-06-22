@@ -1,4 +1,4 @@
-using Intel.RealSense;
+﻿using Intel.RealSense;
 
 [ProcessingBlockDataAttribute(typeof(PointCloud))]
 public class RsPointCloud : RsProcessingBlock

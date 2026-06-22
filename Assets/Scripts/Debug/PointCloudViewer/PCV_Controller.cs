@@ -8,16 +8,15 @@ using System.Collections;
 using UnityEditor;
 #endif
 
-[RequireComponent(typeof(PCV_Settings), typeof(PCV_Renderer), typeof(PCV_InputHandler))]
-[RequireComponent(typeof(PCV_DataManager), typeof(PCV_OperationHandler))]
+[RequireComponent(typeof(PCV_Settings), typeof(PCV_Renderer))]
+[RequireComponent(typeof(PCV_DataManager))]
 public class PCV_Controller : MonoBehaviour
 {
     #region Component References
     [SerializeField] private PCV_Settings settings;
     [SerializeField] private PCV_Renderer pointCloudRenderer;
     [SerializeField] private PCV_DataManager dataManager;
-    [SerializeField] private PCV_OperationHandler operationHandler;
-    #endregion
+#endregion
 
     private bool isSubscribed = false;
     private PCDRendererFeature pcdRendererFeature;
@@ -67,7 +66,7 @@ public class PCV_Controller : MonoBehaviour
 
         bool sourceChanged = settings.HasRenderingSourceChanged();
 
-        if (settings.HasFileSettingsChanged() || settings.HasProcessingSettingsChanged())
+        if (settings.HasFileSettingsChanged())
         {
             RebuildPointCloud();
             settings.SaveInspectorState();
@@ -113,9 +112,7 @@ public class PCV_Controller : MonoBehaviour
         settings = GetComponent<PCV_Settings>();
         pointCloudRenderer = GetComponent<PCV_Renderer>();
         dataManager = GetComponent<PCV_DataManager>();
-        operationHandler = GetComponent<PCV_OperationHandler>();
-
-        if (dataManager != null)
+if (dataManager != null)
         {
             dataManager.OnDataUpdated -= OnDataUpdated;
             dataManager.OnDataUpdated += OnDataUpdated;
@@ -178,59 +175,7 @@ public class PCV_Controller : MonoBehaviour
             return;
         }
 
-        dataManager.LoadAndSetData(settings.fileSettings, settings.voxelSize);
-    }
-
-    public void StartVoxelDensityFiltering()
-    {
-        if (operationHandler == null) InitializeComponentsAndSubscribe();
-
-        if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
-        {
-            UnityEngine.Debug.Log("点群データがロードされていません (Editor)。再構築を実行します。");
-            RebuildPointCloud();
-        }
-
-        operationHandler.ExecuteVoxelDensityFilter(dataManager);
-    }
-
-    public void StartNeighborFiltering()
-    {
-        if (operationHandler == null) InitializeComponentsAndSubscribe();
-
-        if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
-        {
-            UnityEngine.Debug.Log("点群データがロードされていません (Editor)。再構築を実行します。");
-            RebuildPointCloud();
-        }
-
-        operationHandler.ExecuteNeighborFilter(dataManager);
-    }
-
-    public void StartMorpologyOperation()
-    {
-        if (operationHandler == null) InitializeComponentsAndSubscribe();
-
-        if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
-        {
-            UnityEngine.Debug.Log("点群データがロードされていません (Editor)。再構築を実行します。");
-            RebuildPointCloud();
-        }
-
-        operationHandler.ExecuteMorphologyOperation(dataManager);
-    }
-
-    public void StartDensityComplementation()
-    {
-        if (operationHandler == null) InitializeComponentsAndSubscribe();
-
-        if (!UnityEngine.Application.isPlaying && (dataManager.CurrentData == null || dataManager.SpatialSearch == null))
-        {
-            UnityEngine.Debug.Log("点群データがロードされていません (Editor)。密度補完の実行前に再構築を実行します。");
-            RebuildPointCloud();
-        }
-
-        operationHandler.ExecuteDensityComplementation(dataManager);
+        dataManager.LoadAndSetData(settings.fileSettings);
     }
 
     public void ApplyTransformCorrection()
@@ -247,7 +192,7 @@ public class PCV_Controller : MonoBehaviour
                 Transform targetT = file.targetObject.transform;
 
 #if UNITY_EDITOR
-                Undo.RecordObject(targetT, "Apply PCV Transform");
+                UnityEditor.Undo.RecordObject(targetT, "Apply PCV Transform");
 #endif
                 Matrix4x4 targetMatrix = targetT.localToWorldMatrix;
 
@@ -263,7 +208,7 @@ public class PCV_Controller : MonoBehaviour
         if (appliedCount > 0)
         {
 #if UNITY_EDITOR
-            Undo.RecordObject(this.transform, "Reset Viewer Transform");
+            UnityEditor.Undo.RecordObject(this.transform, "Reset Viewer Transform");
 #endif
             this.transform.position = Vector3.zero;
             this.transform.rotation = Quaternion.identity;
@@ -281,44 +226,5 @@ public class PCV_Controller : MonoBehaviour
         return m.GetColumn(3);
     }
 
-    public void HandleInteraction()
-    {
-        if (dataManager == null) InitializeComponentsAndSubscribe();
-
-        if (dataManager.SpatialSearch == null || Camera.main == null)
-        {
-            UnityEngine.Debug.LogWarning("空間検索モジュールまたはMain Cameraが利用できません。");
-            return;
-        }
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        pointCloudRenderer.ResetHighlight(dataManager.CurrentData);
-        if (dataManager.SpatialSearch.FindClosestPoint(ray, 0.1f, out int closestPointIndex))
-        {
-            List<int> neighborIndices = dataManager.SpatialSearch.FindNeighbors(closestPointIndex, settings.searchRadius);
-            UnityEngine.Debug.Log($"Voxel Gridを使用して {neighborIndices.Count} 個の近傍点が見つかりました。");
-            pointCloudRenderer.HighlightPoints(closestPointIndex, neighborIndices, dataManager.CurrentData, Color.magenta, settings.neighborColor);
-        }
-    }
-
-#if UNITY_EDITOR
-    public void ExportVoxelCountsToCSV()
-    {
-        InitializeComponentsAndSubscribe();
-
-        if (dataManager.SpatialSearch == null)
-        {
-            UnityEngine.Debug.Log("点群データがロードされていません。再構築を実行します。");
-            RebuildPointCloud();
-        }
-
-        if (dataManager.SpatialSearch == null || dataManager.SpatialSearch.VoxelGrid == null)
-        {
-            UnityEngine.Debug.LogError("VoxelGridの初期化に失敗しました。点群をロードしてください。");
-            return;
-        }
-
-        PCV_VoxelCountExporter.Export(dataManager.SpatialSearch.VoxelGrid);
-    }
-#endif
     #endregion
 }

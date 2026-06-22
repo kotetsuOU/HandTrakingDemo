@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 [assembly: MakeSerializable(typeof(UnityEngine.ProBuilder.Shapes.Arch))]
 [assembly: MakeSerializable(typeof(UnityEngine.ProBuilder.Shapes.Cone))]

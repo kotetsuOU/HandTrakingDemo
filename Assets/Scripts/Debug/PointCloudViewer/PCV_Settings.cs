@@ -2,8 +2,8 @@ using UnityEngine;
 
 public enum PointCloudSource
 {
-    PCV_File_CPU,          // PCV‚Åƒ[ƒh‚µ‚½ƒtƒ@ƒCƒ‹ƒf[ƒ^‚ğg—p
-    RealSense_GPU_Global   // PointCloudRenderer (GlobalManager) ‚Ì“‡ƒf[ƒ^‚ğg—p
+    PCV_File_CPU,          // PCVã§ãƒ­ãƒ¼ãƒ‰ã—ãŸãƒ•ã‚¡ã‚¤ãƒ«ãƒ‡ãƒ¼ã‚¿ã‚’ä½¿ç”¨
+    RealSense_GPU_Global   // PointCloudRenderer (GlobalManager) ã®çµ±åˆãƒ‡ãƒ¼ã‚¿ã‚’ä½¿ç”¨
 }
 
 [System.Serializable]
@@ -13,10 +13,10 @@ public struct FileSettings
     public string filePath;
     public Color color;
 
-    [Tooltip("ƒtƒ@ƒCƒ‹“à‚ÌFî•ñ(PLY“™)‚ğ—Dæ‚µ‚Äg—p‚·‚é‚©")]
+    [Tooltip("ãƒ•ã‚¡ã‚¤ãƒ«å†…ã®è‰²æƒ…å ±(PLYç­‰)ã‚’å„ªå…ˆã—ã¦ä½¿ç”¨ã™ã‚‹ã‹")]
     public bool useFileColor;
 
-    [Tooltip("ˆÊ’u‡‚í‚¹‚ÌŒ‹‰Ê‚ğ”½‰f‚³‚¹‚é‘ÎÛ‚ÌƒQ[ƒ€ƒIƒuƒWƒFƒNƒg")]
+    [Tooltip("ä½ç½®åˆã‚ã›ã®çµæœã‚’åæ˜ ã•ã›ã‚‹å¯¾è±¡ã®ã‚²ãƒ¼ãƒ ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ")]
     public GameObject targetObject;
 
     public bool IsDifferent(FileSettings other)
@@ -32,7 +32,7 @@ public struct FileSettings
 public class PCV_Settings : MonoBehaviour
 {
     [Header("Rendering Source")]
-    [Tooltip("PCDRendererFeature‚É‘—‚éƒf[ƒ^‚Ìƒ\[ƒX‚ğ‘I‘ğ‚µ‚Ü‚·")]
+    [Tooltip("PCDRendererFeatureã«é€ã‚‹ãƒ‡ãƒ¼ã‚¿ã®ã‚½ãƒ¼ã‚¹ã‚’é¸æŠã—ã¾ã™")]
     public PointCloudSource renderingSource = PointCloudSource.PCV_File_CPU;
 
     public FileSettings[] fileSettings = new FileSettings[4]
@@ -47,81 +47,12 @@ public class PCV_Settings : MonoBehaviour
     public GameObject outline;
     public Color outlineColor = Color.white;
 
-    [Tooltip("‹óŠÔ•ªŠ„ƒOƒŠƒbƒh‚ÌŠeƒZƒ‹‚ÌƒTƒCƒY")]
-    public float voxelSize = 0.05f;
-    [Tooltip("“_‚ÌüˆÍ‚Å‹ß–T“_‚ğ’Tõ‚·‚é”¼Œa")]
-    public float searchRadius = 0.1f;
-    [Tooltip("‹ß–T“_‚ğƒnƒCƒ‰ƒCƒg‚·‚éF")]
-    public Color neighborColor = Color.cyan;
-    [Tooltip("ƒmƒCƒY‚Æ”»’f‚·‚é‹ß–T“_‚Ìè‡’l")]
-    public int neighborThreshold = 100;
-    [Tooltip("ƒmƒCƒY‚Æ”»’f‚·‚éƒ{ƒNƒZƒ‹“à‚ÌÅ¬“_”")]
-    public int voxelDensityThreshold = 5;
-
-    [Tooltip("NHˆ—‚Ì”½•œ‰ñ”")]
-    public int erosionIterations = 1;
-    [Tooltip("–c’£ˆ—‚Ì”½•œ‰ñ”")]
-    public int dilationIterations = 1;
-
-    [Tooltip("•âŠ®‚ğs‚¤ƒ{ƒNƒZƒ‹“à‚ÌÅ¬“_”")]
-    public int complementationDensityThreshold = 5;
-    [Tooltip("•âŠ®‚Éƒ{ƒNƒZƒ‹‚²‚Æ‚É’Ç‰Á‚·‚é“_‚Ì1•Ó‚Ì” (—á: 2 = 4“_, 3 = 9“_)")]
-    public uint complementationPointsPerAxis = 2;
-    [Tooltip("•âŠ®‚É’Ç‰Á‚·‚é“_‚ÌF")]
-    public Color complementationPointColor = Color.purple;
-    [Tooltip("—LŒø‚Èƒ{ƒNƒZƒ‹“à‚É“_‚ğƒ‰ƒ“ƒ_ƒ€‚É”z’u‚µ‚Ü‚·B")]
-    public bool complementationRandomPlacement = false;
-
-    [Tooltip("Šeˆ—‚ğƒRƒ‹[ƒ`ƒ“‚ÅÀs‚µAƒtƒŒ[ƒ€ƒŒ[ƒg‚Ì’á‰º‚ğ–h‚®")]
-    public bool useCoroutine = false;
-
-    [Header("GPU Acceleration")]
-    [Tooltip("‹ß–T’TõƒmƒCƒYœ‹‚Ég—p‚·‚éCompute Shader")]
-    public ComputeShader neighborNoiseFilterShader;
-    [Tooltip("Œ`‘ÔŠw“I‘€ì‚Ég—p‚·‚éCompute Shader")]
-    public ComputeShader morpologyOperationShader;
-    [Tooltip("ƒ{ƒNƒZƒ‹–§“xƒtƒBƒ‹ƒ^ƒŠƒ“ƒO‚Ég—p‚·‚éCompute Shader")]
-    public ComputeShader densityFilterShader;
-    [Tooltip("–§“x•âŠ®‚Ég—p‚·‚éCompute Shader")]
-    public ComputeShader densityComplementationShader;
-    [Tooltip("ƒ{ƒNƒZƒ‹ƒOƒŠƒbƒh\’z‚Ég—p‚·‚éCompute Shader")]
-    public ComputeShader voxelGridBuilderShader;
-
-    [Tooltip("‹ß–T’TõƒmƒCƒYœ‹‚ÉGPU‚ğg—p‚·‚é")]
-    public bool useGpuNoiseFilter = true;
-    [Tooltip("ƒ{ƒNƒZƒ‹–§“xƒtƒBƒ‹ƒ^ƒŠƒ“ƒO‚ÉGPU‚ğg—p‚·‚é")]
-    public bool useGpuDensityFilter = true;
-    [Tooltip("–§“x•âŠ®‚ÉGPU‚ğg—p‚·‚é")]
-    public bool useGpuDensityComplementation = true;
 
     private PointCloudSource lastRenderingSource;
     private FileSettings[] lastFileSettings;
     private float lastPointSize;
     private GameObject lastOutline;
     private Color lastOutlineColor;
-    private float lastVoxelSize;
-    private float lastSearchRadius;
-    private Color lastNeighborColor;
-    private int lastNeighborThreshold;
-    private int lastVoxelDensityThreshold;
-
-    private int lastErosionIterations;
-    private int lastDilationIterations;
-
-    private int lastComplementationDensityThreshold;
-    private uint lastComplementationPointsPerAxis;
-    private Color lastComplementationPointColor;
-    private bool lastComplementationRandomPlacement;
-
-    private ComputeShader lastNeighborNoiseFilterShader;
-    private ComputeShader lastMorpologyOperationShader;
-    private ComputeShader lastDensityFilterShader;
-    private ComputeShader lastDensityComplementationShader;
-    private ComputeShader lastVoxelGridBuilderShader;
-
-    private bool lastUseGpuNoiseFilter;
-    private bool lastUseGpuDensityFilter;
-    private bool lastUseGpuDensityComplementation;
 
 
     private void Awake()
@@ -141,29 +72,6 @@ public class PCV_Settings : MonoBehaviour
         lastPointSize = pointSize;
         lastOutline = outline;
         lastOutlineColor = outlineColor;
-        lastVoxelSize = voxelSize;
-        lastSearchRadius = searchRadius;
-        lastNeighborColor = neighborColor;
-        lastNeighborThreshold = neighborThreshold;
-        lastVoxelDensityThreshold = voxelDensityThreshold;
-
-        lastErosionIterations = erosionIterations;
-        lastDilationIterations = dilationIterations;
-
-        lastComplementationDensityThreshold = complementationDensityThreshold;
-        lastComplementationPointsPerAxis = complementationPointsPerAxis;
-        lastComplementationPointColor = complementationPointColor;
-        lastComplementationRandomPlacement = complementationRandomPlacement;
-
-        lastNeighborNoiseFilterShader = neighborNoiseFilterShader;
-        lastMorpologyOperationShader = morpologyOperationShader;
-        lastDensityFilterShader = densityFilterShader;
-        lastDensityComplementationShader = densityComplementationShader;
-        lastVoxelGridBuilderShader = voxelGridBuilderShader;
-
-        lastUseGpuNoiseFilter = useGpuNoiseFilter;
-        lastUseGpuDensityFilter = useGpuDensityFilter;
-        lastUseGpuDensityComplementation = useGpuDensityComplementation;
     }
 
     public bool HasRenderingSourceChanged()
@@ -190,36 +98,5 @@ public class PCV_Settings : MonoBehaviour
         return pointSize != lastPointSize || outlineColor != lastOutlineColor || outline != lastOutline;
     }
 
-    public bool HasMorpologySettingsChanged()
-    {
-        return erosionIterations != lastErosionIterations || dilationIterations != lastDilationIterations || morpologyOperationShader != lastMorpologyOperationShader;
-    }
 
-    public bool HasComplementationSettingsChanged()
-    {
-        return complementationDensityThreshold != lastComplementationDensityThreshold ||
-               complementationPointsPerAxis != lastComplementationPointsPerAxis ||
-               complementationPointColor != lastComplementationPointColor ||
-               complementationRandomPlacement != lastComplementationRandomPlacement;
-    }
-
-    public bool HasProcessingSettingsChanged()
-    {
-        bool densityShadersChanged = (morpologyOperationShader != lastMorpologyOperationShader) ||
-                                     (densityFilterShader != lastDensityFilterShader) ||
-                                     (densityComplementationShader != lastDensityComplementationShader) ||
-                                     (neighborNoiseFilterShader != lastNeighborNoiseFilterShader) ||
-                                     (voxelGridBuilderShader != lastVoxelGridBuilderShader);
-
-        bool processingParamsChanged = voxelSize != lastVoxelSize ||
-                                       searchRadius != lastSearchRadius ||
-                                       neighborColor != lastNeighborColor ||
-                                       neighborThreshold != lastNeighborThreshold ||
-                                       voxelDensityThreshold != lastVoxelDensityThreshold;
-
-        return processingParamsChanged ||
-               densityShadersChanged ||
-               HasMorpologySettingsChanged() ||
-               HasComplementationSettingsChanged();
-    }
 }

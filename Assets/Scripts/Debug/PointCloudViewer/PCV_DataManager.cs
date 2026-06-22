@@ -8,38 +8,28 @@ using UnityEditor;
 public class PCV_DataManager : MonoBehaviour
 {
     public PCV_Data CurrentData { get; private set; }
-    public PCV_SpatialSearch SpatialSearch { get; private set; }
     public event Action<PCV_Data> OnDataUpdated;
 
-    public void LoadAndSetData(FileSettings[] fileSettings, float voxelSize)
+    public void LoadAndSetData(FileSettings[] fileSettings)
     {
         PCV_Data loadedData = PCV_Loader.LoadFromFiles(fileSettings);
-        SetData(loadedData, voxelSize);
+        SetData(loadedData);
 
         if (loadedData != null && loadedData.PointCount > 0)
         {
-            UnityEngine.Debug.Log($"“_ŒQ‚ª {loadedData.PointCount} “_‚ÅÄ\’z‚³‚ê‚Ü‚µ‚½B");
+            UnityEngine.Debug.Log($"ç‚¹ç¾¤ãŒ {loadedData.PointCount} ç‚¹ã§å†æ§‹ç¯‰ã•ã‚Œã¾ã—ãŸã€‚");
         }
         else
         {
-            UnityEngine.Debug.LogWarning("“Ç‚Ýž‚Þ“_ŒQƒf[ƒ^‚ª‘¶Ý‚µ‚Ü‚¹‚ñB");
+            UnityEngine.Debug.LogWarning("èª­ã¿è¾¼ã‚€ç‚¹ç¾¤ãƒ‡ãƒ¼ã‚¿ãŒå­˜åœ¨ã—ã¾ã›ã‚“ã€‚");
         }
     }
 
-    public void SetData(PCV_Data newData, float voxelSize)
+    public void SetData(PCV_Data newData)
     {
         ReleaseAllBuffers();
 
         CurrentData = newData;
-
-        if (CurrentData != null && CurrentData.PointCount > 0)
-        {
-            SpatialSearch = new PCV_SpatialSearch(CurrentData, voxelSize);
-        }
-        else
-        {
-            SpatialSearch = null;
-        }
 
         OnDataUpdated?.Invoke(CurrentData);
     }
@@ -64,11 +54,6 @@ public class PCV_DataManager : MonoBehaviour
 
     private void ReleaseAllBuffers()
     {
-        if (SpatialSearch != null)
-        {
-            SpatialSearch.Dispose();
-            SpatialSearch = null;
-        }
     }
 
 #if UNITY_EDITOR
