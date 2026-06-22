@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - "WIKI.md"
-      - "RENDERING.md"
+      - "OCCLUSIONRENDERING.md"
       - "HAPTICS.md"
       - "DEBUG_PCV.md"
       - "DISPLAY_3D.md"
@@ -33,7 +33,7 @@ jobs:
           
           # ドキュメントを配置 (WIKI.md は Home.md として配置)
           cp WIKI.md temp-wiki/Home.md
-          cp RENDERING.md temp-wiki/RENDERING.md
+          cp OCCLUSIONRENDERING.md temp-wiki/OCCLUSIONRENDERING.md
           cp HAPTICS.md temp-wiki/HAPTICS.md
           cp DEBUG_PCV.md temp-wiki/DEBUG_PCV.md
           cp DISPLAY_3D.md temp-wiki/DISPLAY_3D.md
