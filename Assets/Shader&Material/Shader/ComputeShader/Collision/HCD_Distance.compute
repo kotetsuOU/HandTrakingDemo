@@ -5,7 +5,7 @@
 
 struct PointCollisionData
 {
-    int isColliding;
+    int isColliding; // 0: None, 1: Surface, 2: Inside
     float3 hitPoint;
     float3 hitNormal;
 };
@@ -133,6 +133,26 @@ float3 ClosestPointOnTriangle(float3 p, float3 a, float3 b, float3 c)
     return a + ab * v2 + ac * w2;
 }
 
+// Möller-Trumbore ray-triangle intersection (double-sided).
+// Returns 1 if the ray (origin, dir) intersects the triangle at t > epsilon, else 0.
+int RayTriangleHit(float3 rayO, float3 rayD, float3 a, float3 b, float3 c)
+{
+    float3 edge1 = b - a;
+    float3 edge2 = c - a;
+    float3 h = cross(rayD, edge2);
+    float det = dot(edge1, h);
+    if (abs(det) < 1e-7) return 0;         // Ray parallel to triangle
+    float invDet = 1.0 / det;
+    float3 s = rayO - a;
+    float u = invDet * dot(s, h);
+    if (u < 0.0 || u > 1.0) return 0;
+    float3 q = cross(s, edge1);
+    float v = invDet * dot(rayD, q);
+    if (v < 0.0 || u + v > 1.0) return 0;
+    float t = invDet * dot(edge2, q);
+    return (t > 1e-5) ? 1 : 0;             // t > 0: forward intersection
+}
+
 [numthreads(256, 1, 1)]
 void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
 {
@@ -236,25 +256,78 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         }
     }
 
-    if (minDistSqr < 9999999.0)
+    // Surface contact: point is outside the mesh and within SurfaceDistanceThreshold
+    if (minDistSqr < 9999999.0 && bestSignedDist > 0.0 && bestSignedDist <= SurfaceDistanceThreshold)
     {
-        bool hit = false;
-        if (bestSignedDist > 0.0 && bestSignedDist <= SurfaceDistanceThreshold)
+        res.isColliding = 1;
+        res.hitPoint   = bestClosestP;
+        res.hitNormal  = bestNormal;
+    }
+
+    // InsideMesh: X+ ray cast (parity test) using existing Voxel Grid.
+    // Runs only when the point has not already been classified as a surface contact.
+    // visited[] (max 64 entries) prevents double-counting triangles that span multiple cells.
+    if (res.isColliding == 0)
+    {
+        int insideHitCount = 0;
+        uint visitedTris[64];
+        int visitedCount = 0;
+
+        for (int iz = 0; iz < GridResolution.z; iz++)
         {
-            hit = true; 
+            for (int iy = 0; iy < GridResolution.y; iy++)
+            {
+                for (int ix = 0; ix < GridResolution.x; ix++)
+                {
+                    // Only process cells whose Y/Z range contains the point
+                    // and that lie on or ahead of the point in the X+ direction.
+                    float3 cellMin = GridBoundsMin + float3(ix, iy, iz) * GridCellSize;
+                    float3 cellMax = cellMin + GridCellSize;
+
+                    if (p.y < cellMin.y || p.y > cellMax.y) continue;
+                    if (p.z < cellMin.z || p.z > cellMax.z) continue;
+                    if (cellMax.x < p.x) continue; // Cell is entirely behind the ray origin
+
+                    int cellIdx = ix + iy * GridResolution.x + iz * GridResolution.x * GridResolution.y;
+                    int cnt = min(31, GridBuffer[cellIdx * 32]);
+
+                    for (int i2 = 0; i2 < cnt; i2++)
+                    {
+                        uint triIdx2 = (uint)GridBuffer[cellIdx * 32 + 1 + i2];
+
+                        // Deduplicate: skip if this triangle was already tested
+                        bool alreadyVisited = false;
+                        for (int vi = 0; vi < visitedCount; vi++)
+                        {
+                            if (visitedTris[vi] == triIdx2) { alreadyVisited = true; break; }
+                        }
+                        if (alreadyVisited) continue;
+                        if (visitedCount < 64) visitedTris[visitedCount++] = triIdx2;
+
+                        int idxA2 = MeshIndicesBuffer[triIdx2 * 3];
+                        int idxB2 = MeshIndicesBuffer[triIdx2 * 3 + 1];
+                        int idxC2 = MeshIndicesBuffer[triIdx2 * 3 + 2];
+                        float3 wA2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxA2], 1.0)).xyz;
+                        float3 wB2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxB2], 1.0)).xyz;
+                        float3 wC2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxC2], 1.0)).xyz;
+
+                        insideHitCount += RayTriangleHit(p, float3(1, 0, 0), wA2, wB2, wC2);
+                    }
+                }
+            }
         }
-        else if (bestSignedDist <= 0.0 && bestSignedDist >= -BackfaceDistanceThreshold)
+
+        // Odd intersection count → point is inside the mesh
+        if ((insideHitCount % 2) == 1)
         {
-            hit = true; 
-        }
-        
-        if (hit)
-        {
-            res.isColliding = 1;
-            res.hitPoint = bestClosestP;
-            res.hitNormal = bestNormal;
+            res.isColliding = 2;
+            if (minDistSqr < 9999999.0)
+            {
+                res.hitPoint  = bestClosestP;
+                res.hitNormal = bestNormal;
+            }
         }
     }
-    
+
     ResultBuffer[id.x] = res;
 }
