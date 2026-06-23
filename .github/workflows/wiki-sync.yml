@@ -1,4 +1,4 @@
-﻿name: Sync Wiki Documents
+name: Sync Wiki Documents
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
       - "Docs/PointCloudPipeline.md"
       - "Docs/OcclusionRendering.md"
       - "Docs/Collision.md"
+      - "Docs/Haptics.md"
       - "Docs/DebugPCV.md"
       - "Docs/Display3D.md"
       - "Docs/Initialization.md"
@@ -37,6 +38,7 @@ jobs:
           cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
           cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
           cp Docs/Collision.md temp-wiki/Collision.md
+          cp Docs/Haptics.md temp-wiki/Haptics.md
           cp Docs/DebugPCV.md temp-wiki/DebugPCV.md
           cp Docs/Display3D.md temp-wiki/Display3D.md
           cp Docs/Initialization.md temp-wiki/Initialization.md
@@ -51,6 +53,7 @@ jobs:
               "PointCloudPipeline.md": "PointCloudPipeline",
               "OcclusionRendering.md": "OcclusionRendering",
               "Collision.md": "Collision",
+              "Haptics.md": "Haptics",
               "DebugPCV.md": "DebugPCV",
               "Display3D.md": "Display3D",
               "AnimationControls.md": "AnimationControls",

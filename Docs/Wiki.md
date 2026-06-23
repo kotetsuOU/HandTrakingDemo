@@ -11,7 +11,7 @@
 各ノードは、データソースであるグローバル点群マネージャー（`RsGlobalPointCloudManager`）をデータハブとし、完全に独立したモジュールとして連携しています。
 
 ```mermaid
-graph LR
+graph TD
     %% スタイル定義
     classDef render fill:#1A5276,stroke:#2980B9,stroke-width:2px,color:#EBF5FB;
     classDef haptic fill:#78281F,stroke:#C0392B,stroke-width:2px,color:#FDEDEC;
@@ -21,10 +21,10 @@ graph LR
     classDef control fill:#7D6608,stroke:#9A7D0A,stroke-width:2px,color:#FEF9E7;
 
     subgraph WIKI ["📄 統合ポータル (Wiki.md) - システム全体俯瞰"]
-        direction LR
+        direction TD
 
         subgraph Calibration ["⚙️ 0. アライメント・キャリブレーション基盤"]
-            direction TB
+            direction LR
             InitNode["初期化とアライメント<br/>(Initialization.md)"]:::common
             DebugNode["PCV デバッグ空間演算<br/>(DebugPCV.md)"]:::debug
         end
@@ -32,17 +32,19 @@ graph LR
         PointCloudNode["📦 1. 点群ストリーミング・統合ハブ<br/>(PointCloudPipeline.md)"]:::common
         
         subgraph RealTimeProcessing ["⚡ リアルタイム処理"]
-            direction TB
+            direction LR
             RenderNode["🎨 2. 視覚オクルージョン<br/>(OcclusionRendering.md)"]:::render
-            HapticsNode["⚡ 3. ハプティクス衝突判定<br/>(Collision.md)"]:::haptic
+            HapticsNode["⚡ 3. 衝突判定・トラッキング<br/>(Collision.md)"]:::haptic
+            AutdNode["🔊 4. 超音波ハプティクス出力<br/>(Haptics.md)"]:::haptic
         end
 
-        DisplayNode["👓 4. 3D立体視・ハーフミラー制御<br/>(Display3D.md)"]:::display
-        ControlNode["🎮 5. アニメーション・操作<br/>(AnimationControls.md)"]:::control
+        DisplayNode["👓 5. 3D立体視・ハーフミラー制御<br/>(Display3D.md)"]:::display
+        ControlNode["🎮 6. アニメーション・操作<br/>(AnimationControls.md)"]:::control
 
         %% パイプラインデータフロー
         Calibration -->|"アライメント行列 / デバッグ参照"| PointCloudNode
         PointCloudNode -->|"点群統合データ"| RealTimeProcessing
+        HapticsNode -->|"フォーカス・振幅データ"| AutdNode
         RenderNode -->|"オクルージョン合成結果"| DisplayNode
         
         %% 独立した制御系
@@ -96,18 +98,27 @@ graph LR
 
 ---
 
-### ⚡ 3. [空中超音波ハプティクス（触覚提示）システム](./Collision.md)
-*   **目的**: 統合点群と Unity 上の動的な仮想オブジェクトとの物理的な衝突判定を GPU で並列計算し、空中超音波触覚ディスプレイ（AUTD3等）と連携してリアルタイムに触覚フィードバックを提示します。
+### ⚡ 3. [空中超音波ハプティクス（衝突判定・トラッキング）](./Collision.md)
+*   **目的**: 統合点群と Unity 上の動的な仮想オブジェクトとの物理的な衝突判定を GPU で並列計算し、ハプティクス提示の座標・法線・強度をトラッキングします。
 *   **コアモジュールと特徴**:
     *   `HapCollisionDetectors.cs`: C# 衝突オーケストレーター、BakeMesh による GC 対策。
     *   `HapCollisionDetectors.compute`: Broad-Phase AABB 枝切り、Narrow-Phase サンプリング、アトミック衝突調停。
 *   **詳細はこちら ──> [Collision.md](./Collision.md) を読む**
 
+---
+
+### 🔊 4. [空中超音波ハプティクス出力システム](./Haptics.md)
+*   **目的**: 衝突判定モジュールから出力された接触重心や強度データを元に、音響ホログラフィアルゴリズム（GSPAT）を適用し、AUTD3ハードウェアを駆動して超音波触覚を提示します。
+*   **コアモジュールと特徴**:
+    *   `AUTD3Device.cs`: Unity上の物理的なAUTD3アレイデバイスの配置・ID管理。
+    *   `HAP_AUTDController.cs`: TwinCATリンク管理、トラッキングデータに基づくマルチフォーカス出力、および接触面積（Force）に応じた動的振幅制御。
+*   **詳細はこちら ──> [Haptics.md](./Haptics.md) を読む**
+
 
 
 ---
 
-### 👓 4. [3D立体視・ハーフミラー制御システム](./Display3D.md)
+### 👓 5. [3D立体視・ハーフミラー制御システム](./Display3D.md)
 *   **目的**: 物理的な視線トラッキングセンサー（SRDisplay等）が取得した座標と、ハーフミラーを用いた鏡面世界（光学配置）の視差を完全に一致させます。
 *   **コアモジュールと特徴**:
     *   **SDK標準トラッキングの完全活用**: 独自の座標計算やカメラ同期（`StereoCameraController` 等）を廃止し、SDKの標準カメラ機能（`Use Direct GPU Image Buffer = OFF`）をそのまま活用することで、トラッキング精度とパフォーマンスを最大化。
@@ -118,7 +129,7 @@ graph LR
 
 ---
 
-### 🎮 5. [アニメーション・操作キーシステム](./AnimationControls.md)
+### 🎮 6. [アニメーション・操作キーシステム](./AnimationControls.md)
 *   **目的**: デモや実験時の評価を効率化するために、撮影やオブジェクト切り替え、オクルージョン手法のパラメータ切り替え、およびキャラクターの操作と視点（カメラ）への追従制御を行います。
 *   **コアモジュールと特徴**:
     *   **キャラクターの視点追従**: `F` キーで切り替え可能。`Camera.main`（視点）へ向けてキャラクターをY軸回転で自動的かつ滑らかに追従させます。

@@ -120,14 +120,34 @@ $$
 これを解決するため、TactileClustering は以下の手順で計算を行います。
 
 1. **空間座標の量子化**: 各点の座標 $\mathbf{p} = (x, y, z)$ を指定した分解能 $S_{cell}$ (`cellSize = 0.02m` 等) で量子化し、3Dグリッド座標 $\mathbf{q}$ を求めます。
-   $$ \mathbf{q} = \left\lfloor \frac{\mathbf{p}}{S_{cell}} \right\rfloor $$
+
+$$ 
+\mathbf{q} = \left\lfloor \frac{\mathbf{p}}{S_{cell}} \right\rfloor 
+$$
+
 2. **法線方向の量子化 (Normal Bin)**: 各点の法線ベクトル $\mathbf{n}$ を、空間の 6 軸集合 $V = \{+X, -X, +Y, -Y, +Z, -Z\}$ のいずれかに分類し、法線ビン $b \in \{0, 1, 2, 3, 4, 5\}$ を求めます。
-   $$ b = \text{Index}\left( \argmax_{\mathbf{v} \in V} (\mathbf{n} \cdot \mathbf{v}) \right) $$
+
+$$
+b = \text{Index}\left( \argmax_{\mathbf{v} \in V} (\mathbf{n} \cdot \mathbf{v}) \right) 
+$$
+
 3. **ハイブリッド・ハッシュ生成**: $\mathbf{q}$ と $b$ を組み合わせてハッシュ関数 $H(\mathbf{q}, b)$（MurmurHash3等）を通し、固定長バッファのインデックス $i$ にマッピングします。
-   $$ i = H(\mathbf{q}, b) \pmod{M_{cluster}} \quad (M_{cluster} \text{ は最大クラスタ数}) $$
+
+$$
+i = H(\mathbf{q}, b) \pmod{M_{cluster}} \quad (M_{cluster} \text{ は最大クラスタ数})
+$$
+
 4. **並列蓄積 (`AccumulateClusters`)**: 同一のハッシュインデックス $i$ に該当する要素群（要素数 $N$）に対し、`InterlockedAdd` を用いて「座標の合計値」と「法線の合計値（固定小数点）」を並列に足し合わせます。
+
+$$
+\mathbf{p}_{sum} += \mathbf{p}_j, \quad \mathbf{n}_{sum} += \mathbf{n}_j \quad (\text{for each point } j \text{ in cluster } i)
+$$
+
 5. **重心と平均法線の算出**: 最終的に要素数 $N$ で除算し、クラスタの重心座標 $\mathbf{C}$ と平均法線方向 $\mathbf{N}_{avg}$ を算出します。
-   $$ \mathbf{C} = \frac{1}{N} \sum_{j=1}^{N} \mathbf{p}_j, \quad \mathbf{N}_{avg} = \frac{\sum_{j=1}^{N} \mathbf{n}_j}{\left\| \sum_{j=1}^{N} \mathbf{n}_j \right\|} $$
+
+$$
+\mathbf{C} = \frac{1}{N} \sum_{j=1}^{N} \mathbf{p}_j, \quad \mathbf{N}_{avg} = \frac{\sum_{j=1}^{N} \mathbf{n}_j}{\left\| \sum_{j=1}^{N} \mathbf{n}_j \right\|} 
+$$
 
 これにより、同じ空間ボクセル内であっても「+Zを向いている表側の接触面」と「-Zを向いている裏側の接触面」は異なるハッシュキーとなり、**2つの独立したクラスタとして完璧に分離**されます。追加のGPUコストはスレッドあたり数命令のみであり、実質ゼロで動作します。
 
@@ -165,11 +185,20 @@ GPUからCPUに回収された「今のフレームの重心リスト」と、�
 クラスタに含まれる「点群の数（`ContactCount`）」は、物理的な「接触面積」と強い相関関係にあります（軽く触れると数十点、強く押し込むと数百点〜数千点）。
 これを応用し、追加の計算コストなしで超音波ハプティクスデバイスの「振幅（提示強度）」を制御します。
 - **Force マッピング**: 対象クラスタの接触点数 $N_{contact}$ を用い、ベースとなる振幅値 $F_{raw}$ (`0.0` 〜 `1.0`) を線形補間で算出します。
-  $$ F_{raw} = \text{clamp}\left( \frac{N_{contact} - N_{min}}{N_{max} - N_{min}}, 0, 1 \right) $$
-  ※ $N_{min}$ は `forceMinCount` (ノイズ除去閾値)、$N_{max}$ は `forceMaxCount` (最大振幅閾値)
+
+$$
+F_{raw} = \text{clamp}\left( \frac{N_{contact} - N_{min}}{N_{max} - N_{min}}, 0, 1 \right) 
+$$
+
+※ $N_{min}$ は `forceMinCount` (ノイズ除去閾値)、$N_{max}$ は `forceMaxCount` (最大振幅閾値)
+
 - **時間的スムージング**: フレーム $t$ における急激な振幅変化を防ぐため、スムージング係数 $\alpha$ (`forceSmoothingFactor`) を用いて指数移動平均による補間を行い、最終的な $F^{(t)}$ を算出します。
-  $$ F^{(t)} = (1 - \alpha) F^{(t-1)} + \alpha F_{raw} $$
-  クラスタが一時的に見えなくなった場合（欠損時）は $F_{raw} = 0$ として計算され、即座に消えるのではなく滑らかにフェードアウトします。
+
+$$
+F^{(t)} = (1 - \alpha) F^{(t-1)} + \alpha F_{raw}
+$$
+
+クラスタが一時的に見えなくなった場合（欠損時）は $F_{raw} = 0$ として計算され、即座に消えるのではなく滑らかにフェードアウトします。
 
 ---
 
