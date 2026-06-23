@@ -115,4 +115,5 @@ git lfs pull
 本プロジェクトには以下のサードパーティ製ソフトウェアおよび外部素材が含まれています。これらの取り扱いについては、各配布元のライセンス条項に従ってください。
 
 * **Intel RealSense SDK 2.0 (Customized)**: Apache License 2.0
+* **Sony Spatial Reality Display SDK**: 各配布元の利用規約に準拠
 * **フリーアニメーション素材**: 各配布元の利用規約に準拠
