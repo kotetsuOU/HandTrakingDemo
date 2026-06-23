@@ -76,14 +76,21 @@ public class HAP_AUTDController : MonoBehaviour
     {
         if (_autd == null || hcdPipeline == null) return;
 
-        // HCD_Pipeline から現在接触中の全クラスタ重心を取得
-        List<Vector3> activeCentroids = hcdPipeline.GetActiveCentroids();
+        // トラッカーから安定化・追跡済みのクラスタリストを取得
+        var trackedClusters = hcdPipeline.GetTrackedClusters();
 
-        if (activeCentroids.Count > 0)
+        // 生存しており、かつ Force が有効なクラスタを抽出
+        var activeFoci = trackedClusters
+            .Where(c => c.IsAlive && c.Force > 0.01f)
+            .Select(c => (
+                new AUTD3Sharp.Utils.Point3(c.Centroid.x, c.Centroid.y, c.Centroid.z), 
+                (focusIntensityPascal * c.Force) * Pa
+            )).ToArray();
+
+        if (activeFoci.Length > 0)
         {
-            // 接触している箇所がある場合、GSPAT ですべての重心にフォーカスを生成
-            var foci = activeCentroids.Select(c => (new AUTD3Sharp.Utils.Point3(c.x, c.y, c.z), focusIntensityPascal * Pa)).ToArray();
-            var gspat = new GSPAT(foci, new GSPATOption());
+            // 接触している箇所がある場合、GSPAT でフォーカスを生成 (Force値で個別の振幅を制御)
+            var gspat = new GSPAT(activeFoci, new GSPATOption());
             
             _autd.Send(gspat);
             _isCurrentlyOff = false;

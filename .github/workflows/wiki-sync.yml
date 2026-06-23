@@ -1,4 +1,4 @@
-name: Sync Wiki Documents
+﻿name: Sync Wiki Documents
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - AUTD
       - main
     paths:
-      - "Wiki.md"
+      - "Docs/Wiki.md"
       - "Docs/PointCloudPipeline.md"
       - "Docs/OcclusionRendering.md"
       - "Docs/Collision.md"
@@ -33,7 +33,7 @@ jobs:
         run: |
           git clone "$WIKI_REPO" temp-wiki
           
-          cp Wiki.md temp-wiki/Home.md
+          cp Docs/Wiki.md temp-wiki/Home.md
           cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
           cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
           cp Docs/Collision.md temp-wiki/Collision.md

@@ -72,19 +72,19 @@ public class HCD_Pipeline : MonoBehaviour
             processor.Dispatch(globalBuffer, pointsCount);
         }
 
-        // GPU 結果を読み戻してフレーム間クラスタ追跡を更新
-        GetActiveClusterInfos(out var centroids, out var normals);
-        clusterTracker.Update(centroids, normals);
+        // GPU 結果を読み戻してフレーム間クラスタ追跡を更新（ContactForceReduction 含む）
+        GetActiveClusterInfos(out var centroids, out var normals, out var counts);
+        clusterTracker.Update(centroids, normals, counts);
     }
 
     /// <summary>
-    /// GPU から現在の表面接触クラスタの重心座標と平均法線を取得します。
-    /// out 引数にリストを渡すため GC Alloc はリスト生成分のみです。
+    /// GPU から現在の表面接触クラスタの重心座標・平均法線・接触点数を取得します。
     /// </summary>
-    public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals)
+    public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts)
     {
         centroids = new List<Vector3>();
         normals   = new List<Vector3>();
+        counts    = new List<int>();
         var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
         if (clusterBuffer == null) return;
 
@@ -96,9 +96,9 @@ public class HCD_Pipeline : MonoBehaviour
             {
                 float invScale = 1.0f / (data.count * 10000.0f);
                 centroids.Add(new Vector3(data.posX, data.posY, data.posZ) * invScale);
-                // Average normal (normalized after averaging the fixed-point sum)
                 var avgNormal = new Vector3(data.normalX, data.normalY, data.normalZ) * invScale;
                 normals.Add(avgNormal.sqrMagnitude > 0.0001f ? avgNormal.normalized : Vector3.up);
+                counts.Add(data.count);
             }
         }
     }
@@ -108,7 +108,7 @@ public class HCD_Pipeline : MonoBehaviour
     /// </summary>
     public List<Vector3> GetActiveCentroids()
     {
-        GetActiveClusterInfos(out var c, out _);
+        GetActiveClusterInfos(out var c, out _, out _);
         return c;
     }
 
@@ -164,10 +164,10 @@ public class HCD_Pipeline : MonoBehaviour
             Gizmos.DrawRay(cluster.Centroid, cluster.Normal * 0.04f);
 
 #if UNITY_EDITOR
-            // ID・生存フレーム数をラベル表示
+            // ID・生存フレーム数・Force をラベル表示
             UnityEditor.Handles.Label(
                 cluster.Centroid + Vector3.up * 0.03f,
-                $"ID:{cluster.Id} Age:{cluster.Age}");
+                $"ID:{cluster.Id} Age:{cluster.Age} F:{cluster.Force:F2}");
 #endif
         }
     }

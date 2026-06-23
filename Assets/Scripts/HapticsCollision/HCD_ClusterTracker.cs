@@ -20,6 +20,18 @@ public class HCD_ClusterTracker
     [Tooltip("何フレーム連続でマッチしなかったらクラスタを消滅させるか")]
     public int maxMissingFrames = 3;
 
+    // ─── ContactForceReduction Settings ────────────────────────────────────
+
+    [Tooltip("この接触点数以上で Force = 1.0（最大振幅）とする")]
+    public int forceMaxCount = 500;
+
+    [Tooltip("この接触点数未満では Force = 0.0（ノイズ除去閾値）")]
+    public int forceMinCount = 5;
+
+    [Tooltip("Force の時間的スムージング係数（0.0=スムーズなし, 1.0=即応答）")]
+    [Range(0.01f, 1.0f)]
+    public float forceSmoothingFactor = 0.3f;
+
     // ─── Public Result ─────────────────────────────────────────────────────
 
     /// <summary>現在追跡中の全クラスタ（alive + missing 含む）</summary>
@@ -33,12 +45,11 @@ public class HCD_ClusterTracker
     // ─── Update ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 新しいフレームのクラスタ重心リストを受け取り、フレーム間追跡を更新します。
+    /// 新しいフレームのクラスタ重心リストを受け取り、フレーム間追跡を更新します（位置のみ版）。
     /// </summary>
-    /// <param name="newCentroids">今フレームの表面接触クラスタ重心リスト</param>
     public void Update(List<Vector3> newCentroids)
     {
-        Update(newCentroids, null);
+        Update(newCentroids, null, null);
     }
 
     /// <summary>
@@ -46,10 +57,11 @@ public class HCD_ClusterTracker
     /// </summary>
     /// <param name="newCentroids">今フレームの表面接触クラスタ重心リスト</param>
     /// <param name="newNormals">重心に対応する平均法線リスト（省略時は null）</param>
-    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals = null)
+    /// <param name="newCounts">各クラスタの接触点数リスト（ContactForceReduction 用、省略時は null）</param>
+    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals, List<int> newCounts = null)
     {
         int newCount = newCentroids.Count;
-        bool[] newMatched = new bool[newCount]; // 新規重心がマッチ済みかどうか
+        bool[] newMatched = new bool[newCount];
 
         // ── Step 1: 既存クラスタを新規重心に対してマッチング ────────────────
         for (int t = 0; t < _tracked.Count; t++)
@@ -71,11 +83,20 @@ public class HCD_ClusterTracker
 
             if (bestIdx >= 0)
             {
-                // マッチ成功: 重心を更新し、欠損カウントをリセット
                 newMatched[bestIdx] = true;
                 cluster.Centroid = newCentroids[bestIdx];
                 if (newNormals != null && bestIdx < newNormals.Count)
                     cluster.Normal = newNormals[bestIdx];
+
+                // ContactForceReduction: 接触点数 → Force (0-1)
+                if (newCounts != null && bestIdx < newCounts.Count)
+                {
+                    cluster.ContactCount = newCounts[bestIdx];
+                    float rawForce = ComputeRawForce(newCounts[bestIdx]);
+                    // 時間的スムージング: 急激な変化を抑え、安定した振幅制御を実現
+                    cluster.Force = Mathf.Lerp(cluster.Force, rawForce, forceSmoothingFactor);
+                }
+
                 cluster.Age++;
                 cluster.MissingFrames = 0;
                 cluster.IsAlive = true;
@@ -83,9 +104,10 @@ public class HCD_ClusterTracker
             }
             else
             {
-                // マッチ失敗: 欠損カウントを増やす
                 cluster.MissingFrames++;
                 cluster.IsAlive = false;
+                // Force を減衰させる（欠損中にフェードアウト）
+                cluster.Force = Mathf.Lerp(cluster.Force, 0f, forceSmoothingFactor);
                 _tracked[t] = cluster;
             }
         }
@@ -95,12 +117,15 @@ public class HCD_ClusterTracker
         {
             if (!newMatched[n])
             {
+                int cnt = (newCounts != null && n < newCounts.Count) ? newCounts[n] : 0;
                 _tracked.Add(new TrackedCluster
                 {
                     Id            = _nextId++,
                     Centroid      = newCentroids[n],
                     Normal        = (newNormals != null && n < newNormals.Count)
                                     ? newNormals[n] : Vector3.up,
+                    ContactCount  = cnt,
+                    Force         = ComputeRawForce(cnt),
                     Age           = 1,
                     MissingFrames = 0,
                     IsAlive       = true,
@@ -110,6 +135,19 @@ public class HCD_ClusterTracker
 
         // ── Step 3: 長すぎる欠損クラスタを除去 ─────────────────────────────
         _tracked.RemoveAll(c => c.MissingFrames > maxMissingFrames);
+    }
+
+    // ─── ContactForceReduction ──────────────────────────────────────────────
+
+    /// <summary>
+    /// 接触点数を 0.0〜1.0 の振幅値にマッピングします。
+    /// forceMinCount 未満はノイズとみなし 0、forceMaxCount 以上で 1.0（クランプ）。
+    /// </summary>
+    private float ComputeRawForce(int contactCount)
+    {
+        if (contactCount < forceMinCount) return 0f;
+        float range = Mathf.Max(1f, forceMaxCount - forceMinCount);
+        return Mathf.Clamp01((contactCount - forceMinCount) / range);
     }
 
     /// <summary>現在生きているクラスタの重心リストを返します</summary>
@@ -144,6 +182,13 @@ public struct TrackedCluster
 
     /// <summary>接触パッチの平均表面法線（正規化済み）</summary>
     public Vector3 Normal;
+
+    /// <summary>接触点数（クラスタ内の GPU 点数）</summary>
+    public int ContactCount;
+
+    /// <summary>接触の強さ（0.0〜1.0）。AUTD3 の振幅制御に直接使用可能。
+    /// ContactForceReduction により接触点数からマッピングされ、時間的スムージングで安定化されています。</summary>
+    public float Force;
 
     /// <summary>このクラスタが生存し続けているフレーム数</summary>
     public int Age;
