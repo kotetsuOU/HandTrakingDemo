@@ -179,7 +179,7 @@ void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
     ResultBuffer[id.x] = res;
 }
 
-[numthreads(256, 1, 1)]
+[numthreads(64, 1, 1)]
 void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= PointsCount) return;
@@ -264,61 +264,28 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         res.hitNormal  = bestNormal;
     }
 
-    // InsideMesh: X+ ray cast (parity test) using existing Voxel Grid.
-    // Runs only when the point has not already been classified as a surface contact.
-    // visited[] (max 64 entries) prevents double-counting triangles that span multiple cells.
+    // InsideMesh: X+ ray cast (parity test).
+    // Iterates directly over all mesh triangles to avoid indexable temp arrays.
+    // This removes register pressure and eliminates the need for deduplication.
+    // Cost: O(MeshTrianglesCount) per AABB-interior point — acceptable for <4000 triangles.
     if (res.isColliding == 0)
     {
-        int insideHitCount = 0;
-        uint visitedTris[64];
-        int visitedCount = 0;
+        uint insideHits = 0u;
 
-        for (int iz = 0; iz < GridResolution.z; iz++)
+        for (uint triIdx2 = 0u; triIdx2 < MeshTrianglesCount; triIdx2++)
         {
-            for (int iy = 0; iy < GridResolution.y; iy++)
-            {
-                for (int ix = 0; ix < GridResolution.x; ix++)
-                {
-                    // Only process cells whose Y/Z range contains the point
-                    // and that lie on or ahead of the point in the X+ direction.
-                    float3 cellMin = GridBoundsMin + float3(ix, iy, iz) * GridCellSize;
-                    float3 cellMax = cellMin + GridCellSize;
-
-                    if (p.y < cellMin.y || p.y > cellMax.y) continue;
-                    if (p.z < cellMin.z || p.z > cellMax.z) continue;
-                    if (cellMax.x < p.x) continue; // Cell is entirely behind the ray origin
-
-                    int cellIdx = ix + iy * GridResolution.x + iz * GridResolution.x * GridResolution.y;
-                    int cnt = min(31, GridBuffer[cellIdx * 32]);
-
-                    for (int i2 = 0; i2 < cnt; i2++)
-                    {
-                        uint triIdx2 = (uint)GridBuffer[cellIdx * 32 + 1 + i2];
-
-                        // Deduplicate: skip if this triangle was already tested
-                        bool alreadyVisited = false;
-                        for (int vi = 0; vi < visitedCount; vi++)
-                        {
-                            if (visitedTris[vi] == triIdx2) { alreadyVisited = true; break; }
-                        }
-                        if (alreadyVisited) continue;
-                        if (visitedCount < 64) visitedTris[visitedCount++] = triIdx2;
-
-                        int idxA2 = MeshIndicesBuffer[triIdx2 * 3];
-                        int idxB2 = MeshIndicesBuffer[triIdx2 * 3 + 1];
-                        int idxC2 = MeshIndicesBuffer[triIdx2 * 3 + 2];
-                        float3 wA2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxA2], 1.0)).xyz;
-                        float3 wB2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxB2], 1.0)).xyz;
-                        float3 wC2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxC2], 1.0)).xyz;
-
-                        insideHitCount += RayTriangleHit(p, float3(1, 0, 0), wA2, wB2, wC2);
-                    }
-                }
-            }
+            int idxA2 = MeshIndicesBuffer[triIdx2 * 3u];
+            int idxB2 = MeshIndicesBuffer[triIdx2 * 3u + 1u];
+            int idxC2 = MeshIndicesBuffer[triIdx2 * 3u + 2u];
+            float3 wA2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxA2], 1.0)).xyz;
+            float3 wB2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxB2], 1.0)).xyz;
+            float3 wC2 = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxC2], 1.0)).xyz;
+            insideHits += (uint)RayTriangleHit(p, float3(1, 0, 0), wA2, wB2, wC2);
         }
 
         // Odd intersection count → point is inside the mesh
-        if ((insideHitCount % 2) == 1)
+        // Use bitwise AND instead of modulus to avoid signed-integer division warning.
+        if ((insideHits & 1u) == 1u)
         {
             res.isColliding = 2;
             if (minDistSqr < 9999999.0)

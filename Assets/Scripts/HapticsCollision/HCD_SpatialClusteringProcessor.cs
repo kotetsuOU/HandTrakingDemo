@@ -21,8 +21,8 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
     private int _kernelClear;
     private int _kernelAccumulate;
 
-    // Struct size: int(4) * 4 = 16 bytes
-    private const int STRIDE = 16;
+    // Struct size: int(4) * 7 = 28 bytes  (count + posX/Y/Z + normalX/Y/Z)
+    private const int STRIDE = 28;
 
     public void Setup(HCD_Pipeline pipeline)
     {

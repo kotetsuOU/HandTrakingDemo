@@ -73,32 +73,43 @@ public class HCD_Pipeline : MonoBehaviour
         }
 
         // GPU 結果を読み戻してフレーム間クラスタ追跡を更新
-        var centroids = GetActiveCentroids();
-        clusterTracker.Update(centroids);
+        GetActiveClusterInfos(out var centroids, out var normals);
+        clusterTracker.Update(centroids, normals);
     }
 
     /// <summary>
-    /// GPU から現在の衝突重心（クラスタ）座標を取得します。
-    /// isColliding == 1（表面接触）のクラスタのみを返します。
-    /// GC Alloc（ガベージコレクション）を発生させない最適化されたメソッドです。
+    /// GPU から現在の表面接触クラスタの重心座標と平均法線を取得します。
+    /// out 引数にリストを渡すため GC Alloc はリスト生成分のみです。
     /// </summary>
-    public List<Vector3> GetActiveCentroids()
+    public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals)
     {
-        var centroids = new List<Vector3>();
+        centroids = new List<Vector3>();
+        normals   = new List<Vector3>();
         var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
-        if (clusterBuffer == null) return centroids;
+        if (clusterBuffer == null) return;
 
-        // GC Alloc を防ぐため、事前に確保した配列に上書きコピー
         clusterBuffer.GetData(_clusterResults);
 
         foreach (var data in _clusterResults)
         {
             if (data.count > 0)
             {
-                centroids.Add(new Vector3(data.posX, data.posY, data.posZ) / (data.count * 10000.0f));
+                float invScale = 1.0f / (data.count * 10000.0f);
+                centroids.Add(new Vector3(data.posX, data.posY, data.posZ) * invScale);
+                // Average normal (normalized after averaging the fixed-point sum)
+                var avgNormal = new Vector3(data.normalX, data.normalY, data.normalZ) * invScale;
+                normals.Add(avgNormal.sqrMagnitude > 0.0001f ? avgNormal.normalized : Vector3.up);
             }
         }
-        return centroids;
+    }
+
+    /// <summary>
+    /// GPU から現在の衝突重心（クラスタ）座標を取得します（重心のみの簡易版）。
+    /// </summary>
+    public List<Vector3> GetActiveCentroids()
+    {
+        GetActiveClusterInfos(out var c, out _);
+        return c;
     }
 
     /// <summary>
@@ -129,6 +140,9 @@ public class HCD_Pipeline : MonoBehaviour
         public int posX;
         public int posY;
         public int posZ;
+        public int normalX;
+        public int normalY;
+        public int normalZ;
     }
 
     private void OnDrawGizmosSelected()
@@ -140,13 +154,17 @@ public class HCD_Pipeline : MonoBehaviour
         {
             if (!cluster.IsAlive) continue;
 
-            // Age が大きいほど安定 → 白に近づく色で視覚化
+            // Age が大きいほど安定 → マゼンタ、新生 → 黄色
             float stability = Mathf.Clamp01(cluster.Age / 10.0f);
             Gizmos.color = Color.Lerp(Color.yellow, Color.magenta, stability);
             Gizmos.DrawWireSphere(cluster.Centroid, 0.02f);
 
+            // 法線方向を矢印で描画（TactileClustering の効果確認用）
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawRay(cluster.Centroid, cluster.Normal * 0.04f);
+
 #if UNITY_EDITOR
-            // ID と生存フレーム数をラベル表示
+            // ID・生存フレーム数をラベル表示
             UnityEditor.Handles.Label(
                 cluster.Centroid + Vector3.up * 0.03f,
                 $"ID:{cluster.Id} Age:{cluster.Age}");

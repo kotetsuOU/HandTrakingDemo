@@ -18,7 +18,11 @@
 .vs/
 *.csproj
 *.sln
+*.slnx
 
 # External Dependencies & Archives
 *.tgz
 *.zip
+
+*.ps1
+*.editorconfig

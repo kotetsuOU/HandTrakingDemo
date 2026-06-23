@@ -8,12 +8,19 @@ struct PointCollisionData
     float3 hitNormal;
 };
 
+// ClusterData layout (stride = 28 bytes = 7 ints)
+//   count            : number of contributing points
+//   posX / posY / posZ : sum of hitPoint * 10000 (fixed-point, averaged on CPU)
+//   normalX/Y/Z      : sum of hitNormal * 10000 (fixed-point, averaged on CPU)
 struct ClusterData
 {
     int count;
     int posX;
     int posY;
     int posZ;
+    int normalX;
+    int normalY;
+    int normalZ;
 };
 
 StructuredBuffer<PointCollisionData> CollisionBuffer;
@@ -23,10 +30,28 @@ uint PointsCount;
 float CellSize;
 uint MaxClusters;
 
-// Spatial Hash Function
-uint Hash(int3 gridPos)
+// ── Normal bin quantization ────────────────────────────────────────────────
+// Classifies a surface normal into one of 6 cube-face directions:
+//   0: +X  1: -X  2: +Y  3: -Y  4: +Z  5: -Z
+// Points touching the front and back of a thin object will get different bins
+// and therefore land in different cluster buckets even if positionally close.
+uint GetNormalBin(float3 n)
 {
-    uint h = (uint)(gridPos.x * 73856093 ^ gridPos.y * 19349663 ^ gridPos.z * 83492791);
+    float ax = abs(n.x);
+    float ay = abs(n.y);
+    float az = abs(n.z);
+    if (ax >= ay && ax >= az) return n.x >= 0.0 ? 0u : 1u;
+    if (ay >= ax && ay >= az) return n.y >= 0.0 ? 2u : 3u;
+    return n.z >= 0.0 ? 4u : 5u;
+}
+
+// ── Spatial hash (position + normal bin) ──────────────────────────────────
+// Mixing the normal bin into the hash ensures that two contact patches at the
+// same voxel but on different surfaces are stored in separate buckets.
+uint Hash(int3 gridPos, uint normalBin)
+{
+    uint h = (uint)(gridPos.x * 73856093 ^ gridPos.y * 19349663 ^ gridPos.z * 83492791)
+             ^ (normalBin * 2654435761u);
     return h % MaxClusters;
 }
 
@@ -34,11 +59,14 @@ uint Hash(int3 gridPos)
 void ClearClusters(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= MaxClusters) return;
-    
-    ClusterBuffer[id.x].count = 0;
-    ClusterBuffer[id.x].posX = 0;
-    ClusterBuffer[id.x].posY = 0;
-    ClusterBuffer[id.x].posZ = 0;
+
+    ClusterBuffer[id.x].count   = 0;
+    ClusterBuffer[id.x].posX    = 0;
+    ClusterBuffer[id.x].posY    = 0;
+    ClusterBuffer[id.x].posZ    = 0;
+    ClusterBuffer[id.x].normalX = 0;
+    ClusterBuffer[id.x].normalY = 0;
+    ClusterBuffer[id.x].normalZ = 0;
 }
 
 [numthreads(256, 1, 1)]
@@ -47,20 +75,30 @@ void AccumulateClusters(uint3 id : SV_DispatchThreadID)
     if (id.x >= PointsCount) return;
 
     PointCollisionData col = CollisionBuffer[id.x];
-    if (col.isColliding == 1)
-    {
-        // Voxel based clustering
-        int3 gridPos = (int3)floor(col.hitPoint / CellSize);
-        uint hashIndex = Hash(gridPos);
+    if (col.isColliding != 1) return; // surface contact only
 
-        // Fixed point scaling
-        int fx = (int)(col.hitPoint.x * 10000.0);
-        int fy = (int)(col.hitPoint.y * 10000.0);
-        int fz = (int)(col.hitPoint.z * 10000.0);
+    // Position voxel key
+    int3 gridPos = (int3)floor(col.hitPoint / CellSize);
 
-        InterlockedAdd(ClusterBuffer[hashIndex].count, 1);
-        InterlockedAdd(ClusterBuffer[hashIndex].posX, fx);
-        InterlockedAdd(ClusterBuffer[hashIndex].posY, fy);
-        InterlockedAdd(ClusterBuffer[hashIndex].posZ, fz);
-    }
+    // Normal bin (6 cube faces)
+    uint normalBin = GetNormalBin(col.hitNormal);
+
+    // Hash incorporating both position and normal direction
+    uint hashIndex = Hash(gridPos, normalBin);
+
+    // Fixed-point accumulation (x10000 for sub-millimetre precision)
+    int fx = (int)(col.hitPoint.x  * 10000.0);
+    int fy = (int)(col.hitPoint.y  * 10000.0);
+    int fz = (int)(col.hitPoint.z  * 10000.0);
+    int nx = (int)(col.hitNormal.x * 10000.0);
+    int ny = (int)(col.hitNormal.y * 10000.0);
+    int nz = (int)(col.hitNormal.z * 10000.0);
+
+    InterlockedAdd(ClusterBuffer[hashIndex].count,   1);
+    InterlockedAdd(ClusterBuffer[hashIndex].posX,    fx);
+    InterlockedAdd(ClusterBuffer[hashIndex].posY,    fy);
+    InterlockedAdd(ClusterBuffer[hashIndex].posZ,    fz);
+    InterlockedAdd(ClusterBuffer[hashIndex].normalX, nx);
+    InterlockedAdd(ClusterBuffer[hashIndex].normalY, ny);
+    InterlockedAdd(ClusterBuffer[hashIndex].normalZ, nz);
 }

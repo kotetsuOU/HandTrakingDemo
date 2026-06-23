@@ -171,7 +171,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
 
-            int threadGroups = Mathf.CeilToInt(pointCount / 256.0f);
+            int threadGroups = Mathf.CeilToInt(pointCount / 64.0f);
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
         }
     }

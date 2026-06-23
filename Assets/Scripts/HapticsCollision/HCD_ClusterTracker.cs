@@ -38,6 +38,16 @@ public class HCD_ClusterTracker
     /// <param name="newCentroids">今フレームの表面接触クラスタ重心リスト</param>
     public void Update(List<Vector3> newCentroids)
     {
+        Update(newCentroids, null);
+    }
+
+    /// <summary>
+    /// 新しいフレームのクラスタ重心リストを受け取り、フレーム間追跡を更新します。
+    /// </summary>
+    /// <param name="newCentroids">今フレームの表面接触クラスタ重心リスト</param>
+    /// <param name="newNormals">重心に対応する平均法線リスト（省略時は null）</param>
+    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals = null)
+    {
         int newCount = newCentroids.Count;
         bool[] newMatched = new bool[newCount]; // 新規重心がマッチ済みかどうか
 
@@ -64,6 +74,8 @@ public class HCD_ClusterTracker
                 // マッチ成功: 重心を更新し、欠損カウントをリセット
                 newMatched[bestIdx] = true;
                 cluster.Centroid = newCentroids[bestIdx];
+                if (newNormals != null && bestIdx < newNormals.Count)
+                    cluster.Normal = newNormals[bestIdx];
                 cluster.Age++;
                 cluster.MissingFrames = 0;
                 cluster.IsAlive = true;
@@ -87,6 +99,8 @@ public class HCD_ClusterTracker
                 {
                     Id            = _nextId++,
                     Centroid      = newCentroids[n],
+                    Normal        = (newNormals != null && n < newNormals.Count)
+                                    ? newNormals[n] : Vector3.up,
                     Age           = 1,
                     MissingFrames = 0,
                     IsAlive       = true,
@@ -127,6 +141,9 @@ public struct TrackedCluster
 
     /// <summary>現在の重心座標</summary>
     public Vector3 Centroid;
+
+    /// <summary>接触パッチの平均表面法線（正規化済み）</summary>
+    public Vector3 Normal;
 
     /// <summary>このクラスタが生存し続けているフレーム数</summary>
     public int Age;
