@@ -46,45 +46,45 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 ### 3.1 単一焦点 (Focus / Naive)
 空間内の特定の目標点 $\mathbf{p} \in \mathbb{R}^3$ に超音波を集束させるための最も基本的なアプローチです。
 波長を $\lambda$（音速 $c \approx 340\,\mathrm{m/s}$、周波数 $f = 40\,\mathrm{kHz}$ の場合 $\lambda \approx 8.5\,\mathrm{mm}$）、各トランスデューサ（超音波振動子）の位置を $\mathbf{r}_i$ としたとき、目標点で波の位相を揃えるために $i$ 番目のトランスデューサが放射すべき位相 $\phi_i$ は以下のように計算されます：
-$$
+```math
 \phi_i = -\frac{2\pi}{\lambda} \|\mathbf{p} - \mathbf{r}_i\| + \phi_0
-$$
+```
 ここで $\phi_0$ は系全体の基準位相オフセットです。この手法は計算コストが極めて低く、単一の焦点を作るのに適しています。
 
 ### 3.2 音響ホログラフィ (GSPAT: GS-PAT algorithm)
 複数の目標点 $\mathbf{p}_j \ (j=1, \dots, M)$ に対して同時に指定した音圧振幅 $A_j$ を提示する場合、複雑な干渉波面を設計する必要があります。
 空間の伝達関数（伝播による振幅減衰と位相遅れ）を $H_{ji}$ とすると、目標点 $j$ で得られる複素音圧 $p_j$ は以下のように表されます：
-$$
+```math
 p_j = \sum_{i=1}^N H_{ji} q_i \quad \left( H_{ji} = \frac{e^{-jk \|\mathbf{p}_j - \mathbf{r}_i\|}}{\|\mathbf{p}_j - \mathbf{r}_i\|} \right)
-$$
+```
 ここで $q_i = a_i e^{j\phi_i}$ は $i$ 番目のトランスデューサの出力（複素振幅）、$k = \frac{2\pi}{\lambda}$ は波数です。
 GSPAT（Gerchberg-Saxton phased array technique）は、目的の振幅 $|p_j| = A_j$ に近づけるため、固有値問題への帰着と反復計算（位相最適化）を並列処理で行い、高速に最適な位相パターン $\phi_i$ を算出するアルゴリズムです。
 
 ### 3.3 接触強度による動的振幅スケーリング (Dynamic Amplitude Scaling)
 HCD_Pipeline から得られる接触強度（Force: $F \in [0, 1]$）を用いて、出力音圧を動的に調整します。基準となる最大出力音圧（`focusIntensityPascal`）を $P_{\mathrm{max}}$ としたとき、ターゲット音圧 $P_{\mathrm{target}}$ は線形にスケーリングされます：
-$$
+```math
 P_{\mathrm{target}} = P_{\mathrm{max}} \cdot F
-$$
+```
 これをホログラフィソルバーの目標振幅 $A_j$ として与えることで、物理的な押し込み量に比例した反力を超音波の放射圧として提示します。
 
 ### 3.4 振幅変調 (Amplitude Modulation)
 $40\,\mathrm{kHz}$ の超音波は人間の皮膚の機械受容器（マイスナー小体やパチニ小体）の応答周波数（数十〜数百Hz）を大きく超えているため、そのままでは何も感じません。そのため、低周波の信号 $M(t)$（例: $150\,\mathrm{Hz}$ のサイン波）を包絡線として振幅変調（AM）をかけます。
 出力される波形 $S_i(t)$ は以下のように表されます：
-$$
+```math
 S_i(t) = M(t) \cdot \sin(2\pi f_c t + \phi_i)
-$$
+```
 （$f_c = 40\,\mathrm{kHz}$）
 例えばサイン波変調（`SetSine`）の場合、変調信号 $M(t)$ は以下のようになります：
-$$
+```math
 M(t) = \frac{1}{2} (1 + \sin(2\pi f_m t)) \quad (M(t) \in [0, 1])
-$$
+```
 
 ### 3.5 時空間変調 (Spatio-Temporal Modulation: STM)
 多数の焦点座標 $\mathbf{p}_k$ のリストを高いサンプリング周波数 $f_s$ で順次切り替えることで、人間の皮膚の空間分解能と時間分解能の錯覚を利用し、面や線をなぞるような触覚を提示します。
 $N$ 個の点からなる軌跡をループ再生する場合、その軌跡を1周する周期 $T$ および変調周波数 $f_{\mathrm{stm}}$ は次のように決まります：
-$$
+```math
 T = \frac{N}{f_s} \implies f_{\mathrm{stm}} = \frac{f_s}{N}
-$$
+```
 STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動くことによる皮膚上の摩擦や連続的な刺激（Lateral Modulation）を引き起こす強力な提示手法です。
 
 ---

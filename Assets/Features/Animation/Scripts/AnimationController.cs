@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using UnityEngine;
 using static PCDRendererFeature;
@@ -23,6 +23,12 @@ public class AnimationController : MonoBehaviour
     [Tooltip("マテリアル切り替え用コントローラー")]
     public RsMaterialController materialController;
 
+    [Tooltip("HCDパイプライン (接触判定の対象を自動更新するため)")]
+    public HCD_Pipeline HCDPipeline;
+
+    [Tooltip("有効にすると、現在アクティブなオブジェクトに合わせてHCDの接触判定対象を自動更新します")]
+    public bool autoUpdateCollisionTarget = true;
+
     [Tooltip("移動速度")]
     public float moveSpeed = 1.0f;
 
@@ -46,6 +52,40 @@ public class AnimationController : MonoBehaviour
             {
                 targetTransform = activeObj.transform;
                 targetAnimator = activeObj.GetComponent<Animator>();
+
+                // HCD_Pipelineのターゲットも自動更新する
+                if (autoUpdateCollisionTarget)
+                {
+                    if (HCDPipeline == null)
+                    {
+                        HCDPipeline = FindFirstObjectByType<HCD_Pipeline>();
+                    }
+                    
+                    if (HCDPipeline != null && HCDPipeline.distanceProcessor != null)
+                    {
+                        var skinnedMesh = activeObj.GetComponentInChildren<SkinnedMeshRenderer>();
+                        if (skinnedMesh != null)
+                        {
+                            HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer;
+                            HCDPipeline.distanceProcessor.targetSkinnedMesh = skinnedMesh;
+                        }
+                        else
+                        {
+                            var meshFilter = activeObj.GetComponentInChildren<MeshFilter>();
+                            if (meshFilter != null)
+                            {
+                                HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.MeshFilter;
+                                HCDPipeline.distanceProcessor.targetMeshFilter = meshFilter;
+                            }
+                            else
+                            {
+                                // どちらもない場合はTransformOnlyにフォールバック
+                                HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.TransformOnly;
+                                HCDPipeline.distanceProcessor.targetObject = activeObj.transform;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -6,7 +6,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
 {
     public string ProcessorName => "DistanceCalculator";
 
-    public enum DetectionMode { TransformOnly, SkinnedMeshRenderer }
+    public enum DetectionMode { TransformOnly, SkinnedMeshRenderer, MeshFilter }
     [Header("Mode Settings")]
     public DetectionMode detectionMode;
 
@@ -15,6 +15,9 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
     [Header("SkinnedMesh Mode Settings")]
     public SkinnedMeshRenderer targetSkinnedMesh;
+
+    [Header("MeshFilter Mode Settings")]
+    public MeshFilter targetMeshFilter;
 
     [Header("Collision Parameters")]
     [Tooltip("これより近いと接触と判定する距離(m)")]
@@ -87,16 +90,38 @@ public class HCD_DistanceProcessor : IHCD_Processor
             int threadGroups = Mathf.CeilToInt(pointCount / 256.0f);
             collisionComputeShader.Dispatch(_kernelTransform, threadGroups, 1, 1);
         }
-        else if (detectionMode == DetectionMode.SkinnedMeshRenderer)
+        else if (detectionMode == DetectionMode.SkinnedMeshRenderer || detectionMode == DetectionMode.MeshFilter)
         {
-            if (targetSkinnedMesh == null) return;
+            Transform targetTransform = null;
+            Bounds bounds = default;
 
-            if (_bakedMesh == null) _bakedMesh = new Mesh();
-            targetSkinnedMesh.BakeMesh(_bakedMesh, true);
+            if (detectionMode == DetectionMode.SkinnedMeshRenderer)
+            {
+                if (targetSkinnedMesh == null) return;
+                if (_bakedMesh == null) _bakedMesh = new Mesh();
+                targetSkinnedMesh.BakeMesh(_bakedMesh, true);
+                
+                _meshVertices = _bakedMesh.vertices;
+                _meshNormals = _bakedMesh.normals;
+                _meshIndices = _bakedMesh.triangles;
+                
+                targetTransform = targetSkinnedMesh.transform;
+                bounds = targetSkinnedMesh.bounds;
+            }
+            else
+            {
+                if (targetMeshFilter == null || targetMeshFilter.sharedMesh == null) return;
+                
+                var mesh = targetMeshFilter.sharedMesh;
+                _meshVertices = mesh.vertices;
+                _meshNormals = mesh.normals;
+                _meshIndices = mesh.triangles;
+                
+                targetTransform = targetMeshFilter.transform;
+                var renderer = targetMeshFilter.GetComponent<MeshRenderer>();
+                bounds = renderer != null ? renderer.bounds : new Bounds(targetTransform.position, targetTransform.lossyScale);
+            }
 
-            _meshVertices = _bakedMesh.vertices;
-            _meshNormals = _bakedMesh.normals;
-            _meshIndices = _bakedMesh.triangles;
             int trianglesCount = _meshIndices.Length / 3;
 
             if (_meshVertices == null || _meshVertices.Length == 0 || _meshIndices == null || _meshIndices.Length == 0) return;
@@ -123,7 +148,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
             _meshIndicesBuffer.SetData(_meshIndices);
 
             // Setup Grid Parameters
-            Bounds bounds = targetSkinnedMesh.bounds;
+            // Bounds already obtained above
             float maxThresh = Mathf.Max(surfaceDistanceThreshold, backfaceDistanceThreshold);
             float totalPadding = maxThresh + 0.1f; // safe margin
 
@@ -142,7 +167,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.SetBuffer(_kernelBuildGrid, "MeshVerticesBuffer", _meshVerticesBuffer);
             collisionComputeShader.SetBuffer(_kernelBuildGrid, "MeshIndicesBuffer", _meshIndicesBuffer);
             collisionComputeShader.SetInt("MeshTrianglesCount", trianglesCount);
-            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetSkinnedMesh.transform.localToWorldMatrix);
+            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetTransform.localToWorldMatrix);
             collisionComputeShader.SetVector("GridBoundsMin", gridMin);
             collisionComputeShader.SetVector("GridCellSize", cellSize);
             collisionComputeShader.SetInts("GridResolution", gridRes);
@@ -159,7 +184,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
             collisionComputeShader.SetInt("PointsCount", pointCount);
             collisionComputeShader.SetInt("MeshTrianglesCount", trianglesCount);
-            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetSkinnedMesh.transform.localToWorldMatrix);
+            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetTransform.localToWorldMatrix);
 
             collisionComputeShader.SetVector("MeshBoundsMin", bounds.min - new Vector3(totalPadding, totalPadding, totalPadding));
             collisionComputeShader.SetVector("MeshBoundsMax", bounds.max + new Vector3(totalPadding, totalPadding, totalPadding));

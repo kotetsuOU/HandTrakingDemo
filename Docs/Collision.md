@@ -65,7 +65,7 @@ Assets/Features/HapticsCollision/Resources/ComputeShaders/
 
 ### A. HCD_DistanceProcessor (距離・接触判定モジュール)
 
-アニメーション等で動的に変形する `SkinnedMeshRenderer` の全ポリゴン表面と、点群バッファとの間の物理的な侵入を厳密に判定します。
+通常の球やキューブなどの静的な `MeshFilter` や、アニメーション等で動的に変形する `SkinnedMeshRenderer` の全ポリゴン表面と、点群バッファとの間の物理的な侵入を厳密に判定します（`DetectionMode` で自動/手動切り替え可能）。
 
 #### ① 固定長 GPU Voxel Grid の構築（`BuildMeshGrid`）
 CPUでのLBVH構築やメモリ割り当てによるキャッシュ汚染を回避するため、完全にGPU内で動作する空間ハッシュアルゴリズムを採用しています。
@@ -219,7 +219,7 @@ sequenceDiagram
     participant Tracker as HCD_ClusterTracker (CPU)
 
     Pipeline->>Global: 統合点群の ComputeBuffer を取得
-    Note over Pipeline: targetSkinnedMesh.BakeMesh() で最新メッシュ取得
+    Note over Pipeline: AnimationController等と連動し対象の<br/>MeshFilterやBakeMesh()から最新メッシュ取得
     
     Pipeline->>Dist: Dispatch
     Note over Dist: 1. ClearMeshGrid<br/>2. BuildMeshGrid (GPU完結空間ハッシュ)<br/>3. CheckCollisionMesh (距離判定 + X+レイキャスト InsideMesh)<br/>　 → isColliding: 0=外部 / 1=表面接触 / 2=内部
