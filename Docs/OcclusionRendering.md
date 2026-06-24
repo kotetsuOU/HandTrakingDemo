@@ -93,12 +93,12 @@ URP のレンダリングパイプラインに介入し、点群のオクルー�
 
 URPとの統合や設定、デバッグなどを担当するクラス群です。
 
-* [PCDRendererFeature.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDRendererFeature.cs) — URP レンダラーへのパス追加、シングルトンインスタンス管理
-* [PCDSettingsBridge.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDSettingsBridge.cs) — レンダリングパラメータの取得とフォールバックの仲介
-* [PCDOcclusionPipelineController.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDOcclusionPipelineController.cs) — インスペクターからの動的仲介
-* [StaticMeshPCDRegistrar.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/StaticMeshPCDRegistrar.cs) — 空間内の静的/動的オブジェクトを自動検出・登録
-* [PCDIntegratedDepthMapExporter.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDIntegratedDepthMapExporter.cs) — 統合DepthMapエクスポート
-* [PCDOcclusionDebugExporter.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDOcclusionDebugExporter.cs) — 16色パレットPNG/CSV出力用デバッグユーティリティ
+* [PCDRendererFeature.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDRendererFeature.cs) — URP レンダラーへのパス追加、シングルトンインスタンス管理
+* [PCDSettingsBridge.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDSettingsBridge.cs) — レンダリングパラメータの取得とフォールバックの仲介
+* [PCDOcclusionPipelineController.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDOcclusionPipelineController.cs) — インスペクターからの動的仲介
+* [StaticMeshPCDRegistrar.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/StaticMeshPCDRegistrar.cs) — 空間内の静的/動的オブジェクトを自動検出・登録
+* [PCDIntegratedDepthMapExporter.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDIntegratedDepthMapExporter.cs) — 統合DepthMapエクスポート
+* [PCDOcclusionDebugExporter.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDOcclusionDebugExporter.cs) — 16色パレットPNG/CSV出力用デバッグユーティリティ
 
 </details>
 
@@ -107,9 +107,9 @@ URPとの統合や設定、デバッグなどを担当するクラス群です�
 
 外部の点群バッファや静的メッシュの頂点データを調停・結合します。
 
-* [PCDPointBufferManager.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager.cs) — メインクラス
-* [PCDPointBufferManager_Mesh.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager_Mesh.cs) — 静的メッシュの登録・解除
-* [PCDPointBufferManager_Merge.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDPointBufferManager_Merge.cs) — 動的点群とメッシュの統合
+* [PCDPointBufferManager.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDPointBufferManager.cs) — メインクラス
+* [PCDPointBufferManager_Mesh.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDPointBufferManager_Mesh.cs) — 静的メッシュの登録・解除
+* [PCDPointBufferManager_Merge.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDPointBufferManager_Merge.cs) — 動的点群とメッシュの統合
 
 </details>
 
@@ -146,21 +146,21 @@ Responsible for constructing the render graph and scheduling passes. URP RenderG
 <summary>Setup resources</summary>
 
 Allocates all render targets and buffers required for compute and output stages.
-* [PCD_RenderPass_RenderGraph_Setup.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Setup.cs)
+* [PCD_RenderPass_RenderGraph_Setup.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Setup.cs)
 </details>
 
 <details>
 <summary>Register compute pass</summary>
 
 Adds the compute pass to the render graph.
-* [PCD_RenderPass_RenderGraph_Compute.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Compute.cs)
+* [PCD_RenderPass_RenderGraph_Compute.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Compute.cs)
 </details>
 
 <details>
 <summary>Register blit pass</summary>
 
 Adds the final output pass for displaying the rendered image.
-* [PCD_RenderPass_RenderGraph_Blit.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Blit.cs)
+* [PCD_RenderPass_RenderGraph_Blit.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Blit.cs)
 </details>
 
 ##### 3. ExecuteComputePass
@@ -177,35 +177,35 @@ This is the core rendering stage. GPU 上で Compute Shader のカーネルを�
 <summary>Pre (Preprocessing)</summary>
 
 Initial preprocessing of point cloud data and intermediate buffers.
-* [PCD_RenderPass_Execute_Pre.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Pre.cs) — マップクリア、投影、密度・LOD
+* [PCD_RenderPass_Execute_Pre.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Pre.cs) — マップクリア、投影、密度・LOD
 </details>
 
 <details>
 <summary>Depth (Depth processing)</summary>
 
 Computes depth-related information used for occlusion handling.
-* [PCD_RenderPass_Execute_Depth.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Depth.cs) — 深度ピラミッド構築・勾配補正
+* [PCD_RenderPass_Execute_Depth.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Depth.cs) — 深度ピラミッド構築・勾配補正
 </details>
 
 <details>
 <summary>Occlusion (Occlusion internals)</summary>
 
 Main occlusion computation stage.
-* [PCD_RenderPass_Execute_Occlusion.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Occlusion.cs) — オクルージョン計算
+* [PCD_RenderPass_Execute_Occlusion.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Occlusion.cs) — オクルージョン計算
 </details>
 
 <details>
 <summary>HoleFill (Hole filling)</summary>
 
 Fills sparse regions caused by occlusion or point sparsity.
-* [PCD_RenderPass_Execute_HoleFill.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_HoleFill.cs) — ホールフィリング
+* [PCD_RenderPass_Execute_HoleFill.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_HoleFill.cs) — ホールフィリング
 </details>
 
 <details>
 <summary>Post (Post processing)</summary>
 
 Final refinement before output.
-* [PCD_RenderPass_Execute_Post.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Execute_Post.cs) — デバッグ出力・合成等
+* [PCD_RenderPass_Execute_Post.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Post.cs) — デバッグ出力・合成等
 </details>
 
 ##### 4. ExecuteBlitPass
@@ -229,36 +229,36 @@ These modules support the main pipeline but are not part of execution flow.
 <summary>API</summary>
 
 Provides external interfaces for controlling `PCDRenderPass`.
-* [PCD_RenderPass_API.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_API.cs) — 外部設定・実行API
+* [PCD_RenderPass_API.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_API.cs) — 外部設定・実行API
 </details>
 
 <details>
 <summary>Allocation</summary>
 
 Handles GPU resource allocation.
-* [PCD_RenderPass_Allocation.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Allocation.cs) — RenderGraphリソース確保
+* [PCD_RenderPass_Allocation.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Allocation.cs) — RenderGraphリソース確保
 </details>
 
 <details>
 <summary>BindParams</summary>
 
 Binds parameters to compute shaders.
-* [PCD_RenderPass_BindParams.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_BindParams.cs) — カーネル引数・定数のバインド
+* [PCD_RenderPass_BindParams.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_BindParams.cs) — カーネル引数・定数のバインド
 </details>
 
 <details>
 <summary>Debug</summary>
 
 Provides debug output and diagnostics.
-* [PCD_RenderPass_Debug.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Debug.cs) — 非同期 GPU Readback 制御
+* [PCD_RenderPass_Debug.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Debug.cs) — 非同期 GPU Readback 制御
 </details>
 
 <details>
 <summary>Kernels</summary>
 
 Contains compute shader kernel definitions and dispatch settings.
-* [PCD_RenderPass_Kernels.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCD_RenderPass_Kernels.cs) — カーネルインデックスとディスパッチ管理
-* [PCDRenderPass.cs](./Assets/Scripts/3DDisplay/Rendering/Occlusion/PCDRenderPass.cs) — メイン処理・初期化・ライフサイクル管理
+* [PCD_RenderPass_Kernels.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Kernels.cs) — カーネルインデックスとディスパッチ管理
+* [PCDRenderPass.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDRenderPass.cs) — メイン処理・初期化・ライフサイクル管理
 </details>
 
 ---
@@ -278,17 +278,17 @@ Contains compute shader kernel definitions and dispatch settings.
 <summary>ファイル構成</summary>
 
 * **メイン計算エントリポイント**
-  * [PCD_Occlusion.compute](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion.compute)
-  * [PCD_Occlusion_Data.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Data.hlsl) / [PCD_Occlusion_Helpers.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Helpers.hlsl)
+  * [PCD_Occlusion.compute](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion.compute)
+  * [PCD_Occlusion_Data.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Data.hlsl) / [PCD_Occlusion_Helpers.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Helpers.hlsl)
 * **前処理・深度ピラミッド**
-  * [PCD_Occlusion_Kernels_Preprocess.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl) — 投影・最小Z生成・密度計算
-  * [PCD_Occlusion_Kernels_DepthPyramid.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl) — 深度ピラミッド L1～L6 構築
+  * [PCD_Occlusion_Kernels_Preprocess.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Kernels_Preprocess.hlsl) — 投影・最小Z生成・密度計算
+  * [PCD_Occlusion_Kernels_DepthPyramid.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Kernels_DepthPyramid.hlsl) — 深度ピラミッド L1～L6 構築
 * **オクルージョン計算**
-  * [PCD_Occlusion_Kernels_Occlusion.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl) — メインオクルージョン計算
+  * [PCD_Occlusion_Kernels_Occlusion.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Kernels_Occlusion.hlsl) — メインオクルージョン計算
   * [PCD_Occlusion_Kernels_Occlusion_Discrete*.hlsl] — 3, 6, 8, Single 方向サンプリング分岐
 * **後処理・ホールフィリング**
-  * [PCD_Occlusion_Kernels_Post.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_Post.hlsl) — タグ・マップ最終出力
-  * [PCD_Occlusion_Kernels_FillHoles.hlsl](./Assets/Shader&Material/Shader/ComputeShader/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl) — Joint Bilateral / Pull-Push / モルフォロジー
+  * [PCD_Occlusion_Kernels_Post.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Kernels_Post.hlsl) — タグ・マップ最終出力
+  * [PCD_Occlusion_Kernels_FillHoles.hlsl](./Assets/Features/Rendering/ComputeShaders/Rendering/PCD_Occlusion_Kernels_FillHoles.hlsl) — Joint Bilateral / Pull-Push / モルフォロジー
 
 </details>
   

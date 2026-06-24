@@ -53,8 +53,8 @@ graph TD
 ### 2.3 設定の保存 (Save)
 1. 調整が完了したら、`RsTransformController` の Inspector にある **「Save Transforms to JSON」** ボタンをクリックします。
 2. 調整された全カメラ（`GetChildRenderers()` から取得された子オブジェクト）の `localPosition`、`localRotation`、`localScale` が以下のパスに JSON 形式で保存されます。
-   - 📂 **保存先パス**: `Assets/Config/RealSense/[saveFileName].json` (デフォルト名: `ChildTransforms.json`)
-   - ※ `Assets/Config/RealSense` フォルダが存在しない場合は自動的に作成されます。
+   - 📂 **保存先パス**: `Assets/Settings/Config/RealSense/[saveFileName].json` (デフォルト名: `ChildTransforms.json`)
+   - ※ `Assets/Settings/Config/RealSense` フォルダが存在しない場合は自動的に作成されます。
 
 ### 2.4 設定の復元 (Load)
 1. エディタ再起動時や、設定を以前の状態に戻したい場合は、**「Load Transforms from JSON」** ボタンをクリックします。

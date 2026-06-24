@@ -46,7 +46,7 @@
 HCD（Haptics Collision Detectors）パイプラインは、複数の C# スクリプトと GPU コンピュートシェーダーで構成されています。
 
 ```text
-Assets/Scripts/HapticsCollision/
+Assets/Features/HapticsCollision/Scripts/
  ├── HCD_Pipeline.cs                   # 各プロセッサの実行順序やバッファを管理・仲介するオーケストレーター
  ├── IHCD_Processor.cs                 # 各プロセッサが実装すべき共通インターフェース
  ├── HCD_DistanceProcessor.cs          # [GPU] ボクセル構築と Point-to-Triangle 最短距離・めり込み判定
@@ -54,7 +54,7 @@ Assets/Scripts/HapticsCollision/
  └── HCD_ClusterTracker.cs             # [CPU] フレーム間のクラスタ追跡とID・寿命管理
  (Gizmo描画機能は HCD_Pipeline 内部に統合されています)
 
-Assets/Shader&Material/Shader/ComputeShader/Collision/
+Assets/Features/HapticsCollision/Resources/ComputeShaders/
  ├── HCD_Distance.compute              # └─ 実際の並列計算を行う Compute Shader
  └── HCD_SpatialClustering.compute     # └─ 実際の並列計算を行う Compute Shader
 ```

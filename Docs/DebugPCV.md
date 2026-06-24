@@ -39,18 +39,18 @@
 
 ## 2. ファイル構成・ツリー構造
 
-`Assets/Scripts/Debug/PointCloudViewer` 以下のスクリプト構成です。
+`Assets/Features/Debug/Scripts/PointCloudViewer` 以下のスクリプト構成です。
 
 <details open><summary>├── <b>[PointCloudViewer]</b></summary>
     
-    ├── [PCV_Controller.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_Controller.cs) — PCV デバッグシステム全体の司令塔。レンダリングソースの切り替えや姿勢補正 (ApplyTransformCorrection) を担当。
-    ├── [PCV_Settings.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_Settings.cs) — インスペクターのパラメータ設定、プロファイル管理のデータコンテナ。
-    ├── [PCV_ConfigIO.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_ConfigIO.cs) — JSON ファイルからの PCV プロファイルの保存と読み込み。
-    ├── [PCV_DataManager.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_DataManager.cs) — 点群データの保持とデータ更新のイベント通知 (OnDataUpdated)。
-    ├── [PCV_Data.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_Data.cs) — 点群データ (頂点、色) のメモリ内保持クラス。
-    ├── [PCV_Loader.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_Loader.cs) — PLY や TXT ファイルからの点群パースとマルチスレッドロード処理。
-    ├── [PCV_Renderer.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_Renderer.cs) — PCV_MeshGenerator を用いて点群を Unity Mesh としてシーンに描画。
-    └── [PCV_MeshGenerator.cs](./Assets/Scripts/Debug/PointCloudViewer/PCV_MeshGenerator.cs) — 点群座標とカラー配列から Unity Mesh オブジェクト (Topology: Points) を生成。
+    ├── [PCV_Controller.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_Controller.cs) — PCV デバッグシステム全体の司令塔。レンダリングソースの切り替えや姿勢補正 (ApplyTransformCorrection) を担当。
+    ├── [PCV_Settings.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_Settings.cs) — インスペクターのパラメータ設定、プロファイル管理のデータコンテナ。
+    ├── [PCV_ConfigIO.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_ConfigIO.cs) — JSON ファイルからの PCV プロファイルの保存と読み込み。
+    ├── [PCV_DataManager.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_DataManager.cs) — 点群データの保持とデータ更新のイベント通知 (OnDataUpdated)。
+    ├── [PCV_Data.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_Data.cs) — 点群データ (頂点、色) のメモリ内保持クラス。
+    ├── [PCV_Loader.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_Loader.cs) — PLY や TXT ファイルからの点群パースとマルチスレッドロード処理。
+    ├── [PCV_Renderer.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_Renderer.cs) — PCV_MeshGenerator を用いて点群を Unity Mesh としてシーンに描画。
+    └── [PCV_MeshGenerator.cs](./Assets/Features/Debug/Scripts/PointCloudViewer/PCV_MeshGenerator.cs) — 点群座標とカラー配列から Unity Mesh オブジェクト (Topology: Points) を生成。
 
 </details>
 

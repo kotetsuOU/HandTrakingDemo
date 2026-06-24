@@ -89,8 +89,8 @@ sequenceDiagram
 
 デバイスとの通信やスレッド管理を行います。
 
-* [RsConfiguration.cs](./Assets/Scripts/RealSense/RsConfiguration.cs) / [RsDeviceInspector.cs](./Assets/Scripts/RealSense/RsDeviceInspector.cs) / [RsProcessingPipe.cs](./Assets/Scripts/RealSense/RsProcessingPipe.cs) など基盤クラス
-* [RsDevice.cs](./Assets/Scripts/RealSense/Device/RsDevice.cs) / [RsDeviceController.cs](./Assets/Scripts/RealSense/Device/RsDeviceController.cs) — 実際のデバイスポーリングとエラー制御
+* [RsConfiguration.cs](./Assets/Features/RealSense/Scripts/RsConfiguration.cs) / [RsDeviceInspector.cs](./Assets/Features/RealSense/Scripts/RsDeviceInspector.cs) / [RsProcessingPipe.cs](./Assets/Features/RealSense/Scripts/RsProcessingPipe.cs) など基盤クラス
+* [RsDevice.cs](./Assets/Features/RealSense/Scripts/Device/RsDevice.cs) / [RsDeviceController.cs](./Assets/Features/RealSense/Scripts/Device/RsDeviceController.cs) — 実際のデバイスポーリングとエラー制御
 
 </details>
 
@@ -101,9 +101,9 @@ RealSense のフレームに対して適用する各種フィルタ群です。
 
 * 各種標準フィルタ群 (`RsAlign.cs`, `RsSpatialFilter.cs` 等)
 * **ColorFilter (オクルージョン特化事前処理)**
-  * [RsIntegratedPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) — GPU Direct 統合処理ブロック
-  * [RsColorBasedDepthCulling.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsColorBasedDepthCulling.cs) — HSV/YCbCr 深度カリング
-  * [RsDepthToColorCalibration.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsDepthToColorCalibration.cs) — 幾何アライメント補正
+  * [RsIntegratedPointCloud.cs](./Assets/Features/RealSense/Scripts/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) — GPU Direct 統合処理ブロック
+  * [RsColorBasedDepthCulling.cs](./Assets/Features/RealSense/Scripts/ProcessingBlocks/ColorFilter/RsColorBasedDepthCulling.cs) — HSV/YCbCr 深度カリング
+  * [RsDepthToColorCalibration.cs](./Assets/Features/RealSense/Scripts/ProcessingBlocks/ColorFilter/RsDepthToColorCalibration.cs) — 幾何アライメント補正
 
 </details>
 
@@ -112,12 +112,12 @@ RealSense のフレームに対して適用する各種フィルタ群です。
 
 GPU上で点群を管理・マージするためのシステムです。
 
-* [RsPointCloudRenderer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudRenderer.cs) — 点群の初期化・ライフサイクル制御
-* [RsPointCloudInitializer.cs](./Assets/Scripts/RealSense/PointCloud/RsPointCloudInitializer.cs) — 実機/統合点群の初期化切り替え
+* [RsPointCloudRenderer.cs](./Assets/Features/RealSense/Scripts/PointCloud/RsPointCloudRenderer.cs) — 点群の初期化・ライフサイクル制御
+* [RsPointCloudInitializer.cs](./Assets/Features/RealSense/Scripts/PointCloud/RsPointCloudInitializer.cs) — 実機/統合点群の初期化切り替え
 * **RsGlobalPointCloudManager (ゼロコピー・非同期マージ)**
-  * [RsGlobalPointCloudManager.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.cs)
-  * [RsGlobalPointCloudManager.Merge.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.Merge.cs) — GPU 非同期マージ実装
-  * [RsGlobalPointCloudManager.PCA.cs](./Assets/Scripts/RealSense/PointCloud/RsGlobalPointCloudManager.PCA.cs) — PCA 中心姿勢推定
+  * [RsGlobalPointCloudManager.cs](./Assets/Features/RealSense/Scripts/PointCloud/RsGlobalPointCloudManager.cs)
+  * [RsGlobalPointCloudManager.Merge.cs](./Assets/Features/RealSense/Scripts/PointCloud/RsGlobalPointCloudManager.Merge.cs) — GPU 非同期マージ実装
+  * [RsGlobalPointCloudManager.PCA.cs](./Assets/Features/RealSense/Scripts/PointCloud/RsGlobalPointCloudManager.PCA.cs) — PCA 中心姿勢推定
 * その他フィルタ・変換制御クラス (`RsTransformController.cs`, `RsPointCloudCompute.cs` 等)
 
 </details>
@@ -143,7 +143,7 @@ GC で回収されないため、フレームワーク側で明示的に解放�
 *   **対策**: `RsProcessingPipe` では、フィルタ処理を直列に適用する際、一時バッファを含め `using` ブロックおよび `try-finally` による確実な `frame.Dispose()` を徹底しています。
 
 ### C. パイプラインに常時搭載される `RsIntegratedPointCloud` の役割
-[RsIntegratedPointCloud.cs](./Assets/Scripts/RealSense/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) は、`RsProcessingPipe` のフィルタパイプライン内に**常に搭載されている**極めて重要なコアブロック（カスタム `RsProcessingBlock`）です。
+[RsIntegratedPointCloud.cs](./Assets/Features/RealSense/Scripts/ProcessingBlocks/ColorFilter/RsIntegratedPointCloud.cs) は、`RsProcessingPipe` のフィルタパイプライン内に**常に搭載されている**極めて重要なコアブロック（カスタム `RsProcessingBlock`）です。
 
 1.  **GPU Direct Mode への自動移行**:
     `RsPointCloudInitializer.cs` は初期化時に、パイプラインのアクティブなフィルタ群から `RsIntegratedPointCloud` を自動検出します。検出されると `UseIntegratedPointCloud` フラグが有効になり、頂点バッファ処理が GPU 上で完結する「GPU Direct Mode」へと動的にシフトします。

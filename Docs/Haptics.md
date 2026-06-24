@@ -116,3 +116,18 @@ STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動
 ## 4. 安全な破棄と終了処理
 
 アプリケーション終了時 (`OnDestroy`) には、フェーズドアレイに予期せぬ超音波が残留することを防ぐため、必ず明示的な停止命令 (`new Null()`) を送信してからコントローラーを `Close()` および `Dispose()` し、安全にハードウェアを切り離します。
+
+---
+
+## 5. 関連ファイル構造
+
+本システムに関わるスクリプト群の構造は以下の通りです。
+
+```text
+Assets/Features/Haptics/Scripts/
+ ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター
+ ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
+ ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をCatalogから自動生成するユーティリティ
+ └── Editor/
+      └── HAP_AUTDTransformLoaderEditor.cs  # TransformLoader用のカスタムエディタUI（保存・ロードボタン）
+```

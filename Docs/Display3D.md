@@ -106,5 +106,19 @@ vMatrix = vMatrix * displayTRS * flipX * displayInverse;
 
 ---
 
-## 4. 結び
+## 4. 関連ファイル構造
+
+本システムに関わるスクリプト群の構造は以下の通りです。
+
+```text
+Assets/Features/3DDisplay/Scripts/
+ ├── CameraAdjuster.cs                 # 空間の基準となるディスプレイ位置情報の管理と提供
+ └── Rendering/
+      └── Occlusion/
+           └── PCD_RenderPass_BindParams.cs  # コンピュートシェーダーへ渡す ViewMatrix の空間鏡像化（反転）処理
+```
+
+---
+
+## 5. 結び
 この「SDKトラッキングの完全活用」と「描画空間側の鏡像反転」の導入により、トラッキングのズレやパララックスの逆転といった不具合が完全に解消されました。また、独自の複雑な座標計算スクリプト（`StereoCameraController`）を排除できたことで、パフォーマンスの向上とシステムの堅牢性が飛躍的に高まりました。

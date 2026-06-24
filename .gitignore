@@ -12,7 +12,7 @@
 
 # Custom data
 /Assets/HandTrackingData/
-/Assets/HandTrackingDataOld/
+/Assets/Data/HandTrackingDataOld/
 
 # Visual Studio cache directory
 .vs/
