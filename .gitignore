@@ -26,3 +26,6 @@
 
 *.ps1
 *.editorconfig
+
+# Native dependencies
+/NativePackage/
