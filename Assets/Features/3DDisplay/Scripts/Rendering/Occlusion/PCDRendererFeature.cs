@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -53,6 +53,9 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public float gradientThreshold_g_th;
         [Range(0f, 1f)] public float occlusionThreshold;
         [Range(0f, 1f)] public float occlusionFadeWidth;
+        public bool enableVirtualContactOcclusion;
+        public float virtualContactRadius;
+        public float virtualContactSpacing;
         public bool enablePixelTagMap;
         public bool enableOcclusionMap;
         public bool recordOcclusionDebugMap;

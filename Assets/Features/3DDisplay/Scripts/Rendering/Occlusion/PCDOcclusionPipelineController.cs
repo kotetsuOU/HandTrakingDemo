@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using static PCDRendererFeature;
 
 [ExecuteInEditMode]
@@ -49,6 +49,16 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     [Tooltip("境界を滑らかにするためのフェード幅（閾値からの減衰範囲）")]
     [Range(0f, 1f)]
     public float occlusionFadeWidth = 0.1f;
+
+    [Header("Virtual Contact Occlusion")]
+    [Tooltip("HCDの接触検知をもとに仮想的な遮蔽点群を生成します")]
+    public bool enableVirtualContactOcclusion = false;
+    
+    [Tooltip("仮想点群を生成する円盤の半径 (m)")]
+    public float virtualContactRadius = 0.03f;
+    
+    [Tooltip("仮想点群の配置間隔 (m)")]
+    public float virtualContactSpacing = 0.005f;
 
     [Header("Display Debug")]
     [Tooltip("点群(黒)と静的メッシュ(白)の由来を示すデバッグマップ(PixelTagMap)を有効にします")]
@@ -161,6 +171,9 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             gradientThreshold_g_th = this.gradientThreshold_g_th,
             occlusionThreshold = this.occlusionThreshold,
             occlusionFadeWidth = this.occlusionFadeWidth,
+            enableVirtualContactOcclusion = this.enableVirtualContactOcclusion,
+            virtualContactRadius = this.virtualContactRadius,
+            virtualContactSpacing = this.virtualContactSpacing,
             enablePixelTagMap = this.enablePixelTagMap,
             enableOcclusionMap = this.enableOcclusionMap,
             recordOcclusionDebugMap = this.recordOcclusionDebugMap,
@@ -179,5 +192,53 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             morphDilateIterations = this.morphDilateIterations,
             _dynamicMultiplierRuntimeValue = PCDRendererFeature.Instance != null ? PCDRendererFeature.Instance._internalDynamicMultiplier : 1
         };
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!enableVirtualContactOcclusion || !Application.isPlaying) return;
+
+        // Draw the virtual contact points in the scene view for debugging
+        if (HCD_Pipeline.Instance == null || HCD_Pipeline.Instance.distanceProcessor == null) return;
+
+        var trackedClusters = HCD_Pipeline.Instance.GetTrackedClusters();
+        if (trackedClusters == null) return;
+
+        float radius = virtualContactRadius;
+        float spacing = Mathf.Max(0.001f, virtualContactSpacing);
+        float offset = HCD_Pipeline.Instance.distanceProcessor.surfaceDistanceThreshold;
+
+        Gizmos.color = new Color(0.8f, 0f, 0.4f, 0.8f);
+
+        foreach (var c in trackedClusters)
+        {
+            if (!c.IsAlive) continue;
+
+            Vector3 centroid = c.Centroid;
+            Vector3 normal = c.Normal.normalized;
+            if (normal.sqrMagnitude < 0.1f) normal = Vector3.up;
+
+            centroid += normal * offset;
+
+            Vector3 tangent = Vector3.Cross(normal, Vector3.up);
+            if (tangent.sqrMagnitude < 0.001f) tangent = Vector3.Cross(normal, Vector3.right);
+            tangent.Normalize();
+            Vector3 bitangent = Vector3.Cross(normal, tangent).normalized;
+
+            int steps = Mathf.CeilToInt(radius / spacing);
+            for (int x = -steps; x <= steps; x++)
+            {
+                for (int y = -steps; y <= steps; y++)
+                {
+                    float dx = x * spacing;
+                    float dy = y * spacing;
+                    if (dx * dx + dy * dy <= radius * radius)
+                    {
+                        Vector3 point = centroid + tangent * dx + bitangent * dy;
+                        Gizmos.DrawCube(point, new Vector3(0.002f, 0.002f, 0.002f));
+                    }
+                }
+            }
+        }
     }
 }

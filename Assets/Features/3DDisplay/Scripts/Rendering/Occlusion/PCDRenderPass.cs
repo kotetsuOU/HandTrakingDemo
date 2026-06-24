@@ -61,6 +61,7 @@ public partial class PCDRenderPass : ScriptableRenderPass
     // =========================================================================
     private PCDPointBufferManager _bufferManager;
     private ComputeBuffer _staticMeshCounterBuffer;  // 仮想メッシュのピクセル数カウント用
+    private PCDPointBufferManager.Point[] _virtualContactPointsArray;
 
     // =========================================================================
     // SRD Manager キャッシュ

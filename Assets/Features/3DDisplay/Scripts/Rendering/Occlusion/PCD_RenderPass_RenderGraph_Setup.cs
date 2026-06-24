@@ -64,7 +64,69 @@ public partial class PCDRenderPass
         // グローバルバッファモードを使用するかどうかを判断
         bool shouldUseExternal = PCDRendererFeature.Instance.IsGlobalBufferMode;
 
-        // 外部（グローバル）のポイントクラウドデータが存在する場合、バッファをセットする
+        if (_settings.enableVirtualContactOcclusion && HCD_Pipeline.Instance != null)
+        {
+            var trackedClusters = HCD_Pipeline.Instance.GetTrackedClusters();
+            int estimatedMaxPoints = 0;
+            float radius = _settings.virtualContactRadius;
+            float spacing = Mathf.Max(0.001f, _settings.virtualContactSpacing); // Prevent infinite loop
+
+            // Estimate max points (roughly pi * r^2 / spacing^2 plus some margin)
+            int pointsPerCluster = (int)(Mathf.PI * radius * radius / (spacing * spacing)) + 100;
+            foreach (var c in trackedClusters) if (c.IsAlive) estimatedMaxPoints += pointsPerCluster;
+
+            if (_virtualContactPointsArray == null || _virtualContactPointsArray.Length < estimatedMaxPoints)
+                _virtualContactPointsArray = new PCDPointBufferManager.Point[Mathf.Max(1024, estimatedMaxPoints * 2)];
+
+            int idx = 0;
+            foreach (var c in trackedClusters)
+            {
+                if (!c.IsAlive) continue;
+
+                Vector3 centroid = c.Centroid;
+                Vector3 normal = c.Normal.normalized;
+                if (normal.sqrMagnitude < 0.1f) normal = Vector3.up;
+                
+                // オクルージョン用の仮想平面を、物体内部の重心から法線方向へ浮かせる（めり込み対策）
+                float offset = HCD_Pipeline.Instance.distanceProcessor.surfaceDistanceThreshold;
+                centroid += normal * offset;
+
+                // Get tangent and bitangent
+                Vector3 tangent = Vector3.Cross(normal, Vector3.up);
+                if (tangent.sqrMagnitude < 0.001f) tangent = Vector3.Cross(normal, Vector3.right);
+                tangent.Normalize();
+                Vector3 bitangent = Vector3.Cross(normal, tangent).normalized;
+
+                // Generate points in a circle
+                int steps = Mathf.CeilToInt(radius / spacing);
+                for (int x = -steps; x <= steps; x++)
+                {
+                    for (int y = -steps; y <= steps; y++)
+                    {
+                        float dx = x * spacing;
+                        float dy = y * spacing;
+                        if (dx * dx + dy * dy <= radius * radius)
+                        {
+                            if (idx >= _virtualContactPointsArray.Length) break;
+
+                            _virtualContactPointsArray[idx++] = new PCDPointBufferManager.Point
+                            {
+                                position = centroid + tangent * dx + bitangent * dy,
+                                color = new Vector3(0.8f, 0f, 0.4f), // Dark magenta to distinguish in PixelTagMap
+                                originType = 0 // Treat as normal point cloud
+                            };
+                        }
+                    }
+                }
+            }
+
+            _bufferManager.SetVirtualContactPoints(idx > 0 ? _virtualContactPointsArray : null, idx);
+        }
+        else
+        {
+            _bufferManager.SetVirtualContactPoints(null, 0);
+        }
+
         if (shouldUseExternal && RsGlobalPointCloudManager.Instance != null)
         {
             var globalBuffer = RsGlobalPointCloudManager.Instance.GetGlobalBuffer();

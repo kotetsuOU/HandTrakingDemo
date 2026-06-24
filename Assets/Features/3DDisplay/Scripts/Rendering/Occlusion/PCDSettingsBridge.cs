@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using static PCDRendererFeature;
 
 public class PCDSettingsBridge
@@ -17,6 +17,9 @@ public class PCDSettingsBridge
         gradientThreshold_g_th = 0.05f,
         occlusionThreshold = 0.8f,
         occlusionFadeWidth = 0.1f,
+        enableVirtualContactOcclusion = false,
+        virtualContactRadius = 0.03f,
+        virtualContactSpacing = 0.005f,
         enablePixelTagMap = false,
         enableOcclusionMap = false,
         recordOcclusionDebugMap = false,
@@ -154,6 +157,36 @@ public class PCDSettingsBridge
         {
             if (Controller != null) Controller.occlusionFadeWidth = value;
             else _fallbackSettings.occlusionFadeWidth = value;
+        }
+    }
+
+    public bool enableVirtualContactOcclusion
+    {
+        get => Controller != null ? Controller.enableVirtualContactOcclusion : _fallbackSettings.enableVirtualContactOcclusion;
+        set
+        {
+            if (Controller != null) Controller.enableVirtualContactOcclusion = value;
+            else _fallbackSettings.enableVirtualContactOcclusion = value;
+        }
+    }
+
+    public float virtualContactRadius
+    {
+        get => Controller != null ? Controller.virtualContactRadius : _fallbackSettings.virtualContactRadius;
+        set
+        {
+            if (Controller != null) Controller.virtualContactRadius = value;
+            else _fallbackSettings.virtualContactRadius = value;
+        }
+    }
+
+    public float virtualContactSpacing
+    {
+        get => Controller != null ? Controller.virtualContactSpacing : _fallbackSettings.virtualContactSpacing;
+        set
+        {
+            if (Controller != null) Controller.virtualContactSpacing = value;
+            else _fallbackSettings.virtualContactSpacing = value;
         }
     }
 

@@ -50,7 +50,7 @@ public partial class PCDPointBufferManager
         }
 
         // 合計の頂点数
-        _pointCount = dataPointCount + totalMeshPointCount;
+        _pointCount = dataPointCount + totalMeshPointCount + _virtualContactPointCount;
 
         // 点数がゼロなら配列を破棄して終了
         if (_pointCount == 0)
@@ -125,6 +125,13 @@ public partial class PCDPointBufferManager
             // 計算済みのキャッシュから高速コピー（1万以上の反復処理を省略）
             System.Array.Copy(pair.cachedPoints, 0, _pointsCache, cacheIndex, meshPointCount);
             cacheIndex += meshPointCount;
+        }
+
+        // 3. 仮想接触ポイント（CPU側で生成された面上の点群）を配列へ格納
+        if (_virtualContactPointCount > 0 && _virtualContactPoints != null)
+        {
+            System.Array.Copy(_virtualContactPoints, 0, _pointsCache, cacheIndex, _virtualContactPointCount);
+            cacheIndex += _virtualContactPointCount;
         }
 
         if (_isDataDirty)

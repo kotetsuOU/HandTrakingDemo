@@ -85,6 +85,10 @@ public partial class PCDPointBufferManager
     private int _externalPointCount = 0;
     private bool _useExternalBuffer = false;
 
+    // --- 仮想接触バッファ管理 ---
+    private Point[] _virtualContactPoints;
+    private int _virtualContactPointCount = 0;
+
     // --- 結合バッファ (外部バッファ + 内部バッファ) ---
     private ComputeBuffer _combinedBuffer;
 
@@ -141,6 +145,17 @@ public partial class PCDPointBufferManager
         else if (data == null && _dynamicData != null)
         {
             _dynamicData = null;
+            _isDataDirty = true;
+        }
+    }
+
+    // 仮想接触ポイントの配列をセットする
+    public void SetVirtualContactPoints(Point[] points, int count)
+    {
+        if (count != _virtualContactPointCount || points != _virtualContactPoints)
+        {
+            _virtualContactPoints = points;
+            _virtualContactPointCount = count;
             _isDataDirty = true;
         }
     }

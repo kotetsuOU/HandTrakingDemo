@@ -8,6 +8,8 @@ using System.Runtime.InteropServices;
 /// </summary>
 public class HCD_Pipeline : MonoBehaviour
 {
+    public static HCD_Pipeline Instance { get; private set; }
+
     [Header("Processors (Settings)")]
     [Tooltip("距離・接触判定プロセッサの設定")]
     public HCD_DistanceProcessor distanceProcessor = new HCD_DistanceProcessor();
@@ -40,6 +42,11 @@ public class HCD_Pipeline : MonoBehaviour
 
     // 事前確保されたクラスタデータ格納用配列（GC Alloc防止）
     private ClusterData[] _clusterResults;
+
+    private void Awake()
+    {
+        if (Instance == null) Instance = this;
+    }
 
     private void Start()
     {
