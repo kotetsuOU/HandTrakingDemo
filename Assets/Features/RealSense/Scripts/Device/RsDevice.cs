@@ -91,9 +91,11 @@ public class RsDevice : RsFrameProvider
     private Thread worker;
     private readonly AutoResetEvent stopEvent = new AutoResetEvent(false);
     private Pipeline m_pipeline;
+    private string m_deviceName;
 
     void OnEnable()
     {
+        m_deviceName = gameObject.name;
         frameCount = 0;
         m_pipeline = new Pipeline();
 
@@ -128,7 +130,7 @@ public class RsDevice : RsFrameProvider
                         }
 
                         cfg.EnableRecordToFile(finalRecordPath);
-                        UnityEngine.Debug.Log($"[RsDevice] Setup Recording => \nRaw Input: {DeviceConfiguration.RecordPath}\nResolved: {finalRecordPath}");
+                        UnityEngine.Debug.Log($"[RsDevice: {m_deviceName}] Setup Recording => \nRaw Input: {DeviceConfiguration.RecordPath}\nResolved: {finalRecordPath}");
                         foreach (var p in DeviceConfiguration.Profiles)
                             p.Apply(cfg);
                         break;
@@ -204,7 +206,7 @@ public class RsDevice : RsFrameProvider
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogWarning($"Pipeline stop warning: {e.Message}");
+                    UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] Pipeline stop warning: {e.Message}");
                 }
             }
             Streaming = false;
@@ -215,14 +217,14 @@ public class RsDevice : RsFrameProvider
                 if (System.IO.File.Exists(finalRecordPath))
                 {
                     var fileInfo = new System.IO.FileInfo(finalRecordPath);
-                    UnityEngine.Debug.Log($"[RsDevice] Recording Stopped. File successfully found on disk: {finalRecordPath}\nFrames captured: {frameCount}, File Size: {fileInfo.Length} bytes.");
+                    UnityEngine.Debug.Log($"[RsDevice: {m_deviceName}] Recording Stopped. File successfully found on disk: {finalRecordPath}\nFrames captured: {frameCount}, File Size: {fileInfo.Length} bytes.");
 #if UNITY_EDITOR
                     UnityEditor.AssetDatabase.Refresh();
 #endif
                 }
                 else
                 {
-                    UnityEngine.Debug.LogError($"[RsDevice] File NOT found on disk! Path: {finalRecordPath}. Frames captured: {frameCount}. Check if RealSense devices are working properly.");
+                    UnityEngine.Debug.LogError($"[RsDevice: {m_deviceName}] File NOT found on disk! Path: {finalRecordPath}. Frames captured: {frameCount}. Check if RealSense devices are working properly.");
                 }
             }
         }
@@ -264,11 +266,11 @@ public class RsDevice : RsFrameProvider
             catch (Exception ex)
             {
                 consecutiveErrors++;
-                UnityEngine.Debug.LogWarning($"RealSense WaitForFrames error ({consecutiveErrors}/{maxConsecutiveErrors}): {ex.Message}");
+                UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] WaitForFrames error ({consecutiveErrors}/{maxConsecutiveErrors}): {ex.Message}");
                 
                 if (consecutiveErrors >= maxConsecutiveErrors)
                 {
-                    UnityEngine.Debug.LogError("RealSense: Too many consecutive errors. Device may be disconnected or unresponsive.");
+                    UnityEngine.Debug.LogError($"[RsDevice: {m_deviceName}] Too many consecutive errors. Device may be disconnected or unresponsive.");
                     break;
                 }
                 

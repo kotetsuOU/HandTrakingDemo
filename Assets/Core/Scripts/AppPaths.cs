@@ -9,6 +9,7 @@ public static class AppPaths
     // --- Settings & Configs ---
     public static string ConfigDir => Path.Combine(Application.dataPath, "Settings", "Config");
     public static string RealSenseConfigDir => Path.Combine(ConfigDir, "RealSense");
+    public static string HapticsConfigDir => Path.Combine(ConfigDir, "Haptics");
     public static string PCVConfigDir => "Assets/Settings/Config/PCV_Profiles";
     
     // --- Data & Logs ---

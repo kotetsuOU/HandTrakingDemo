@@ -11,37 +11,13 @@ using static AUTD3Sharp.Units;
 
 #nullable enable
 
-public enum HoloAlgorithm
-{
-    GSPAT,
-    Naive
-}
-
-public enum ModulationMode
-{
-    Sine,
-    Static
-}
-
-public enum SilencerMode
-{
-    Disabled,
-    FixedUpdateRate,
-    FixedCompletionTime
-}
-
-public enum OperationMode
-{
-    AutoHCD,  // Automatically read from HCD_Pipeline
-    Manual    // Wait for manual API calls (SetFocus, SetFocusStm, etc.)
-}
-
 /// <summary>
 /// HCD_Pipeline によって計算された接触重心を受け取り、
 /// AUTD3デバイス群に GSPAT (Acoustic Holography) 等を用いてマルチフォーカス出力を行うコントローラー。
 /// 公式AUTD3SharpのC#ネイティブラッパーとして機能します。
+/// (手動API等のメソッド群は HAP_AUTDController_API.cs に分割されています)
 /// </summary>
-public class HAP_AUTDController : MonoBehaviour
+public partial class HAP_AUTDController : MonoBehaviour
 {
     [Header("Dependencies")]
     [Tooltip("重心座標を提供する HCD_Pipeline")]
@@ -52,12 +28,14 @@ public class HAP_AUTDController : MonoBehaviour
     public OperationMode operationMode = OperationMode.AutoHCD;
 
     [Header("Acoustic Settings")]
+    [Tooltip("ホログラフィアルゴリズム（GSPAT または Naive）")]
     public HoloAlgorithm holoAlgorithm = HoloAlgorithm.GSPAT;
     
     [Tooltip("超音波の出力強度 (Pascal)")]
     public float focusIntensityPascal = 10000f;
 
     [Header("Modulation Settings")]
+    [Tooltip("変調モード（Sine または Static）")]
     public ModulationMode modulationMode = ModulationMode.Sine;
     [Tooltip("サイン波の変調周波数 (Hz)")]
     public float sineFrequency = 150f;
@@ -65,8 +43,11 @@ public class HAP_AUTDController : MonoBehaviour
     public float staticAmplitude = 1.0f;
 
     [Header("Silencer Settings")]
+    [Tooltip("サイレンサーのモード")]
     public SilencerMode silencerMode = SilencerMode.FixedUpdateRate;
+    [Tooltip("サイレンサーの位相変化ステップ")]
     public ushort silencerStepPhase = 500;
+    [Tooltip("サイレンサーの振幅変化ステップ")]
     public ushort silencerStepAmplitude = 65535;
 
     [Header("Hardware Settings")]
@@ -84,6 +65,7 @@ public class HAP_AUTDController : MonoBehaviour
     public GainSTMMode gainStmMode = GainSTMMode.PhaseIntensityFull;
 
     [Header("Debug")]
+    [Tooltip("エディタ上でデバイスのサイズと位置をGizmoで表示する")]
     public bool visualizeDevices = true;
 
     private Controller? _autd = null;
@@ -194,172 +176,7 @@ public class HAP_AUTDController : MonoBehaviour
         }
     }
 
-    // =========================================================================
-    // MANUAL APIs (Drop-in replacements for original AutdController)
-    // =========================================================================
 
-    public void Send(IDatagram datagram)
-    {
-        if (_autd == null) return;
-        _autd.Send(datagram);
-        _isCurrentlyOff = false;
-    }
-
-    public void SetNull()
-    {
-        if (_autd == null) return;
-        _autd.Send(new Null());
-        _isCurrentlyOff = true;
-    }
-
-    public void SetFan(bool on)
-    {
-        enableFan = on;
-        ApplyFan();
-    }
-
-    public void SetFocus(Vector3 position, float amplitude = 1f)
-    {
-        if (_autd == null) return;
-        byte intensityVal = (byte)Mathf.Clamp(amplitude * 255f, 0f, 255f);
-        var p = new AUTD3Sharp.Utils.Point3(position.x + offset.x, position.y + offset.y, position.z + offset.z);
-        _autd.Send(new Focus(p, new FocusOption { Intensity = new Intensity(intensityVal) }));
-        _isCurrentlyOff = false;
-    }
-
-    public void SetHolo(IEnumerable<Vector3> positions, IEnumerable<float> amplitudesPa, HoloAlgorithm algorithm = HoloAlgorithm.GSPAT)
-    {
-        if (_autd == null) return;
-        
-        var posArray = positions.ToArray();
-        var ampArray = amplitudesPa.ToArray();
-        var activeFoci = new (AUTD3Sharp.Utils.Point3, Amplitude)[posArray.Length];
-        
-        for (int i = 0; i < posArray.Length; i++)
-        {
-            var p = posArray[i];
-            activeFoci[i] = (
-                new AUTD3Sharp.Utils.Point3(p.x + offset.x, p.y + offset.y, p.z + offset.z),
-                ampArray[i] * Pa
-            );
-        }
-
-        if (algorithm == HoloAlgorithm.GSPAT)
-            _autd.Send(new GSPAT(activeFoci, new GSPATOption()));
-        else
-            _autd.Send(new Naive(activeFoci, new NaiveOption()));
-            
-        _isCurrentlyOff = false;
-    }
-
-    // ---------- STM APIs ----------
-
-    public void SetFocusStm(IEnumerable<Vector3> positions, float frequency, float amplitude = 1f)
-    {
-        if (_autd == null) return;
-        byte intensityVal = (byte)Mathf.Clamp(amplitude * 255f, 0f, 255f);
-        var intensity = new Intensity(intensityVal);
-
-        var foci = positions.Select(p => 
-            new ControlPoints(new[] { new ControlPoint(new AUTD3Sharp.Utils.Point3(p.x + offset.x, p.y + offset.y, p.z + offset.z)) }, intensity)
-        ).ToArray();
-
-        _autd.Send(new FociSTM(foci, frequency * Hz));
-        _isCurrentlyOff = false;
-    }
-
-    public void SetMultiFocusStm(IEnumerable<IEnumerable<Vector3>> frames, float frequency, float amplitude = 1f)
-    {
-        if (_autd == null) return;
-        byte intensityVal = (byte)Mathf.Clamp(amplitude * 255f, 0f, 255f);
-        var intensity = new Intensity(intensityVal);
-
-        var fociSTM = new List<ControlPoints>();
-        foreach(var frame in frames)
-        {
-            var points = frame.Select(p => new ControlPoint(new AUTD3Sharp.Utils.Point3(p.x + offset.x, p.y + offset.y, p.z + offset.z))).ToArray();
-            fociSTM.Add(new ControlPoints(points, intensity));
-        }
-        
-        _autd.Send(new FociSTM(fociSTM, frequency * Hz));
-        _isCurrentlyOff = false;
-    }
-
-    public void SetGainStm(IEnumerable<IGain> frames, float frequency, GainSTMMode? modeOverride = null)
-    {
-        if (_autd == null) return;
-        var mode = modeOverride ?? gainStmMode;
-        _autd.Send(new GainSTM(frames, frequency * Hz, new GainSTMOption { Mode = mode }));
-        _isCurrentlyOff = false;
-    }
-
-    // ---------- Extended Gain APIs ----------
-
-    public void SetCustomGain(Func<Device, Func<Transducer, Drive>> f)
-    {
-        if (_autd == null) return;
-        _autd.Send(new AUTD3Sharp.Gain.Custom(f));
-        _isCurrentlyOff = false;
-    }
-
-    public void SetGainGroup(Func<Device, object?> keyMap, GroupDictionary datagramMap)
-    {
-        if (_autd == null) return;
-        _autd.Send(new Group(keyMap, datagramMap));
-        _isCurrentlyOff = false;
-    }
-
-    // ---------- Modulation APIs ----------
-
-    public void SetStaticModulation(float amplitude = 1f)
-    {
-        if (_autd == null) return;
-        modulationMode = ModulationMode.Static;
-        staticAmplitude = amplitude;
-        ApplyModulation();
-    }
-
-    public void SetSine(float frequency)
-    {
-        if (_autd == null) return;
-        modulationMode = ModulationMode.Sine;
-        sineFrequency = frequency;
-        ApplyModulation();
-    }
-
-    public void SetCustomModulation(byte[] buffer, uint frequency)
-    {
-        if (_autd == null) return;
-        // Frequency f = sampling freq / length. So SamplingFreq = frequency * length.
-        _autd.Send(new AUTD3Sharp.Modulation.Custom(buffer, (frequency * buffer.Length) * Hz));
-    }
-
-    // ---------- Silencer APIs ----------
-
-    public void SetSilenceFixedUpdateRate(ushort stepPhase = 500, ushort stepAmplitude = ushort.MaxValue)
-    {
-        if (_autd == null) return;
-        silencerMode = SilencerMode.FixedUpdateRate;
-        silencerStepPhase = stepPhase;
-        silencerStepAmplitude = stepAmplitude;
-        ApplySilencer();
-    }
-
-    public void SetSilenceFixedCompletionTime()
-    {
-        if (_autd == null) return;
-        silencerMode = SilencerMode.FixedCompletionTime;
-        ApplySilencer();
-    }
-
-    public void SetSilenceNull()
-    {
-        if (_autd == null) return;
-        silencerMode = SilencerMode.Disabled;
-        ApplySilencer();
-    }
-
-    // =========================================================================
 
     private void CheckForConfigChanges()
     {

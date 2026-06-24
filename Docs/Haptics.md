@@ -125,9 +125,11 @@ STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動
 
 ```text
 Assets/Features/Haptics/Scripts/
- ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター
+ ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター (自動制御・設定反映)
+ ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partialクラス)
+ ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
  ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
- ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をCatalogから自動生成するユーティリティ
+ ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
  └── Editor/
       └── HAP_AUTDTransformLoaderEditor.cs  # TransformLoader用のカスタムエディタUI（保存・ロードボタン）
 ```

@@ -4,7 +4,8 @@
     "references": [
         "RealSense",
         "autd3",
-        "HapticsCollision"
+        "HapticsCollision",
+        "Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

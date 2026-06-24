@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEngine;
 
@@ -8,6 +9,9 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 #endif
 
+/// <summary>
+/// 個々のAUTDデバイスのローカル座標・回転とIDを保存する構造体
+/// </summary>
 [Serializable]
 public struct HAP_AUTDTransformSnapshot
 {
@@ -16,27 +20,47 @@ public struct HAP_AUTDTransformSnapshot
     public Quaternion localRotation;
 }
 
-[CreateAssetMenu(fileName = "AUTDTransformCatalog", menuName = "Haptics/AUTD Transform Catalog")]
-public class HAP_AUTDTransformCatalog : ScriptableObject
+/// <summary>
+/// 複数のAUTDデバイスの配置データ（位置・回転）を保存・管理する設定クラス (JSON用)
+/// </summary>
+[Serializable]
+public class HAP_AUTDTransformConfig
+
 {
     public List<HAP_AUTDTransformSnapshot> snapshots = new List<HAP_AUTDTransformSnapshot>();
 }
 
+/// <summary>
+/// シーン上のAUTDデバイス群の配置（位置・回転）をScriptableObjectに保存し、復元するクラス
+/// </summary>
 [DisallowMultipleComponent]
 public class HAP_AUTDTransformLoader : MonoBehaviour
 {
     [Header("Configuration")]
-    public HAP_AUTDTransformCatalog catalog;
+    [Tooltip("保存・読み込み先のJSONファイル名")]
+    public string configFileName = "AUTDTransforms.json";
+    
+    [Tooltip("自動生成するAUTD3デバイスのプレハブ")]
     public GameObject devicePrefab;
+    
+    [Tooltip("デバイスを配置する親オブジェクト（未指定時は自身）")]
     public Transform deviceRoot;
+    
+    [Tooltip("自動生成するデバイスの最大数")]
     public int prefabCount = 20;
 
+    /// <summary>
+    /// 現在のシーン上のAUTDデバイスの配置をJSONファイルに保存します。
+    /// （IDの重複は無視されます）
+    /// </summary>
     public void Save()
     {
-        if (catalog == null)
+        string fullPath = Path.Combine(AppPaths.HapticsConfigDir, configFileName);
+        string directoryPath = Path.GetDirectoryName(fullPath);
+        
+        if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
         {
-            Debug.LogWarning("[HAP_AUTDTransformLoader] Catalog ScriptableObject is missing!");
-            return;
+            Directory.CreateDirectory(directoryPath);
         }
 
         var devices = ResolveDeviceRoot().GetComponentsInChildren<AUTD3Device>(false);
@@ -52,10 +76,10 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
             deviceById[dev.ID] = dev;
         }
 
-        catalog.snapshots.Clear();
+        var config = new HAP_AUTDTransformConfig();
         foreach (var dev in deviceById.Values.OrderBy(d => d.ID))
         {
-            catalog.snapshots.Add(new HAP_AUTDTransformSnapshot
+            config.snapshots.Add(new HAP_AUTDTransformSnapshot
             {
                 id = dev.ID,
                 localPosition = dev.transform.localPosition,
@@ -63,18 +87,34 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
             });
         }
 
+        string json = JsonUtility.ToJson(config, true);
+        File.WriteAllText(fullPath, json);
+
 #if UNITY_EDITOR
-        EditorUtility.SetDirty(catalog);
-        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
 #endif
-        Debug.Log($"[HAP_AUTDTransformLoader] Saved {catalog.snapshots.Count} AUTD transform snapshots.");
+        Debug.Log($"[HAP_AUTDTransformLoader] Saved {config.snapshots.Count} AUTD transform snapshots to {fullPath}.");
     }
 
+    /// <summary>
+    /// JSONファイルに保存されている配置データを読み込み、シーン上のAUTDデバイスに適用します。
+    /// 足りないIDのデバイスがある場合は自動的にプレハブを生成して配置します。
+    /// </summary>
     public void Load()
     {
-        if (catalog == null)
+        string fullPath = Path.Combine(AppPaths.HapticsConfigDir, configFileName);
+        if (!File.Exists(fullPath))
         {
-            Debug.LogWarning("[HAP_AUTDTransformLoader] Catalog ScriptableObject is missing!");
+            Debug.LogWarning($"[HAP_AUTDTransformLoader] Config JSON file not found at {fullPath}");
+            return;
+        }
+
+        string json = File.ReadAllText(fullPath);
+        var config = JsonUtility.FromJson<HAP_AUTDTransformConfig>(json);
+        
+        if (config == null || config.snapshots == null)
+        {
+            Debug.LogWarning("[HAP_AUTDTransformLoader] Failed to parse JSON config.");
             return;
         }
 
@@ -87,9 +127,9 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
                 deviceById.Add(dev.ID, dev);
         }
 
-        var snapshotById = catalog.snapshots.ToDictionary(s => s.id, s => s);
+        var snapshotById = config.snapshots.ToDictionary(s => s.id, s => s);
 
-        // Generate missing devices based on catalog
+        // Generate missing devices based on config
         foreach (var id in snapshotById.Keys.OrderBy(id => id))
         {
             if (!deviceById.ContainsKey(id))
@@ -112,6 +152,9 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
         Debug.Log($"[HAP_AUTDTransformLoader] Loaded {snapshotById.Count} AUTD transform snapshots.");
     }
 
+    /// <summary>
+    /// IDが0から prefabCount-1 までのデバイスを一括で生成します（まだ存在しないIDのみ）。
+    /// </summary>
     public void GeneratePrefabs()
     {
         if (prefabCount < 0) return;
