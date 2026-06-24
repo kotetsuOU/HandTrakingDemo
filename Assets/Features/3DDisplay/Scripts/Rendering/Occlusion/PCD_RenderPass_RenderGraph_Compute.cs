@@ -151,8 +151,8 @@ public partial class PCDRenderPass
             
             if (data.settings.recordOcclusionDebugMap || data.settings.recordPixelTagMap)
             {
-                outHandles.occlusionValueMap = renderGraph.ImportTexture(_occlusionValueMapHandle);
-                data.occlusionValueMap = _occlusionValueMapHandle;
+                outHandles.occlusionValueMap = renderGraph.ImportTexture(_bufferManager._occlusionValueMapHandle);
+                data.occlusionValueMap = _bufferManager._occlusionValueMapHandle;
             }
             else
             {
@@ -166,8 +166,8 @@ public partial class PCDRenderPass
 
             if (data.settings.enablePixelTagMap || data.settings.enableOcclusionMap)
             {
-                outHandles.debugDisplayMap = renderGraph.ImportTexture(_debugDisplayMapHandle);
-                data.debugDisplayMap = _debugDisplayMapHandle;
+                outHandles.debugDisplayMap = renderGraph.ImportTexture(_bufferManager._debugDisplayMapHandle);
+                data.debugDisplayMap = _bufferManager._debugDisplayMapHandle;
             }
             else
             {

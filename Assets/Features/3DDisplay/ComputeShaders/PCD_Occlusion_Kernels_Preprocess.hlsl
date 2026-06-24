@@ -57,6 +57,9 @@ void ProjectPoints(uint3 id : SV_DispatchThreadID)
     float4 viewPos = mul(_ViewMatrix, worldPos);
     float4 clipPos = mul(_ProjectionMatrix, viewPos);
 
+    if (clipPos.w <= 0.0)
+        return; // 【重要】背後の点群が画面手前に反転ワープしてデプスバッファを埋め尽くすのを防ぐ
+    
     float3 ndc = clipPos.xyz / clipPos.w;
     if (ndc.x < -1 || ndc.x > 1 || ndc.y < -1 || ndc.y > 1 || ndc.z < 0 || ndc.z > 1)
         return;

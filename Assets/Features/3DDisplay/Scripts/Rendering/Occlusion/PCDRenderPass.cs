@@ -46,11 +46,6 @@ public partial class PCDRenderPass : ScriptableRenderPass
     // =========================================================================
     // 出力およびデバッグ用 RTHandle
     // =========================================================================
-    private RTHandle _debugDisplayMapHandle;        // PixelTag / OcclusionMap の表示用
-    private RTHandle _occlusionValueMapHandle;       // オクルージョン値（CSV出力用）
-    private RTHandle _integratedDepthMapHandle;      // 統合深度マップ（デバッグ用）
-    private RTHandle _neighborhoodMapHandle;         // 近傍サイズマップ（デバッグ用）
-    private RTHandle _neighborCountMapHandle;        // 近傍カウントマップ（デバッグ用）
     private RTHandle _directGpuImageMapHandle;       // SRD 直接GPU描画用
     private RTHandle _directGpuImageLeftHandle;      // SRD 左目用
     private RTHandle _directGpuImageRightHandle;     // SRD 右目用
@@ -135,21 +130,6 @@ public partial class PCDRenderPass : ScriptableRenderPass
     public void Cleanup()
     {
         _bufferManager.Cleanup();
-
-        _debugDisplayMapHandle?.Release();
-        _debugDisplayMapHandle = null;
-
-        _occlusionValueMapHandle?.Release();
-        _occlusionValueMapHandle = null;
-
-        _integratedDepthMapHandle?.Release();
-        _integratedDepthMapHandle = null;
-
-        _neighborhoodMapHandle?.Release();
-        _neighborhoodMapHandle = null;
-
-        _neighborCountMapHandle?.Release();
-        _neighborCountMapHandle = null;
 
         _directGpuImageMapHandle?.Release();
         _directGpuImageMapHandle = null;

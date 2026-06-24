@@ -14,10 +14,10 @@ public class HCD_DistanceProcessor : IHCD_Processor
     public Transform targetObject;
 
     [Header("SkinnedMesh Mode Settings")]
-    public SkinnedMeshRenderer targetSkinnedMesh;
+    public SkinnedMeshRenderer[] targetSkinnedMeshes;
 
     [Header("MeshFilter Mode Settings")]
-    public MeshFilter targetMeshFilter;
+    public MeshFilter[] targetMeshFilters;
 
     [Header("Collision Parameters")]
     [Tooltip("これより近いと接触と判定する距離(m)")]
@@ -48,6 +48,9 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
     // Struct size: int(4) + float3(12) + float3(12) = 28 bytes
     private const int STRIDE = 28;
+
+    private Mesh[] _tempBakedMeshes;
+    private CombineInstance[] _combineInstances;
 
     public void Setup(HCD_Pipeline pipeline)
     {
@@ -94,32 +97,96 @@ public class HCD_DistanceProcessor : IHCD_Processor
         {
             Transform targetTransform = null;
             Bounds bounds = default;
+            bool boundsInitialized = false;
+
+            if (_bakedMesh == null) _bakedMesh = new Mesh();
 
             if (detectionMode == DetectionMode.SkinnedMeshRenderer)
             {
-                if (targetSkinnedMesh == null) return;
-                if (_bakedMesh == null) _bakedMesh = new Mesh();
-                targetSkinnedMesh.BakeMesh(_bakedMesh, true);
+                if (targetSkinnedMeshes == null || targetSkinnedMeshes.Length == 0) return;
+                
+                targetTransform = targetSkinnedMeshes[0].transform;
+
+                if (_tempBakedMeshes == null || _tempBakedMeshes.Length != targetSkinnedMeshes.Length)
+                {
+                    if (_tempBakedMeshes != null)
+                    {
+                        foreach (var m in _tempBakedMeshes) if (m != null) UnityEngine.Object.Destroy(m);
+                    }
+                    _tempBakedMeshes = new Mesh[targetSkinnedMeshes.Length];
+                    for (int i = 0; i < targetSkinnedMeshes.Length; i++) _tempBakedMeshes[i] = new Mesh();
+                }
+
+                if (_combineInstances == null || _combineInstances.Length != targetSkinnedMeshes.Length)
+                {
+                    _combineInstances = new CombineInstance[targetSkinnedMeshes.Length];
+                }
+
+                for (int i = 0; i < targetSkinnedMeshes.Length; i++)
+                {
+                    var smr = targetSkinnedMeshes[i];
+                    if (smr == null) continue;
+
+                    smr.BakeMesh(_tempBakedMeshes[i], true);
+                    
+                    _combineInstances[i].mesh = _tempBakedMeshes[i];
+                    _combineInstances[i].transform = targetTransform.worldToLocalMatrix * smr.transform.localToWorldMatrix;
+
+                    if (!boundsInitialized)
+                    {
+                        bounds = smr.bounds;
+                        boundsInitialized = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(smr.bounds);
+                    }
+                }
+
+                _bakedMesh.CombineMeshes(_combineInstances, true, true);
                 
                 _meshVertices = _bakedMesh.vertices;
                 _meshNormals = _bakedMesh.normals;
                 _meshIndices = _bakedMesh.triangles;
-                
-                targetTransform = targetSkinnedMesh.transform;
-                bounds = targetSkinnedMesh.bounds;
             }
             else
             {
-                if (targetMeshFilter == null || targetMeshFilter.sharedMesh == null) return;
+                if (targetMeshFilters == null || targetMeshFilters.Length == 0) return;
                 
-                var mesh = targetMeshFilter.sharedMesh;
-                _meshVertices = mesh.vertices;
-                _meshNormals = mesh.normals;
-                _meshIndices = mesh.triangles;
+                targetTransform = targetMeshFilters[0].transform;
+
+                if (_combineInstances == null || _combineInstances.Length != targetMeshFilters.Length)
+                {
+                    _combineInstances = new CombineInstance[targetMeshFilters.Length];
+                }
+
+                for (int i = 0; i < targetMeshFilters.Length; i++)
+                {
+                    var mf = targetMeshFilters[i];
+                    if (mf == null || mf.sharedMesh == null) continue;
+
+                    _combineInstances[i].mesh = mf.sharedMesh;
+                    _combineInstances[i].transform = targetTransform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+
+                    var renderer = mf.GetComponent<MeshRenderer>();
+                    var smrBounds = renderer != null ? renderer.bounds : new Bounds(mf.transform.position, mf.transform.lossyScale);
+
+                    if (!boundsInitialized)
+                    {
+                        bounds = smrBounds;
+                        boundsInitialized = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(smrBounds);
+                    }
+                }
+
+                _bakedMesh.CombineMeshes(_combineInstances, true, true);
                 
-                targetTransform = targetMeshFilter.transform;
-                var renderer = targetMeshFilter.GetComponent<MeshRenderer>();
-                bounds = renderer != null ? renderer.bounds : new Bounds(targetTransform.position, targetTransform.lossyScale);
+                _meshVertices = _bakedMesh.vertices;
+                _meshNormals = _bakedMesh.normals;
+                _meshIndices = _bakedMesh.triangles;
             }
 
             int trianglesCount = _meshIndices.Length / 3;
@@ -209,5 +276,9 @@ public class HCD_DistanceProcessor : IHCD_Processor
         _meshIndicesBuffer?.Release();
         _gridBuffer?.Release();
         if (_bakedMesh != null) UnityEngine.Object.Destroy(_bakedMesh);
+        if (_tempBakedMeshes != null)
+        {
+            foreach (var m in _tempBakedMeshes) if (m != null) UnityEngine.Object.Destroy(m);
+        }
     }
 }

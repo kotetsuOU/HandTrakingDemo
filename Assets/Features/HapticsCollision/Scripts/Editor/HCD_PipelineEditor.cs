@@ -55,8 +55,8 @@ public class HCD_PipelineEditor : Editor
                         // 対象設定に関するプロパティの場合はグレーアウト判定
                         bool isTargetProp = (dpIterator.name == "detectionMode" || 
                                              dpIterator.name == "targetObject" || 
-                                             dpIterator.name == "targetSkinnedMesh" ||
-                                             dpIterator.name == "targetMeshFilter");
+                                             dpIterator.name == "targetSkinnedMeshes" ||
+                                             dpIterator.name == "targetMeshFilters");
 
                         if (isAutoLinked && isTargetProp)
                         {

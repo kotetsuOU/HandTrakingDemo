@@ -63,19 +63,19 @@ public class AnimationController : MonoBehaviour
                     
                     if (HCDPipeline != null && HCDPipeline.distanceProcessor != null)
                     {
-                        var skinnedMesh = activeObj.GetComponentInChildren<SkinnedMeshRenderer>();
-                        if (skinnedMesh != null)
+                        var skinnedMeshes = activeObj.GetComponentsInChildren<SkinnedMeshRenderer>();
+                        if (skinnedMeshes != null && skinnedMeshes.Length > 0)
                         {
                             HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer;
-                            HCDPipeline.distanceProcessor.targetSkinnedMesh = skinnedMesh;
+                            HCDPipeline.distanceProcessor.targetSkinnedMeshes = skinnedMeshes;
                         }
                         else
                         {
-                            var meshFilter = activeObj.GetComponentInChildren<MeshFilter>();
-                            if (meshFilter != null)
+                            var meshFilters = activeObj.GetComponentsInChildren<MeshFilter>();
+                            if (meshFilters != null && meshFilters.Length > 0)
                             {
                                 HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.MeshFilter;
-                                HCDPipeline.distanceProcessor.targetMeshFilter = meshFilter;
+                                HCDPipeline.distanceProcessor.targetMeshFilters = meshFilters;
                             }
                             else
                             {

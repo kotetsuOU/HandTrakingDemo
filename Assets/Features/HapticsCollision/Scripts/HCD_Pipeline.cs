@@ -145,10 +145,29 @@ public class HCD_Pipeline : MonoBehaviour
         public int normalZ;
     }
 
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying) return;
+        if (!showDebugGizmos) return;
+
+#if UNITY_EDITOR
+        // 選択されている場合は OnDrawGizmosSelected で描画されるため重複を避ける
+        if (UnityEditor.Selection.activeGameObject == gameObject) return;
+#endif
+
+        DrawClusterGizmos();
+    }
+
     private void OnDrawGizmosSelected()
     {
-        if (!showDebugGizmos || !Application.isPlaying) return;
+        if (!Application.isPlaying) return;
 
+        // 選択時は showDebugGizmos の値に関わらず必ず描画
+        DrawClusterGizmos();
+    }
+
+    private void DrawClusterGizmos()
+    {
         // isColliding == 1 の表面接触クラスタ（マゼンタ）をトラッカー経由で描画
         foreach (var cluster in clusterTracker.TrackedClusters)
         {

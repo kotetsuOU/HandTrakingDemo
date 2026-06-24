@@ -66,6 +66,7 @@ Assets/Features/HapticsCollision/Resources/ComputeShaders/
 ### A. HCD_DistanceProcessor (距離・接触判定モジュール)
 
 通常の球やキューブなどの静的な `MeshFilter` や、アニメーション等で動的に変形する `SkinnedMeshRenderer` の全ポリゴン表面と、点群バッファとの間の物理的な侵入を厳密に判定します（`DetectionMode` で自動/手動切り替え可能）。
+※ 体の部位ごとに複数の `SkinnedMeshRenderer` が分かれている場合でも、自動的に1つのメッシュとしてGPU上で結合（Combine）して判定する仕組みを備えています。
 
 #### ① 固定長 GPU Voxel Grid の構築（`BuildMeshGrid`）
 CPUでのLBVH構築やメモリ割り当てによるキャッシュ汚染を回避するため、完全にGPU内で動作する空間ハッシュアルゴリズムを採用しています。

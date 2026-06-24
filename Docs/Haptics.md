@@ -45,7 +45,7 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 
 ### 3.1 単一焦点 (Focus / Naive)
 空間内の特定の目標点 $\mathbf{p} \in \mathbb{R}^3$ に超音波を集束させるための最も基本的なアプローチです。
-波長を $\lambda$（音速 $c \approx 340\,\mathrm{m/s}$、周波数 $f = 40\,\mathrm{kHz}$ の場合 $\lambda \approx 8.5\,\mathrm{mm}$）、各トランスデューサ（超音波振動子）の位置を $\mathbf{r}_i$ としたとき、目標点で波の位相を揃えるために $i$ 番目のトランスデューサが放射すべき位相 $\phi_i$ は以下のように計算されます：
+波長を $\lambda$ （音速 $c \approx 340\,\mathrm{m/s}$ 、周波数 $f = 40\,\mathrm{kHz}$ の場合 $\lambda \approx 8.5\,\mathrm{mm}$ ）、各トランスデューサ（超音波振動子）の位置を $\mathbf{r}_i$ としたとき、目標点で波の位相を揃えるために $i$ 番目のトランスデューサが放射すべき位相 $\phi_i$ は以下のように計算されます：
 ```math
 \phi_i = -\frac{2\pi}{\lambda} \|\mathbf{p} - \mathbf{r}_i\| + \phi_0
 ```
@@ -57,11 +57,11 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 ```math
 p_j = \sum_{i=1}^N H_{ji} q_i \quad \left( H_{ji} = \frac{e^{-jk \|\mathbf{p}_j - \mathbf{r}_i\|}}{\|\mathbf{p}_j - \mathbf{r}_i\|} \right)
 ```
-ここで $q_i = a_i e^{j\phi_i}$ は $i$ 番目のトランスデューサの出力（複素振幅）、$k = \frac{2\pi}{\lambda}$ は波数です。
+ここで $q_i = a_i e^{j\phi_i}$ は $i$ 番目のトランスデューサの出力（複素振幅）、 $k = \frac{2\pi}{\lambda}$ は波数です。
 GSPAT（Gerchberg-Saxton phased array technique）は、目的の振幅 $|p_j| = A_j$ に近づけるため、固有値問題への帰着と反復計算（位相最適化）を並列処理で行い、高速に最適な位相パターン $\phi_i$ を算出するアルゴリズムです。
 
 ### 3.3 接触強度による動的振幅スケーリング (Dynamic Amplitude Scaling)
-HCD_Pipeline から得られる接触強度（Force: $F \in [0, 1]$）を用いて、出力音圧を動的に調整します。基準となる最大出力音圧（`focusIntensityPascal`）を $P_{\mathrm{max}}$ としたとき、ターゲット音圧 $P_{\mathrm{target}}$ は線形にスケーリングされます：
+HCD_Pipeline から得られる接触強度（Force: $F \in [0, 1]$ ）を用いて、出力音圧を動的に調整します。基準となる最大出力音圧（`focusIntensityPascal`）を $P_{\mathrm{max}}$ としたとき、ターゲット音圧 $P_{\mathrm{target}}$ は線形にスケーリングされます：
 ```math
 P_{\mathrm{target}} = P_{\mathrm{max}} \cdot F
 ```
@@ -73,7 +73,7 @@ $40\,\mathrm{kHz}$ の超音波は人間の皮膚の機械受容器（マイス�
 ```math
 S_i(t) = M(t) \cdot \sin(2\pi f_c t + \phi_i)
 ```
-（$f_c = 40\,\mathrm{kHz}$）
+（ $f_c = 40\,\mathrm{kHz}$ ）
 例えばサイン波変調（`SetSine`）の場合、変調信号 $M(t)$ は以下のようになります：
 ```math
 M(t) = \frac{1}{2} (1 + \sin(2\pi f_m t)) \quad (M(t) \in [0, 1])

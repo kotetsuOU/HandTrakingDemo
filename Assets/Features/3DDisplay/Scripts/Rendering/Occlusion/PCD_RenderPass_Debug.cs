@@ -40,12 +40,12 @@ public partial class PCDRenderPass
 
                 builder.SetRenderFunc((BlitPassData passData, UnsafeGraphContext context) =>
                 {
-                    if (_occlusionValueMapHandle == null || _occlusionValueMapHandle.rt == null)
+                    if (_bufferManager._occlusionValueMapHandle == null || _bufferManager._occlusionValueMapHandle.rt == null)
                     {
                         return;
                     }
 
-                    var rt = _occlusionValueMapHandle.rt;
+                    var rt = _bufferManager._occlusionValueMapHandle.rt;
                     context.cmd.RequestAsyncReadback(rt, 0, 0, screenWidth, 0, screenHeight, 0, 1, GraphicsFormat.R32G32_SFloat, request =>
                     {
                         if (request.hasError)
@@ -100,12 +100,12 @@ public partial class PCDRenderPass
 
                 builder.SetRenderFunc((BlitPassData passData, UnsafeGraphContext context) =>
                 {
-                    if (_integratedDepthMapHandle == null || _integratedDepthMapHandle.rt == null)
+                    if (_bufferManager._integratedDepthMapHandle == null || _bufferManager._integratedDepthMapHandle.rt == null)
                     {
                         return;
                     }
 
-                    var rt = _integratedDepthMapHandle.rt;
+                    var rt = _bufferManager._integratedDepthMapHandle.rt;
                     context.cmd.RequestAsyncReadback(rt, 0, 0, screenWidth, 0, screenHeight, 0, 1, GraphicsFormat.R32_UInt, request =>
                     {
                         if (request.hasError)
@@ -144,12 +144,12 @@ public partial class PCDRenderPass
 
                 builder.SetRenderFunc((BlitPassData passData, UnsafeGraphContext context) =>
                 {
-                    if (_neighborhoodMapHandle == null || _neighborhoodMapHandle.rt == null)
+                    if (_bufferManager._neighborhoodMapHandle == null || _bufferManager._neighborhoodMapHandle.rt == null)
                     {
                         return;
                     }
 
-                    var rt = _neighborhoodMapHandle.rt;
+                    var rt = _bufferManager._neighborhoodMapHandle.rt;
                     context.cmd.RequestAsyncReadback(rt, 0, 0, screenWidth, 0, screenHeight, 0, 1, GraphicsFormat.R32_SInt, request =>
                     {
                         if (request.hasError)
@@ -188,12 +188,12 @@ public partial class PCDRenderPass
 
                 builder.SetRenderFunc((BlitPassData passData, UnsafeGraphContext context) =>
                 {
-                    if (_neighborCountMapHandle == null || _neighborCountMapHandle.rt == null)
+                    if (_bufferManager._neighborCountMapHandle == null || _bufferManager._neighborCountMapHandle.rt == null)
                     {
                         return;
                     }
 
-                    var rt = _neighborCountMapHandle.rt;
+                    var rt = _bufferManager._neighborCountMapHandle.rt;
                     context.cmd.RequestAsyncReadback(rt, 0, 0, screenWidth, 0, screenHeight, 0, 1, GraphicsFormat.R32_UInt, request =>
                     {
                         if (request.hasError)

@@ -66,9 +66,9 @@ public partial class PCDRenderPass
     /// <summary> デバッグマップが生成されている場合はそれを返し、そうでない場合はnullを返します。 </summary>
     public Texture GetDebugDisplayMap()
     {
-        if ((_settings.enablePixelTagMap || _settings.enableOcclusionMap) && _debugDisplayMapHandle != null)
+        if ((_settings.enablePixelTagMap || _settings.enableOcclusionMap) && _bufferManager._debugDisplayMapHandle != null)
         {
-            return _debugDisplayMapHandle;
+            return _bufferManager._debugDisplayMapHandle;
         }
         return null;
     }
