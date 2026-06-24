@@ -38,6 +38,7 @@ jobs:
           cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
           cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
           cp Docs/Collision.md temp-wiki/Collision.md
+          cp Docs/CollisionAlgorithmComparison.md temp-wiki/CollisionAlgorithmComparison.md
           cp Docs/Haptics.md temp-wiki/Haptics.md
           cp Docs/DebugPCV.md temp-wiki/DebugPCV.md
           cp Docs/Display3D.md temp-wiki/Display3D.md
