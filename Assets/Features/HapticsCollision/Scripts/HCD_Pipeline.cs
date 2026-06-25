@@ -42,6 +42,7 @@ public class HCD_Pipeline : MonoBehaviour
 
     // 事前確保されたクラスタデータ格納用配列（GC Alloc防止）
     private ClusterData[] _clusterResults;
+    private ClusterPrecisionDataRaw[] _precisionResults;
 
     private void Awake()
     {
@@ -56,6 +57,7 @@ public class HCD_Pipeline : MonoBehaviour
 
         // 配列の事前確保
         _clusterResults = new ClusterData[clusteringProcessor.maxClusters];
+        _precisionResults = new ClusterPrecisionDataRaw[clusteringProcessor.maxClusters];
 
         foreach (var processor in _processors)
         {
@@ -80,25 +82,35 @@ public class HCD_Pipeline : MonoBehaviour
         }
 
         // GPU 結果を読み戻してフレーム間クラスタ追跡を更新（ContactForceReduction 含む）
-        GetActiveClusterInfos(out var centroids, out var normals, out var counts);
-        clusterTracker.Update(centroids, normals, counts);
+        GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions);
+        clusterTracker.Update(centroids, normals, counts, precisions);
     }
 
     /// <summary>
-    /// GPU から現在の表面接触クラスタの重心座標・平均法線・接触点数を取得します。
+    /// GPU から現在の表面接触クラスタの重心座標・平均法線・接触点数・精密データを取得します。
     /// </summary>
-    public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts)
+    public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts, out List<ClusterPrecision> precisions)
     {
-        centroids = new List<Vector3>();
-        normals   = new List<Vector3>();
-        counts    = new List<int>();
+        centroids  = new List<Vector3>();
+        normals    = new List<Vector3>();
+        counts     = new List<int>();
+        precisions = new List<ClusterPrecision>();
+
         var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
         if (clusterBuffer == null) return;
 
         clusterBuffer.GetData(_clusterResults);
 
-        foreach (var data in _clusterResults)
+        bool precisionMode = clusteringProcessor.precisionMode;
+        var precisionBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.PrecisionBufferName);
+        if (precisionMode && precisionBuffer != null)
         {
+            precisionBuffer.GetData(_precisionResults);
+        }
+
+        for (int i = 0; i < _clusterResults.Length; i++)
+        {
+            var data = _clusterResults[i];
             if (data.count > 0)
             {
                 float invScale = 1.0f / (data.count * 10000.0f);
@@ -106,6 +118,41 @@ public class HCD_Pipeline : MonoBehaviour
                 var avgNormal = new Vector3(data.normalX, data.normalY, data.normalZ) * invScale;
                 normals.Add(avgNormal.sqrMagnitude > 0.0001f ? avgNormal.normalized : Vector3.up);
                 counts.Add(data.count);
+
+                if (precisionMode && precisionBuffer != null)
+                {
+                    var pData = _precisionResults[i];
+                    float inv1e6 = 1.0f / 1000000.0f;
+                    float inv1e4 = 1.0f / 10000.0f;
+                    precisions.Add(new ClusterPrecision {
+                        covXX = pData.covXX * inv1e6,
+                        covYY = pData.covYY * inv1e6,
+                        covZZ = pData.covZZ * inv1e6,
+                        covXY = pData.covXY * inv1e6,
+                        covXZ = pData.covXZ * inv1e6,
+                        covYZ = pData.covYZ * inv1e6,
+                        rp00 = new Vector3(pData.rp00X, pData.rp00Y, pData.rp00Z) * inv1e4,
+                        rp01 = new Vector3(pData.rp01X, pData.rp01Y, pData.rp01Z) * inv1e4,
+                        rp02 = new Vector3(pData.rp02X, pData.rp02Y, pData.rp02Z) * inv1e4,
+                        rp03 = new Vector3(pData.rp03X, pData.rp03Y, pData.rp03Z) * inv1e4,
+                        rp04 = new Vector3(pData.rp04X, pData.rp04Y, pData.rp04Z) * inv1e4,
+                        rp05 = new Vector3(pData.rp05X, pData.rp05Y, pData.rp05Z) * inv1e4,
+                        rp06 = new Vector3(pData.rp06X, pData.rp06Y, pData.rp06Z) * inv1e4,
+                        rp07 = new Vector3(pData.rp07X, pData.rp07Y, pData.rp07Z) * inv1e4,
+                        rp08 = new Vector3(pData.rp08X, pData.rp08Y, pData.rp08Z) * inv1e4,
+                        rp09 = new Vector3(pData.rp09X, pData.rp09Y, pData.rp09Z) * inv1e4,
+                        rp10 = new Vector3(pData.rp10X, pData.rp10Y, pData.rp10Z) * inv1e4,
+                        rp11 = new Vector3(pData.rp11X, pData.rp11Y, pData.rp11Z) * inv1e4,
+                        rp12 = new Vector3(pData.rp12X, pData.rp12Y, pData.rp12Z) * inv1e4,
+                        rp13 = new Vector3(pData.rp13X, pData.rp13Y, pData.rp13Z) * inv1e4,
+                        rp14 = new Vector3(pData.rp14X, pData.rp14Y, pData.rp14Z) * inv1e4,
+                        rp15 = new Vector3(pData.rp15X, pData.rp15Y, pData.rp15Z) * inv1e4,
+                    });
+                }
+                else
+                {
+                    precisions.Add(default);
+                }
             }
         }
     }
@@ -115,7 +162,7 @@ public class HCD_Pipeline : MonoBehaviour
     /// </summary>
     public List<Vector3> GetActiveCentroids()
     {
-        GetActiveClusterInfos(out var c, out _, out _);
+        GetActiveClusterInfos(out var c, out _, out _, out _);
         return c;
     }
 
@@ -150,6 +197,28 @@ public class HCD_Pipeline : MonoBehaviour
         public int normalX;
         public int normalY;
         public int normalZ;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ClusterPrecisionDataRaw
+    {
+        public int covXX, covYY, covZZ, covXY, covXZ, covYZ;
+        public int rp00X, rp00Y, rp00Z;
+        public int rp01X, rp01Y, rp01Z;
+        public int rp02X, rp02Y, rp02Z;
+        public int rp03X, rp03Y, rp03Z;
+        public int rp04X, rp04Y, rp04Z;
+        public int rp05X, rp05Y, rp05Z;
+        public int rp06X, rp06Y, rp06Z;
+        public int rp07X, rp07Y, rp07Z;
+        public int rp08X, rp08Y, rp08Z;
+        public int rp09X, rp09Y, rp09Z;
+        public int rp10X, rp10Y, rp10Z;
+        public int rp11X, rp11Y, rp11Z;
+        public int rp12X, rp12Y, rp12Z;
+        public int rp13X, rp13Y, rp13Z;
+        public int rp14X, rp14Y, rp14Z;
+        public int rp15X, rp15Y, rp15Z;
     }
 
     private void OnDrawGizmos()

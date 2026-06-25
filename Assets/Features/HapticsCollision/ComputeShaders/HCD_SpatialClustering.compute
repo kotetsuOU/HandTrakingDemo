@@ -1,5 +1,7 @@
 #pragma kernel ClearClusters
 #pragma kernel AccumulateClusters
+#pragma kernel ClearCovariance
+#pragma kernel AccumulateCovariance
 
 struct PointCollisionData
 {
@@ -9,9 +11,6 @@ struct PointCollisionData
 };
 
 // ClusterData layout (stride = 28 bytes = 7 ints)
-//   count            : number of contributing points
-//   posX / posY / posZ : sum of hitPoint * 10000 (fixed-point, averaged on CPU)
-//   normalX/Y/Z      : sum of hitNormal * 10000 (fixed-point, averaged on CPU)
 struct ClusterData
 {
     int count;
@@ -23,18 +22,30 @@ struct ClusterData
     int normalZ;
 };
 
+// Covariance & Random Data (stride = 12 ints = 48 bytes)
+struct ClusterPrecisionData
+{
+    int covXX;
+    int covYY;
+    int covZZ;
+    int covXY;
+    int covXZ;
+    int covYZ;
+    
+    // Random sample points (fixed-point x10000)
+    int3 rp[16];
+};
+
 StructuredBuffer<PointCollisionData> CollisionBuffer;
 RWStructuredBuffer<ClusterData> ClusterBuffer;
+RWStructuredBuffer<ClusterPrecisionData> PrecisionBuffer;
 
 uint PointsCount;
 float CellSize;
 uint MaxClusters;
+uint RandomSeed;
 
 // ── Normal bin quantization ────────────────────────────────────────────────
-// Classifies a surface normal into one of 6 cube-face directions:
-//   0: +X  1: -X  2: +Y  3: -Y  4: +Z  5: -Z
-// Points touching the front and back of a thin object will get different bins
-// and therefore land in different cluster buckets even if positionally close.
 uint GetNormalBin(float3 n)
 {
     float ax = abs(n.x);
@@ -46,13 +57,19 @@ uint GetNormalBin(float3 n)
 }
 
 // ── Spatial hash (position + normal bin) ──────────────────────────────────
-// Mixing the normal bin into the hash ensures that two contact patches at the
-// same voxel but on different surfaces are stored in separate buckets.
 uint Hash(int3 gridPos, uint normalBin)
 {
     uint h = (uint)(gridPos.x * 73856093 ^ gridPos.y * 19349663 ^ gridPos.z * 83492791)
              ^ (normalBin * 2654435761u);
     return h % MaxClusters;
+}
+
+// Pseudo-random function
+uint Rand(uint seed, uint id)
+{
+    uint h = seed + id * 374761393u;
+    h = (h ^ (h >> 13)) * 3266489917u;
+    return h ^ (h >> 16);
 }
 
 [numthreads(256, 1, 1)]
@@ -77,16 +94,10 @@ void AccumulateClusters(uint3 id : SV_DispatchThreadID)
     PointCollisionData col = CollisionBuffer[id.x];
     if (col.isColliding != 1) return; // surface contact only
 
-    // Position voxel key
     int3 gridPos = (int3)floor(col.hitPoint / CellSize);
-
-    // Normal bin (6 cube faces)
     uint normalBin = GetNormalBin(col.hitNormal);
-
-    // Hash incorporating both position and normal direction
     uint hashIndex = Hash(gridPos, normalBin);
 
-    // Fixed-point accumulation (x10000 for sub-millimetre precision)
     int fx = (int)(col.hitPoint.x  * 10000.0);
     int fy = (int)(col.hitPoint.y  * 10000.0);
     int fz = (int)(col.hitPoint.z  * 10000.0);
@@ -101,4 +112,72 @@ void AccumulateClusters(uint3 id : SV_DispatchThreadID)
     InterlockedAdd(ClusterBuffer[hashIndex].normalX, nx);
     InterlockedAdd(ClusterBuffer[hashIndex].normalY, ny);
     InterlockedAdd(ClusterBuffer[hashIndex].normalZ, nz);
+}
+
+[numthreads(256, 1, 1)]
+void ClearCovariance(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= MaxClusters) return;
+    PrecisionBuffer[id.x].covXX = 0;
+    PrecisionBuffer[id.x].covYY = 0;
+    PrecisionBuffer[id.x].covZZ = 0;
+    PrecisionBuffer[id.x].covXY = 0;
+    PrecisionBuffer[id.x].covXZ = 0;
+    PrecisionBuffer[id.x].covYZ = 0;
+    for (int i = 0; i < 16; i++) {
+        PrecisionBuffer[id.x].rp[i] = int3(0, 0, 0);
+    }
+}
+
+[numthreads(256, 1, 1)]
+void AccumulateCovariance(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= PointsCount) return;
+
+    PointCollisionData col = CollisionBuffer[id.x];
+    if (col.isColliding != 1) return;
+
+    int3 gridPos = (int3)floor(col.hitPoint / CellSize);
+    uint normalBin = GetNormalBin(col.hitNormal);
+    uint hashIndex = Hash(gridPos, normalBin);
+
+    int count = ClusterBuffer[hashIndex].count;
+    if (count <= 1) return; // Needs at least 2 points for variance
+
+    // Compute centroid from Pass 1 results
+    float invCount = 1.0 / (count * 10000.0);
+    float3 clusterCentroid = float3(ClusterBuffer[hashIndex].posX, ClusterBuffer[hashIndex].posY, ClusterBuffer[hashIndex].posZ) * invCount;
+    
+    float3 d = col.hitPoint - clusterCentroid;
+
+    // Scale by 1,000,000 for precision. Max dev ~0.05m -> sq = 0.0025. 0.0025 * 1e6 = 2500 (Fits in int well up to 800k points)
+    int cXX = (int)(d.x * d.x * 1000000.0);
+    int cYY = (int)(d.y * d.y * 1000000.0);
+    int cZZ = (int)(d.z * d.z * 1000000.0);
+    int cXY = (int)(d.x * d.y * 1000000.0);
+    int cXZ = (int)(d.x * d.z * 1000000.0);
+    int cYZ = (int)(d.y * d.z * 1000000.0);
+
+    InterlockedAdd(PrecisionBuffer[hashIndex].covXX, cXX);
+    InterlockedAdd(PrecisionBuffer[hashIndex].covYY, cYY);
+    InterlockedAdd(PrecisionBuffer[hashIndex].covZZ, cZZ);
+    InterlockedAdd(PrecisionBuffer[hashIndex].covXY, cXY);
+    InterlockedAdd(PrecisionBuffer[hashIndex].covXZ, cXZ);
+    InterlockedAdd(PrecisionBuffer[hashIndex].covYZ, cYZ);
+
+    // Pseudo-randomly update sample points (Reservoir sampling approximation)
+    uint rnd = Rand(RandomSeed, id.x);
+    if ((rnd % count) == 0) 
+    {
+        int px = (int)(col.hitPoint.x * 10000.0);
+        int py = (int)(col.hitPoint.y * 10000.0);
+        int pz = (int)(col.hitPoint.z * 10000.0);
+        
+        // Randomly pick a slot from 0 to 15
+        uint slot = rnd & 15; // same as rnd % 16
+        
+        InterlockedExchange(PrecisionBuffer[hashIndex].rp[slot].x, px, px);
+        InterlockedExchange(PrecisionBuffer[hashIndex].rp[slot].y, py, py);
+        InterlockedExchange(PrecisionBuffer[hashIndex].rp[slot].z, pz, pz);
+    }
 }

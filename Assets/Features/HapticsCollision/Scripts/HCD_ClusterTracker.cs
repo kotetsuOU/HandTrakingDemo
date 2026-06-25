@@ -32,6 +32,10 @@ public class HCD_ClusterTracker
     [Range(0.01f, 1.0f)]
     public float forceSmoothingFactor = 0.3f;
 
+    [Tooltip("速度（Velocity）計算の時間的スムージング係数")]
+    [Range(0.01f, 1.0f)]
+    public float velocitySmoothingFactor = 0.2f;
+
     // ─── Public Result ─────────────────────────────────────────────────────
 
     /// <summary>現在追跡中の全クラスタ（alive + missing 含む）</summary>
@@ -58,7 +62,8 @@ public class HCD_ClusterTracker
     /// <param name="newCentroids">今フレームの表面接触クラスタ重心リスト</param>
     /// <param name="newNormals">重心に対応する平均法線リスト（省略時は null）</param>
     /// <param name="newCounts">各クラスタの接触点数リスト（ContactForceReduction 用、省略時は null）</param>
-    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals, List<int> newCounts = null)
+    /// <param name="newPrecisions">精密モードの追加データ（共分散・ランダム点）</param>
+    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals, List<int> newCounts = null, List<ClusterPrecision> newPrecisions = null)
     {
         int newCount = newCentroids.Count;
         bool[] newMatched = new bool[newCount];
@@ -84,6 +89,12 @@ public class HCD_ClusterTracker
             if (bestIdx >= 0)
             {
                 newMatched[bestIdx] = true;
+                
+                // Velocity の計算 (変位 / dt)
+                float dt = Mathf.Max(0.001f, Time.deltaTime);
+                Vector3 instVelocity = (newCentroids[bestIdx] - cluster.Centroid) / dt;
+                cluster.Velocity = Vector3.Lerp(cluster.Velocity, instVelocity, velocitySmoothingFactor);
+
                 cluster.Centroid = newCentroids[bestIdx];
                 if (newNormals != null && bestIdx < newNormals.Count)
                     cluster.Normal = newNormals[bestIdx];
@@ -95,6 +106,12 @@ public class HCD_ClusterTracker
                     float rawForce = ComputeRawForce(newCounts[bestIdx]);
                     // 時間的スムージング: 急激な変化を抑え、安定した振幅制御を実現
                     cluster.Force = Mathf.Lerp(cluster.Force, rawForce, forceSmoothingFactor);
+                }
+
+                // Precision データの更新
+                if (newPrecisions != null && bestIdx < newPrecisions.Count)
+                {
+                    cluster.Precision = newPrecisions[bestIdx];
                 }
 
                 cluster.Age++;
@@ -129,6 +146,8 @@ public class HCD_ClusterTracker
                     Age           = 1,
                     MissingFrames = 0,
                     IsAlive       = true,
+                    Velocity      = Vector3.zero,
+                    Precision     = (newPrecisions != null && n < newPrecisions.Count) ? newPrecisions[n] : default
                 });
             }
         }
@@ -198,4 +217,22 @@ public struct TrackedCluster
 
     /// <summary>今フレームで生きているか</summary>
     public bool IsAlive;
+
+    /// <summary>クラスタの移動速度 (m/s)。平滑化されています。</summary>
+    public Vector3 Velocity;
+
+    /// <summary>精密モード用の追加データ（共分散、ランダム点）</summary>
+    public ClusterPrecision Precision;
+}
+
+/// <summary>
+/// Precisionモードで計算される高度なクラスタデータ
+/// </summary>
+public struct ClusterPrecision
+{
+    public float covXX, covYY, covZZ, covXY, covXZ, covYZ;
+    public Vector3 rp00, rp01, rp02, rp03;
+    public Vector3 rp04, rp05, rp06, rp07;
+    public Vector3 rp08, rp09, rp10, rp11;
+    public Vector3 rp12, rp13, rp14, rp15;
 }

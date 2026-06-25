@@ -40,6 +40,7 @@ jobs:
           cp Docs/Collision.md temp-wiki/Collision.md
           cp Docs/CollisionAlgorithmComparison.md temp-wiki/CollisionAlgorithmComparison.md
           cp Docs/Haptics.md temp-wiki/Haptics.md
+          cp Docs/HapticsSystemComparison.md temp-wiki/HapticsSystemComparison.md
           cp Docs/DebugPCV.md temp-wiki/DebugPCV.md
           cp Docs/Display3D.md temp-wiki/Display3D.md
           cp Docs/Initialization.md temp-wiki/Initialization.md

@@ -3,69 +3,96 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 using AUTD3Sharp;
-using AUTD3Sharp.Gain;
-using AUTD3Sharp.Modulation;
-using AUTD3Sharp.Gain.Holo;
 using AUTD3Sharp.Driver.Datagram;
-using static AUTD3Sharp.Units;
+using AUTD3Sharp.Gain;
 
 #nullable enable
+
+public enum HapticsGenerationMode
+{
+    Simplified,
+    Precision
+}
 
 /// <summary>
 /// HCD_Pipeline によって計算された接触重心を受け取り、
 /// AUTD3デバイス群に GSPAT (Acoustic Holography) 等を用いてマルチフォーカス出力を行うコントローラー。
+/// 
 /// 公式AUTD3SharpのC#ネイティブラッパーとして機能します。
-/// (手動API等のメソッド群は HAP_AUTDController_API.cs に分割されています)
+/// 
+/// ※ ファイル分割構成:
+/// - HAP_AUTDController.cs : コアロジック（Inspector設定、Awake/Update/OnDestroy）
+/// - HAP_AUTDController_Config.cs : ハードウェア設定の適用（Modulation, Silencer, Fan など）
+/// - HAP_AUTDController_Haptics.cs : 接触クラスタからの触覚データ(STM/Sequential)生成
+/// - HAP_AUTDController_API.cs : 外部スクリプトからの手動操作API
 /// </summary>
 public partial class HAP_AUTDController : MonoBehaviour
 {
     [Header("Dependencies")]
-    [Tooltip("重心座標を提供する HCD_Pipeline")]
+    [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
     public HCD_Pipeline hcdPipeline = null!;
 
     [Header("Operation Settings")]
-    [Tooltip("自動モード(AutoHCD)か、スクリプトからの手動制御(Manual)か")]
+    [Tooltip("AutoHCD: HCD_Pipeline の結果を自動で出力します。\nManual: スクリプトから API を叩いて手動制御します。")]
     public OperationMode operationMode = OperationMode.AutoHCD;
 
+    [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
+    public HapticsGenerationMode generationMode = HapticsGenerationMode.Simplified;
+
+    [Header("Precision Sources")]
+    [Tooltip("接触領域の「重心」に対して基本的な超音波の焦点を生成するソース設定")]
+    public HAP_HapticsCentroidSource centroidSource = new HAP_HapticsCentroidSource();
+    
+    [Tooltip("接触領域の「形状」を主成分分析(PCA)し、楕円状になぞるSTMを生成するソース設定")]
+    public HAP_HapticsEllipseSource ellipseSource = new HAP_HapticsEllipseSource();
+    
+    [Tooltip("接触領域内でランダムに16点をサンプリングし、不規則に飛び回るSTM（ザラザラ感）を生成するソース設定")]
+    public HAP_HapticsRandomSource randomSource = new HAP_HapticsRandomSource();
+
     [Header("Acoustic Settings")]
-    [Tooltip("ホログラフィアルゴリズム（GSPAT または Naive）")]
+    [Tooltip("ホログラフィアルゴリズム。\nGSPAT: 高速・高品質。\nNaive: 計算は軽いが音圧や精度が落ちます。")]
     public HoloAlgorithm holoAlgorithm = HoloAlgorithm.GSPAT;
     
-    [Tooltip("超音波の出力強度 (Pascal)")]
+    [Tooltip("超音波の出力強度 (Pascal)。最大で 10000 程度。大きすぎるとデバイスの保護回路が働くか、クリッピングが発生します。")]
     public float focusIntensityPascal = 10000f;
 
     [Header("Modulation Settings")]
-    [Tooltip("変調モード（Sine または Static）")]
+    [Tooltip("変調モード。\nSine: 指定周波数で明滅（ブーンという感触）。\nStatic: 連続出力（押される感触）。")]
     public ModulationMode modulationMode = ModulationMode.Sine;
-    [Tooltip("サイン波の変調周波数 (Hz)")]
+    
+    [Tooltip("サイン波の変調周波数 (Hz)。一般的に人間の皮膚は 150〜200Hz で最も感度が高くなります。")]
     public float sineFrequency = 150f;
-    [Tooltip("定常波の振幅 (0.0〜1.0)")]
+    
+    [Tooltip("定常波(Static)の振幅 (0.0〜1.0)。通常は1.0を使用します。")]
     public float staticAmplitude = 1.0f;
 
     [Header("Silencer Settings")]
-    [Tooltip("サイレンサーのモード")]
+    [Tooltip("サイレンサーのモード。可聴ノイズ（ジージー音）を減らします。\nFixedUpdateRate: 強度と位相のステップで指定。\nFixedCompletionTime: 完了時間で指定。")]
     public SilencerMode silencerMode = SilencerMode.FixedUpdateRate;
-    [Tooltip("サイレンサーの位相変化ステップ")]
+    
+    [Tooltip("位相の変化ステップ。小さいほど静かになりますが、応答が遅れます。")]
     public ushort silencerStepPhase = 500;
-    [Tooltip("サイレンサーの振幅変化ステップ")]
+    
+    [Tooltip("振幅の変化ステップ。小さいほど静かになりますが、応答が遅れます。")]
     public ushort silencerStepAmplitude = 65535;
 
     [Header("Hardware Settings")]
-    [Tooltip("環境温度（音速計算に使用）")]
+    [Tooltip("環境温度（摂氏）。音速計算に使用され、焦点の正確さに影響します。室温に合わせてください。")]
     public float temperature = 25f;
-    [Tooltip("デバイス冷却ファンのON/OFF")]
+    
+    [Tooltip("デバイス冷却ファンのON/OFF。高出力で長時間使用する場合は ON にしてください。")]
     public bool enableFan = false;
 
     [Header("Coordinate Settings")]
-    [Tooltip("焦点位置の全体オフセット")]
+    [Tooltip("すべての焦点位置に加算されるオフセット。デバイスの原点とUnity上の位置を微調整するのに使います。")]
     public Vector3 offset = Vector3.zero;
 
     [Header("STM Settings (for future extension)")]
-    [Tooltip("GainSTM時のモード")]
+    [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
     public GainSTMMode gainStmMode = GainSTMMode.PhaseIntensityFull;
 
     [Header("Debug")]
-    [Tooltip("エディタ上でデバイスのサイズと位置をGizmoで表示する")]
+    [Tooltip("エディタ上でデバイスのサイズと位置を Gizmo (青色の枠) で表示します。")]
     public bool visualizeDevices = true;
 
     private Controller? _autd = null;
@@ -132,7 +159,11 @@ public partial class HAP_AUTDController : MonoBehaviour
     {
         if (_autd == null) return;
 
+        // インスペクターの設定変更を監視して適用（HAP_AUTDController_Config.cs）
         CheckForConfigChanges();
+        
+        // Haptics Sources 内の Modulation Override 解決（HAP_AUTDController_Haptics.cs）
+        ResolveModulationOverrides();
 
         // 手動モードの場合はここで終了し、Updateからの自動送信を行わない
         if (operationMode != OperationMode.AutoHCD) return;
@@ -142,27 +173,13 @@ public partial class HAP_AUTDController : MonoBehaviour
         var trackedClusters = hcdPipeline.GetTrackedClusters();
 
         // 生存しており、かつ Force が有効なクラスタを抽出
-        var activeFoci = trackedClusters
-            .Where(c => c.IsAlive && c.Force > 0.01f)
-            .Select(c => (
-                new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), 
-                (focusIntensityPascal * c.Force) * Pa
-            )).ToArray();
+        var activeClusters = trackedClusters
+            .Where(c => c.IsAlive && c.Force > 0.01f).ToList();
 
-        if (activeFoci.Length > 0)
+        if (activeClusters.Count > 0)
         {
-            // ホログラフィアルゴリズムの分岐
-            if (holoAlgorithm == HoloAlgorithm.GSPAT)
-            {
-                var gspat = new GSPAT(activeFoci, new GSPATOption());
-                _autd.Send(gspat);
-            }
-            else if (holoAlgorithm == HoloAlgorithm.Naive)
-            {
-                var naive = new Naive(activeFoci, new NaiveOption());
-                _autd.Send(naive);
-            }
-            
+            // クラスタから超音波の焦点を生成して出力（HAP_AUTDController_Haptics.cs）
+            ProcessHapticsOutput(activeClusters);
             _isCurrentlyOff = false;
         }
         else
@@ -173,109 +190,6 @@ public partial class HAP_AUTDController : MonoBehaviour
                 _autd.Send(new Null());
                 _isCurrentlyOff = true;
             }
-        }
-    }
-
-
-
-    private void CheckForConfigChanges()
-    {
-        bool modulationChanged = (_prevModMode != modulationMode) ||
-                                 (_prevSineFreq != sineFrequency) ||
-                                 (_prevStaticAmp != staticAmplitude);
-        if (modulationChanged) ApplyModulation();
-
-        bool silencerChanged = (_prevSilencerMode != silencerMode) ||
-                               (_prevSilStepPhase != silencerStepPhase) ||
-                               (_prevSilStepAmp != silencerStepAmplitude);
-        if (silencerChanged) ApplySilencer();
-
-        if (_prevFanState != enableFan) ApplyFan();
-        if (_prevTemperature != temperature) ApplyTemperature();
-    }
-
-    private void ApplyModulation()
-    {
-        if (_autd == null) return;
-        
-        try
-        {
-            switch (modulationMode)
-            {
-                case ModulationMode.Sine:
-                    _autd.Send(new Sine(freq: sineFrequency * Hz, option: new SineOption()));
-                    break;
-                case ModulationMode.Static:
-                    _autd.Send(new Static());
-                    break;
-            }
-            
-            _prevModMode = modulationMode;
-            _prevSineFreq = sineFrequency;
-            _prevStaticAmp = staticAmplitude;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDController] Failed to apply modulation: {ex.Message}");
-        }
-    }
-
-    private void ApplySilencer()
-    {
-        if (_autd == null) return;
-
-        try
-        {
-            switch (silencerMode)
-            {
-                case SilencerMode.Disabled:
-                    _autd.Send(Silencer.Disable());
-                    break;
-                case SilencerMode.FixedUpdateRate:
-                    _autd.Send(new Silencer(new FixedUpdateRate { Intensity = silencerStepAmplitude, Phase = silencerStepPhase }));
-                    break;
-                case SilencerMode.FixedCompletionTime:
-                    _autd.Send(new Silencer(new FixedCompletionTime()));
-                    break;
-            }
-            
-            _prevSilencerMode = silencerMode;
-            _prevSilStepPhase = silencerStepPhase;
-            _prevSilStepAmp = silencerStepAmplitude;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDController] Failed to apply silencer: {ex.Message}");
-        }
-    }
-
-    private void ApplyFan()
-    {
-        if (_autd == null) return;
-        
-        try
-        {
-            _autd.Send(new ForceFan(dev => enableFan));
-            _prevFanState = enableFan;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDController] Failed to apply fan state: {ex.Message}");
-        }
-    }
-
-    private void ApplyTemperature()
-    {
-        if (_autd == null) return;
-        
-        try
-        {
-            _autd.Environment.SetSoundSpeedFromTemp(temperature);
-            _prevTemperature = temperature;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDController] Failed to set temperature: {ex.Message}");
         }
     }
 

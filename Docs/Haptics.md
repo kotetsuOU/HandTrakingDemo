@@ -10,7 +10,9 @@
    仮想オブジェクトと点群の衝突判定、クラスタリング（位置・法線）、トラッキング、および接触面積に基づく Force 計算までを担当します（「どこに」「どの程度の強さで」触れているかの推定）。
 2. **Haptics AUTD Controller (本ドキュメント)**:
    Collision モジュールから確定したトラッキングデータを受け取り、それを音響ホログラフィ（GSPAT等）のソルバーに流し込み、TwinCAT 経由で物理的な超音波フェーズドアレイデバイスを駆動します。
-   また、外部スクリプトからの手動制御（STMやカスタム波形など）の窓口としても機能します。
+
+> 💡 **ネイティブアルゴリズムとの比較について**
+> 詳細ドキュメント **[HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md)** を参照してください。
 
 ---
 
@@ -22,20 +24,40 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 
 ### `HAP_AUTDController.cs`
 ハプティクス出力のメインオーケストレーターです。`OperationMode` により、自動制御モードと手動制御モードを切り替えることができます。
+役割を明確にするため、以下の `partial class` として3つのファイルに分割されています。
+- `HAP_AUTDController.cs`: コアロジック（Inspector設定、Awake/Update/OnDestroy）
+- `HAP_AUTDController_Config.cs`: ハードウェア設定の適用（Modulation, Silencer, Fan など）
+- `HAP_AUTDController_Haptics.cs`: 接触クラスタからの触覚データ(STM/Sequential)生成
 
 #### 動作モード (Operation Mode)
 
 - **AutoHCD (自動追従モード)**
-  毎フレーム `HCD_Pipeline.GetTrackedClusters()` を呼び出し、接触しているオブジェクトの座標に対して自動で音響ホログラフィ（GSPAT / Naive）を用いてマルチフォーカス出力を生成し続けます。接触がなくなると自動で Null（停止）出力を送信します。
+  毎フレーム `HCD_Pipeline.GetTrackedClusters()` を呼び出し、接触しているオブジェクトの座標に対して自動で音響ホログラフィ（GSPAT / Naive）やSTM（時空間変調）を用いてマルチフォーカス出力を生成し続けます。接触がなくなると自動で Null（停止）出力を送信します。
 
 - **Manual (手動API制御モード)**
   `Update()` での自動上書きを停止し、外部のスクリプトから呼び出されるAPI（`SetFocusStm` など）による明示的な超音波出力を優先します。旧パッケージが持っていた複雑な機能を手動でトリガーしたい場合に使用します。
 
-#### HCD連携による自動出力処理 (AutoHCDモード時)
+#### ハプティクス生成モード (Generation Mode)
+AutoHCD モードでは、計算負荷と提示の表現力に応じて以下の2つの生成モードを切り替えることができます。
 
-1. **トラッキングデータの取得とフィルタリング**: 生存しており（`IsAlive == true`）、かつ Force が閾値（0.01）以上のクラスタのみを抽出します。
-2. **Force による動的振幅スケーリング**: `Force` 値（0.0〜1.0）を利用し、各フォーカス（焦点）ごとの音圧（Pascal）を個別にスケーリングし、「軽く触れると弱く、強く押し込むと強く」提示される自然な力覚フィードバックを実現します。
-3. **ホログラフィによるデバイス送信**: 抽出された焦点リストを GSPAT ソルバーに渡し、最適な位相・振幅パターンを計算してデバイスへ送信します。
+- **Simplified (簡易モード)**
+  抽出された接触クラスタの「重心座標」に対して、単一の焦点（Focus）を生成する最速・最軽量のモードです。従来の単純な接触提示と同等に動作します。
+- **Precision (精密モード)**
+  クラスタごとにGPUで計算された「共分散行列」や「16点のランダムサンプル」を利用し、以下の高度なハプティクスソース (HapticsSources) を組み合わせて、面やノイズ感を表現する複雑な STM または Sequential 出力を合成します。
+
+#### 触覚表現の拡張 (HapticsSources)
+`Precision` モードでは、以下の3つのソース（Source）を組み合わせて触覚をデザインできます。各ソースは独立して有効/無効を切り替えられます。
+1. **Centroid Source**: 
+   クラスタの重心位置に焦点を提示し、`Force` (接触強度) から振幅(Amplitude)を決定する基本ソースです。`VectorSum` や `MagnitudeSum` など、法線ベクトルや接触点数を加味した多彩な振幅計算モードを備えています。
+2. **Ellipse Source**: 
+   接触面がどのように広がっているかを示す「共分散行列」からPCA（主成分分析）を行い、接触面の形状（主軸・副軸）にフィットした楕円軌道を描くフレームを生成します。手のひら全体で触れた際の「面をなぞるような感覚」を提示します。速度に応じた周波数・振幅スケーリング（Velocity Scaling）にも対応します。
+3. **Random Source**: 
+   GPU内でサンプリングされた接触面内のランダムな16個の座標を用いて、不規則に飛び回るフレームを生成します。ザラザラとしたノイズ状の触覚提示に利用できます。
+
+#### 出力モード (Sequential vs FociStm)
+Ellipse と Random ソースは、`HapticsOutputMode` によってフレーム生成手法を選択できます。
+- **Sequential**: UnityのUpdateフレームごとに1点ずつピックアップして送信します。処理が非常に軽く、他のソースと共存しやすいため推奨設定です。
+- **FociStm**: デバイス側のSTMバッファに最大数千フレームの軌跡を一括で流し込みます。非常に滑らかな動きを実現しますが、複数クラスタ存在時の計算負荷が高くなります。
 
 ---
 
@@ -89,7 +111,52 @@ STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動
 
 ---
 
-## 4. 手動制御 API リファレンス (Manual モード用)
+## 4. 全体アーキテクチャとデータフロー
+
+ハプティクスモジュールにおける、設定の適用から実際のデバイス出力までの流れを以下のシーケンス図に示します。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant HCD as HCD_Pipeline
+    participant Main as HAP_AUTDController
+    participant Config as HAP_AUTDController_Config
+    participant Haptics as HAP_AUTDController_Haptics
+    participant AUTD as AUTD3Sharp (TwinCAT)
+
+    Main->>Config: CheckForConfigChanges()
+    Note over Config: インスペクターでの変更を検知<br/>Modulation, Silencer, Fan, Temperature
+    Config->>AUTD: 設定パラメータ送信
+
+    Main->>Haptics: ResolveModulationOverrides()
+    Note over Haptics: 各HapticsSourceの優先度を比較し、<br/>最適な変調周波数をConfig経由で適用
+
+    Main->>HCD: GetTrackedClusters()
+    HCD-->>Main: トラッキング済みクラスタのリスト
+
+    Note over Main: IsAlive == true かつ<br/>Force > 0.01 のクラスタのみ抽出
+
+    Main->>Haptics: ProcessHapticsOutput(activeClusters)
+    
+    alt Simplified Mode
+        Note over Haptics: 重心位置のみを用いた軽量計算
+        Haptics->>AUTD: 単一フォーカス (GSPAT / Naive) 送信
+    else Precision Mode
+        Note over Haptics: Centroid, Ellipse(PCA), Random(16点) の合成<br/>※ Ellipse は速度ベースのスケール(Velocity Scaling)も適用
+        
+        alt Sequential Output Mode
+            Note over Haptics: Unityフレーム (Time.frameCount) に合わせて<br/>軌跡から1点だけをピックアップ
+            Haptics->>AUTD: 1フレーム分のフォーカス (GSPAT / Naive) 送信
+        else FociStm Output Mode
+            Note over Haptics: STMの最大サンプル数に合わせて<br/>全ソースのフレームをリサンプリングしバッファ合成
+            Haptics->>AUTD: 数千フレームの MultiFocusStm を一括送信
+        end
+    end
+```
+
+---
+
+## 5. 手動制御 API リファレンス (Manual モード用)
 
 旧ネイティブパッケージが提供していたすべての高度なハプティクス制御機能を、純C#（AUTD3Sharp）で再構築したAPI群です。`OperationMode.Manual` 時の利用を推奨します。
 
@@ -103,33 +170,22 @@ STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動
 - `SetMultiFocusStm(...)` : 複数の焦点が同時に高速移動する高度なアニメーションを実現します。
 - `SetGainStm(...)` : フレームごとに全く異なるホログラフィパターン（Gain）を切り替えます。
 
-### 拡張波形・グループ化
-- `SetCustomGain(...)` : 個別の超音波振動子の位相や振幅を数式や配列で直接指定します。
-- `SetGainGroup(...)` : 複数台のAUTD3デバイスを論理的に分割（グループ化）し、それぞれに別々の出力設定（フォーカスと Null など）を割り当てます。
-
-### 変調波形 (Modulation) & サイレンサー (Silencer)
-- `SetSine(float frequency)` / `SetStaticModulation(float amplitude)` / `SetCustomModulation(...)` : 音波の包絡線（エンベロープ）を変更し、触った時の「感触（ザラザラ・トントンなど）」を制御します。
-- `SetSilenceFixedUpdateRate(...)` / `SetSilenceFixedCompletionTime()` : 出力変化時の急激な相変動を抑え、可聴音（ノイズ）を低減します。
-
 ---
 
-## 4. 安全な破棄と終了処理
-
-アプリケーション終了時 (`OnDestroy`) には、フェーズドアレイに予期せぬ超音波が残留することを防ぐため、必ず明示的な停止命令 (`new Null()`) を送信してからコントローラーを `Close()` および `Dispose()` し、安全にハードウェアを切り離します。
-
----
-
-## 5. 関連ファイル構造
+## 6. 関連ファイル構造
 
 本システムに関わるスクリプト群の構造は以下の通りです。
 
 ```text
 Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター (自動制御・設定反映)
- ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partialクラス)
+ ├── HAP_AUTDController_Config.cs  # ハードウェア設定反映 (partial)
+ ├── HAP_AUTDController_Haptics.cs # HCD結果に基づく触覚出力生成ロジック (partial)
+ ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
  ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
+ ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成
  ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
  ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
  └── Editor/
-      └── HAP_AUTDTransformLoaderEditor.cs  # TransformLoader用のカスタムエディタUI（保存・ロードボタン）
+      └── HAP_AUTDTransformLoaderEditor.cs
 ```
