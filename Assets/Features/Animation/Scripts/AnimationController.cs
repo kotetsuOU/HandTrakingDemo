@@ -26,6 +26,9 @@ public class AnimationController : MonoBehaviour
     [Tooltip("HCDパイプライン (接触判定の対象を自動更新するため)")]
     public HCD_Pipeline HCDPipeline;
 
+    [Tooltip("物理パラメータを動的に切り替えるコントローラー")]
+    public Features.Animation.PR_Controller PRController;
+
     [Tooltip("有効にすると、現在アクティブなオブジェクトに合わせてHCDの接触判定対象を自動更新します")]
     public bool autoUpdateCollisionTarget = true;
 
@@ -85,6 +88,11 @@ public class AnimationController : MonoBehaviour
                             }
                         }
                     }
+                }
+
+                if (PRController != null)
+                {
+                    PRController.SetTarget(activeObj);
                 }
             }
         }

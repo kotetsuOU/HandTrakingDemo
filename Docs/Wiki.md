@@ -40,6 +40,7 @@ graph TD
 
         DisplayNode["👓 5. 3D立体視・ハーフミラー制御<br/>(Display3D.md)"]:::display
         ControlNode["🎮 6. アニメーション・操作<br/>(AnimationControls.md)"]:::control
+        PhysicsNode["🌀 7. 物理応答パラメータ<br/>(PhysicalResponse.md)"]:::control
 
         %% パイプラインデータフロー
         Calibration -->|"アライメント行列 / デバッグ参照"| PointCloudNode
@@ -49,6 +50,7 @@ graph TD
         
         %% 独立した制御系
         ControlNode -.->|"カメラ追従・UI操作"| RenderNode
+        ControlNode -->|"ターゲット自動連携"| PhysicsNode
     end
 ```
 
@@ -137,6 +139,15 @@ graph TD
     *   **デバッグ・評価用キャプチャ機能**: `Enter`/`Return` キーによる複数デバッグマップ（オクルージョン、ピクセルタグ、統合デプス、近傍）と現在視点カメラ画像の同期保存。
     *   **リアルタイムパラメータ操作**: 提案手法の一括/個別切り替え（Ablation）、滑らかさ幅（Fade Width）、カーネル関数や分割方向数の切り替えによるインタラクティブな評価。
 *   **詳細はこちら ──> [AnimationControls.md](./AnimationControls.md) を読む**
+
+---
+
+### 🌀 7. [物理応答パラメータ制御システム](./PhysicalResponse.md)
+*   **目的**: Midair Haptics Unity Core における各種物理応答（PhysicsProfile, Softbody等）コンポーネントのパラメータを、実行時に一括で調整・管理します。
+*   **コアモジュールと特徴**:
+    *   **SkinnedMesh 階層の自動検出**: Fox などのターゲットを指定するだけで、自動生成された Softbody や BonePhysics 階層をシーンから見つけ出して自動的にリンクします。
+    *   **リアルタイムパラメータ制御**: Stiffness（硬さ）、Damping（減衰）、Force（反発力）などのパラメータを、インスペクターのスライダー操作で動的かつ一括で管理します。
+*   **詳細はこちら ──> [PhysicalResponse.md](./PhysicalResponse.md) を読む**
 
 ---
 
