@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 
@@ -32,3 +33,4 @@ public class HAP_AUTDTransformLoaderEditor : Editor
         }
     }
 }
+#endif

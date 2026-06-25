@@ -20,6 +20,7 @@ public class PCDSettingsBridge
         enableVirtualContactOcclusion = false,
         virtualContactRadius = 0.03f,
         virtualContactSpacing = 0.005f,
+        virtualContactColor = new Color(0.8f, 0f, 0.4f, 1f),
         enablePixelTagMap = false,
         enableOcclusionMap = false,
         recordOcclusionDebugMap = false,
@@ -187,6 +188,16 @@ public class PCDSettingsBridge
         {
             if (Controller != null) Controller.virtualContactSpacing = value;
             else _fallbackSettings.virtualContactSpacing = value;
+        }
+    }
+
+    public Color virtualContactColor
+    {
+        get => Controller != null ? Controller.virtualContactColor : _fallbackSettings.virtualContactColor;
+        set
+        {
+            if (Controller != null) Controller.virtualContactColor = value;
+            else _fallbackSettings.virtualContactColor = value;
         }
     }
 

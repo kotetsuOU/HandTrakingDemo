@@ -56,6 +56,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public bool enableVirtualContactOcclusion;
         public float virtualContactRadius;
         public float virtualContactSpacing;
+        public Color virtualContactColor;
         public bool enablePixelTagMap;
         public bool enableOcclusionMap;
         public bool recordOcclusionDebugMap;

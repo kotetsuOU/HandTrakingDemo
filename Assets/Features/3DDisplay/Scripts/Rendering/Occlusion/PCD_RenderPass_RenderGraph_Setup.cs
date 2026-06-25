@@ -112,7 +112,7 @@ public partial class PCDRenderPass
                             _virtualContactPointsArray[idx++] = new PCDPointBufferManager.Point
                             {
                                 position = centroid + tangent * dx + bitangent * dy,
-                                color = new Vector3(0.8f, 0f, 0.4f), // Dark magenta to distinguish in PixelTagMap
+                                color = new Vector3(_settings.virtualContactColor.r, _settings.virtualContactColor.g, _settings.virtualContactColor.b), // 色の設定を反映
                                 originType = 0 // Treat as normal point cloud
                             };
                         }

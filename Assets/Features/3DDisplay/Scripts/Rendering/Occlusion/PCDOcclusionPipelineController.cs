@@ -60,6 +60,9 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     [Tooltip("仮想点群の配置間隔 (m)")]
     public float virtualContactSpacing = 0.005f;
 
+    [Tooltip("仮想点群のデバッグ描画色 (SceneビューのGizmoおよびPixelTagMap用)")]
+    public Color virtualContactColor = new Color(0.8f, 0f, 0.4f, 0.8f);
+
     [Header("Display Debug")]
     [Tooltip("点群(黒)と静的メッシュ(白)の由来を示すデバッグマップ(PixelTagMap)を有効にします")]
     public bool enablePixelTagMap = false;
@@ -174,6 +177,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             enableVirtualContactOcclusion = this.enableVirtualContactOcclusion,
             virtualContactRadius = this.virtualContactRadius,
             virtualContactSpacing = this.virtualContactSpacing,
+            virtualContactColor = this.virtualContactColor,
             enablePixelTagMap = this.enablePixelTagMap,
             enableOcclusionMap = this.enableOcclusionMap,
             recordOcclusionDebugMap = this.recordOcclusionDebugMap,
@@ -205,10 +209,9 @@ public class PCDOcclusionPipelineController : MonoBehaviour
         if (trackedClusters == null) return;
 
         float radius = virtualContactRadius;
-        float spacing = Mathf.Max(0.001f, virtualContactSpacing);
         float offset = HCD_Pipeline.Instance.distanceProcessor.surfaceDistanceThreshold;
 
-        Gizmos.color = new Color(0.8f, 0f, 0.4f, 0.8f);
+        Gizmos.color = virtualContactColor;
 
         foreach (var c in trackedClusters)
         {
@@ -220,25 +223,14 @@ public class PCDOcclusionPipelineController : MonoBehaviour
 
             centroid += normal * offset;
 
-            Vector3 tangent = Vector3.Cross(normal, Vector3.up);
-            if (tangent.sqrMagnitude < 0.001f) tangent = Vector3.Cross(normal, Vector3.right);
-            tangent.Normalize();
-            Vector3 bitangent = Vector3.Cross(normal, tangent).normalized;
-
-            int steps = Mathf.CeilToInt(radius / spacing);
-            for (int x = -steps; x <= steps; x++)
-            {
-                for (int y = -steps; y <= steps; y++)
-                {
-                    float dx = x * spacing;
-                    float dy = y * spacing;
-                    if (dx * dx + dy * dy <= radius * radius)
-                    {
-                        Vector3 point = centroid + tangent * dx + bitangent * dy;
-                        Gizmos.DrawCube(point, new Vector3(0.002f, 0.002f, 0.002f));
-                    }
-                }
-            }
+#if UNITY_EDITOR
+            // Draw a cleaner gizmo instead of hundreds of points to reduce clutter
+            UnityEditor.Handles.color = virtualContactColor;
+            UnityEditor.Handles.DrawWireDisc(centroid, normal, radius);
+            
+            // Draw normal line
+            Gizmos.DrawLine(centroid, centroid + normal * 0.05f);
+#endif
         }
     }
 }
