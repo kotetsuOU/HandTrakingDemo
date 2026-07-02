@@ -14,6 +14,13 @@ public enum HapticsGenerationMode
     Precision
 }
 
+public enum AUTDLinkType
+{
+    TwinCAT,
+    SOEM,
+    Simulator
+}
+
 /// <summary>
 /// HCD_Pipeline によって計算された接触重心を受け取り、
 /// AUTD3デバイス群に GSPAT (Acoustic Holography) 等を用いてマルチフォーカス出力を行うコントローラー。
@@ -32,10 +39,17 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
     public HCD_Pipeline hcdPipeline = null!;
 
-    [Header("Operation Settings")]
-    [Tooltip("AutoHCD: HCD_Pipeline の結果を自動で出力します。\nManual: スクリプトから API を叩いて手動制御します。")]
-    public OperationMode operationMode = OperationMode.AutoHCD;
+    [HideInInspector]
+    public bool bypassHaptics = false;
 
+    [Header("Link Settings")]
+    [Tooltip("AUTDデバイスとの接続方法を選択します")]
+    public AUTDLinkType linkType = AUTDLinkType.TwinCAT;
+
+    [Tooltip("SOEM使用時のネットワークアダプタ名（必要であれば指定）")]
+    public string soemAdapterName = "";
+
+    [Header("Operation Settings")]
     [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
     public HapticsGenerationMode generationMode = HapticsGenerationMode.Simplified;
 
@@ -124,13 +138,51 @@ public partial class HAP_AUTDController : MonoBehaviour
         // シーン内のすべての AUTD3Device コンポーネントを収集し、ID順にソートしてデバイス配置情報を生成
         var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None)
             .OrderBy(obj => obj.ID)
-            .Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation));
+            .Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation))
+            .ToList();
+
+        Debug.Log($"[HAP_AUTDController] Attempting to connect to AUTD3. Found {devices.Count} AUTD3Device components in the scene.");
 
         try
         {
-            // TwinCAT リンクで接続
-            _autd = Controller.Open(devices, new AUTD3Sharp.Link.TwinCAT());
+            // タイムアウト対策として5秒に延長
+            var option = new AUTD3Sharp.SenderOption { Timeout = AUTD3Sharp.Duration.FromMillis(5000) };
             
+            switch (linkType)
+            {
+                case AUTDLinkType.TwinCAT:
+                    _autd = Controller.OpenWithOption(devices, new AUTD3Sharp.Link.TwinCAT(), option);
+                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via TwinCAT.");
+                    break;
+                
+                case AUTDLinkType.SOEM:
+                    Debug.LogWarning("[HAP_AUTDController] SOEMを使用するには Unity Package Manager から SOEMリンクパッケージ のインストールが必要です。インストール後、スクリプト内のコメントアウトを外してください。");
+                    // 【注意】SOEMリンクパッケージをインストール後、以下のコメントアウトを外してください
+                    /*
+                    var soemLink = new AUTD3Sharp.Link.SOEM();
+                    // if (!string.IsNullOrEmpty(soemAdapterName)) { soemLink = soemLink.WithIfname(soemAdapterName); }
+                    _autd = Controller.OpenWithOption(devices, soemLink, option);
+                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via SOEM.");
+                    */
+                    break;
+                
+                case AUTDLinkType.Simulator:
+                    Debug.LogWarning("[HAP_AUTDController] Simulatorを使用するには Unity Package Manager から Simulatorリンクパッケージ のインストールが必要です。インストール後、スクリプト内のコメントアウトを外してください。");
+                    // 【注意】Simulatorリンクパッケージをインストール後、以下のコメントアウトを外してください
+                    /*
+                    var simLink = new AUTD3Sharp.Link.Simulator();
+                    _autd = Controller.OpenWithOption(devices, simLink, option);
+                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via Simulator.");
+                    */
+                    break;
+            }
+
+            if (_autd == null)
+            {
+                Debug.LogWarning("[HAP_AUTDController] Link initialization was skipped or failed. Haptics will be bypassed.");
+                return;
+            }
+
             // 初期設定の送信
             ApplyTemperature();
             ApplyModulation();
@@ -165,8 +217,8 @@ public partial class HAP_AUTDController : MonoBehaviour
         // Haptics Sources 内の Modulation Override 解決（HAP_AUTDController_Haptics.cs）
         ResolveModulationOverrides();
 
-        // 手動モードの場合はここで終了し、Updateからの自動送信を行わない
-        if (operationMode != OperationMode.AutoHCD) return;
+        // バイパスが有効な場合はここで終了し、Updateからの自動送信を行わない
+        if (bypassHaptics) return;
         if (hcdPipeline == null) return;
 
         // トラッカーから安定化・追跡済みのクラスタリストを取得

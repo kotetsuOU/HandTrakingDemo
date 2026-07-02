@@ -16,7 +16,7 @@ public partial class HAP_AUTDController
     /// </summary>
     private void ResolveModulationOverrides()
     {
-        if (operationMode != OperationMode.AutoHCD || hcdPipeline == null || generationMode != HapticsGenerationMode.Precision) return;
+        if (bypassHaptics || hcdPipeline == null || generationMode != HapticsGenerationMode.Precision) return;
 
         var overrides = new List<HapticsModulationOverride>();
         if (centroidSource.enabled && centroidSource.modulationOverride.enabled) overrides.Add(centroidSource.modulationOverride);

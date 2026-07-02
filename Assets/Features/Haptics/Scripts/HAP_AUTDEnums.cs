@@ -55,18 +55,4 @@ public enum SilencerMode
     FixedCompletionTime
 }
 
-/// <summary>
-/// コントローラーの動作モード
-/// </summary>
-public enum OperationMode
-{
-    /// <summary>
-    /// HCD_Pipeline から自動的に接触情報（重心）を読み取り、出力を更新するモード
-    /// </summary>
-    AutoHCD,
-    
-    /// <summary>
-    /// 他のスクリプトからの手動API呼び出し（SetFocus等）を待機するモード
-    /// </summary>
-    Manual
-}
+

@@ -5,7 +5,8 @@
         "RealSense",
         "autd3",
         "HapticsCollision",
-        "Core"
+        "Core",
+        "midair-haptics-unity.autdRuntime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
