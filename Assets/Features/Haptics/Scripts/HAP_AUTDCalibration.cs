@@ -23,12 +23,12 @@ public class HAP_AUTDCalibration : MonoBehaviour
     [Header("Focus Settings")]
     public bool useMultiFocus = false;
     [Tooltip("指定されている場合はこのTransformの位置を単焦点として使用します")]
-    public Transform singleFocusTarget;
+    public Transform? singleFocusTarget;
     public Vector3 singleFocusPosition = Vector3.zero;
     public List<Vector3> multiFocusPositions = new List<Vector3> { Vector3.zero };
     
     [Tooltip("キャリブレーション時の正解位置（実際に焦点が合っているべき物理的な位置）")]
-    public Transform truePositionTarget;
+    public Transform? truePositionTarget;
     
     [Range(0f, 1f)]
     public float focusAmplitude = 1f;
@@ -82,7 +82,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
             targetDatagram = new Focus(p, new FocusOption { Intensity = new Intensity(intensityVal) });
         }
 
-        if (allTrue)
+        if (allTrue && autdController.debugDisabler == null)
         {
             autdController.Send(targetDatagram);
         }
@@ -95,6 +95,10 @@ public class HAP_AUTDCalibration : MonoBehaviour
             // デバイスインデックスに応じて出力を切り替え
             autdController.SetGainGroup(dev => 
             {
+                // Disablerがアタッチされていて、かつ無効化されている場合は強制的にNull
+                if (autdController.debugDisabler != null && autdController.debugDisabler.IsDisabled(dev.Idx()))
+                    return "null";
+
                 if (dev.Idx() < targetDevices.Count && targetDevices[dev.Idx()])
                     return "target";
                 else

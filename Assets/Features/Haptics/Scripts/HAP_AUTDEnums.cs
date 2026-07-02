@@ -54,5 +54,3 @@ public enum SilencerMode
     /// </summary>
     FixedCompletionTime
 }
-
-

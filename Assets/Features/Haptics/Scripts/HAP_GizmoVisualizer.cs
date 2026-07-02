@@ -13,7 +13,8 @@ public static class HAP_GizmoVisualizer
         AUTD3Device[] devices, 
         bool enableDirectionalGrouping, 
         float directionalAngleThreshold, 
-        HCD_Pipeline? hcdPipeline)
+        HCD_Pipeline? hcdPipeline,
+        HAP_AUTDDebugDisabler? debugDisabler = null)
     {
         var sortedDevices = devices.OrderBy(d => d.ID).ToArray();
 
@@ -50,6 +51,15 @@ public static class HAP_GizmoVisualizer
 
             foreach (var device in group)
             {
+                bool isDisabled = debugDisabler != null && debugDisabler.IsDisabled(device.ID);
+
+                // Gizmoの描画
+                Gizmos.matrix = Matrix4x4.TRS(device.transform.position, device.transform.rotation, Vector3.one);
+                Gizmos.color = isDisabled ? new Color(0.3f, 0.3f, 0.3f, 0.8f) : groupColor;
+                
+                // AUTD3デバイスの簡易描画 (目安として 192mm x 151mm)
+                Gizmos.DrawWireCube(new Vector3(0.096f, 0.075f, 0), new Vector3(0.192f, 0.151f, 0.01f));
+                
                 // AUTDのマテリアル色を変更（子オブジェクトのRendererに対してMaterialPropertyBlockを適用）
                 var renderers = device.GetComponentsInChildren<Renderer>();
                 foreach (var renderer in renderers)
@@ -57,7 +67,14 @@ public static class HAP_GizmoVisualizer
                     var block = new MaterialPropertyBlock();
                     renderer.GetPropertyBlock(block);
                     
-                    if (enableDirectionalGrouping)
+                    if (isDisabled)
+                    {
+                        // Disabled devices are drawn in dark grey
+                        Color disabledColor = new Color(0.2f, 0.2f, 0.2f, 0.5f);
+                        block.SetColor("_Color", disabledColor);
+                        block.SetColor("_BaseColor", disabledColor);
+                    }
+                    else if (enableDirectionalGrouping)
                     {
                         // 不透明でしっかり色を塗る
                         Color solidColor = new Color(groupColor.r, groupColor.g, groupColor.b, 1f);
@@ -132,12 +149,12 @@ public static class HAP_GizmoVisualizer
 
             if (activeObj != null)
             {
-                DrawVirtualObjectSurfaceMapping(activeObj, deviceGroups, directionalAngleThreshold);
+                DrawVirtualObjectSurfaceMapping(activeObj, deviceGroups, directionalAngleThreshold, debugDisabler);
             }
         }
     }
 
-    private static void DrawVirtualObjectSurfaceMapping(GameObject obj, List<List<AUTD3Device>> deviceGroups, float directionalAngleThreshold)
+    private static void DrawVirtualObjectSurfaceMapping(GameObject obj, List<List<AUTD3Device>> deviceGroups, float directionalAngleThreshold, HAP_AUTDDebugDisabler? debugDisabler)
     {
         // 余計なオブジェクトを付けず、全ての子メッシュから「仮想的なバウンディングボックス」を計算する
         var renderers = obj.GetComponentsInChildren<Renderer>();
@@ -246,6 +263,12 @@ public static class HAP_GizmoVisualizer
             // 全デバイスグループについて、面の法線と向きが閾値以内か判定する
             for (int g = 0; g < deviceGroups.Count; g++)
             {
+                // もしこのグループの全デバイスが無効化されているなら、このグループは色を塗らない
+                if (debugDisabler != null && deviceGroups[g].All(d => debugDisabler.IsDisabled(d.ID)))
+                {
+                    continue;
+                }
+
                 var groupForward = deviceGroups[g][0].transform.forward;
                 // デバイスが面の「外側」から「内側」に向かっている場合、groupForward と -worldNormal のなす角が小さくなる
                 float angle = Vector3.Angle(groupForward, -worldNormal);

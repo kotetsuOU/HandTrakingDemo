@@ -120,6 +120,9 @@ public partial class HAP_AUTDController : MonoBehaviour
     [HideInInspector]
     public List<AUTD3Device> connectedDevices = new List<AUTD3Device>();
 
+    [HideInInspector]
+    public HAP_AUTDDebugDisabler? debugDisabler;
+
     private Controller? _autd = null;
     private bool _isCurrentlyOff = true;
 
@@ -137,6 +140,8 @@ public partial class HAP_AUTDController : MonoBehaviour
 
     void Awake()
     {
+        debugDisabler = GetComponent<HAP_AUTDDebugDisabler>();
+
         if (hcdPipeline == null)
         {
             hcdPipeline = FindAnyObjectByType<HCD_Pipeline>();
@@ -259,7 +264,8 @@ public partial class HAP_AUTDController : MonoBehaviour
                 holoAlgorithm, 
                 enableDirectionalGrouping, 
                 directionalAngleThreshold, 
-                focusIntensityPascal);
+                focusIntensityPascal,
+                debugDisabler);
 
             // 3. デバイスに送信
             _autd.Send(groupDatagram);
@@ -284,11 +290,13 @@ public partial class HAP_AUTDController : MonoBehaviour
         var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None);
         
 #if UNITY_EDITOR
+        var disabler = debugDisabler != null ? debugDisabler : GetComponent<HAP_AUTDDebugDisabler>();
         HAP_GizmoVisualizer.DrawDevicesAndGroupings(
             devices, 
             enableDirectionalGrouping, 
             directionalAngleThreshold, 
-            hcdPipeline
+            hcdPipeline,
+            disabler
         );
 #endif
     }

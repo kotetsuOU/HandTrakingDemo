@@ -21,13 +21,29 @@ public static class HAP_GSPATDeviceAllocator
         HoloAlgorithm holoAlgorithm,
         bool enableDirectionalGrouping,
         float directionalAngleThreshold,
-        float focusIntensityPascal)
+        float focusIntensityPascal,
+        HAP_AUTDDebugDisabler? debugDisabler = null)
     {
         if (clusterData.Count == 0) return new Null();
 
         // 割り当てなし（全デバイスで全クラスタを共有）
         if (!enableDirectionalGrouping || connectedDevices.Count == 0)
         {
+            if (debugDisabler != null && connectedDevices.Any(d => debugDisabler.IsDisabled(d.ID)))
+            {
+                // Disablerで無効化されているデバイスが存在する場合、Groupを使って個別にNullを送る必要がある
+                var overrideGroupDict = new GroupDictionary();
+                var allDatagram = GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
+                foreach (var dev in connectedDevices)
+                {
+                    if (debugDisabler.IsDisabled(dev.ID))
+                        overrideGroupDict.Add(dev.ID.ToString(), new Null());
+                    else
+                        overrideGroupDict.Add(dev.ID.ToString(), allDatagram);
+                }
+                return new Group(dev => dev.Idx().ToString(), overrideGroupDict);
+            }
+
             return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
         }
 
@@ -47,6 +63,9 @@ public static class HAP_GSPATDeviceAllocator
 
             foreach (var dev in connectedDevices)
             {
+                // 無効化されているデバイスは担当デバイスの候補から除外
+                if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
+
                 // デバイスの正面方向と、クラスタの法線（面から外側に向かうベクトル）の逆方向とのなす角（度）
                 float angle = Vector3.Angle(dev.transform.forward, -cData.Cluster.Normal);
                 
@@ -75,6 +94,13 @@ public static class HAP_GSPATDeviceAllocator
         var groupDict = new GroupDictionary();
         foreach (var dev in connectedDevices)
         {
+            if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID))
+            {
+                // 無効化デバイスには強制的にNullを出力
+                groupDict.Add(dev.ID.ToString(), new Null());
+                continue;
+            }
+
             var assignedClusters = deviceAssignments[dev.ID];
             if (assignedClusters.Count == 0)
             {

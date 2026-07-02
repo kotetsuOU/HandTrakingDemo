@@ -58,10 +58,10 @@
 
 #### C#実装：TactileClustering（法線ハイブリッドハッシュ）
 位置と表面法線 $\mathbf{n}$ の両方を量子化し、GPUの `InterlockedAdd` で $O(1)$ で並列加算します。
-1. **座標の量子化**: ボクセルサイズ $S_{cell}$ で離散化。
+1. **座標の量子化**: ボクセルサイズ $S_{\mathrm{cell}}$ で離散化。
 
    ```math
-   \mathbf{q}_i = \left\lfloor \frac{\mathbf{p}_i}{S_{cell}} \right\rfloor
+   \mathbf{q}_i = \left\lfloor \frac{\mathbf{p}_i}{S_{\mathrm{cell}}} \right\rfloor
    ```
 
 2. **法線のビン化**: 法線を空間の6方向（ $\pm X, \pm Y, \pm Z$ ）に分類。
