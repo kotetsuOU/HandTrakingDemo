@@ -41,7 +41,17 @@ public static class HAP_GSPATDeviceAllocator
                     else
                         overrideGroupDict.Add(dev.ID.ToString(), allDatagram);
                 }
-                return new Group(dev => connectedDevices[dev.Idx()].ID.ToString(), overrideGroupDict);
+                string[] deviceIds = new string[connectedDevices.Count];
+                for (int i = 0; i < connectedDevices.Count; i++) {
+                    deviceIds[i] = connectedDevices[i] != null ? connectedDevices[i].ID.ToString() : "null";
+                }
+
+                return new Group(dev => 
+                {
+                    int idx = dev.Idx();
+                    if (idx < 0 || idx >= deviceIds.Length) return "null";
+                    return deviceIds[idx];
+                }, overrideGroupDict);
             }
 
             return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
@@ -112,7 +122,17 @@ public static class HAP_GSPATDeviceAllocator
         }
 
         // Keyは文字列として設定
-        return new Group(dev => connectedDevices[dev.Idx()].ID.ToString(), groupDict);
+        string[] devIds = new string[connectedDevices.Count];
+        for (int i = 0; i < connectedDevices.Count; i++) {
+            devIds[i] = connectedDevices[i] != null ? connectedDevices[i].ID.ToString() : "null";
+        }
+
+        return new Group(dev => 
+        {
+            int idx = dev.Idx();
+            if (idx < 0 || idx >= devIds.Length) return "null";
+            return devIds[idx];
+        }, groupDict);
     }
 
     /// <summary>

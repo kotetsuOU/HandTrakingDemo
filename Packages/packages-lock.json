@@ -8,11 +8,10 @@
       "hash": "a4660d9b7ad4a8e3fd2581c4003ebf79db033001"
     },
     "com.shinolab.autd3": {
-      "version": "https://github.com/shinolab/AUTD3Sharp.git#upm/latest",
+      "version": "file:com.shinolab.autd3",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "aaa920db1bc94ee646ffe394e232630dcb412a54"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.shinolab.midair-haptics-unity-core": {
       "version": "https://github.com/shinolab/midair-haptics-unity-core.git",

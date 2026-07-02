@@ -125,6 +125,10 @@ public partial class HAP_AUTDController : MonoBehaviour
 
     private Controller? _autd = null;
     private bool _isCurrentlyOff = true;
+    
+    // スレッドセーフかつ非同期に送信を行うためのロックとタスク
+    private readonly object _sendLock = new object();
+    private System.Threading.Tasks.Task? _hapticsSendTask = null;
 
     // 前回の設定を記憶して変更を検知するためのフィールド
     private ModulationMode _prevModMode;

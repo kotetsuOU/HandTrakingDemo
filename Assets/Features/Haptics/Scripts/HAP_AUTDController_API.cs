@@ -24,7 +24,7 @@ public partial class HAP_AUTDController
     public void Send(IDatagram datagram)
     {
         if (_autd == null) return;
-        _autd.Send(datagram);
+        lock (_sendLock) { _autd.Send(datagram); }
         _isCurrentlyOff = false;
     }
 
@@ -34,7 +34,7 @@ public partial class HAP_AUTDController
     public void SetNull()
     {
         if (_autd == null) return;
-        _autd.Send(new Null());
+        lock (_sendLock) { _autd.Send(new Null()); }
         _isCurrentlyOff = true;
     }
 
@@ -58,7 +58,7 @@ public partial class HAP_AUTDController
         if (_autd == null) return;
         byte intensityVal = (byte)Mathf.Clamp(amplitude * 255f, 0f, 255f);
         var p = new AUTD3Sharp.Utils.Point3(position.x + offset.x, position.y + offset.y, position.z + offset.z);
-        _autd.Send(new Focus(p, new FocusOption { Intensity = new Intensity(intensityVal) }));
+        lock (_sendLock) { _autd.Send(new Focus(p, new FocusOption { Intensity = new Intensity(intensityVal) })); }
         _isCurrentlyOff = false;
     }
 
@@ -86,9 +86,9 @@ public partial class HAP_AUTDController
         }
 
         if (algorithm == HoloAlgorithm.GSPAT)
-            _autd.Send(new GSPAT(activeFoci, new GSPATOption()));
+            lock (_sendLock) { _autd.Send(new GSPAT(activeFoci, new GSPATOption())); }
         else
-            _autd.Send(new Naive(activeFoci, new NaiveOption()));
+            lock (_sendLock) { _autd.Send(new Naive(activeFoci, new NaiveOption())); }
             
         _isCurrentlyOff = false;
     }
@@ -112,7 +112,7 @@ public partial class HAP_AUTDController
             new ControlPoints(new[] { new ControlPoint(new AUTD3Sharp.Utils.Point3(p.x + offset.x, p.y + offset.y, p.z + offset.z)) }, intensity)
         ).ToArray();
 
-        _autd.Send(new FociSTM(foci, frequency * Hz));
+        lock (_sendLock) { _autd.Send(new FociSTM(foci, frequency * Hz)); }
         _isCurrentlyOff = false;
     }
 
@@ -135,7 +135,7 @@ public partial class HAP_AUTDController
             fociSTM.Add(new ControlPoints(points, intensity));
         }
         
-        _autd.Send(new FociSTM(fociSTM, frequency * Hz));
+        lock (_sendLock) { _autd.Send(new FociSTM(fociSTM, frequency * Hz)); }
         _isCurrentlyOff = false;
     }
 
@@ -149,7 +149,7 @@ public partial class HAP_AUTDController
     {
         if (_autd == null) return;
         var mode = modeOverride ?? gainStmMode;
-        _autd.Send(new GainSTM(frames, frequency * Hz, new GainSTMOption { Mode = mode }));
+        lock (_sendLock) { _autd.Send(new GainSTM(frames, frequency * Hz, new GainSTMOption { Mode = mode })); }
         _isCurrentlyOff = false;
     }
 
@@ -161,7 +161,7 @@ public partial class HAP_AUTDController
     public void SetCustomGain(Func<Device, Func<Transducer, Drive>> f)
     {
         if (_autd == null) return;
-        _autd.Send(new AUTD3Sharp.Gain.Custom(f));
+        lock (_sendLock) { _autd.Send(new AUTD3Sharp.Gain.Custom(f)); }
         _isCurrentlyOff = false;
     }
 
@@ -171,7 +171,7 @@ public partial class HAP_AUTDController
     public void SetGainGroup(Func<Device, object?> keyMap, GroupDictionary datagramMap)
     {
         if (_autd == null) return;
-        _autd.Send(new Group(keyMap, datagramMap));
+        lock (_sendLock) { _autd.Send(new Group(keyMap, datagramMap)); }
         _isCurrentlyOff = false;
     }
 
@@ -210,7 +210,7 @@ public partial class HAP_AUTDController
     {
         if (_autd == null) return;
         // 基本周波数 = サンプリング周波数 / バッファ長
-        _autd.Send(new AUTD3Sharp.Modulation.Custom(buffer, (frequency * buffer.Length) * Hz));
+        lock (_sendLock) { _autd.Send(new AUTD3Sharp.Modulation.Custom(buffer, (frequency * buffer.Length) * Hz)); }
     }
 
     // ---------- サイレンサー(Silencer) APIs ----------

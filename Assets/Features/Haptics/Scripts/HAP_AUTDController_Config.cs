@@ -42,10 +42,10 @@ public partial class HAP_AUTDController
             switch (modulationMode)
             {
                 case ModulationMode.Sine:
-                    _autd.Send(new Sine(freq: sineFrequency * Hz, option: new SineOption()));
+                    lock (_sendLock) { _autd.Send(new Sine(freq: sineFrequency * Hz, option: new SineOption())); }
                     break;
                 case ModulationMode.Static:
-                    _autd.Send(new Static());
+                    lock (_sendLock) { _autd.Send(new Static()); }
                     break;
             }
             
@@ -72,13 +72,13 @@ public partial class HAP_AUTDController
             switch (silencerMode)
             {
                 case SilencerMode.Disabled:
-                    _autd.Send(Silencer.Disable());
+                    lock (_sendLock) { _autd.Send(Silencer.Disable()); }
                     break;
                 case SilencerMode.FixedUpdateRate:
-                    _autd.Send(new Silencer(new FixedUpdateRate { Intensity = silencerStepAmplitude, Phase = silencerStepPhase }));
+                    lock (_sendLock) { _autd.Send(new Silencer(new FixedUpdateRate { Intensity = silencerStepAmplitude, Phase = silencerStepPhase })); }
                     break;
                 case SilencerMode.FixedCompletionTime:
-                    _autd.Send(new Silencer(new FixedCompletionTime()));
+                    lock (_sendLock) { _autd.Send(new Silencer(new FixedCompletionTime())); }
                     break;
             }
             
@@ -102,7 +102,7 @@ public partial class HAP_AUTDController
         
         try
         {
-            _autd.Send(new ForceFan(dev => enableFan));
+            lock (_sendLock) { _autd.Send(new ForceFan(dev => enableFan)); }
             _prevFanState = enableFan;
         }
         catch (Exception ex)

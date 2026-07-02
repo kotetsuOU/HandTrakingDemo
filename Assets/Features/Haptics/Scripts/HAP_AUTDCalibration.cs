@@ -96,19 +96,27 @@ public class HAP_AUTDCalibration : MonoBehaviour
             groupDict.Add("null", new Null());
 
             // デバイスインデックスに応じて出力を切り替え
+            string[] mapping = new string[autdController.connectedDevices.Count];
+            for (int i = 0; i < autdController.connectedDevices.Count; i++) {
+                if (autdController.connectedDevices[i] == null) {
+                    mapping[i] = "null";
+                    continue;
+                }
+                var deviceId = autdController.connectedDevices[i].ID;
+                if (autdController.debugDisabler != null && autdController.debugDisabler.IsDisabled(deviceId)) {
+                    mapping[i] = "null";
+                } else if (i < targetDevices.Count && targetDevices[i]) {
+                    mapping[i] = "target";
+                } else {
+                    mapping[i] = "null";
+                }
+            }
+
             autdController.SetGainGroup(dev => 
             {
                 int deviceIndex = dev.Idx();
-                var deviceId = autdController.connectedDevices[deviceIndex].ID;
-
-                // Disablerがアタッチされていて、かつ無効化されている場合は強制的にNull
-                if (autdController.debugDisabler != null && autdController.debugDisabler.IsDisabled(deviceId))
-                    return "null";
-
-                if (deviceIndex < targetDevices.Count && targetDevices[deviceIndex])
-                    return "target";
-                else
-                    return "null";
+                if (deviceIndex < 0 || deviceIndex >= mapping.Length) return "null";
+                return mapping[deviceIndex];
             }, groupDict);
         }
     }

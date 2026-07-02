@@ -52,8 +52,18 @@ public partial class HAP_AUTDController
             // 3. デバイスに送信
             if (_autd != null)
             {
-                _autd.Send(groupDatagram);
-                _isCurrentlyOff = false;
+                if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
+                {
+                    _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
+                    {
+                        try 
+                        {
+                            lock (_sendLock) { _autd.Send(groupDatagram); }
+                        }
+                        catch (System.Exception e) { Debug.LogException(e); }
+                    });
+                    _isCurrentlyOff = false;
+                }
             }
         }
         else
@@ -61,8 +71,18 @@ public partial class HAP_AUTDController
             // 接触がなくなった場合、出力を停止 (Null)
             if (!_isCurrentlyOff && _autd != null)
             {
-                _autd.Send(new Null());
-                _isCurrentlyOff = true;
+                if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
+                {
+                    _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
+                    {
+                        try 
+                        {
+                            lock (_sendLock) { _autd.Send(new Null()); }
+                        }
+                        catch (System.Exception e) { Debug.LogException(e); }
+                    });
+                    _isCurrentlyOff = true;
+                }
             }
         }
     }
