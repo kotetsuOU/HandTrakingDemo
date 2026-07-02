@@ -14,46 +14,13 @@
 //   内部のみ → pointBuffer をそのまま使用
 //   両方あり → combinedBuffer に結合（GPU側の MergeBuffer カーネルで実行）
 //
-// 【RTHandle の保持】
-//   コンピュートシェーダーで使用する中間テクスチャの RTHandle もこのクラスが保持する。
-//   アロケーション/解放は PCD_RenderPass_Allocation.cs が担当する。
+// 注: RTHandle の管理は PCDResourcePool が担当するようになりました。
 // =============================================================================
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
-public partial class PCDPointBufferManager
+public class PCDPointBufferManager
 {
-    // --- RTHandles for Internal Compute ---
-    public RTHandle _colorMapHandle;
-    public RTHandle _depthMapHandle;
-    public RTHandle _viewPositionMapHandle;
-    public RTHandle _originTypeMapHandle;
-    public RTHandle _gridZMinMapHandle;
-    public RTHandle _densityMapHandle;
-    public RTHandle _gridLevelMapHandle;
-    public RTHandle _filteredGridLevelMapHandle;
-    public RTHandle _neighborhoodSizeMapHandle;
-    public RTHandle _correctedNeighborhoodSizeMapHandle;
-    
-    // Output / Result Maps
-    public RTHandle _occlusionResultMapHandle;
-    public RTHandle _occlusionValueMapHandle;
-    public RTHandle _debugDisplayMapHandle;
-    public RTHandle _neighborCountMapHandle;
-    public RTHandle _integratedDepthMapHandle;
-    public RTHandle _neighborhoodMapHandle;
-    public RTHandle _finalImageHandle;
-
-    public RTHandle depthPyramidL1, depthPyramidL2, depthPyramidL3, depthPyramidL4, depthPyramidL5, depthPyramidL6;
-    public RTHandle[] pullPushPyramid;
-    
-    public RTHandle _morphColorTempHandle;
-    public RTHandle _morphTypeTempHandle;
-
-    public RTHandle morphTypePyramidL1, morphTypePyramidL2, morphTypePyramidL3, morphTypePyramidL4, morphTypePyramidL5, morphTypePyramidL6;
-    public RTHandle morphColorPyramidL1, morphColorPyramidL2, morphColorPyramidL3, morphColorPyramidL4, morphColorPyramidL5, morphColorPyramidL6;
-
     // 点群データの1点分を表す構造体
     public struct Point
     {
@@ -107,7 +74,7 @@ public partial class PCDPointBufferManager
     public int ExternalPointCount => _externalPointCount;
     public bool UseExternalBuffer => _useExternalBuffer;
     public ComputeBuffer CombinedBuffer => _combinedBuffer;
-    public bool IsDataDirty => _isDataDirty; // 最適化やデバッグ用のフラグ確認
+    public bool IsDataDirty => _isDataDirty;
 
     // 外部から渡されるGPUバッファを設定する
     public void SetExternalBuffer(ComputeBuffer buffer, int count)
@@ -164,6 +131,203 @@ public partial class PCDPointBufferManager
     public void SetDataDirty()
     {
         _isDataDirty = true;
+    }
+
+    // データに変更があった場合のみ、キャッシュの再構築とバッファ更新をおこなう
+    public void Update()
+    {
+        if (_isDataDirty)
+        {
+            MergeAndCachePoints();
+            UpdateComputeBuffer();
+        }
+    }
+
+    // 必要に応じて、外部バッファと内部バッファを結合するためのバッファサイズを確保・再確保する
+    public void EnsureCombinedBuffer(int totalCount)
+    {
+        if (_combinedBuffer == null || !_combinedBuffer.IsValid() || _combinedBuffer.count < totalCount)
+        {
+            _combinedBuffer?.Release();
+            _combinedBuffer = new ComputeBuffer(totalCount, STRIDE);
+        }
+    }
+
+    // オクルージョン干渉用の静的メッシュを追加する
+    public void AddStaticMesh(Mesh mesh, Transform transform, PCDProcessingMode mode)
+    {
+        if (mesh != null && transform != null)
+        {
+            var existing = _staticMeshes.Find(p => p.mesh == mesh && p.transform == transform);
+            if (existing == null)
+            {
+                _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform, mode = mode });
+                _isDataDirty = true;
+                Debug.Log($"[PCDPointBufferManager] Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
+            }
+            else if (existing.mode != mode)
+            {
+                existing.mode = mode;
+                _isDataDirty = true;
+            }
+        }
+    }
+
+    // 登録されている静的メッシュを削除する
+    public void RemoveStaticMesh(Mesh mesh, Transform transform)
+    {
+        var pair = _staticMeshes.Find(p => p.mesh == mesh && p.transform == transform);
+        if (pair != null)
+        {
+            _staticMeshes.Remove(pair);
+            _isDataDirty = true;
+            Debug.Log($"[PCDPointBufferManager] Static mesh '{mesh.name}' removed from Transform '{transform.name}'.");
+        }
+    }
+
+    // 登録済みメッシュにDepthMap（深さのレンダリング用）モードのものが存在するか確認する
+    public bool HasDepthMapMeshes()
+    {
+        return _staticMeshes.Exists(p => p.mode == PCDProcessingMode.DepthMap);
+    }
+
+    // 登録済みメッシュにPointCloud（点群として扱う）モードのものが存在するか確認する
+    public bool HasPointCloudMeshes()
+    {
+        return _staticMeshes.Exists(p => p.mode == PCDProcessingMode.PointCloud);
+    }
+
+    // 静的メッシュの頂点と、CPU側の動的点群を一つのPoint構造体配列（キャッシュ）に統合する
+    private void MergeAndCachePoints()
+    {
+        int dataPointCount = 0;
+        // 外部バッファ（GPU）を使わない場合のみ、CPU側の点群データを統合対象とする
+        if (!_useExternalBuffer && _dynamicData != null && _dynamicData.PointCount > 0)
+        {
+            dataPointCount = _dynamicData.PointCount;
+        }
+
+        int totalMeshPointCount = 0;
+        // 点群モードに設定されているすべての静的メッシュの頂点数をカウントする
+        foreach (var pair in _staticMeshes)
+        {
+            if (pair.mesh == null || pair.transform == null) continue;
+            if (!pair.mesh.isReadable) continue;
+            // PointCloudモードのメッシュのみポイントバッファに追加する
+            if (pair.mode != PCDProcessingMode.PointCloud) continue;
+            totalMeshPointCount += pair.mesh.vertexCount;
+        }
+
+        // 合計の頂点数
+        _pointCount = dataPointCount + totalMeshPointCount + _virtualContactPointCount;
+
+        // 点数がゼロなら配列を破棄して終了
+        if (_pointCount == 0)
+        {
+            _pointsCache = null;
+            return;
+        }
+
+        // 配列の確保が必要なら十分なサイズを確保する（再生成によるGCを削減）
+        if (_pointsCache == null || _pointsCache.Length < _pointCount)
+        {
+            int newSize = Mathf.Max(_pointCount, _pointsCache != null ? _pointsCache.Length * 2 : 1024);
+            _pointsCache = new Point[newSize];
+        }
+
+        int cacheIndex = 0;
+
+        // 1. CPU動的点群データを配列へ格納
+        if (dataPointCount > 0)
+        {
+            for (int i = 0; i < dataPointCount; i++)
+            {
+                _pointsCache[cacheIndex] = new Point
+                {
+                    position = _dynamicData.Vertices[i],
+                    color = new Vector3(_dynamicData.Colors[i].r, _dynamicData.Colors[i].g, _dynamicData.Colors[i].b),
+                    originType = 0
+                };
+                cacheIndex++;
+            }
+        }
+
+        // 2. 静的メッシュ（PointCloudモード）の頂点情報を順番に配列へ格納
+        foreach (var pair in _staticMeshes)
+        {
+            if (pair.mesh == null || !pair.mesh.isReadable || pair.transform == null) continue;
+            if (pair.mode != PCDProcessingMode.PointCloud) continue;
+
+            int meshPointCount = pair.mesh.vertexCount;
+            if (meshPointCount == 0) continue;
+
+            Matrix4x4 localToWorld = pair.transform.localToWorldMatrix;
+
+            if (pair.cachedPoints == null || pair.cachedPoints.Length != meshPointCount || pair.lastMatrix != localToWorld)
+            {
+                pair.mesh.GetVertices(_tempVertices);
+                pair.mesh.GetColors(_tempColors);
+                bool hasMeshColors = _tempColors.Count == meshPointCount;
+
+                if (pair.cachedPoints == null || pair.cachedPoints.Length != meshPointCount)
+                {
+                    pair.cachedPoints = new Point[meshPointCount];
+                }
+
+                for (int i = 0; i < meshPointCount; i++)
+                {
+                    Vector3 color = hasMeshColors ? new Vector3(_tempColors[i].r, _tempColors[i].g, _tempColors[i].b) : Vector3.one;
+                    Vector3 worldPos = localToWorld.MultiplyPoint3x4(_tempVertices[i]);
+
+                    pair.cachedPoints[i] = new Point
+                    {
+                        position = worldPos,
+                        color = color,
+                        originType = 1
+                    };
+                }
+                pair.lastMatrix = localToWorld;
+            }
+
+            System.Array.Copy(pair.cachedPoints, 0, _pointsCache, cacheIndex, meshPointCount);
+            cacheIndex += meshPointCount;
+        }
+
+        // 3. 仮想接触ポイント（CPU側で生成された面上の点群）を配列へ格納
+        if (_virtualContactPointCount > 0 && _virtualContactPoints != null)
+        {
+            System.Array.Copy(_virtualContactPoints, 0, _pointsCache, cacheIndex, _virtualContactPointCount);
+            cacheIndex += _virtualContactPointCount;
+        }
+    }
+
+    // 結合・キャッシュされた頂点情報をもとに、ComputeShaderへ渡すためのバッファを更新する
+    private void UpdateComputeBuffer()
+    {
+        if (_pointCount == 0 || _pointsCache == null)
+        {
+            _pointBuffer?.Release();
+            _pointBuffer = null;
+            _isDataDirty = false;
+            return;
+        }
+
+        // バッファが未割り当てか、サイズが不足している場合のみ再生成する
+        if (_pointBuffer == null || !_pointBuffer.IsValid() || _pointBuffer.count < _pointCount)
+        {
+            int oldSize = (_pointBuffer != null && _pointBuffer.IsValid()) ? _pointBuffer.count : 0;
+            _pointBuffer?.Release();
+            int newSize = Mathf.Max(_pointCount, Mathf.Max(oldSize * 2, 1024));
+            _pointBuffer = new ComputeBuffer(newSize, STRIDE);
+        }
+
+        // キャッシュした頂点配列のうち、有効な部分だけをGPU側へ転送
+        _pointBuffer.SetData(_pointsCache, 0, 0, _pointCount);
+        if (_pointCount > 0 && _isDataDirty)
+        {
+            Debug.Log($"[PCDPointBufferManager] ComputeBuffer updated with {_pointCount} points (Static/Internal).");
+        }
+        _isDataDirty = false;
     }
 
     // システムの破棄時に、割り当てた全GPUバッファ(ComputeBuffer)と参照を適切に解放・クリアする

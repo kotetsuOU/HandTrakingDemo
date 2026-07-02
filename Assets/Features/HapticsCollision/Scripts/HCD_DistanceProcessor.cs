@@ -155,18 +155,23 @@ public class HCD_DistanceProcessor : IHCD_Processor
                 
                 targetTransform = targetMeshFilters[0].transform;
 
-                if (_combineInstances == null || _combineInstances.Length != targetMeshFilters.Length)
-                {
-                    _combineInstances = new CombineInstance[targetMeshFilters.Length];
-                }
+                var validInstances = new System.Collections.Generic.List<CombineInstance>();
 
                 for (int i = 0; i < targetMeshFilters.Length; i++)
                 {
                     var mf = targetMeshFilters[i];
                     if (mf == null || mf.sharedMesh == null) continue;
+                    
+                    if (!mf.sharedMesh.isReadable)
+                    {
+                        Debug.LogWarning($"[HCD_DistanceProcessor] Mesh '{mf.sharedMesh.name}' on '{mf.gameObject.name}' is not readable. Please enable 'Read/Write Enabled' in the import settings. Skipping this mesh for haptic collision.");
+                        continue;
+                    }
 
-                    _combineInstances[i].mesh = mf.sharedMesh;
-                    _combineInstances[i].transform = targetTransform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+                    CombineInstance ci = new CombineInstance();
+                    ci.mesh = mf.sharedMesh;
+                    ci.transform = targetTransform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+                    validInstances.Add(ci);
 
                     var renderer = mf.GetComponent<MeshRenderer>();
                     var smrBounds = renderer != null ? renderer.bounds : new Bounds(mf.transform.position, mf.transform.lossyScale);
@@ -182,6 +187,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
                     }
                 }
 
+                _combineInstances = validInstances.ToArray();
                 _bakedMesh.CombineMeshes(_combineInstances, true, true);
                 
                 _meshVertices = _bakedMesh.vertices;

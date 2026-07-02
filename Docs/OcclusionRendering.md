@@ -115,10 +115,10 @@ URPとの統合や設定、デバッグなどを担当するクラス群です�
 
 ---
 
-#### PCDRenderPass
+#### PCDRenderPass とステージアーキテクチャ
 
 This section describes the rendering pipeline and internal module structure of `PCDRenderPass`.
-`PCDRenderPass` は非常に多岐にわたる処理を実行するため、保守性向上の目的で `partial` クラスに細かく分割されています。
+`PCDRenderPass` は非常に多岐にわたる処理を実行するため、保守性と拡張性を高める目的で **「パイプライン・ステージ（Stage）アーキテクチャ」** に分割・再構築されています。従来の `partial` クラスによる密結合を廃止し、明確な責務分けを行っています。
 
 ##### 1. Pipeline Flow
 
@@ -134,132 +134,28 @@ Main execution consists of three major stages:
 * [ ] ExecuteComputePass
 * [ ] ExecuteBlitPass
 
-##### 2. RecordRenderGraph
+##### 2. 基盤・データモジュール
 
-Responsible for constructing the render graph and scheduling passes. URP RenderGraph に対して、「Compute Pass（オクルージョン計算）」と「Blit Pass（結果画像の転送）」の2つのパスを登録し、深度ピラミッドなどの GPU テクスチャメモリの確保（Allocation）を宣言します。
+`PCDRenderPass` が各ステージを呼び出す際に、状態やリソースを安全に引き回すための基盤クラス群です。
 
-* [ ] Setup resources
-* [ ] Register compute pass
-* [ ] Register blit pass
+* [PCDPipelineContext.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDPipelineContext.cs) — (Blackboard) パイプライン実行中のすべての状態、リソース参照、設定値を保持するデータコンテナです。
+* [PCDResourcePool.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDResourcePool.cs) — RenderGraph を跨いで永続化される GPU テクスチャ（`RTHandle`）やコンピュートバッファの確保とライフサイクル管理を中央集権的に行います。
+* [PCDKernelRegistry.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDKernelRegistry.cs) — Compute Shader の各カーネルインデックスを静的に解決・保持し、ディスパッチ時のオーバーヘッドをなくします。
+* [IPCDPipelineStage.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/IPCDPipelineStage.cs) — パイプラインの各処理ステップが実装すべきインターフェースを定義します。
 
-<details>
-<summary>Setup resources</summary>
+##### 3. ExecuteComputePass (Pipeline Stages)
 
-Allocates all render targets and buffers required for compute and output stages.
-* [PCD_RenderPass_RenderGraph_Setup.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Setup.cs)
-</details>
+GPU 上で Compute Shader のカーネルを順番に Dispatch するコアフェーズは、`IPCDPipelineStage` を実装する以下の5つの独立したステージクラスによって直列実行されます。
 
-<details>
-<summary>Register compute pass</summary>
+* [PCDPreProcessStage.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDPreProcessStage.cs) — (Pre) マップクリア、カメラデプスの初期化、点群のスクリーン座標への投影、および密度・LOD の計算を行います。
+* [PCDDepthPyramidStage.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDDepthPyramidStage.cs) — (Depth) スクリーンスペースに投影された深度情報から、高速なオクルージョン参照のための深度ピラミッド（L1〜L6）を構築し、勾配補正を適用します。
+* [PCDOcclusionStage.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDOcclusionStage.cs) — (Occlusion) 構築されたピラミッド深度と現在の点群深度を比較し、メインとなるオクルージョン計算（遮蔽度推定）を実行します。
+* [PCDHoleFillStage.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDHoleFillStage.cs) — (HoleFill) 点群特有の隙間を埋めるため、エッジ保存型の Joint Bilateral フィルタや Pull-Push ピラミッド法などの画像空間ホールフィリングを実行します。
+* [PCDPostProcessStage.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDPostProcessStage.cs) — (Post) 最終的なモルフォロジー演算（膨張・収縮）、デバッグ出力（タグマップのルーティングなど）を行います。
 
-Adds the compute pass to the render graph.
-* [PCD_RenderPass_RenderGraph_Compute.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Compute.cs)
-</details>
+##### 4. デバッグモジュール
 
-<details>
-<summary>Register blit pass</summary>
-
-Adds the final output pass for displaying the rendered image.
-* [PCD_RenderPass_RenderGraph_Blit.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_RenderGraph_Blit.cs)
-</details>
-
-##### 3. ExecuteComputePass
-
-This is the core rendering stage. GPU 上で Compute Shader のカーネルを順番に Dispatch します。
-
-* [ ] Pre
-* [ ] Depth
-* [ ] Occlusion
-* [ ] HoleFill
-* [ ] Post
-
-<details>
-<summary>Pre (Preprocessing)</summary>
-
-Initial preprocessing of point cloud data and intermediate buffers.
-* [PCD_RenderPass_Execute_Pre.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Pre.cs) — マップクリア、投影、密度・LOD
-</details>
-
-<details>
-<summary>Depth (Depth processing)</summary>
-
-Computes depth-related information used for occlusion handling.
-* [PCD_RenderPass_Execute_Depth.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Depth.cs) — 深度ピラミッド構築・勾配補正
-</details>
-
-<details>
-<summary>Occlusion (Occlusion internals)</summary>
-
-Main occlusion computation stage.
-* [PCD_RenderPass_Execute_Occlusion.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Occlusion.cs) — オクルージョン計算
-</details>
-
-<details>
-<summary>HoleFill (Hole filling)</summary>
-
-Fills sparse regions caused by occlusion or point sparsity.
-* [PCD_RenderPass_Execute_HoleFill.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_HoleFill.cs) — ホールフィリング
-</details>
-
-<details>
-<summary>Post (Post processing)</summary>
-
-Final refinement before output.
-* [PCD_RenderPass_Execute_Post.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Execute_Post.cs) — デバッグ出力・合成等
-</details>
-
-##### 4. ExecuteBlitPass
-
-Final pass that writes the result to the screen. 最終的な `OcclusionMap` を URP のカメラターゲットカラーにアルファ合成（合成マテリアルを使用）して画面に反映させます。
-
-* [ ] Copy render texture
-* [ ] Output to display
-
-##### 5. Utility Modules
-
-These modules support the main pipeline but are not part of execution flow.
-
-* [ ] API
-* [ ] Allocation
-* [ ] BindParams
-* [ ] Debug
-* [ ] Kernels
-
-<details>
-<summary>API</summary>
-
-Provides external interfaces for controlling `PCDRenderPass`.
-* [PCD_RenderPass_API.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_API.cs) — 外部設定・実行API
-</details>
-
-<details>
-<summary>Allocation</summary>
-
-Handles GPU resource allocation.
-* [PCD_RenderPass_Allocation.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Allocation.cs) — RenderGraphリソース確保
-</details>
-
-<details>
-<summary>BindParams</summary>
-
-Binds parameters to compute shaders.
-* [PCD_RenderPass_BindParams.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_BindParams.cs) — カーネル引数・定数のバインド
-</details>
-
-<details>
-<summary>Debug</summary>
-
-Provides debug output and diagnostics.
-* [PCD_RenderPass_Debug.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Debug.cs) — 非同期 GPU Readback 制御
-</details>
-
-<details>
-<summary>Kernels</summary>
-
-Contains compute shader kernel definitions and dispatch settings.
-* [PCD_RenderPass_Kernels.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCD_RenderPass_Kernels.cs) — カーネルインデックスとディスパッチ管理
-* [PCDRenderPass.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDRenderPass.cs) — メイン処理・初期化・ライフサイクル管理
-</details>
+* [PCDDebugReadbackManager.cs](./Assets/Features/3DDisplay/Scripts/Rendering/Occlusion/PCDDebugReadbackManager.cs) — 非同期の GPU Readback (`AsyncGPUReadback`) を用いて、GPU 上の各種演算結果マップ（OcclusionMap, DebugMap等）を CPU 側へストールなしに読み出し、PNG や CSV として保存する処理を担当します。
 
 ---
 
@@ -545,6 +441,13 @@ Unity 6 で導入された新しい RenderGraph アーキテクチャ (UnsafePas
 *   **課題**: 開発中、NeighborCountMap など一部のバッファが「デバッグ時のみ使用される可視化マップ」と誤認され、最適化時に確保処理（Alloc）から除外されましたが、Compute Shader 側では RWTexture2D としてバインドが必須定義されていたため、Property at kernel index is not set となり処理がサイレントに失敗・描画ループがクラッシュする事態となりました。
 *   **対応方針**: Compute Shader の処理パイプライン（特に穴埋め等の後処理）に組み込まれている RW テクスチャは、出力の有効/無効にかかわらずダミーまたは実体としての RTHandle アロケーションとバインディングが必須です。これらのマップは PCD_RenderPass_Allocation 内で常に永続的に確保するよう再設計されています。
 
-### D. ZBinningJob 等の二次災害クラッシュ
+### E. ZBinningJob 等の二次災害クラッシュ
 *   **課題**: RenderGraph 内で上記のような例外（キャスト失敗やバインド漏れ）が発生した場合、URP 側の描画ループが途中で強制終了します。その結果、直前のライティングパス等で発行されたジョブ（例: ZBinningJob）が完了（Complete()）しないまま放置され、次のフレームまたは別カメラの描画時に InvalidOperationException: The previously scheduled job ZBinningJob writes to the Unity.Collections.NativeArray... という二次災害的な例外が発生します。
 *   **対応方針**: この種のエラーは単なる「巻き込みクラッシュ」の症状であるため、直前に出力されている RenderGraph 起因のエラー（根本原因）を解決することで自動的に解消されます。
+
+### F. 半透明処理とハーフミラー空間反転における行列の罠
+*   **課題**: ハーフミラー利用時、X軸方向の視差を反転させるため `ViewMatrix` に反転行列を乗算していますが、それに伴い仮想オブジェクトのスクリーン座標（`InverseProjectionMatrix` で復元された座標）が狂い、オクルージョン計算がスキップされる不具合が発生しました。
+*   **根本原因**: DirectX 等のモダン API 環境において、`GL.GetGPUProjectionMatrix` は深度範囲を `0 ~ 1` 等へ API 専用に変換（Reversed-Z 等）して出力します。しかし、Compute Shader 内の `InitFromCamera` では標準的な OpenGL 空間（`-1 ~ 1`）を前提とした数式 `cameraDepth * 2.0 - 1.0` をハードコードしているため、API変換済みの GPU 逆行列を適用すると座標が破綻（Z値が宇宙の彼方へ飛ぶなど）します。
+*   **対応方針**:
+    1.  `ComputeShader` への `InverseProjectionMatrix` のバインドには、常に純粋な `camera.projectionMatrix.inverse`（OpenGL 標準空間用）を使用します。
+    2.  `_IsReversedZ` パラメータを環境に応じて正しく判定し（`SystemInfo.usesReversedZBuffer`）、シェーダー内部で深度値を正規空間へ安全にデコードする処理を復活させました。これにより仮想オブジェクトと実点群の座標系が寸分違わず一致し、正確な遮蔽関係が再構築されます。
