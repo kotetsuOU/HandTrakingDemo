@@ -181,11 +181,51 @@ Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター (自動制御・設定反映)
  ├── HAP_AUTDController_Config.cs  # ハードウェア設定反映 (partial)
  ├── HAP_AUTDController_Haptics.cs # HCD結果に基づく触覚出力生成ロジック (partial)
- ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
- ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
- ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成
- ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
- ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
- └── Editor/
-      └── HAP_AUTDTransformLoaderEditor.cs
+  ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
+  ├── HAP_AUTDCalibration.cs        # 空間キャリブレーション・デバイス出力テスト用ツール
+  ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
+  ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成
+  ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
+  ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
+  └── Editor/
+       ├── HAP_AUTDTransformLoaderEditor.cs
+       └── HAP_AUTDCalibrationEditor.cs  # キャリブレーション設定のエディタ保持用
 ```
+
+---
+
+## 7. AUTD3 リンクモードの設定 (TwinCAT / SOEM / Simulator)
+
+`HAP_AUTDController` は、AUTD3ハードウェアとの通信手段（Link Type）をInspectorから切り替えられるように設計されています。
+
+### 7.1 追加された設定項目 (Inspector)
+- **`Link Type`**: `AUTDLinkType` Enumを通じて、接続方法を `TwinCAT`, `SOEM`, `Simulator` から選択可能です。
+- **`Soem Adapter Name`**: SOEMを使用する際に、バインディングするネットワークアダプタ名（例: `イーサネット 7`）を指定するためのフィールドです。
+
+### 7.2 コンパイルエラー対策と留意点 (v38仕様)
+AUTD3Sharp (v38) では、`TwinCAT`以外のリンク（`SOEM` および `Simulator`）はコアパッケージに含まれておらず、UnityのPackage Managerから別途専用パッケージとして導入する必要があります。
+現状のプロジェクト（デフォルト状態）にはコアパッケージしか存在しないため、スクリプト内でSOEMやSimulatorの初期化コードをそのまま記述するとコンパイルエラー（クラス未定義）となります。
+
+これを防ぐため、`HAP_AUTDController.cs` の `Awake()` メソッド内では、**SOEMおよびSimulatorに関する処理は一時的にコメントアウトして保護**されています。
+
+今後これらのリンクを使用する場合は、以下の手順で有効化してください。
+
+1. **パッケージの追加**
+   Unity Package Manager (Add package from git URL) から対象のパッケージを追加します。
+   - SOEMを使用する場合: `https://github.com/shinolab/AUTD3Sharp.git?path=src/autd3-link-soem#upm/latest`
+   - Simulatorを使用する場合: `https://github.com/shinolab/AUTD3Sharp.git?path=src/autd3-link-simulator#upm/latest`
+2. **スクリプトの有効化**
+   `HAP_AUTDController.cs` を開き、`AUTDLinkType.SOEM` および `AUTDLinkType.Simulator` の `case` 文内にある `/* ... */` のコメントアウトを解除してください。
+
+---
+
+## 8. 空間キャリブレーション機能 (HAP_AUTDCalibration)
+
+`HAP_AUTDCalibration` コンポーネントは、AUTD3デバイスと仮想空間との物理的な位置合わせ（キャリブレーション）および単体テストを支援する専用ツールです。
+
+### 8.1 主な機能
+- **出力のオーバーライド**: `Enable Calibration` にチェックを入れると、通常の自動トラッキング出力を無視（バイパス）し、指定した単一または複数の焦点のみを出力します。
+- **ターゲットデバイスの選択**: シーン内の全 `AUTD3Device` を検知し、インスペクター上のチェックボックスから特定のデバイス（例: デバイス0とデバイス3だけ）に絞ってテスト出力が行えます。
+- **オフセットの自動計算と適用 (`Calculate & Add Offset`)**: 「理想の焦点位置 (FocusTarget)」と「実際の焦点位置 (TruePosition)」を指定することで、その差分から必要な位置ズレ (Offset) を自動計算し、コントローラー (`HAP_AUTDController`) の Offset パラメータに加算します。また、インスペクター上で現在の Offset の値を直接手入力して微調整することも可能です。
+- **デバイス位置への永続化 (`Bake Offset to Devices`)**: コントローラーに設定された現在の Offset 量を、**Target Devices でチェックがオンになっているデバイスのみ**の Transform (座標) に物理的に反映（逆移動）させ、Offset をゼロにリセットします。これにより、複数台のデバイスアレイ環境において「1台ずつ順番にチェックを入れて個別のズレをキャリブレーションしては Bake する」という、高度な個別補正ワークフローが可能になります。
+- **Playモード状態の保持**: キャリブレーションの性質上、Playモード実行中に様々な調整が行われます。専用の拡張エディタ (`HAP_AUTDCalibrationEditor`) によって、Play中に調整した設定値や直接編集した Offset が適切に退避され、Playモード終了時にEditモードのシーンへ自動で引き継がれます。

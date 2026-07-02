@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 using AUTD3Sharp;
 using AUTD3Sharp.Gain;
 using AUTD3Sharp.Driver.Datagram;
@@ -25,6 +26,9 @@ public class HAP_AUTDCalibration : MonoBehaviour
     public Transform singleFocusTarget;
     public Vector3 singleFocusPosition = Vector3.zero;
     public List<Vector3> multiFocusPositions = new List<Vector3> { Vector3.zero };
+    
+    [Tooltip("キャリブレーション時の正解位置（実際に焦点が合っているべき物理的な位置）")]
+    public Transform truePositionTarget;
     
     [Range(0f, 1f)]
     public float focusAmplitude = 1f;
@@ -109,5 +113,63 @@ public class HAP_AUTDCalibration : MonoBehaviour
         autdController.offset += this.transform.localPosition;
         this.transform.localPosition = Vector3.zero;
         this.transform.localRotation = Quaternion.identity;
+    }
+
+    /// <summary>
+    /// 現在のFocusTargetと正解位置（truePositionTarget）の差分からオフセットを計算し適用します
+    /// </summary>
+    public void ApplyOffsetByDifference()
+    {
+        if (autdController == null) return;
+        
+        Vector3 focusPos = singleFocusTarget != null ? singleFocusTarget.position : singleFocusPosition;
+        
+        if (truePositionTarget == null)
+        {
+            Debug.LogWarning("[Calibration] truePositionTarget is not set. Cannot apply difference.");
+            return;
+        }
+
+        Vector3 diff = focusPos - truePositionTarget.position;
+        autdController.offset += diff;
+        
+        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {autdController.offset}");
+    }
+
+    /// <summary>
+    /// 現在のoffsetをTargetDevicesで選択されているAUTD3DeviceのTransformに永続的に反映（Bake）し、offsetをリセットします。
+    /// （TargetPos_cmd = TargetPos + offset がデバイスからの相対距離となるため、デバイス自体を -offset 移動させることで同じ効果を得ます）
+    /// </summary>
+    public void BakeOffsetToDevices()
+    {
+        if (autdController == null) return;
+
+        Vector3 currentOffset = autdController.offset;
+        if (currentOffset == Vector3.zero)
+        {
+            Debug.Log("[Calibration] Offset is already zero. Nothing to bake.");
+            return;
+        }
+
+        var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None).OrderBy(d => d.ID).ToArray();
+        if (devices.Length == 0)
+        {
+            Debug.LogWarning("[Calibration] No AUTD3Device found in the scene to bake to.");
+            return;
+        }
+
+        int bakedCount = 0;
+        for (int i = 0; i < devices.Length; i++)
+        {
+            if (i < targetDevices.Count && targetDevices[i])
+            {
+                // EditモードなどでUndoを登録する場合はEditorスクリプト側で行う
+                devices[i].transform.position -= currentOffset;
+                bakedCount++;
+            }
+        }
+
+        autdController.offset = Vector3.zero;
+        Debug.Log($"[Calibration] Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
     }
 }

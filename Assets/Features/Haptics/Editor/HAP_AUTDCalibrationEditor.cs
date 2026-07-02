@@ -12,8 +12,8 @@ public class HAP_AUTDCalibrationEditor : Editor
     {
         script = (HAP_AUTDCalibration)target;
 
-        // Playモード終了時にEditorPrefsから状態を復元する
-        if (!Application.isPlaying)
+        // Playモード終了時のみ復元する（Playモード突入時の誤復元を防ぐ）
+        if (!EditorApplication.isPlayingOrWillChangePlaymode)
         {
             RestoreState();
         }
@@ -105,6 +105,9 @@ public class HAP_AUTDCalibrationEditor : Editor
             }
         }
 
+        EditorGUILayout.Space();
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("truePositionTarget"));
+
         EditorGUILayout.PropertyField(serializedObject.FindProperty("focusAmplitude"));
 
         if (EditorGUI.EndChangeCheck())
@@ -124,7 +127,8 @@ public class HAP_AUTDCalibrationEditor : Editor
         // Offset Tools
         // ------------------
         EditorGUILayout.LabelField("Calibration Tools", EditorStyles.boldLabel);
-        if (GUILayout.Button("Apply Transform Offset to Controller", GUILayout.Height(30)))
+        
+        if (GUILayout.Button("Apply Transform Offset (Legacy)", GUILayout.Height(24)))
         {
             if (script.autdController != null)
             {
@@ -134,11 +138,87 @@ public class HAP_AUTDCalibrationEditor : Editor
                 script.ApplyOffset();
                 
                 EditorUtility.SetDirty(script.autdController);
-                Debug.Log("[Calibration] Applied offset to AUTD Controller.");
+                if (Application.isPlaying) SaveState();
+                Debug.Log("[Calibration] Applied legacy offset to AUTD Controller.");
             }
             else
             {
                 Debug.LogWarning("[Calibration] AUTD Controller is not assigned.");
+            }
+        }
+
+        EditorGUILayout.Space();
+
+        if (GUILayout.Button("Calculate & Add Offset\n(FocusTarget -> TruePosition)", GUILayout.Height(36)))
+        {
+            if (script.autdController != null)
+            {
+                Undo.RecordObject(script.autdController, "Calculate & Add AUTD Offset");
+                
+                script.ApplyOffsetByDifference();
+                
+                EditorUtility.SetDirty(script.autdController);
+                if (Application.isPlaying) SaveState();
+            }
+            else
+            {
+                Debug.LogWarning("[Calibration] AUTD Controller is not assigned.");
+            }
+        }
+
+        EditorGUILayout.Space();
+
+        // ------------------
+        // Bake Tools
+        // ------------------
+        GUI.enabled = !Application.isPlaying;
+        GUI.backgroundColor = new Color(1f, 0.8f, 0.5f);
+        if (GUILayout.Button("Bake Offset to Devices\n(Reset Offset & Move Devices)", GUILayout.Height(36)))
+        {
+            if (script.autdController != null)
+            {
+                var allDevices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None).OrderBy(d => d.ID).ToArray();
+                for (int i = 0; i < allDevices.Length; i++)
+                {
+                    if (i < script.targetDevices.Count && script.targetDevices[i])
+                    {
+                        Undo.RecordObject(allDevices[i].transform, "Bake AUTD Offset to Device");
+                    }
+                }
+                Undo.RecordObject(script.autdController, "Bake AUTD Offset (Reset)");
+                
+                script.BakeOffsetToDevices();
+                
+                EditorUtility.SetDirty(script.autdController);
+                for (int i = 0; i < allDevices.Length; i++)
+                {
+                    if (i < script.targetDevices.Count && script.targetDevices[i])
+                    {
+                        EditorUtility.SetDirty(allDevices[i]);
+                    }
+                }
+                if (Application.isPlaying) SaveState();
+            }
+            else
+            {
+                Debug.LogWarning("[Calibration] AUTD Controller is not assigned.");
+            }
+        }
+        GUI.backgroundColor = Color.white;
+        GUI.enabled = true;
+
+        if (script.autdController != null)
+        {
+            EditorGUILayout.Space();
+            
+            EditorGUI.BeginChangeCheck();
+            Vector3 newOffset = EditorGUILayout.Vector3Field("Current Offset", script.autdController.offset);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(script.autdController, "Edit AUTD Offset");
+                script.autdController.offset = newOffset;
+                EditorUtility.SetDirty(script.autdController);
+                if (Application.isPlaying) SaveState();
             }
         }
     }
@@ -152,6 +232,7 @@ public class HAP_AUTDCalibrationEditor : Editor
         public Vector3 singleFocusPosition;
         public Vector3[] multiFocusPositions;
         public float focusAmplitude;
+        public Vector3 autdOffset;
     }
 
     private void SaveState()
@@ -165,7 +246,8 @@ public class HAP_AUTDCalibrationEditor : Editor
             useMultiFocus = script.useMultiFocus,
             singleFocusPosition = script.singleFocusPosition,
             multiFocusPositions = script.multiFocusPositions.ToArray(),
-            focusAmplitude = script.focusAmplitude
+            focusAmplitude = script.focusAmplitude,
+            autdOffset = script.autdController != null ? script.autdController.offset : Vector3.zero
         };
 
         string json = JsonUtility.ToJson(state);
@@ -191,9 +273,19 @@ public class HAP_AUTDCalibrationEditor : Editor
                 if (state.multiFocusPositions != null) script.multiFocusPositions = state.multiFocusPositions.ToList();
                 script.focusAmplitude = state.focusAmplitude;
 
+                if (script.autdController != null)
+                {
+                    Undo.RecordObject(script.autdController, "Restore AUTD Offset");
+                    script.autdController.offset = state.autdOffset;
+                    EditorUtility.SetDirty(script.autdController);
+                }
+
                 EditorUtility.SetDirty(script);
                 serializedObject.Update();
             }
+            
+            // 復元が終わったらキーを削除し、再選択時などに古い値が復元（自然生成）されるバグを防ぐ
+            EditorPrefs.DeleteKey(PREFS_KEY);
         }
         catch (System.Exception e)
         {
