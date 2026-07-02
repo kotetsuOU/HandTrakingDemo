@@ -41,14 +41,17 @@
 アルゴリズムの詳細な数理モデルがどのように変化したのか、主要な3つの処理について比較します。
 
 ### 3.1 空間クラスタリング（Spatial Clustering）
-接触点群 $\mathcal{P} = \{\mathbf{p}_1, \mathbf{p}_2, \dots, \mathbf{p}_N\}$ を複数の指ごとにグループ化する処理です。
+接触点群 $\mathcal{P}$ を複数の指ごとにグループ化する処理です。点群は以下の集合として表されます。
+$$
+\mathcal{P} = \{\mathbf{p}_1, \mathbf{p}_2, \dots, \mathbf{p}_N\}
+$$
 
 #### ネイティブ実装：CPUベースの SpatialHash / Pairwise 連結
-任意の2点 $\mathbf{p}_i, \mathbf{p}_j$ について、距離が閾値 $d_{thresh}$ 以下の場合にエッジを張り、クラスタを結合します（空間ハッシュで探索を最適化）。
+任意の2点 $\mathbf{p}_i$ および $\mathbf{p}_j$ について、距離が閾値 $d_{thresh}$ 以下の場合にエッジを張り、クラスタを結合します（空間ハッシュで探索を最適化）。
 
-```math
+$$
 \|\mathbf{p}_i - \mathbf{p}_j\|^2 \leq d_{thresh}^2 \implies \text{Union}(i, j)
-```
+$$
 
 物理的な繋がりは厳密に解析できますが、CPU上のメモリ配列を再帰的または直列に走査するため、GPU並列化の恩恵を受けられませんでした。
 
@@ -56,21 +59,21 @@
 位置と表面法線 $\mathbf{n}$ の両方を量子化し、GPUの `InterlockedAdd` で $O(1)$ で並列加算します。
 1. **座標の量子化**: ボクセルサイズ $S_{cell}$ で離散化。
 
-   ```math
+   $$
    \mathbf{q}_i = \left\lfloor \frac{\mathbf{p}_i}{S_{cell}} \right\rfloor
-   ```
+   $$
 
 2. **法線のビン化**: 法線を空間の6方向（ $\pm X, \pm Y, \pm Z$ ）に分類。
 
-   ```math
+   $$
    b_i = \arg\max_{k \in \{0..5\}} (\mathbf{n}_i \cdot \mathbf{v}_k)
-   ```
+   $$
 
 3. **並列集約**: キー $h = \text{Hash}(\mathbf{q}_i, b_i)$ のバケツに対して並列加算し、重心を算出。
 
-   ```math
+   $$
    \mathbf{C}_h = \frac{1}{N_h} \sum_{k=1}^{N_h} \mathbf{p}_k
-   ```
+   $$
 
 これにより「表」と「裏」の混線を防ぎつつ、GPUで一瞬で重心を抽出します。
 
@@ -84,9 +87,9 @@
 #### C#実装：GPU 並列分散 ＋ Reservoir Sampling
 1. **共分散行列の並列計算**: GPU側で第1パスで求まった重心 $\mu$ に対し、第2パスで各スレッドが差分を蓄積。
 
-   ```math
+   $$
    \Sigma = \sum (\mathbf{p}_i - \mu)(\mathbf{p}_i - \mu)^T
-   ```
+   $$
    
 2. **ランダム抽出**: ハッシュ値とシードを組み合わせた乱数 $R$ を用い、ランダムバッファに対して `InterlockedExchange` を確率的に実行することで、限られた16個のスロット（バッファ）に偏りなくランダムな点を残します。
 
@@ -102,19 +105,19 @@
 1. **最近傍探索 (Nearest-Neighbor)**
    前フレームの重心に最も近い現フレームの重心を総当たりで探し、閾値 $R_{match}$ 以内なら同一IDとして紐付けます。
 
-   ```math
+   $$
    j^* = \arg\min_j \|\mathbf{C}^{(t-1)}_k - \mathbf{C}^{(t)}_j\|^2 \quad (\text{if } \leq R_{match}^2)
-   ```
+   $$
 
 2. **ContactForceReduction**
    クラスタ内の点群数 $N$ から提示強度 $F_{raw} \in [0, 1]$ を算出し、指数移動平均（EMA）で平滑化します。
 
-   ```math
+   $$
    F_{raw} = \max\left(0, \min\left(1, \frac{N - N_{min}}{N_{max} - N_{min}}\right)\right)
-   ```
+   $$
 
-   ```math
+   $$
    F^{(t)} = (1 - \alpha) F^{(t-1)} + \alpha F_{raw}
-   ```
+   $$
 
 これによりハードウェア制御に必須の「提示強度のフェード」を極小計算量 $O(N \times M)$ で実現しています。

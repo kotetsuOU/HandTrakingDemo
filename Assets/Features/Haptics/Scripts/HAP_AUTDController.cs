@@ -101,6 +101,14 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Tooltip("すべての焦点位置に加算されるオフセット。デバイスの原点とUnity上の位置を微調整するのに使います。")]
     public Vector3 offset = Vector3.zero;
 
+    [Header("Directional Grouping")]
+    [Tooltip("有効にすると、接触点の法線ベクトル（向き）とAUTDデバイスの向きを比較し、最適なデバイスからのみ超音波を照射します。")]
+    public bool enableDirectionalGrouping = false;
+    
+    [Tooltip("デバイスが「向いている」と判定するための内積のしきい値。-1.0が完全に対面、0.0が直角。")]
+    [Range(-1f, 1f)]
+    public float directionalDotThreshold = -0.1f;
+
     [Header("STM Settings (for future extension)")]
     [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
     public GainSTMMode gainStmMode = GainSTMMode.PhaseIntensityFull;
@@ -108,6 +116,9 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Header("Debug")]
     [Tooltip("エディタ上でデバイスのサイズと位置を Gizmo (青色の枠) で表示します。")]
     public bool visualizeDevices = true;
+
+    [HideInInspector]
+    public List<AUTD3Device> connectedDevices = new List<AUTD3Device>();
 
     private Controller? _autd = null;
     private bool _isCurrentlyOff = true;
@@ -136,10 +147,11 @@ public partial class HAP_AUTDController : MonoBehaviour
         }
 
         // シーン内のすべての AUTD3Device コンポーネントを収集し、ID順にソートしてデバイス配置情報を生成
-        var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None)
+        connectedDevices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None)
             .OrderBy(obj => obj.ID)
-            .Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation))
             .ToList();
+
+        var devices = connectedDevices.Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation)).ToList();
 
         Debug.Log($"[HAP_AUTDController] Attempting to connect to AUTD3. Found {devices.Count} AUTD3Device components in the scene.");
 
@@ -214,7 +226,7 @@ public partial class HAP_AUTDController : MonoBehaviour
         // インスペクターの設定変更を監視して適用（HAP_AUTDController_Config.cs）
         CheckForConfigChanges();
         
-        // Haptics Sources 内の Modulation Override 解決（HAP_AUTDController_Haptics.cs）
+        // Modulation Override の解決
         ResolveModulationOverrides();
 
         // バイパスが有効な場合はここで終了し、Updateからの自動送信を行わない
@@ -230,8 +242,28 @@ public partial class HAP_AUTDController : MonoBehaviour
 
         if (activeClusters.Count > 0)
         {
-            // クラスタから超音波の焦点を生成して出力（HAP_AUTDController_Haptics.cs）
-            ProcessHapticsOutput(activeClusters);
+            // 1. 各クラスタから必要な焦点（Foci/STM）を生成
+            var clusterFociList = HAP_FociGenerator.Generate(
+                activeClusters, 
+                generationMode, 
+                centroidSource, 
+                ellipseSource, 
+                randomSource, 
+                focusIntensityPascal, 
+                offset);
+
+            // 2. クラスタの法線とデバイスの向きに基づき、最適なデバイスにGSPATを割り当ててグループ化
+            var groupDatagram = HAP_GSPATDeviceAllocator.Allocate(
+                clusterFociList, 
+                connectedDevices, 
+                holoAlgorithm, 
+                enableDirectionalGrouping, 
+                directionalDotThreshold, 
+                focusIntensityPascal);
+
+            // 3. デバイスに送信
+            _autd.Send(groupDatagram);
+            
             _isCurrentlyOff = false;
         }
         else
@@ -269,6 +301,30 @@ public partial class HAP_AUTDController : MonoBehaviour
             _autd.Dispose();
             _autd = null;
             Debug.Log("[HAP_AUTDController] AUTD3 connection closed.");
+        }
+    }
+
+    /// <summary>
+    /// 各Haptics Sourceに設定された Modulation Override（変調の優先設定）を解決し適用します。
+    /// </summary>
+    private void ResolveModulationOverrides()
+    {
+        if (bypassHaptics || hcdPipeline == null || generationMode != HapticsGenerationMode.Precision) return;
+
+        var overrides = new List<HapticsModulationOverride>();
+        if (centroidSource.enabled && centroidSource.modulationOverride.enabled) overrides.Add(centroidSource.modulationOverride);
+        if (ellipseSource.enabled && ellipseSource.modulationOverride.enabled) overrides.Add(ellipseSource.modulationOverride);
+        if (randomSource.enabled && randomSource.modulationOverride.enabled) overrides.Add(randomSource.modulationOverride);
+        
+        if (overrides.Count > 0)
+        {
+            var bestOverride = overrides.OrderByDescending(o => o.priority).First();
+            if (modulationMode != bestOverride.mode || (bestOverride.mode == ModulationMode.Sine && sineFrequency != bestOverride.frequency))
+            {
+                modulationMode = bestOverride.mode;
+                sineFrequency = bestOverride.frequency;
+                ApplyModulation();
+            }
         }
     }
 }
