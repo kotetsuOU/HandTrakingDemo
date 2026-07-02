@@ -120,19 +120,20 @@ URPとの統合や設定、デバッグなどを担当するクラス群です�
 This section describes the rendering pipeline and internal module structure of `PCDRenderPass`.
 `PCDRenderPass` は非常に多岐にわたる処理を実行するため、保守性と拡張性を高める目的で **「パイプライン・ステージ（Stage）アーキテクチャ」** に分割・再構築されています。従来の `partial` クラスによる密結合を廃止し、明確な責務分けを行っています。
 
-##### 1. Pipeline Flow
+##### 1. Pipeline Flow (Builder Architecture)
+
+`PCDRenderPass` は `RecordRenderGraph` の呼び出しにおいて、直接各種セットアップを行うのではなく、責務ごとに分割された3つの専用「ビルダークラス」に処理を委譲するオーケストレーターとして機能します。
 
 ```mermaid
 flowchart TD
-    A[RecordRenderGraph] --> B[ExecuteComputePass]
-    B --> C[ExecuteBlitPass]
+    A[PCDRenderPass.RecordRenderGraph] --> B[PCDContextBuilder]
+    B --> C[PCDComputePassBuilder]
+    C --> D[PCDBlitPassBuilder]
 ```
 
-Main execution consists of three major stages:
-
-* [ ] RecordRenderGraph
-* [ ] ExecuteComputePass
-* [ ] ExecuteBlitPass
+1.  **`PCDContextBuilder`**: RenderGraph のパス登録前に、毎フレーム必要なカメラ行列の計算（ハーフミラー空間反転処理含む）、点群バッファの調停、描画スキップ判定などを事前に行い、`PreComputeData` を生成します。
+2.  **`PCDComputePassBuilder`**: RenderGraph に対して、オクルージョン計算用の Compute Shader パス (`AddUnsafePass`) を構築します。テクスチャハンドルの登録や各 `IPCDPipelineStage` のループ実行スケジュールを行います。
+3.  **`PCDBlitPassBuilder`**: オクルージョン計算済みの結果マップ（またはデバッグマップ）を、カメラのターゲットカラーテクスチャへ出力するパス (`AddRasterRenderPass`) を構築します。
 
 ##### 2. 基盤・データモジュール
 
