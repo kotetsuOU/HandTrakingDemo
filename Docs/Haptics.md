@@ -24,10 +24,14 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 
 ### `HAP_AUTDController.cs`
 ハプティクス出力のメインオーケストレーターです。`OperationMode` により、自動制御モードと手動制御モードを切り替えることができます。
-役割を明確にするため、以下の `partial class` として3つのファイルに分割されています。
+役割を明確にするため、Controller自身は以下の `partial class` に分割されており、ハプティクスの具体的な計算は外部の静的クラスへ委譲しています。
 - `HAP_AUTDController.cs`: コアロジック（Inspector設定、Awake/Update/OnDestroy）
 - `HAP_AUTDController_Config.cs`: ハードウェア設定の適用（Modulation, Silencer, Fan など）
-- `HAP_AUTDController_Haptics.cs`: 接触クラスタからの触覚データ(STM/Sequential)生成
+- `HAP_AUTDController_API.cs`: 手動制御や外部からの操作API群
+
+また、接触データから実際のフォーカス（焦点）を生成する処理や、デバイスへの割り当て処理は以下のクラスが担当します。
+- `HAP_FociGenerator.cs`: 接触クラスタデータから焦点（Centroid/Ellipse/Random）を生成
+- `HAP_GSPATDeviceAllocator.cs`: 空間的な指向性や距離に基づいて、最適なデバイスグループへ焦点を割り当て
 
 #### 動作モード (Operation Mode)
 
@@ -102,12 +106,40 @@ M(t) = \frac{1}{2} (1 + \sin(2\pi f_m t)) \quad (M(t) \in [0, 1])
 ```
 
 ### 3.5 時空間変調 (Spatio-Temporal Modulation: STM)
-多数の焦点座標 $\mathbf{p}_k$ のリストを高いサンプリング周波数 $f_s$ で順次切り替えることで、人間の皮膚の空間分解能と時間分解能の錯覚を利用し、面や線をなぞるような触覚を提示します。
-$N$ 個の点からなる軌跡をループ再生する場合、その軌跡を1周する周期 $T$ および変調周波数 $f_{\mathrm{stm}}$ は次のように決まります：
+多数の焦点座標のリストを高い周波数で順次切り替えることで、人間の皮膚の空間分解能と時間分解能の錯覚を利用し、面や線をなぞるような触覚を提示します。
+$N$ 個の点からなる軌跡をループ再生する場合、以下のパラメータを用いて周期と変調周波数が決まります。
+
+* 各焦点の座標: $\mathbf{p}_k$
+* サンプリング周波数: $f_s$
+* 変調周波数: $f_{\mathrm{stm}}$
+* 軌跡を1周する周期: $T$
+
+これらを用いて、周期 $T$ と変調周波数 $f_{\mathrm{stm}}$ は次のように計算されます：
+
 ```math
 T = \frac{N}{f_s} \implies f_{\mathrm{stm}} = \frac{f_s}{N}
 ```
 STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動くことによる皮膚上の摩擦や連続的な刺激（Lateral Modulation）を引き起こす強力な提示手法です。
+
+### 3.6 複数デバイスの指向性ルーティング (Directional Device Grouping)
+複数のAUTDデバイスが異なる方向から配置されている場合、仮想オブジェクトの特定の面（クラスタ）に対して、その面に正対しているデバイスだけを選択的に駆動することで効率的な触覚提示を行います。
+
+対象クラスタの面から外側に向かう法線ベクトルを $\mathbf{n}$ 、判定対象のデバイスの正面方向（Forward）ベクトルを $\mathbf{d}$ とします（ともに単位ベクトル）。
+デバイスが面に完全に正対しているとき、デバイスの正面ベクトル $\mathbf{d}$ は面の法線 $\mathbf{n}$ とちょうど逆向き、すなわち $-\mathbf{n}$ と一致します。
+
+このとき、デバイスの向き $\mathbf{d}$ と「面の内側に向かうベクトル」 $-\mathbf{n}$ とのなす角 $\theta$ は、ベクトルの内積（Dot Product）を用いて以下のように求められます：
+```math
+\mathbf{d} \cdot (-\mathbf{n}) = \|\mathbf{d}\| \|-\mathbf{n}\| \cos\theta = \cos\theta
+```
+したがって、なす角 $\theta$ （度数法）は次式で計算されます：
+```math
+\theta = \arccos(-\mathbf{d} \cdot \mathbf{n}) \times \frac{180}{\pi}
+```
+システム設定された許容角度の閾値（`directionalAngleThreshold`）を $\theta_{\text{th}}$ としたとき、以下の条件を満たすデバイス群だけがそのクラスタの担当デバイスとして割り当てられます。
+```math
+\theta \le \theta_{\text{th}}
+```
+これにより、横や裏側を向いているデバイスからの無駄な超音波照射を防ぎます。
 
 ---
 
@@ -180,16 +212,19 @@ sequenceDiagram
 Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター (自動制御・設定反映)
  ├── HAP_AUTDController_Config.cs  # ハードウェア設定反映 (partial)
- ├── HAP_AUTDController_Haptics.cs # HCD結果に基づく触覚出力生成ロジック (partial)
-  ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
-  ├── HAP_AUTDCalibration.cs        # 空間キャリブレーション・デバイス出力テスト用ツール
-  ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
-  ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成
-  ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
-  ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
-  └── Editor/
-       ├── HAP_AUTDTransformLoaderEditor.cs
-       └── HAP_AUTDCalibrationEditor.cs  # キャリブレーション設定のエディタ保持用
+ ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
+ ├── HAP_FociGenerator.cs          # 接触クラスタからの触覚データ(Focus)生成ロジック
+ ├── HAP_GSPATDeviceAllocator.cs   # デバイスとクラスタの指向性に基づく割り当て・データグラム生成
+ ├── HAP_GizmoVisualizer.cs        # デバイスグループや担当面をエディタ上に描画するユーティリティ
+ ├── HAP_AUTDCalibration.cs        # 空間キャリブレーション・デバイス出力テスト用ツール
+ ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
+ ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成
+ ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
+ ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
+ ├── HCD_AutdControllerBridge.cs   # (旧互換用) HCD_PipelineとAUTDControllerを繋ぐブリッジ
+ └── Editor/
+      ├── HAP_AUTDTransformLoaderEditor.cs
+      └── HAP_AUTDCalibrationEditor.cs  # キャリブレーション設定のエディタ保持用
 ```
 
 ---

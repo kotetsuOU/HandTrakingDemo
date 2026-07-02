@@ -20,7 +20,7 @@ public static class HAP_GSPATDeviceAllocator
         List<AUTD3Device> connectedDevices,
         HoloAlgorithm holoAlgorithm,
         bool enableDirectionalGrouping,
-        float directionalDotThreshold,
+        float directionalAngleThreshold,
         float focusIntensityPascal)
     {
         if (clusterData.Count == 0) return new Null();
@@ -42,22 +42,22 @@ public static class HAP_GSPATDeviceAllocator
         foreach (var cData in clusterData)
         {
             bool isAssigned = false;
-            float minDot = float.MaxValue;
+            float minAngle = float.MaxValue;
             AUTD3Device? bestDevice = null;
 
             foreach (var dev in connectedDevices)
             {
-                // デバイスの正面方向とクラスタの法線の内積
-                float dot = Vector3.Dot(dev.transform.forward, cData.Cluster.Normal);
+                // デバイスの正面方向と、クラスタの法線（面から外側に向かうベクトル）の逆方向とのなす角（度）
+                float angle = Vector3.Angle(dev.transform.forward, -cData.Cluster.Normal);
                 
-                if (dot < minDot)
+                if (angle < minAngle)
                 {
-                    minDot = dot;
+                    minAngle = angle;
                     bestDevice = dev;
                 }
 
                 // しきい値以下（十分に向かい合っている）なら担当デバイスに追加
-                if (dot <= directionalDotThreshold)
+                if (angle <= directionalAngleThreshold)
                 {
                     deviceAssignments[dev.ID].Add(cData);
                     isAssigned = true;

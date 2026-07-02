@@ -105,9 +105,9 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Tooltip("有効にすると、接触点の法線ベクトル（向き）とAUTDデバイスの向きを比較し、最適なデバイスからのみ超音波を照射します。")]
     public bool enableDirectionalGrouping = false;
     
-    [Tooltip("デバイスが「向いている」と判定するための内積のしきい値。-1.0が完全に対面、0.0が直角。")]
-    [Range(-1f, 1f)]
-    public float directionalDotThreshold = -0.1f;
+    [Tooltip("デバイスが面の法線方向から何度まで傾いていても担当として許容するか（0〜90度）。0度で真正面のみ。")]
+    [Range(0, 90)]
+    public float directionalAngleThreshold = 45.0f;
 
     [Header("STM Settings (for future extension)")]
     [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
@@ -258,7 +258,7 @@ public partial class HAP_AUTDController : MonoBehaviour
                 connectedDevices, 
                 holoAlgorithm, 
                 enableDirectionalGrouping, 
-                directionalDotThreshold, 
+                directionalAngleThreshold, 
                 focusIntensityPascal);
 
             // 3. デバイスに送信
@@ -282,14 +282,15 @@ public partial class HAP_AUTDController : MonoBehaviour
         if (!visualizeDevices) return;
 
         var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None);
-        foreach (var device in devices)
-        {
-            Gizmos.matrix = Matrix4x4.TRS(device.transform.position, device.transform.rotation, Vector3.one);
-            Gizmos.color = new Color(0.2f, 0.2f, 0.8f, 0.5f);
-            
-            // AUTD3デバイスの簡易描画 (目安として 192mm x 151mm)
-            Gizmos.DrawWireCube(new Vector3(0.096f, 0.075f, 0), new Vector3(0.192f, 0.151f, 0.01f));
-        }
+        
+#if UNITY_EDITOR
+        HAP_GizmoVisualizer.DrawDevicesAndGroupings(
+            devices, 
+            enableDirectionalGrouping, 
+            directionalAngleThreshold, 
+            hcdPipeline
+        );
+#endif
     }
 
     private void OnDestroy()
