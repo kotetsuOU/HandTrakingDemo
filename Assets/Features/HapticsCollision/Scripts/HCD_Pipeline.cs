@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using System.Runtime.InteropServices;
 
 /// <summary>
@@ -44,6 +45,16 @@ public class HCD_Pipeline : MonoBehaviour
     private ClusterData[] _clusterResults;
     private ClusterPrecisionDataRaw[] _precisionResults;
 
+    // 非同期読み込みリクエストのキュー
+    private Queue<ReadbackRequest> _readbackQueue = new Queue<ReadbackRequest>();
+
+    private struct ReadbackRequest
+    {
+        public AsyncGPUReadbackRequest clusterReq;
+        public AsyncGPUReadbackRequest precisionReq;
+        public bool hasPrecision;
+    }
+
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -81,13 +92,67 @@ public class HCD_Pipeline : MonoBehaviour
             processor.Dispatch(globalBuffer, pointsCount);
         }
 
-        // GPU 結果を読み戻してフレーム間クラスタ追跡を更新（ContactForceReduction 含む）
-        GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions);
-        clusterTracker.Update(centroids, normals, counts, precisions);
+        // 非同期読み込みをリクエスト
+        RequestAsyncReadback();
+
+        // 完了した非同期読み込みを処理してフレーム間クラスタ追跡を更新
+        ProcessReadbackQueue();
+    }
+
+    private void RequestAsyncReadback()
+    {
+        var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
+        if (clusterBuffer == null) return;
+
+        bool precisionMode = clusteringProcessor.precisionMode;
+        var precisionBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.PrecisionBufferName);
+        bool hasPrecision = precisionMode && precisionBuffer != null;
+
+        _readbackQueue.Enqueue(new ReadbackRequest
+        {
+            clusterReq = AsyncGPUReadback.Request(clusterBuffer),
+            precisionReq = hasPrecision ? AsyncGPUReadback.Request(precisionBuffer) : default,
+            hasPrecision = hasPrecision
+        });
+    }
+
+    private void ProcessReadbackQueue()
+    {
+        while (_readbackQueue.Count > 0)
+        {
+            var req = _readbackQueue.Peek();
+
+            if (req.clusterReq.hasError || (req.hasPrecision && req.precisionReq.hasError))
+            {
+                // エラー時（バッファ破棄など）はキューから削除
+                _readbackQueue.Dequeue();
+                continue;
+            }
+
+            if (!req.clusterReq.done || (req.hasPrecision && !req.precisionReq.done))
+            {
+                // まだ完了していない場合は待機（キューの先頭でブロック）
+                break;
+            }
+
+            // 完了したリクエストを取り出し
+            _readbackQueue.Dequeue();
+
+            // NativeArray から配列へコピー
+            req.clusterReq.GetData<ClusterData>().CopyTo(_clusterResults);
+            if (req.hasPrecision)
+            {
+                req.precisionReq.GetData<ClusterPrecisionDataRaw>().CopyTo(_precisionResults);
+            }
+
+            // GPU 結果（最新の完了分）を使用してフレーム間クラスタ追跡を更新（ContactForceReduction 含む）
+            GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions);
+            clusterTracker.Update(centroids, normals, counts, precisions);
+        }
     }
 
     /// <summary>
-    /// GPU から現在の表面接触クラスタの重心座標・平均法線・接触点数・精密データを取得します。
+    /// 最新の非同期読み込み結果から表面接触クラスタの重心座標・平均法線・接触点数・精密データを取得します。
     /// </summary>
     public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts, out List<ClusterPrecision> precisions)
     {
@@ -96,17 +161,9 @@ public class HCD_Pipeline : MonoBehaviour
         counts     = new List<int>();
         precisions = new List<ClusterPrecision>();
 
-        var clusterBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.ClusterBufferName);
-        if (clusterBuffer == null) return;
-
-        clusterBuffer.GetData(_clusterResults);
+        if (_clusterResults == null) return;
 
         bool precisionMode = clusteringProcessor.precisionMode;
-        var precisionBuffer = GetSharedBuffer(HCD_SpatialClusteringProcessor.PrecisionBufferName);
-        if (precisionMode && precisionBuffer != null)
-        {
-            precisionBuffer.GetData(_precisionResults);
-        }
 
         for (int i = 0; i < _clusterResults.Length; i++)
         {
@@ -119,7 +176,7 @@ public class HCD_Pipeline : MonoBehaviour
                 normals.Add(avgNormal.sqrMagnitude > 0.0001f ? avgNormal.normalized : Vector3.up);
                 counts.Add(data.count);
 
-                if (precisionMode && precisionBuffer != null)
+                if (precisionMode && _precisionResults != null)
                 {
                     var pData = _precisionResults[i];
                     float inv1e6 = 1.0f / 1000000.0f;

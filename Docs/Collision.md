@@ -38,6 +38,7 @@
 - **GPU Voxel Grid による超高速枝切り**: 10万点 × 3,450ポリゴンの「総当たり計算（3億回）」を廃止し、毎フレームGPU上で瞬時に空間グリッドを構築。計算時間を 3.0ms から **0.05ms** へと約60倍に高速化しました。
 - **Point-to-Triangle 最短距離 ＋ Möller-Trumbore InsideMesh 判定**: 簡易的な頂点距離ではなく、三角形の表面への最短距離に加え、**X+ 方向レイキャスト（奇偶判定）** でメッシュの内外を厳密に判別します。
 - **Spatial Clustering による複数接触の同時処理**: 手のひらや5本の指が同時に触れた場合でも、空間ハッシュを用いた GPU クラスタリングにより、それぞれの接触点の重心とランダムサンプルをリアルタイムに分離・抽出します。
+- **AsyncGPUReadback による完全非同期化**: GPU処理結果の読み戻し時に発生していたCPUの同期待ちを、キューを用いた非同期読み込みに書き換え、メインスレッドのブロックを完全に解消しました。
 
 ---
 
@@ -133,7 +134,9 @@ sequenceDiagram
     Note over Clust: 1. AccumulateClusters (重心・法線)<br/>2. AccumulateCovariance (共分散・ランダム16点)
     Clust-->>Pipeline: クラスタ結果バッファ
     
-    Note over Pipeline: CPU へ超高速回収
+    Pipeline->>Pipeline: AsyncGPUReadback リクエスト発行
+    Note over Pipeline: (数フレーム後) 非同期完了・キュー処理
+    Clust-->>Pipeline: GPUからCPUへ非同期でデータコピー
     Pipeline->>Tracker: Update(centroids, normals, counts, precision)
     Note over Tracker: 最近傍マッチングでID・Age・Force更新
     Tracker-->>Pipeline: TrackedCluster リスト
