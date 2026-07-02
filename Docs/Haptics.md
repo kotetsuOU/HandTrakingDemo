@@ -27,11 +27,17 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 役割を明確にするため、Controller自身は以下の `partial class` に分割されており、ハプティクスの具体的な計算は外部の静的クラスへ委譲しています。
 - `HAP_AUTDController.cs`: コアロジック（Inspector設定、Awake/Update/OnDestroy）
 - `HAP_AUTDController_Config.cs`: ハードウェア設定の適用（Modulation, Silencer, Fan など）
+- `HAP_AUTDController_Haptics.cs`: `HCD_Pipeline` から接触クラスタを受け取り、GSPAT等の信号を生成・自動送信する処理
 - `HAP_AUTDController_API.cs`: 手動制御や外部からの操作API群
 
 また、接触データから実際のフォーカス（焦点）を生成する処理や、デバイスへの割り当て処理は以下のクラスが担当します。
 - `HAP_FociGenerator.cs`: 接触クラスタデータから焦点（Centroid/Ellipse/Random）を生成
-- `HAP_GSPATDeviceAllocator.cs`: 空間的な指向性や距離に基づいて、最適なデバイスグループへ焦点を割り当て
+- `HAP_GSPATDeviceAllocator.cs`: 空間的な指向性や距離、デバイスIDに基づいて、最適なデバイスグループへ焦点を割り当て
+
+### `HAP_GizmoVisualizer` とデバッグ支援機能
+エディタ上での開発・検証をサポートするため、以下のコンポーネントが用意されています。
+- `HAP_GizmoVisualizer.cs` / `HAP_GizmoVisualizer_Surface.cs`: デバイスの配置、グループ化された色分け、および仮想オブジェクト表面への照射割り当て状況をGizmoとして可視化します。mmスケールの極小メッシュモデルにも対応しています。
+- `HAP_AUTDDebugDisabler.cs`: 接続順序（Index）ではなく物理的なデバイスIDをキーとして、特定デバイスの出力およびGizmo描画を個別に無効化（Null出力）する機能を提供します。多台数環境でのトラブルシューティングに役立ちます。
 
 #### 動作モード (Operation Mode)
 
@@ -212,10 +218,13 @@ sequenceDiagram
 Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController.cs         # ハプティクス出力のメインオーケストレーター (自動制御・設定反映)
  ├── HAP_AUTDController_Config.cs  # ハードウェア設定反映 (partial)
+ ├── HAP_AUTDController_Haptics.cs # HCD_Pipelineからの出力自動生成ロジック (partial)
  ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
  ├── HAP_FociGenerator.cs          # 接触クラスタからの触覚データ(Focus)生成ロジック
- ├── HAP_GSPATDeviceAllocator.cs   # デバイスとクラスタの指向性に基づく割り当て・データグラム生成
- ├── HAP_GizmoVisualizer.cs        # デバイスグループや担当面をエディタ上に描画するユーティリティ
+ ├── HAP_GSPATDeviceAllocator.cs   # デバイスとクラスタの指向性・IDに基づく割り当て・データグラム生成
+ ├── HAP_GizmoVisualizer.cs        # デバイスグループを描画するユーティリティ (partial)
+ ├── HAP_GizmoVisualizer_Surface.cs# 担当面をエディタ上に描画するユーティリティ (partial)
+ ├── HAP_AUTDDebugDisabler.cs      # デバイスIDベースでの個別無効化・デバッグコンポーネント
  ├── HAP_AUTDCalibration.cs        # 空間キャリブレーション・デバイス出力テスト用ツール
  ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
  ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成

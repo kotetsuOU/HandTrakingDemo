@@ -51,7 +51,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
         // ターゲットデバイスが指定されていない場合は何もしない
         if (targetDevices == null || targetDevices.Count == 0) return;
 
-        bool allTrue = true;
+        bool allTrue = targetDevices.Count > 0 && targetDevices.Count == autdController.connectedDevices.Count;
         foreach (var b in targetDevices) if (!b) allTrue = false;
 
         byte intensityVal = (byte)Mathf.Clamp(focusAmplitude * 255f, 0f, 255f);
@@ -82,7 +82,10 @@ public class HAP_AUTDCalibration : MonoBehaviour
             targetDatagram = new Focus(p, new FocusOption { Intensity = new Intensity(intensityVal) });
         }
 
-        if (allTrue && autdController.debugDisabler == null)
+        // デバッグ無効化が存在するか、一部のデバイスのみ出力する場合は個別にグループルーティングする
+        bool hasDisabledDevice = autdController.debugDisabler != null && autdController.connectedDevices.Any(d => autdController.debugDisabler.IsDisabled(d.ID));
+        
+        if (allTrue && !hasDisabledDevice)
         {
             autdController.Send(targetDatagram);
         }
@@ -95,11 +98,14 @@ public class HAP_AUTDCalibration : MonoBehaviour
             // デバイスインデックスに応じて出力を切り替え
             autdController.SetGainGroup(dev => 
             {
+                int deviceIndex = dev.Idx();
+                var deviceId = autdController.connectedDevices[deviceIndex].ID;
+
                 // Disablerがアタッチされていて、かつ無効化されている場合は強制的にNull
-                if (autdController.debugDisabler != null && autdController.debugDisabler.IsDisabled(dev.Idx()))
+                if (autdController.debugDisabler != null && autdController.debugDisabler.IsDisabled(deviceId))
                     return "null";
 
-                if (dev.Idx() < targetDevices.Count && targetDevices[dev.Idx()])
+                if (deviceIndex < targetDevices.Count && targetDevices[deviceIndex])
                     return "target";
                 else
                     return "null";

@@ -41,7 +41,7 @@ public static class HAP_GSPATDeviceAllocator
                     else
                         overrideGroupDict.Add(dev.ID.ToString(), allDatagram);
                 }
-                return new Group(dev => dev.Idx().ToString(), overrideGroupDict);
+                return new Group(dev => connectedDevices[dev.Idx()].ID.ToString(), overrideGroupDict);
             }
 
             return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
@@ -96,23 +96,23 @@ public static class HAP_GSPATDeviceAllocator
         {
             if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID))
             {
-                // 無効化デバイスには強制的にNullを出力
+                // 無効化デバイスには強制的にNullを割り当て
                 groupDict.Add(dev.ID.ToString(), new Null());
-                continue;
             }
-
-            var assignedClusters = deviceAssignments[dev.ID];
-            if (assignedClusters.Count == 0)
+            else if (deviceAssignments.TryGetValue(dev.ID, out var assignedClusters) && assignedClusters.Count > 0)
             {
-                groupDict.Add(dev.ID.ToString(), new Null());
+                var datagram = GenerateDatagram(assignedClusters, holoAlgorithm, focusIntensityPascal);
+                groupDict.Add(dev.ID.ToString(), datagram);
             }
             else
             {
-                groupDict.Add(dev.ID.ToString(), GenerateDatagram(assignedClusters, holoAlgorithm, focusIntensityPascal));
+                // 担当する接触点がない場合は出力なし
+                groupDict.Add(dev.ID.ToString(), new Null());
             }
         }
 
-        return new Group(dev => dev.Idx().ToString(), groupDict);
+        // Keyは文字列として設定
+        return new Group(dev => connectedDevices[dev.Idx()].ID.ToString(), groupDict);
     }
 
     /// <summary>
