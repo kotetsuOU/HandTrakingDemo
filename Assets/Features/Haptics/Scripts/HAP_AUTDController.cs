@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 using AUTD3Sharp;
+using AUTD3Sharp.Link;
 using AUTD3Sharp.Driver.Datagram;
 using AUTD3Sharp.Gain;
 
@@ -188,13 +189,12 @@ public partial class HAP_AUTDController : MonoBehaviour
                     break;
                 
                 case AUTDLinkType.Simulator:
-                    Debug.LogWarning("[HAP_AUTDController] Simulatorを使用するには Unity Package Manager から Simulatorリンクパッケージ のインストールが必要です。インストール後、スクリプト内のコメントアウトを外してください。");
-                    // 【注意】Simulatorリンクパッケージをインストール後、以下のコメントアウトを外してください
-                    /*
-                    var simLink = new AUTD3Sharp.Link.Simulator();
+                    Debug.LogWarning("[HAP_AUTDController] Simulatorを使用するには autd3-server を起動しておく必要があります。(https://github.com/shinolab/autd3-server)");
+                    
+                    var simLink = new AUTD3Sharp.Link.Remote(new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 8080), new AUTD3Sharp.Link.RemoteOption());
                     _autd = Controller.OpenWithOption(devices, simLink, option);
-                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via Simulator.");
-                    */
+                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via Simulator (Remote).");
+                    
                     break;
             }
 
