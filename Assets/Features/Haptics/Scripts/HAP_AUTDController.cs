@@ -118,6 +118,28 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Tooltip("エディタ上でデバイスのサイズと位置を Gizmo (青色の枠) で表示します。")]
     public bool visualizeDevices = true;
 
+    [Header("Performance Profiling")]
+    [Tooltip("有効にすると、ハプティクスパイプラインの処理時間を計測します（Unity ProfilerMarker には毎フレーム記録されます）。")]
+    public bool enableProfiling = false;
+
+    [Tooltip("有効にすると、Sendを含む全処理をメインスレッドで同期実行します。\n" +
+             "Profile Analyzer で CPU Usage の中央値を取る際に使用してください。\n" +
+             "※ 有効時はフレームレートが低下します。論文計測時のみONにしてください。")]
+    public bool synchronousSend = false;
+
+    [Tooltip("Debug.Log への結果出力を有効にします。")]
+    public bool enableLog = true;
+    
+    [Tooltip("Debug.Log に処理時間を出力する間隔（フレーム数）。1で毎フレーム出力。")]
+    [Range(1, 600)]
+    public int profilingLogInterval = 60;
+
+    /// <summary>
+    /// パフォーマンスプロファイラー。外部からも参照可能です。
+    /// </summary>
+    [HideInInspector]
+    public HAP_AUTDPerformanceProfiler performanceProfiler = new HAP_AUTDPerformanceProfiler();
+
     [HideInInspector]
     public List<AUTD3Device> connectedDevices = new List<AUTD3Device>();
 
@@ -231,6 +253,11 @@ public partial class HAP_AUTDController : MonoBehaviour
     void Update()
     {
         if (_autd == null) return;
+
+        // プロファイラー設定の同期
+        performanceProfiler.Enabled = enableProfiling;
+        performanceProfiler.LogEnabled = enableLog;
+        performanceProfiler.LogInterval = profilingLogInterval;
 
         // インスペクターの設定変更を監視して適用（HAP_AUTDController_Config.cs）
         CheckForConfigChanges();

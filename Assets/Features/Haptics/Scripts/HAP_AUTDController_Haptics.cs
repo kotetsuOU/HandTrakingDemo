@@ -29,7 +29,13 @@ public partial class HAP_AUTDController
 
         if (activeClusters.Count > 0)
         {
+            var profiler = performanceProfiler;
+
+            // ── Total 計測開始 ──
+            profiler.BeginTotal();
+
             // 1. 各クラスタから必要な焦点（Foci/STM）を生成
+            profiler.BeginFociGenerate();
             var clusterFociList = HAP_FociGenerator.Generate(
                 activeClusters, 
                 generationMode, 
@@ -38,8 +44,10 @@ public partial class HAP_AUTDController
                 randomSource, 
                 focusIntensityPascal, 
                 offset);
+            profiler.EndFociGenerate();
 
             // 2. クラスタの法線とデバイスの向きに基づき、最適なデバイスにGSPATを割り当ててグループ化
+            profiler.BeginDeviceAllocate();
             var groupDatagram = HAP_GSPATDeviceAllocator.Allocate(
                 clusterFociList, 
                 connectedDevices, 
@@ -48,21 +56,52 @@ public partial class HAP_AUTDController
                 directionalAngleThreshold, 
                 focusIntensityPascal,
                 debugDisabler);
+            profiler.EndDeviceAllocate();
 
             // 3. デバイスに送信
             if (_autd != null)
             {
-                if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
+                if (synchronousSend)
                 {
-                    _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
+                    // ── 同期モード（論文計測用） ──
+                    // 全処理がメインスレッドで実行されるため、
+                    // CPU Usage → Hierarchy に全マーカーが表示され、
+                    // Profile Analyzer で中央値を直接取得できます。
+                    try
                     {
-                        try 
-                        {
-                            lock (_sendLock) { _autd.Send(groupDatagram); }
-                        }
-                        catch (System.Exception e) { Debug.LogException(e); }
-                    });
+                        profiler.BeginSend();
+                        lock (_sendLock) { _autd.Send(groupDatagram); }
+                        profiler.EndSend();
+
+                        // ── Total 計測終了 ──
+                        profiler.EndTotal();
+                    }
+                    catch (System.Exception e) { Debug.LogException(e); }
                     _isCurrentlyOff = false;
+                }
+                else
+                {
+                    // ── 非同期モード（通常運用） ──
+                    // Send をバックグラウンドスレッドで実行し、メインスレッドのFPSを維持
+                    profiler.EndMainThreadMarker();
+
+                    if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
+                    {
+                        _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
+                        {
+                            try 
+                            {
+                                profiler.BeginSend();
+                                lock (_sendLock) { _autd.Send(groupDatagram); }
+                                profiler.EndSend();
+
+                                // ── Total 計測終了（Send完了後） ──
+                                profiler.EndTotal();
+                            }
+                            catch (System.Exception e) { Debug.LogException(e); }
+                        });
+                        _isCurrentlyOff = false;
+                    }
                 }
             }
         }
@@ -71,7 +110,16 @@ public partial class HAP_AUTDController
             // 接触がなくなった場合、出力を停止 (Null)
             if (!_isCurrentlyOff && _autd != null)
             {
-                if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
+                if (synchronousSend)
+                {
+                    try
+                    {
+                        lock (_sendLock) { _autd.Send(new Null()); }
+                    }
+                    catch (System.Exception e) { Debug.LogException(e); }
+                    _isCurrentlyOff = true;
+                }
+                else if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
                 {
                     _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
                     {
