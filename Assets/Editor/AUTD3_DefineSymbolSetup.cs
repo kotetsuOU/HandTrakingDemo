@@ -8,6 +8,7 @@
 /// </summary>
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEngine;
 using System.IO;
 using System.Linq;
@@ -37,8 +38,9 @@ public static class AUTD3_DefineSymbolSetup
                         !manifest.Contains("\"com.shinolab.autd3-sdk\"");
 
         // 現在の対象プラットフォームのシンボルを取得
-        var target = EditorUserBuildSettings.selectedBuildTargetGroup;
-        string current = PlayerSettings.GetScriptingDefineSymbolsForGroup(target);
+        var targetGroup = EditorUserBuildSettings.selectedBuildTargetGroup;
+        var target = NamedBuildTarget.FromBuildTargetGroup(targetGroup);
+        string current = PlayerSettings.GetScriptingDefineSymbols(target);
         var symbols = current.Split(';').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
 
         bool hasSymbol = symbols.Contains(LegacySymbol);
@@ -46,14 +48,14 @@ public static class AUTD3_DefineSymbolSetup
         if (isLegacy && !hasSymbol)
         {
             symbols.Add(LegacySymbol);
-            PlayerSettings.SetScriptingDefineSymbolsForGroup(target, string.Join(";", symbols));
-            Debug.Log($"[AUTD3_DefineSymbolSetup] Added '{LegacySymbol}' for {target}. Legacy SDK detected.");
+            PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
+            Debug.Log($"[AUTD3_DefineSymbolSetup] Added '{LegacySymbol}' for {targetGroup}. Legacy SDK detected.");
         }
         else if (!isLegacy && hasSymbol)
         {
             symbols.Remove(LegacySymbol);
-            PlayerSettings.SetScriptingDefineSymbolsForGroup(target, string.Join(";", symbols));
-            Debug.Log($"[AUTD3_DefineSymbolSetup] Removed '{LegacySymbol}' for {target}. New SDK detected.");
+            PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
+            Debug.Log($"[AUTD3_DefineSymbolSetup] Removed '{LegacySymbol}' for {targetGroup}. New SDK detected.");
         }
         else
         {
