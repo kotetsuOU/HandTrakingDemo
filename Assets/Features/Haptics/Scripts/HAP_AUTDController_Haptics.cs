@@ -23,16 +23,33 @@ public partial class HAP_AUTDController
     {
         // バイパスが有効な場合はここで終了し、Updateからの自動送信を行わない
         if (bypassHaptics) return;
-        if (hcdPipeline == null) return;
 
-        // トラッカーから安定化・追跡済みのクラスタリストを取得
-        var trackedClusters = hcdPipeline.GetTrackedClusters();
+        bool useFoxFootHaptics = foxFootHapticsController != null && foxFootHapticsController.enabled;
+        bool hasActiveTargets = false;
+        List<TrackedCluster> activeClusters = new List<TrackedCluster>();
 
-        // 生存しており、かつ Force が有効なクラスタを抽出
-        var activeClusters = trackedClusters
-            .Where(c => c.IsAlive && c.Force > 0.01f).ToList();
+        if (useFoxFootHaptics)
+        {
+            hasActiveTargets = foxFootHapticsController!.HasActiveTargets();
+        }
+        else
+        {
+            if (hcdPipeline != null)
+            {
+                var trackedClusters = hcdPipeline.GetTrackedClusters();
+                activeClusters = trackedClusters.Where(c => c.IsAlive && c.Force > 0.01f).ToList();
+                hasActiveTargets = activeClusters.Count > 0;
+            }
+        }
 
-        if (activeClusters.Count > 0)
+        // カスタムアルゴリズム選択時のフォールバック処理
+        HoloAlgorithm effectiveAlgorithm = holoAlgorithm;
+        if (effectiveAlgorithm == HoloAlgorithm.Custom && !useFoxFootHaptics)
+        {
+            effectiveAlgorithm = HoloAlgorithm.GSPAT;
+        }
+
+        if (hasActiveTargets)
         {
             var profiler = performanceProfiler;
 
@@ -41,14 +58,22 @@ public partial class HAP_AUTDController
 
             // 1. 各クラスタから必要な焦点（Foci/STM）を生成
             profiler.BeginFociGenerate();
-            var clusterFociList = HAP_FociGenerator.Generate(
-                activeClusters, 
-                generationMode, 
-                centroidSource, 
-                ellipseSource, 
-                randomSource, 
-                focusIntensityPascal, 
-                offset);
+            List<HAP_FociGenerator.ClusterFociData> clusterFociList;
+            if (useFoxFootHaptics)
+            {
+                clusterFociList = foxFootHapticsController!.GetFootFociList(focusIntensityPascal, offset);
+            }
+            else
+            {
+                clusterFociList = HAP_FociGenerator.Generate(
+                    activeClusters, 
+                    generationMode, 
+                    centroidSource, 
+                    ellipseSource, 
+                    randomSource, 
+                    focusIntensityPascal, 
+                    offset);
+            }
             profiler.EndFociGenerate();
 
 #if !USE_AUTD3_LEGACY
@@ -62,7 +87,7 @@ public partial class HAP_AUTDController
                     geometry,
                     clusterFociList, 
                     connectedDevices, 
-                    holoAlgorithm, 
+                    effectiveAlgorithm, 
                     enableDirectionalGrouping, 
                     directionalAngleThreshold, 
                     focusIntensityPascal,
@@ -88,7 +113,7 @@ public partial class HAP_AUTDController
             var groupDatagram = HAP_GSPATDeviceAllocator.Allocate(
                 clusterFociList, 
                 connectedDevices, 
-                holoAlgorithm, 
+                effectiveAlgorithm, 
                 enableDirectionalGrouping, 
                 directionalAngleThreshold, 
                 focusIntensityPascal,

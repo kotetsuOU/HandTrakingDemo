@@ -92,6 +92,24 @@ public class AnimationController : MonoBehaviour
                     }
                 }
 
+                // Foxの足のハプティクス制御があれば、対象ルートとボーン参照を自動更新する
+                var foxFootController = FindFirstObjectByType<HAP_FoxFootHapticsController>();
+                if (foxFootController != null)
+                {
+                    // 以前のボーンの参照をクリア
+                    foxFootController.frontLeftFoot = null;
+                    foxFootController.frontRightFoot = null;
+                    foxFootController.backLeftFoot = null;
+                    foxFootController.backRightFoot = null;
+                    
+                    // 新しいアクティブオブジェクトのTransformをルートにする
+                    foxFootController.rootTransform = activeObj.transform;
+                    
+                    // ボーンの自動再検出
+                    foxFootController.AutoDetectBones();
+                }
+
+
 #if false
                 if (PRController != null)
                 {

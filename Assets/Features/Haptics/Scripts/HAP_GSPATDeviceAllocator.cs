@@ -192,7 +192,7 @@ public static class HAP_GSPATDeviceAllocator
                 mergedFoci.AddRange(cData.SequentialFoci);
             }
 
-            if (holoAlgorithm == HoloAlgorithm.GSPAT)
+            if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
                 return new GSPAT(mergedFoci.ToArray(), new GSPATOption());
             else
                 return new Naive(mergedFoci.ToArray(), new NaiveOption());
@@ -319,7 +319,7 @@ public static class HAP_GSPATDeviceAllocator
             // STMの最大フレーム数を取得
             int maxSamples = clusterData.Max(c => c.UseSTM ? c.STMFrames.Count : 1);
             
-            if (holoAlgorithm == HoloAlgorithm.GSPAT)
+            if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
             {
                 // GSPAT STM (CPU計算 -> PatternStm)
                 var patterns = new PatternBuffer[maxSamples];
@@ -421,7 +421,7 @@ public static class HAP_GSPATDeviceAllocator
             var mask = TransducerMask.Masked(maskArray);
 
             var buffer = geometry.PatternBuffer();
-            if (holoAlgorithm == HoloAlgorithm.GSPAT)
+            if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
             {
                 var option = new GspatOption(repeat: 100, constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
                 AUTD3.Holo.Holo.Gspat(geometry, mergedFoci.ToArray(), wavelength, option, buffer);

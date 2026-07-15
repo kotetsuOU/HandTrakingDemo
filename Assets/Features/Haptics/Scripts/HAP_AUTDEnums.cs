@@ -15,7 +15,12 @@ public enum HoloAlgorithm
     /// <summary>
     /// Naiveアルゴリズム（計算は単純だが、フォーカス数が増えると精度が下がる場合がある）
     /// </summary>
-    Naive
+    Naive,
+
+    /// <summary>
+    /// クラス独自のカスタムアルゴリズム・照射モードを使用します
+    /// </summary>
+    Custom
 }
 
 /// <summary>

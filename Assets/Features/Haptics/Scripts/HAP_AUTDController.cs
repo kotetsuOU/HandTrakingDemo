@@ -46,6 +46,9 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
     public HCD_Pipeline hcdPipeline = null!;
 
+    [Tooltip("Foxの足のハプティクス制御コンポーネント。これがアタッチされ有効な場合、標準の衝突判定による触覚の代わりに足の位置へ照射します。")]
+    public HAP_FoxFootHapticsController? foxFootHapticsController;
+
     [HideInInspector]
     public bool bypassHaptics = false;
 
