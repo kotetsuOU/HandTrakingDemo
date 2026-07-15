@@ -15,7 +15,7 @@ public static class HAP_FociGenerator
     public class ClusterFociData
     {
         public TrackedCluster Cluster;
-        public List<(Vector3, Amplitude)> SequentialFoci = new List<(Vector3, Amplitude)>();
+        public List<AUTD3.Holo.ControlPoint> SequentialFoci = new List<AUTD3.Holo.ControlPoint>();
         public List<List<Vector3>> STMFrames = new List<List<Vector3>>();
         public bool UseSTM;
 
@@ -46,8 +46,8 @@ public static class HAP_FociGenerator
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)
             {
-                data.SequentialFoci.Add((
-                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), 
+                data.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
                     Amplitude.FromPascal(focusIntensityPascal * c.Force)
                 ));
                 result.Add(data);
@@ -60,24 +60,30 @@ public static class HAP_FociGenerator
 
             if (!useStm)
             {
-                // STMを使用せず Centroid だけが有効な場合は静的Holoとして出力
-                data.SequentialFoci.Add((new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))));
+                // STMを使用せず Centroid だけが有効な場合→静的Holoとして出力
+                data.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                    Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))
+                ));
             }
             else
             {
                 // STMサンプルの最大数を決定
                 int maxStmSamples = 1;
-                if (ellipseSource.enabled && ellipseSource.outputMode == HapticsOutputMode.FociStm) 
+                if (ellipseSource.enabled && ellipseSource.outputMode == HapticsOutputMode.FociStm)
                     maxStmSamples = Mathf.Max(maxStmSamples, ellipseSource.stmSamplesPerCycle);
-                if (randomSource.enabled && randomSource.outputMode == HapticsOutputMode.FociStm) 
+                if (randomSource.enabled && randomSource.outputMode == HapticsOutputMode.FociStm)
                     maxStmSamples = Mathf.Max(maxStmSamples, randomSource.stmSamplesPerCycle);
-                
+
                 for (int i = 0; i < maxStmSamples; i++) data.STMFrames.Add(new List<Vector3>());
 
                 // 1. Centroid Source の処理
                 if (centroidSource.enabled)
                 {
-                    data.SequentialFoci.Add((new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))));
+                    data.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                        new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                        Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))
+                    ));
                 }
 
                 // 2. Ellipse Source の処理
@@ -85,17 +91,22 @@ public static class HAP_FociGenerator
                 {
                     float ellipseAmpScale;
                     var eFrames = ellipseSource.GenerateSTMFrames(c, offset, out ellipseAmpScale);
-                    
+
                     if (ellipseSource.outputMode == HapticsOutputMode.Sequential)
                     {
                         int idx = Time.frameCount % eFrames.Count;
-                        foreach (var p in eFrames[idx]) {
-                            data.SequentialFoci.Add((new Vector3(p.x, p.y, p.z), Amplitude.FromPascal(focusIntensityPascal * c.Force * ellipseAmpScale)));
+                        foreach (var p in eFrames[idx])
+                        {
+                            data.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                                new Vector3(p.x, p.y, p.z),
+                                Amplitude.FromPascal(focusIntensityPascal * c.Force * ellipseAmpScale)
+                            ));
                         }
                     }
                     else
                     {
-                        for (int i = 0; i < eFrames.Count; i++) {
+                        for (int i = 0; i < eFrames.Count; i++)
+                        {
                             int targetIdx = Mathf.RoundToInt((float)i / eFrames.Count * (maxStmSamples - 1));
                             data.STMFrames[targetIdx].AddRange(eFrames[i]);
                         }
@@ -109,26 +120,33 @@ public static class HAP_FociGenerator
                     if (randomSource.outputMode == HapticsOutputMode.Sequential)
                     {
                         int idx = Time.frameCount % rFrames.Count;
-                        foreach (var p in rFrames[idx]) {
-                            data.SequentialFoci.Add((new Vector3(p.x, p.y, p.z), Amplitude.FromPascal(focusIntensityPascal * c.Force)));
+                        foreach (var p in rFrames[idx])
+                        {
+                            data.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                                new Vector3(p.x, p.y, p.z),
+                                Amplitude.FromPascal(focusIntensityPascal * c.Force)
+                            ));
                         }
                     }
                     else
                     {
-                        for (int i = 0; i < rFrames.Count; i++) {
+                        for (int i = 0; i < rFrames.Count; i++)
+                        {
                             int targetIdx = Mathf.RoundToInt((float)i / rFrames.Count * (maxStmSamples - 1));
                             data.STMFrames[targetIdx].AddRange(rFrames[i]);
                         }
                     }
                 }
-                
+
                 // STMを使う場合、STMの全フレームに対して Sequential な焦点（Centroidなど）を合成する
-                for (int i = 0; i < maxStmSamples; i++) {
+                for (int i = 0; i < maxStmSamples; i++)
+                {
                     if (data.STMFrames[i].Count == 0)
                         data.STMFrames[i].Add(c.Centroid + offset);
-                    
-                    foreach (var sf in data.SequentialFoci) {
-                        data.STMFrames[i].Add(sf.Item1);
+
+                    foreach (var sf in data.SequentialFoci)
+                    {
+                        data.STMFrames[i].Add(sf.Point);
                     }
                 }
             }
@@ -141,10 +159,10 @@ public static class HAP_FociGenerator
 }
 
 #else
+
 using System.Collections.Generic;
 using UnityEngine;
-using AUTD3Sharp.Gain.Holo;
-using static AUTD3Sharp.Units;
+using AUTD3.Holo;
 
 #nullable enable
 
@@ -157,7 +175,7 @@ public static class HAP_FociGenerator
     public class ClusterFociData
     {
         public TrackedCluster Cluster;
-        public List<(AUTD3Sharp.Utils.Point3, Amplitude)> SequentialFoci = new List<(AUTD3Sharp.Utils.Point3, Amplitude)>();
+        public List<ControlPoint> SequentialFoci = new List<ControlPoint>();
         public List<List<Vector3>> STMFrames = new List<List<Vector3>>();
         public bool UseSTM;
 
@@ -188,9 +206,9 @@ public static class HAP_FociGenerator
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)
             {
-                data.SequentialFoci.Add((
-                    new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), 
-                    (focusIntensityPascal * c.Force) * Pa
+                data.SequentialFoci.Add(new ControlPoint(
+                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                    Amplitude.FromPascal(focusIntensityPascal * c.Force)
                 ));
                 result.Add(data);
                 continue;
@@ -202,29 +220,29 @@ public static class HAP_FociGenerator
 
             if (!useStm)
             {
-                // STMを使用せず Centroid だけが有効な場合は静的Holoとして出力
-                data.SequentialFoci.Add((
-                    new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), 
-                    centroidSource.CalculateAmplitude(c) * Pa
+                // STMを使用せず Centroid だけが有効な場合→静的Holoとして出力
+                data.SequentialFoci.Add(new ControlPoint(
+                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                    Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))
                 ));
             }
             else
             {
                 // STMサンプルの最大数を決定
                 int maxStmSamples = 1;
-                if (ellipseSource.enabled && ellipseSource.outputMode == HapticsOutputMode.FociStm) 
+                if (ellipseSource.enabled && ellipseSource.outputMode == HapticsOutputMode.FociStm)
                     maxStmSamples = Mathf.Max(maxStmSamples, ellipseSource.stmSamplesPerCycle);
-                if (randomSource.enabled && randomSource.outputMode == HapticsOutputMode.FociStm) 
+                if (randomSource.enabled && randomSource.outputMode == HapticsOutputMode.FociStm)
                     maxStmSamples = Mathf.Max(maxStmSamples, randomSource.stmSamplesPerCycle);
-                
+
                 for (int i = 0; i < maxStmSamples; i++) data.STMFrames.Add(new List<Vector3>());
 
                 // 1. Centroid Source の処理
                 if (centroidSource.enabled)
                 {
-                    data.SequentialFoci.Add((
-                        new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z), 
-                        centroidSource.CalculateAmplitude(c) * Pa
+                    data.SequentialFoci.Add(new ControlPoint(
+                        new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                        Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))
                     ));
                 }
 
@@ -233,17 +251,22 @@ public static class HAP_FociGenerator
                 {
                     float ellipseAmpScale;
                     var eFrames = ellipseSource.GenerateSTMFrames(c, offset, out ellipseAmpScale);
-                    
+
                     if (ellipseSource.outputMode == HapticsOutputMode.Sequential)
                     {
                         int idx = Time.frameCount % eFrames.Count;
-                        foreach (var p in eFrames[idx]) {
-                            data.SequentialFoci.Add((new AUTD3Sharp.Utils.Point3(p.x, p.y, p.z), (focusIntensityPascal * c.Force * ellipseAmpScale) * Pa));
+                        foreach (var p in eFrames[idx])
+                        {
+                            data.SequentialFoci.Add(new ControlPoint(
+                                new Vector3(p.x, p.y, p.z),
+                                Amplitude.FromPascal(focusIntensityPascal * c.Force * ellipseAmpScale)
+                            ));
                         }
                     }
                     else
                     {
-                        for (int i = 0; i < eFrames.Count; i++) {
+                        for (int i = 0; i < eFrames.Count; i++)
+                        {
                             int targetIdx = Mathf.RoundToInt((float)i / eFrames.Count * (maxStmSamples - 1));
                             data.STMFrames[targetIdx].AddRange(eFrames[i]);
                         }
@@ -257,26 +280,33 @@ public static class HAP_FociGenerator
                     if (randomSource.outputMode == HapticsOutputMode.Sequential)
                     {
                         int idx = Time.frameCount % rFrames.Count;
-                        foreach (var p in rFrames[idx]) {
-                            data.SequentialFoci.Add((new AUTD3Sharp.Utils.Point3(p.x, p.y, p.z), (focusIntensityPascal * c.Force) * Pa));
+                        foreach (var p in rFrames[idx])
+                        {
+                            data.SequentialFoci.Add(new ControlPoint(
+                                new Vector3(p.x, p.y, p.z),
+                                Amplitude.FromPascal(focusIntensityPascal * c.Force)
+                            ));
                         }
                     }
                     else
                     {
-                        for (int i = 0; i < rFrames.Count; i++) {
+                        for (int i = 0; i < rFrames.Count; i++)
+                        {
                             int targetIdx = Mathf.RoundToInt((float)i / rFrames.Count * (maxStmSamples - 1));
                             data.STMFrames[targetIdx].AddRange(rFrames[i]);
                         }
                     }
                 }
-                
+
                 // STMを使う場合、STMの全フレームに対して Sequential な焦点（Centroidなど）を合成する
-                for (int i = 0; i < maxStmSamples; i++) {
+                for (int i = 0; i < maxStmSamples; i++)
+                {
                     if (data.STMFrames[i].Count == 0)
                         data.STMFrames[i].Add(c.Centroid + offset);
-                    
-                    foreach (var sf in data.SequentialFoci) {
-                        data.STMFrames[i].Add(new Vector3(sf.Item1.X, sf.Item1.Y, sf.Item1.Z));
+
+                    foreach (var sf in data.SequentialFoci)
+                    {
+                        data.STMFrames[i].Add(sf.Point);
                     }
                 }
             }

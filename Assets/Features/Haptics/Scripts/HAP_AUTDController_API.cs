@@ -264,6 +264,8 @@ using static AUTD3.Units;
 
 public partial class HAP_AUTDController
 {
+    public Client? client => _client;
+
     // =========================================================================
     // 手動操作用API (MANUAL APIs)
     // =========================================================================
