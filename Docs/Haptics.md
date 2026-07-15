@@ -220,6 +220,7 @@ Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController_Config.cs  # ハードウェア設定反映 (partial)
  ├── HAP_AUTDController_Haptics.cs # HCD_Pipelineからの出力自動生成ロジック (partial)
  ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
+ ├── HAP_AUTDPerformanceProfiler.cs# ハプティクス全体の処理時間・送信遅延計測プロファイラー
  ├── HAP_FociGenerator.cs          # 接触クラスタからの触覚データ(Focus)生成ロジック
  ├── HAP_GSPATDeviceAllocator.cs   # デバイスとクラスタの指向性・IDに基づく割り当て・データグラム生成
  ├── HAP_GizmoVisualizer.cs        # デバイスグループを描画するユーティリティ (partial)
@@ -273,3 +274,47 @@ AUTD3Sharp (v38) では、`TwinCAT`以外のリンク（`SOEM` および `Simula
 - **オフセットの自動計算と適用 (`Calculate & Add Offset`)**: 「理想の焦点位置 (FocusTarget)」と「実際の焦点位置 (TruePosition)」を指定することで、その差分から必要な位置ズレ (Offset) を自動計算し、コントローラー (`HAP_AUTDController`) の Offset パラメータに加算します。また、インスペクター上で現在の Offset の値を直接手入力して微調整することも可能です。
 - **デバイス位置への永続化 (`Bake Offset to Devices`)**: コントローラーに設定された現在の Offset 量を、**Target Devices でチェックがオンになっているデバイスのみ**の Transform (座標) に物理的に反映（逆移動）させ、Offset をゼロにリセットします。これにより、複数台のデバイスアレイ環境において「1台ずつ順番にチェックを入れて個別のズレをキャリブレーションしては Bake する」という、高度な個別補正ワークフローが可能になります。
 - **Playモード状態の保持**: キャリブレーションの性質上、Playモード実行中に様々な調整が行われます。専用の拡張エディタ (`HAP_AUTDCalibrationEditor`) によって、Play中に調整した設定値や直接編集した Offset が適切に退避され、Playモード終了時にEditモードのシーンへ自動で引き継がれます。
+
+---
+
+## 9. パフォーマンスプロファイリングと論文計測ワークフロー
+
+空中超音波ハプティクス提示におけるGSPATの計算仕様および送信遅延を含めた総処理時間を正確に評価・計測するため、本システムには専用のプロファイリング機能が組み込まれています。
+
+### 9.1 計測の仕組みと仕様（CPU/GPU）
+* **GSPATの計算仕様**: AUTD3のホログラフィ生成（GSPAT）は**CPU**で処理されます。また、_autd.Send() はGain計算およびデータ送信に関して**同期処理**です（非同期キューへのプッシュではありません）。
+* **計測のアプローチ**: 同期処理であるため、C#側の System.Diagnostics.Stopwatch および Unity.Profiling.ProfilerMarker を用いて、DLL内部のGSPAT計算から送信完了までの実時間を正確に計測可能です。
+
+### 9.2 プロファイリング設定 (Inspector)
+HAP_AUTDController の **Performance Profiling** セクションから以下の設定を行えます。
+
+* **Enable Profiling**: プロファイリング全体の有効/無効を切り替えます。無効化されている場合は計測処理のオーバーヘッドはゼロになります。
+* **Synchronous Send (重要・論文計測用)**:
+  * **ON (同期)**: 通常は別スレッドで行う Send (GSPATの重いCPU計算を含む) をメインスレッドで同期実行します。これにより、UnityのProfiler Hierarchy（メインスレッド）上にすべての処理時間が乗り、**Profile Analyzerによる中央値（Median）などの詳細な統計解析**が可能になります。
+  * **OFF (非同期/通常時)**: Send 処理をバックグラウンドスレッド (Task.Run) で非同期実行します。メインスレッドのフレームレート(FPS)を維持するための通常運用モードです。
+* **Enable Log**: Unity Consoleへの計測結果テキストの出力の有無。
+* **Profiling Log Interval**: Consoleログを出力するフレーム間隔（デフォルト60フレーム）。
+
+### 9.3 関連クラスと構造
+* **[HAP_AUTDPerformanceProfiler.cs](../Assets/Features/Haptics/Scripts/HAP_AUTDPerformanceProfiler.cs)**:
+  各フェーズの Stopwatch 時間計測と、Unity Profiler用の ProfilerMarker の発行・統計情報（平均値）の管理を行います。
+* **計測対象の3フェーズ**:
+  1. HAP.Haptics.FociGenerate (① 焦点座標の生成)
+  2. HAP.Haptics.DeviceAllocate (② 指向性ルーティングとグループ化)
+  3. HAP.Haptics.Send (③ GSPATのCPU計算および物理デバイスへの送信)
+
+### 9.4 論文用データの取得手順（Profile Analyzer）
+論文用のCPU処理時間（中央値など）を計測して表にまとめる場合は、以下の手順で実施します。
+
+1. **同期モードの有効化**:
+   HAP_AUTDController の Enable Profiling と Synchronous Send を両方 **ON** にします。
+2. **データの録画**:
+   Unityの **Profiler** ウィンドウを開き、CPU Usageモジュールをアクティブにして実行中のプロファイルを録画します。
+3. **中央値の解析**:
+   Unityの **Profile Analyzer** ウィンドウを開き、録画データを読み込みます。
+   フィルターに HAP.Haptics を入力することで、以下のマーカーの中央値（Median）を直接取得し、表に反映できます。
+   * HAP.Haptics.FociGenerate
+   * HAP.Haptics.DeviceAllocate
+   * HAP.Haptics.Send
+4. **通常モードへの復帰**:
+   計測完了後、Synchronous Send を **OFF** に戻し、描画パイプライン外（別スレッド）での非同期送信に切り替えてFPSを回復させます。

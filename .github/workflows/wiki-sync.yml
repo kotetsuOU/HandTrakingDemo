@@ -16,6 +16,7 @@ on:
       - "Docs/Display3D.md"
       - "Docs/Initialization.md"
       - "Docs/AnimationControls.md"
+      - "Docs/AUTD3_SDK_Transition.md"
   workflow_dispatch:
 
 permissions:
@@ -45,9 +46,8 @@ jobs:
           cp Docs/Display3D.md temp-wiki/Display3D.md
           cp Docs/Initialization.md temp-wiki/Initialization.md
           cp Docs/PhysicalResponse.md temp-wiki/PhysicalResponse.md
-          if [ -f Docs/AnimationControls.md ]; then
-            cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
-          fi
+          cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
+          cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
           
           python3 -c '
           import os, re
