@@ -46,6 +46,16 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
     public float heightThreshold = 0.05f;
     [Tooltip("接地の基準となるキャラクターのルートTransform。未指定の場合は本GameObjectのTransformを使用します。")]
     public Transform? rootTransform;
+    [Tooltip("どのAUTDデバイスが照射するかを、方向グルーピングで判定する際のクラスタ法線。\n上面から照射するAUTD：Vector3.downを指定（展開面が下向き，足に向かって上からめがける場合）。\n下面から照射するAUTD：Vector3.upを指定。")]
+    public Vector3 footTargetNormal = Vector3.down;
+
+    [Header("Custom Mode Settings")]
+    [Tooltip("疑似STMにおいて、同じ足を何フレーム間照射し続けるか（値を大きくすると出力が強く感じられます）。")]
+    public int framesPerFoot = 5;
+    [Tooltip("デバッグ用：有効化すると、接地判定や個別トグルを無視して、全4本の足を常にアクティブ（照射対象）として扱います。")]
+    public bool debugForceActiveAllFeet = false;
+    [Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い（単焦点ではNaiveで十分）。")]
+    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
 
     [Header("Debug Visualization")]
     [Tooltip("Sceneビュー上に足の位置を示すGizmoを描画します。")]
@@ -56,6 +66,7 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
     public Color inactiveColor = Color.red;
 
     private int _currentFootCycleIndex = 0;
+    private int _frameCounter = 0;
     private Transform? _currentlyActiveFoot = null;
 
     private void Reset()
@@ -151,7 +162,9 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
 
     private bool IsFootActive(Transform? footTransform, bool isEnabled)
     {
-        if (!isEnabled || footTransform == null) return false;
+        if (footTransform == null) return false;
+        if (debugForceActiveAllFeet) return true;
+        if (!isEnabled) return false;
         if (onlyTargetGrounded && rootTransform != null)
         {
             float relHeight = footTransform.position.y - rootTransform.position.y;
@@ -162,12 +175,17 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
 
     /// <summary>
     /// HAP_AUTDControllerが使用する、現在有効な足の座標データ（ClusterFociData）のリストを構築します。
-    /// Customアルゴリズム選択時は、疑似STMとしてフレーム毎に時計回りに1つの足を選択して照射します。
+    /// holoAlgorithm=Custom + customInnerAlgorithm=Naive のときは疑似STM（時計回り単焦点巻回）。
+    /// holoAlgorithm=Custom + customInnerAlgorithm=GSPAT のときは接地足全てに同時マルチフォーカスGSPAT。
     /// </summary>
     public List<HAP_FociGenerator.ClusterFociData> GetFootFociList(float defaultIntensityPascal, Vector3 offset)
     {
         var result = new List<HAP_FociGenerator.ClusterFociData>();
-        bool useCustomCycle = autdController != null && autdController.holoAlgorithm == HoloAlgorithm.Custom;
+        
+        // Customモード中かつNaiveソルバーのときのみ巻回STMを使用
+        bool useCustomCycle = autdController != null 
+            && autdController.holoAlgorithm == HoloAlgorithm.Custom
+            && customInnerAlgorithm == HoloSolverAlgorithm.Naive;
 
         if (useCustomCycle)
         {
@@ -192,8 +210,19 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
 
             if (activeCandidates.Count > 0)
             {
-                // インデックスを進めて1つの足を選択
-                _currentFootCycleIndex = (_currentFootCycleIndex + 1) % activeCandidates.Count;
+                _frameCounter++;
+                if (_frameCounter >= framesPerFoot)
+                {
+                    _frameCounter = 0;
+                    _currentFootCycleIndex = (_currentFootCycleIndex + 1) % activeCandidates.Count;
+                }
+
+                // インデックス範囲の境界チェック
+                if (_currentFootCycleIndex >= activeCandidates.Count)
+                {
+                    _currentFootCycleIndex = 0;
+                }
+
                 var targetFoot = activeCandidates[_currentFootCycleIndex];
                 _currentlyActiveFoot = targetFoot;
                 ProcessFootFoci(targetFoot, true, defaultIntensityPascal, offset, result);
@@ -201,12 +230,13 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
             else
             {
                 _currentlyActiveFoot = null;
+                _frameCounter = 0;
             }
         }
         else
         {
             _currentlyActiveFoot = null;
-            // 通常モード（GSPAT等）: すべての有効な足へ同時にマルチフォーカスで照射
+            // GSPATマルチフォーカスモード: 接地判定を通過したすべての有効な足へ同時に照射
             ProcessFootFoci(frontLeftFoot, enableFrontLeft, defaultIntensityPascal, offset, result);
             ProcessFootFoci(frontRightFoot, enableFrontRight, defaultIntensityPascal, offset, result);
             ProcessFootFoci(backRightFoot, enableBackRight, defaultIntensityPascal, offset, result);
@@ -228,13 +258,17 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
         Vector3 pos = footTransform.position;
 
         // ダミーのTrackedClusterを構築して渡す
+        // footTargetNormalは、どのAUTDデバイスを担当させるかの方向ヒント。
+        // 上から照射するAUTDの場合: Normal = Vector3.down (デバイスの照射面が下向き)
         TrackedCluster dummyCluster = new TrackedCluster
         {
             Centroid = pos,
-            Normal = Vector3.up,
+            Normal = footTargetNormal.normalized,
             Force = 1.0f,
             IsAlive = true
         };
+
+        Debug.Log($"[FoxFoot] Target: {footTransform!.name} pos={pos} normal={footTargetNormal}");
 
         var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
 
@@ -284,16 +318,18 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
         if (footTransform == null) return;
 
         Vector3 pos = footTransform.position;
-        bool active = isEnabled;
+        bool active = isEnabled || debugForceActiveAllFeet;
         bool isGrounded = true;
 
-        bool useCustomCycle = autdController != null && autdController.holoAlgorithm == HoloAlgorithm.Custom;
+        bool useCustomCycle = autdController != null 
+            && autdController.holoAlgorithm == HoloAlgorithm.Custom
+            && customInnerAlgorithm == HoloSolverAlgorithm.Naive;
         if (useCustomCycle && Application.isPlaying)
         {
             active = active && (footTransform == _currentlyActiveFoot);
         }
 
-        if (onlyTargetGrounded && rootTransform != null)
+        if (!debugForceActiveAllFeet && onlyTargetGrounded && rootTransform != null)
         {
             float relHeight = pos.y - rootTransform.position.y;
             if (relHeight > heightThreshold)

@@ -24,6 +24,23 @@ public enum HoloAlgorithm
 }
 
 /// <summary>
+/// 実際に位相・振幅計算を行うホログラフィソルバーの選択
+/// HoloAlgorithmと異なり、Custom等の特殊モードを含まない純粋な計算エンジン選択に使用します
+/// </summary>
+public enum HoloSolverAlgorithm
+{
+    /// <summary>
+    /// GSPATソルバー（多焦点向けの反復最適化。単焦点には過剰）
+    /// </summary>
+    GSPAT,
+
+    /// <summary>
+    /// Naiveソルバー（単焦点向けに最適。素子数にO(N)で軽量）
+    /// </summary>
+    Naive
+}
+
+/// <summary>
 /// 超音波の変調モード（振動のパターン）
 /// </summary>
 public enum ModulationMode

@@ -44,9 +44,20 @@ public partial class HAP_AUTDController
 
         // カスタムアルゴリズム選択時のフォールバック処理
         HoloAlgorithm effectiveAlgorithm = holoAlgorithm;
-        if (effectiveAlgorithm == HoloAlgorithm.Custom && !useFoxFootHaptics)
+        if (effectiveAlgorithm == HoloAlgorithm.Custom)
         {
-            effectiveAlgorithm = HoloAlgorithm.GSPAT;
+            if (useFoxFootHaptics)
+            {
+                // FoxFootCustom用の単焦点内部ソルバー（Naive or GSPAT）をコントローラーから取得し、HoloAlgorithmに変換
+                effectiveAlgorithm = foxFootHapticsController!.customInnerAlgorithm == HoloSolverAlgorithm.Naive
+                    ? HoloAlgorithm.Naive
+                    : HoloAlgorithm.GSPAT;
+            }
+            else
+            {
+                // Custom対応クラスが未接続の場合はGSPATにフォールバック
+                effectiveAlgorithm = HoloAlgorithm.GSPAT;
+            }
         }
 
         if (hasActiveTargets)

@@ -4,7 +4,7 @@
 
 ## 1. モジュールの役割と位置づけ
 
-システム全体におけるハプティクス処理は、責務分離の観点から「判定」と「出力」の2段階に分かれています。
+システム全体におけるハプティクス処理は、責務分離 of 観点から「判定」と「出力」の2段階に分かれています。
 
 1. **Haptics Collision (Collision.md)**:
    仮想オブジェクトと点群の衝突判定、クラスタリング（位置・法線）、トラッキング、および接触面積に基づく Force 計算までを担当します（「どこに」「どの程度の強さで」触れているかの推定）。
@@ -92,14 +92,20 @@ p_j = \sum_{i=1}^N H_{ji} q_i \quad \left( H_{ji} = \frac{e^{-jk \|\mathbf{p}_j 
 ここで $q_i = a_i e^{j\phi_i}$ は $i$ 番目のトランスデューサの出力（複素振幅）、 $k = \frac{2\pi}{\lambda}$ は波数です。
 GSPAT（Gerchberg-Saxton phased array technique）は、目的の振幅 $|p_j| = A_j$ に近づけるため、固有値問題への帰着と反復計算（位相最適化）を並列処理で行い、高速に最適な位相パターン $\phi_i$ を算出するアルゴリズムです。
 
-### 3.3 接触強度による動的振幅スケーリング (Dynamic Amplitude Scaling)
+### 3.3 カスタム照射モード (Custom / Fox Foot Haptics など)
+特定のアプリケーション仕様や追従スクリプトに基づき、照射位置や照射サイクルを動的にカスタマイズする拡張アルゴリズムモードです。
+例えば、4足歩行モデルの足ボーンに追従する `HAP_FoxFootHapticsController` と連携し、以下の制御を提供します。
+- **疑似STM巡回（Naiveソルバー）**: 接地している有効な足をフレーム毎（または指定フレーム数）に時計回りに巡回し、常に1点のみに超音波を照射します（単焦点かつ巡回による時間分割）。接地していない足は自動でスキップされます。単一焦点のため、計算負荷が非常に低い `Naive` ソルバーを用いて動作します。
+- **同時マルチフォーカス（GSPATソルバー）**: 接地している有効なすべての足に対して同時に焦点を形成し、超音波を照射します。多焦点のため、干渉を防ぐ `GSPAT` 最適化演算エンジンを走らせます。
+
+### 3.4 接触強度による動的振幅スケーリング (Dynamic Amplitude Scaling)
 HCD_Pipeline から得られる接触強度（Force: $F \in [0, 1]$ ）を用いて、出力音圧を動的に調整します。基準となる最大出力音圧（`focusIntensityPascal`）を $P_{\mathrm{max}}$ としたとき、ターゲット音圧 $P_{\mathrm{target}}$ は線形にスケーリングされます：
 ```math
 P_{\mathrm{target}} = P_{\mathrm{max}} \cdot F
 ```
 これをホログラフィソルバーの目標振幅 $A_j$ として与えることで、物理的な押し込み量に比例した反力を超音波の放射圧として提示します。
 
-### 3.4 振幅変調 (Amplitude Modulation)
+### 3.5 振幅変調 (Amplitude Modulation)
 $40\,\mathrm{kHz}$ の超音波は人間の皮膚の機械受容器（マイスナー小体やパチニ小体）の応答周波数（数十〜数百Hz）を大きく超えているため、そのままでは何も感じません。そのため、低周波の信号 $M(t)$（例: $150\,\mathrm{Hz}$ のサイン波）を包絡線として振幅変調（AM）をかけます。
 出力される波形 $S_i(t)$ は以下のように表されます：
 ```math
@@ -111,7 +117,7 @@ S_i(t) = M(t) \cdot \sin(2\pi f_c t + \phi_i)
 M(t) = \frac{1}{2} (1 + \sin(2\pi f_m t)) \quad (M(t) \in [0, 1])
 ```
 
-### 3.5 時空間変調 (Spatio-Temporal Modulation: STM)
+### 3.6 時空間変調 (Spatio-Temporal Modulation: STM)
 多数の焦点座標のリストを高い周波数で順次切り替えることで、人間の皮膚の空間分解能と時間分解能の錯覚を利用し、面や線をなぞるような触覚を提示します。
 $N$ 個の点からなる軌跡をループ再生する場合、以下のパラメータを用いて周期と変調周波数が決まります。
 
@@ -127,7 +133,7 @@ T = \frac{N}{f_s} \implies f_{\mathrm{stm}} = \frac{f_s}{N}
 ```
 STMは、前述の振幅変調（AM）とは異なり、焦点そのものが動くことによる皮膚上の摩擦や連続的な刺激（Lateral Modulation）を引き起こす強力な提示手法です。
 
-### 3.6 複数デバイスの指向性ルーティング (Directional Device Grouping)
+### 3.7 複数デバイスの指向性ルーティング (Directional Device Grouping)
 複数のAUTDデバイスが異なる方向から配置されている場合、仮想オブジェクトの特定の面（クラスタ）に対して、その面に正対しているデバイスだけを選択的に駆動することで効率的な触覚提示を行います。
 
 対象クラスタの面から外側に向かう法線ベクトルを $\mathbf{n}$ 、判定対象のデバイスの正面方向（Forward）ベクトルを $\mathbf{d}$ とします（ともに単位ベクトル）。
@@ -229,6 +235,7 @@ Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDCalibration.cs        # 空間キャリブレーション・デバイス出力テスト用ツール
  ├── HAP_AUTDEnums.cs              # 設定用の列挙型定義 (HoloAlgorithm, ModulationModeなど)
  ├── HAP_HapticsSources.cs         # Centroid / Ellipse / Random の各種ソース定義と形状生成
+ ├── HAP_FoxFootHapticsController.cs# キツネの足ボーン追従・疑似STM照射コントローラー
  ├── AUTD3Device.cs                # 空間内のデバイス配置・IDマーカー
  ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
  ├── HCD_AutdControllerBridge.cs   # (旧互換用) HCD_PipelineとAUTDControllerを繋ぐブリッジ
@@ -240,7 +247,6 @@ Assets/Features/Haptics/Scripts/
 ---
 
 ## 7. AUTD3 リンクモードの設定 (TwinCAT / SOEM / Simulator)
-
 `HAP_AUTDController` は、AUTD3ハードウェアとの通信手段（Link Type）をInspectorから切り替えられるように設計されています。
 
 ### 7.1 追加された設定項目 (Inspector)
@@ -283,7 +289,7 @@ AUTD3Sharp (v38) では、`TwinCAT`以外のリンク（`SOEM` および `Simula
 
 ### 9.1 計測の仕組みと仕様（CPU/GPU）
 * **GSPATの計算仕様**: AUTD3のホログラフィ生成（GSPAT）は**CPU**で処理されます。また、_autd.Send() はGain計算およびデータ送信に関して**同期処理**です（非同期キューへのプッシュではありません）。
-* **計測のアプローチ**: 同期処理であるため、C#側の System.Diagnostics.Stopwatch および Unity.Profiling.ProfilerMarker を用いて、DLL内部のGSPAT計算から送信完了までの実時間を正確に計測可能です。
+* **計測のアプローチ**: 同期処理であるため、C#側の System.Diagnostics.Stopwatch および Unity.Profiling.ProfilerMarker を用いて、DLL内部 of GSPAT計算から送信完了までの実時間を正確に計測可能です。
 
 ### 9.2 プロファイリング設定 (Inspector)
 HAP_AUTDController の **Performance Profiling** セクションから以下の設定を行えます。
