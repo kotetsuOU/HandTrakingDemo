@@ -162,7 +162,8 @@ public static class HAP_FociGenerator
 
 using System.Collections.Generic;
 using UnityEngine;
-using AUTD3.Holo;
+using AUTD3Sharp.Gain.Holo;
+using static AUTD3Sharp.Units;
 
 #nullable enable
 
@@ -175,7 +176,7 @@ public static class HAP_FociGenerator
     public class ClusterFociData
     {
         public TrackedCluster Cluster;
-        public List<ControlPoint> SequentialFoci = new List<ControlPoint>();
+        public List<(AUTD3Sharp.Utils.Point3, Amplitude)> SequentialFoci = new List<(AUTD3Sharp.Utils.Point3, Amplitude)>();
         public List<List<Vector3>> STMFrames = new List<List<Vector3>>();
         public bool UseSTM;
 
@@ -206,9 +207,9 @@ public static class HAP_FociGenerator
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)
             {
-                data.SequentialFoci.Add(new ControlPoint(
-                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
-                    Amplitude.FromPascal(focusIntensityPascal * c.Force)
+                data.SequentialFoci.Add((
+                    new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                    focusIntensityPascal * c.Force * Pa
                 ));
                 result.Add(data);
                 continue;
@@ -221,9 +222,9 @@ public static class HAP_FociGenerator
             if (!useStm)
             {
                 // STMを使用せず Centroid だけが有効な場合→静的Holoとして出力
-                data.SequentialFoci.Add(new ControlPoint(
-                    new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
-                    Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))
+                data.SequentialFoci.Add((
+                    new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                    centroidSource.CalculateAmplitude(c) * Pa
                 ));
             }
             else
@@ -240,9 +241,9 @@ public static class HAP_FociGenerator
                 // 1. Centroid Source の処理
                 if (centroidSource.enabled)
                 {
-                    data.SequentialFoci.Add(new ControlPoint(
-                        new Vector3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
-                        Amplitude.FromPascal(centroidSource.CalculateAmplitude(c))
+                    data.SequentialFoci.Add((
+                        new AUTD3Sharp.Utils.Point3(c.Centroid.x + offset.x, c.Centroid.y + offset.y, c.Centroid.z + offset.z),
+                        centroidSource.CalculateAmplitude(c) * Pa
                     ));
                 }
 
@@ -257,9 +258,9 @@ public static class HAP_FociGenerator
                         int idx = Time.frameCount % eFrames.Count;
                         foreach (var p in eFrames[idx])
                         {
-                            data.SequentialFoci.Add(new ControlPoint(
-                                new Vector3(p.x, p.y, p.z),
-                                Amplitude.FromPascal(focusIntensityPascal * c.Force * ellipseAmpScale)
+                            data.SequentialFoci.Add((
+                                new AUTD3Sharp.Utils.Point3(p.x, p.y, p.z),
+                                focusIntensityPascal * c.Force * ellipseAmpScale * Pa
                             ));
                         }
                     }
@@ -282,9 +283,9 @@ public static class HAP_FociGenerator
                         int idx = Time.frameCount % rFrames.Count;
                         foreach (var p in rFrames[idx])
                         {
-                            data.SequentialFoci.Add(new ControlPoint(
-                                new Vector3(p.x, p.y, p.z),
-                                Amplitude.FromPascal(focusIntensityPascal * c.Force)
+                            data.SequentialFoci.Add((
+                                new AUTD3Sharp.Utils.Point3(p.x, p.y, p.z),
+                                focusIntensityPascal * c.Force * Pa
                             ));
                         }
                     }
@@ -306,7 +307,7 @@ public static class HAP_FociGenerator
 
                     foreach (var sf in data.SequentialFoci)
                     {
-                        data.STMFrames[i].Add(sf.Point);
+                        data.STMFrames[i].Add(new Vector3(sf.Item1.X, sf.Item1.Y, sf.Item1.Z));
                     }
                 }
             }

@@ -1,3 +1,4 @@
+#if false
 using UnityEngine;
 
 namespace Features.Animation
@@ -320,3 +321,4 @@ namespace Features.Animation
         }
     }
 }
+#endif

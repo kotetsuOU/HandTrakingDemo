@@ -12,21 +12,21 @@ public class HAP_AUTDCalibration : MonoBehaviour
     public HAP_AUTDController autdController = null!;
 
     [Header("Calibration Mode")]
-    [Tooltip("譛牙柑蛹悶☆繧九→騾壼ｸｸ縺ｮHaptics蜃ｺ蜉帙ｒ繝舌う繝代せ縺励√％縺ｮ險ｭ螳壹↓蝓ｺ縺･縺・◆繝・せ繝亥・蜉帙ｒ陦後＞縺ｾ縺吶・)]
+    [Tooltip("When enabled, bypasses normal Haptics output and emits calibration focus based on the settings below.")]
     public bool enableCalibration = false;
 
     [Header("Target Devices")]
-    [Tooltip("蜃ｺ蜉帛ｯｾ雎｡縺ｨ縺吶ｋAUTD繝・ヰ繧､繧ｹ縺ｮ繧､繝ｳ繝・ャ繧ｯ繧ｹ")]
+    [Tooltip("Toggle each AUTD device to include or exclude it from calibration output.")]
     public List<bool> targetDevices = new List<bool>();
 
     [Header("Focus Settings")]
     public bool useMultiFocus = false;
-    [Tooltip("謖・ｮ壹＆繧後※縺・ｋ蝣ｴ蜷医・縺薙・Transform縺ｮ菴咲ｽｮ繧貞腰辟ｦ轤ｹ縺ｨ縺励※菴ｿ逕ｨ縺励∪縺・)]
+    [Tooltip("When a Transform is assigned, its world position is used as the focus point instead of singleFocusPosition.")]
     public Transform? singleFocusTarget;
     public Vector3 singleFocusPosition = Vector3.zero;
     public List<Vector3> multiFocusPositions = new List<Vector3> { Vector3.zero };
     
-    [Tooltip("繧ｭ繝｣繝ｪ繝悶Ξ繝ｼ繧ｷ繝ｧ繝ｳ譎ゅ・豁｣隗｣菴咲ｽｮ・亥ｮ滄圀縺ｫ辟ｦ轤ｹ縺悟粋縺｣縺ｦ縺・ｋ縺ｹ縺咲黄逅・噪縺ｪ菴咲ｽｮ・・)]
+    [Tooltip("When calibrating, the Transform world position here is used as the 'true' reference position for ApplyOffsetByDifference.")]
     public Transform? truePositionTarget;
     
     [Range(0f, 1f)]
@@ -47,7 +47,6 @@ public class HAP_AUTDCalibration : MonoBehaviour
 
     private void EmitCalibrationFocus()
     {
-        // 繧ｿ繝ｼ繧ｲ繝・ヨ繝・ヰ繧､繧ｹ縺梧欠螳壹＆繧後※縺・↑縺・�ｴ蜷医・菴輔ｂ縺励↑縺・
         if (targetDevices == null || targetDevices.Count == 0) return;
 
         bool allTrue = targetDevices.Count > 0 && targetDevices.Count == autdController.connectedDevices.Count;
@@ -55,7 +54,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
 
         byte intensityVal = (byte)Mathf.Clamp(focusAmplitude * 255f, 0f, 255f);
 
-        object targetDatagram;
+        AUTD3Sharp.Driver.Datagram.IDatagram targetDatagram;
         
         if (useMultiFocus && multiFocusPositions.Count > 0)
         {
@@ -65,10 +64,10 @@ public class HAP_AUTDCalibration : MonoBehaviour
                 var p = multiFocusPositions[i];
                 activeFoci[i] = (
                     new AUTD3Sharp.Utils.Point3(p.x + autdController.offset.x, p.y + autdController.offset.y, p.z + autdController.offset.z),
-                    focusAmplitude * 10000f * Pa // 繧ｭ繝｣繝ｪ繝悶Ξ繝ｼ繧ｷ繝ｧ繝ｳ逕ｨ縺ｯ邁｡譏鍋噪縺ｫ譛螟ｧ10000Pa縺ｫ繧ｹ繧ｱ繝ｼ繝ｫ
+                    focusAmplitude * 10000f * Pa // 繧ｭ繝｣繝ｪ繝悶Ξ繝ｼ繧ｷ繝ｧ繝ｳ逕ｨ縺ｯ邁｡譏鍋噪縺ｫ譛€螟ｧ10000Pa縺ｫ繧ｹ繧ｱ繝ｼ繝ｫ
                 );
             }
-            targetDatagram = null(activeFoci, null);
+            targetDatagram = new AUTD3Sharp.Gain.Holo.GSPAT(activeFoci, new AUTD3Sharp.Gain.Holo.GSPATOption());
         }
         else
         {
@@ -78,10 +77,10 @@ public class HAP_AUTDCalibration : MonoBehaviour
                 pos.y + autdController.offset.y, 
                 pos.z + autdController.offset.z
             );
-            targetDatagram = null;
+            targetDatagram = new AUTD3Sharp.Gain.Focus(p, new AUTD3Sharp.Gain.FocusOption { Intensity = new AUTD3Sharp.Intensity(intensityVal) });
         }
 
-        // 繝・ヰ繝・げ辟｡蜉ｹ蛹悶′蟄伜惠縺吶ｋ縺九∽ｸ驛ｨ縺ｮ繝・ヰ繧､繧ｹ縺ｮ縺ｿ蜃ｺ蜉帙☆繧句�ｴ蜷医・蛟句挨縺ｫ繧ｰ繝ｫ繝ｼ繝励Ν繝ｼ繝・ぅ繝ｳ繧ｰ縺吶ｋ
+        // 繝・ヰ繝・げ辟｡蜉ｹ蛹悶′蟄伜惠縺吶ｋ縺九€∽ｸ€驛ｨ縺ｮ繝・ヰ繧､繧ｹ縺ｮ縺ｿ蜃ｺ蜉帙☆繧句ｴ蜷医・蛟句挨縺ｫ繧ｰ繝ｫ繝ｼ繝励Ν繝ｼ繝・ぅ繝ｳ繧ｰ縺吶ｋ
         bool hasDisabledDevice = autdController.debugDisabler != null && autdController.connectedDevices.Any(d => autdController.debugDisabler.IsDisabled(d.ID));
         
         if (allTrue && !hasDisabledDevice)
@@ -90,9 +89,9 @@ public class HAP_AUTDCalibration : MonoBehaviour
         }
         else
         {
-            var groupDict = new object();
+            var groupDict = new AUTD3Sharp.GroupDictionary();
             groupDict.Add("target", targetDatagram);
-            groupDict.Add("null", null);
+            groupDict.Add("null", new AUTD3Sharp.Gain.Null());
 
             // 繝・ヰ繧､繧ｹ繧､繝ｳ繝・ャ繧ｯ繧ｹ縺ｫ蠢懊§縺ｦ蜃ｺ蜉帙ｒ蛻・ｊ譖ｿ縺・
             string[] mapping = new string[autdController.connectedDevices.Count];
@@ -121,9 +120,9 @@ public class HAP_AUTDCalibration : MonoBehaviour
     }
 
     /// <summary>
-    /// 迴ｾ蝨ｨ縺ｮ縺薙・繧ｪ繝悶ず繧ｧ繧ｯ繝医・Transform繧但UTDController縺ｮOffset縺ｫ驕ｩ逕ｨ縺励∽ｽ咲ｽｮ繧偵Μ繧ｻ繝・ヨ縺励∪縺・
+    /// 迴ｾ蝨ｨ縺ｮ縺薙・繧ｪ繝悶ず繧ｧ繧ｯ繝医・Transform繧但UTDController縺ｮOffset縺ｫ驕ｩ逕ｨ縺励€∽ｽ咲ｽｮ繧偵Μ繧ｻ繝・ヨ縺励∪縺・
     /// </summary>
-    public void ApplyOffset() { syntaxError }
+    public void ApplyOffset()
     {
         if (autdController == null) return;
         
