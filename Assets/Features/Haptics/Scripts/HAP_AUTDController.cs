@@ -2,10 +2,16 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using System;
+#if !USE_AUTD3_LEGACY
+using System.Threading.Tasks;
+using AUTD3;
+using AUTD3.Holo;
+#else
 using AUTD3Sharp;
 using AUTD3Sharp.Link;
 using AUTD3Sharp.Driver.Datagram;
 using AUTD3Sharp.Gain;
+#endif
 
 #nullable enable
 
@@ -110,9 +116,11 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Range(0, 90)]
     public float directionalAngleThreshold = 45.0f;
 
+#if USE_AUTD3_LEGACY
     [Header("STM Settings (for future extension)")]
     [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
     public GainSTMMode gainStmMode = GainSTMMode.PhaseIntensityFull;
+#endif
 
     [Header("Debug")]
     [Tooltip("エディタ上でデバイスのサイズと位置を Gizmo (青色の枠) で表示します。")]
@@ -146,7 +154,14 @@ public partial class HAP_AUTDController : MonoBehaviour
     [HideInInspector]
     public HAP_AUTDDebugDisabler? debugDisabler;
 
+#if !USE_AUTD3_LEGACY
+    private Client? _client = null;
+    [HideInInspector]
+    public Geometry? geometry = null;
+#else
     private Controller? _autd = null;
+#endif
+
     private bool _isCurrentlyOff = true;
     
     // スレッドセーフかつ非同期に送信を行うためのロックとタスク
@@ -163,9 +178,15 @@ public partial class HAP_AUTDController : MonoBehaviour
     private ushort _prevSilStepAmp;
     
     private bool _prevFanState;
+#if USE_AUTD3_LEGACY
     private float _prevTemperature;
+#endif
 
+#if !USE_AUTD3_LEGACY
+    async void Awake()
+#else
     void Awake()
+#endif
     {
         debugDisabler = GetComponent<HAP_AUTDDebugDisabler>();
 
@@ -183,22 +204,33 @@ public partial class HAP_AUTDController : MonoBehaviour
             .OrderBy(obj => obj.ID)
             .ToList();
 
-        var devices = connectedDevices.Select(obj => new AUTD3(pos: obj.transform.position, rot: obj.transform.rotation)).ToList();
+#if !USE_AUTD3_LEGACY
+        var devices = connectedDevices.Select(obj => new Autd3(obj.transform.position, obj.transform.rotation)).ToList();
+        geometry = new Geometry(devices);
+#else
+        var devices = connectedDevices.Select(obj => new AUTD3Sharp.AUTD3(pos: obj.transform.position, rot: obj.transform.rotation)).ToList();
+#endif
 
         Debug.Log($"[HAP_AUTDController] Attempting to connect to AUTD3. Found {devices.Count} AUTD3Device components in the scene.");
 
         try
         {
+#if USE_AUTD3_LEGACY
             // タイムアウト対策として5秒に延長
             var option = new AUTD3Sharp.SenderOption { Timeout = AUTD3Sharp.Duration.FromMillis(5000) };
-            
+#endif
             switch (linkType)
             {
                 case AUTDLinkType.TwinCAT:
+#if !USE_AUTD3_LEGACY
+                    _client = await Client.OpenAsync(geometry, AUTD3.Link.TwinCATLinkOption.Local(), new ClientConfig());
+#else
                     _autd = Controller.OpenWithOption(devices, new AUTD3Sharp.Link.TwinCAT(), option);
+#endif
                     Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via TwinCAT.");
                     break;
                 
+#if USE_AUTD3_LEGACY
                 case AUTDLinkType.SOEM:
                     Debug.LogWarning("[HAP_AUTDController] SOEMを使用するには Unity Package Manager から SOEMリンクパッケージ のインストールが必要です。インストール後、スクリプト内のコメントアウトを外してください。");
                     // 【注意】SOEMリンクパッケージをインストール後、以下のコメントアウトを外してください
@@ -209,39 +241,73 @@ public partial class HAP_AUTDController : MonoBehaviour
                     Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via SOEM.");
                     */
                     break;
+#endif
                 
                 case AUTDLinkType.Simulator:
+#if !USE_AUTD3_LEGACY
+                    Debug.LogWarning("[HAP_AUTDController] Simulator (Remote link) is not available in the current v31 installation. Link initialization skipped.");
+#else
                     Debug.LogWarning("[HAP_AUTDController] Simulatorを使用するには autd3-server を起動しておく必要があります。(https://github.com/shinolab/autd3-server)");
                     
                     var simLink = new AUTD3Sharp.Link.Remote(new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 8080), new AUTD3Sharp.Link.RemoteOption());
                     _autd = Controller.OpenWithOption(devices, simLink, option);
                     Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via Simulator (Remote).");
-                    
+#endif
                     break;
             }
 
+#if !USE_AUTD3_LEGACY
+            if (_client == null)
+#else
             if (_autd == null)
+#endif
             {
                 Debug.LogWarning("[HAP_AUTDController] Link initialization was skipped or failed. Haptics will be bypassed.");
                 return;
             }
 
             // 初期設定の送信
+#if USE_AUTD3_LEGACY
             ApplyTemperature();
+#endif
             ApplyModulation();
             ApplySilencer();
             ApplyFan();
             
             // 初期状態はオフ (Null出力)
+#if !USE_AUTD3_LEGACY
+            using (var builder = _client.DatagramBuilder())
+            {
+                var buffer = geometry.PatternBuffer();
+                Pattern.Null(buffer);
+                builder.Push(new Pattern(PatternBank.B0, buffer));
+                
+                using var frames = builder.Build();
+                foreach (var frame in frames)
+                {
+                    await _client.SendCheckedAsync(frame);
+                }
+            }
+#else
             _autd.Send(new Null());
+#endif
+            
             _isCurrentlyOff = true;
             
+#if !USE_AUTD3_LEGACY
+            Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 devices.");
+#else
             Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 devices via TwinCAT.");
+#endif
         }
         catch (Exception ex)
         {
             Debug.LogError(ex);
+#if !USE_AUTD3_LEGACY
+            Debug.LogError("[HAP_AUTDController] Failed to connect to AUTD3. Ensure the target link is running.");
+#else
             Debug.LogError("[HAP_AUTDController] Failed to connect to AUTD3 via TwinCAT. Ensure TwinCAT is running in Run Mode.");
+#endif
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #elif UNITY_STANDALONE
@@ -252,7 +318,11 @@ public partial class HAP_AUTDController : MonoBehaviour
 
     void Update()
     {
+#if !USE_AUTD3_LEGACY
+        if (_client == null || geometry == null) return;
+#else
         if (_autd == null) return;
+#endif
 
         // プロファイラー設定の同期
         performanceProfiler.Enabled = enableProfiling;
@@ -286,6 +356,35 @@ public partial class HAP_AUTDController : MonoBehaviour
 #endif
     }
 
+#if !USE_AUTD3_LEGACY
+    private async void OnDestroy()
+    {
+        if (_client != null)
+        {
+            using (var builder = _client.DatagramBuilder())
+            {
+                var buffer = geometry!.PatternBuffer();
+                Pattern.Null(buffer);
+                builder.Push(new Pattern(PatternBank.B0, buffer));
+                using var frames = builder.Build();
+                foreach (var frame in frames)
+                {
+                    await _client.SendCheckedAsync(frame);
+                }
+            }
+            
+            await _client.CloseAsync();
+            _client.Dispose();
+            _client = null;
+            Debug.Log("[HAP_AUTDController] AUTD3 connection closed.");
+        }
+        if (geometry != null)
+        {
+            geometry.Dispose();
+            geometry = null;
+        }
+    }
+#else
     private void OnDestroy()
     {
         if (_autd != null)
@@ -297,6 +396,7 @@ public partial class HAP_AUTDController : MonoBehaviour
             Debug.Log("[HAP_AUTDController] AUTD3 connection closed.");
         }
     }
+#endif
 
     // Modulation overrides logic has been moved to HAP_AUTDController_Haptics.cs
 }

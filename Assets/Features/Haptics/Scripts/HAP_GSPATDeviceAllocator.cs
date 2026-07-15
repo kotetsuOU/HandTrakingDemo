@@ -1,3 +1,4 @@
+#if USE_AUTD3_LEGACY
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -198,3 +199,29 @@ public static class HAP_GSPATDeviceAllocator
         }
     }
 }
+
+#else
+
+using System.Collections.Generic;
+using UnityEngine;
+
+#nullable enable
+
+public static class HAP_GSPATDeviceAllocator
+{
+    public static void Allocate(
+        object builder,
+        object geometry,
+        List<HAP_FociGenerator.ClusterFociData> clusterData,
+        List<AUTD3Device> connectedDevices,
+        HoloAlgorithm holoAlgorithm,
+        bool enableDirectionalGrouping,
+        float directionalAngleThreshold,
+        float focusIntensityPascal,
+        HAP_AUTDDebugDisabler? debugDisabler = null)
+    {
+        Debug.LogWarning("HAP_GSPATDeviceAllocator is not fully implemented for v31 yet.");
+    }
+}
+
+#endif

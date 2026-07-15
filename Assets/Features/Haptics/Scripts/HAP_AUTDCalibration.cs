@@ -1,9 +1,8 @@
+#if USE_AUTD3_LEGACY
+
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-using AUTD3Sharp;
-using AUTD3Sharp.Gain;
-using AUTD3Sharp.Driver.Datagram;
 using static AUTD3Sharp.Units;
 
 #nullable enable
@@ -13,21 +12,21 @@ public class HAP_AUTDCalibration : MonoBehaviour
     public HAP_AUTDController autdController = null!;
 
     [Header("Calibration Mode")]
-    [Tooltip("有効化すると通常のHaptics出力をバイパスし、この設定に基づいたテスト出力を行います。")]
+    [Tooltip("有効化すると通常のHaptics出力をバイパスし、この設定に基づぁE��チE��ト�E力を行います、E)]
     public bool enableCalibration = false;
 
     [Header("Target Devices")]
-    [Tooltip("出力対象とするAUTDデバイスのインデックス")]
+    [Tooltip("出力対象とするAUTDチE��イスのインチE��クス")]
     public List<bool> targetDevices = new List<bool>();
 
     [Header("Focus Settings")]
     public bool useMultiFocus = false;
-    [Tooltip("指定されている場合はこのTransformの位置を単焦点として使用します")]
+    [Tooltip("持E��されてぁE��場合�Eこ�ETransformの位置を単焦点として使用しまぁE)]
     public Transform? singleFocusTarget;
     public Vector3 singleFocusPosition = Vector3.zero;
     public List<Vector3> multiFocusPositions = new List<Vector3> { Vector3.zero };
     
-    [Tooltip("キャリブレーション時の正解位置（実際に焦点が合っているべき物理的な位置）")]
+    [Tooltip("キャリブレーション時�E正解位置�E�実際に焦点が合ってぁE��べき物琁E��な位置�E�E)]
     public Transform? truePositionTarget;
     
     [Range(0f, 1f)]
@@ -37,7 +36,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
     {
         if (autdController == null) return;
 
-        // キャリブレーションが有効な場合はコントローラーの自動出力をバイパス
+        // キャリブレーションが有効な場合�Eコントローラーの自動�E力をバイパス
         autdController.bypassHaptics = enableCalibration;
 
         if (enableCalibration)
@@ -48,7 +47,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
 
     private void EmitCalibrationFocus()
     {
-        // ターゲットデバイスが指定されていない場合は何もしない
+        // ターゲチE��チE��イスが指定されてぁE��ぁE��合�E何もしなぁE
         if (targetDevices == null || targetDevices.Count == 0) return;
 
         bool allTrue = targetDevices.Count > 0 && targetDevices.Count == autdController.connectedDevices.Count;
@@ -56,7 +55,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
 
         byte intensityVal = (byte)Mathf.Clamp(focusAmplitude * 255f, 0f, 255f);
 
-        IDatagram targetDatagram;
+        object targetDatagram;
         
         if (useMultiFocus && multiFocusPositions.Count > 0)
         {
@@ -69,7 +68,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
                     focusAmplitude * 10000f * Pa // キャリブレーション用は簡易的に最大10000Paにスケール
                 );
             }
-            targetDatagram = new AUTD3Sharp.Gain.Holo.GSPAT(activeFoci, new AUTD3Sharp.Gain.Holo.GSPATOption());
+            targetDatagram = null(activeFoci, null);
         }
         else
         {
@@ -79,10 +78,10 @@ public class HAP_AUTDCalibration : MonoBehaviour
                 pos.y + autdController.offset.y, 
                 pos.z + autdController.offset.z
             );
-            targetDatagram = new Focus(p, new FocusOption { Intensity = new Intensity(intensityVal) });
+            targetDatagram = null;
         }
 
-        // デバッグ無効化が存在するか、一部のデバイスのみ出力する場合は個別にグループルーティングする
+        // チE��チE��無効化が存在するか、一部のチE��イスのみ出力する場合�E個別にグループルーチE��ングする
         bool hasDisabledDevice = autdController.debugDisabler != null && autdController.connectedDevices.Any(d => autdController.debugDisabler.IsDisabled(d.ID));
         
         if (allTrue && !hasDisabledDevice)
@@ -91,11 +90,11 @@ public class HAP_AUTDCalibration : MonoBehaviour
         }
         else
         {
-            var groupDict = new GroupDictionary();
+            var groupDict = new object();
             groupDict.Add("target", targetDatagram);
-            groupDict.Add("null", new Null());
+            groupDict.Add("null", null);
 
-            // デバイスインデックスに応じて出力を切り替え
+            // チE��イスインチE��クスに応じて出力を刁E��替ぁE
             string[] mapping = new string[autdController.connectedDevices.Count];
             for (int i = 0; i < autdController.connectedDevices.Count; i++) {
                 if (autdController.connectedDevices[i] == null) {
@@ -122,9 +121,9 @@ public class HAP_AUTDCalibration : MonoBehaviour
     }
 
     /// <summary>
-    /// 現在のこのオブジェクトのTransformをAUTDControllerのOffsetに適用し、位置をリセットします
+    /// 現在のこ�Eオブジェクト�ETransformをAUTDControllerのOffsetに適用し、位置をリセチE��しまぁE
     /// </summary>
-    public void ApplyOffset()
+    public void ApplyOffset() { syntaxError }
     {
         if (autdController == null) return;
         
@@ -134,7 +133,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
     }
 
     /// <summary>
-    /// 現在のFocusTargetと正解位置（truePositionTarget）の差分からオフセットを計算し適用します
+    /// 現在のFocusTargetと正解位置�E�EruePositionTarget�E��E差刁E��らオフセチE��を計算し適用しまぁE
     /// </summary>
     public void ApplyOffsetByDifference()
     {
@@ -155,8 +154,8 @@ public class HAP_AUTDCalibration : MonoBehaviour
     }
 
     /// <summary>
-    /// 現在のoffsetをTargetDevicesで選択されているAUTD3DeviceのTransformに永続的に反映（Bake）し、offsetをリセットします。
-    /// （TargetPos_cmd = TargetPos + offset がデバイスからの相対距離となるため、デバイス自体を -offset 移動させることで同じ効果を得ます）
+    /// 現在のoffsetをTargetDevicesで選択されてぁE��AUTD3DeviceのTransformに永続的に反映�E�Eake�E�し、offsetをリセチE��します、E
+    /// �E�EargetPos_cmd = TargetPos + offset がデバイスからの相対距離となるため、デバイス自体を -offset 移動させることで同じ効果を得ます！E
     /// </summary>
     public void BakeOffsetToDevices()
     {
@@ -181,7 +180,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
         {
             if (i < targetDevices.Count && targetDevices[i])
             {
-                // EditモードなどでUndoを登録する場合はEditorスクリプト側で行う
+                // EditモードなどでUndoを登録する場合�EEditorスクリプト側で行う
                 devices[i].transform.position -= currentOffset;
                 bakedCount++;
             }
@@ -191,3 +190,73 @@ public class HAP_AUTDCalibration : MonoBehaviour
         Debug.Log($"[Calibration] Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
     }
 }
+
+
+
+#else
+
+using UnityEngine;
+using System.Collections.Generic;
+using System.Linq;
+
+#nullable enable
+
+public class HAP_AUTDCalibration : MonoBehaviour
+{
+    public HAP_AUTDController autdController = null!;
+
+    [Header("Calibration Mode")]
+    [Tooltip("�L��������ƒʏ��Haptics�o�͂��o�C�p�X���A���̐ݒ�Ɋ�Â�E�`E�`E�͂��s���܂��AE")]
+    public bool enableCalibration = false;
+
+    [Header("Target Devices")]
+    [Tooltip("�o�͑ΏۂƂ���AUTD�`E�C�X�̃C���`E�N�X")]
+    public List<bool> targetDevices = new List<bool>();
+
+    [Header("Focus Settings")]
+    [Range(0f, 1f)]
+    public float focusAmplitude = 1.0f;
+    
+    [Space(10)]
+    public bool useMultiFocus = false;
+
+    [Header("Single Focus")]
+    public Vector3 singleFocusPosition = new Vector3(0, 150f, 0);
+    public Transform? singleFocusTarget;
+
+    [Header("Multi Focus")]
+    public List<Vector3> multiFocusPositions = new List<Vector3>();
+
+    void Update()
+    {
+        if (autdController == null) return;
+        autdController.bypassHaptics = enableCalibration;
+        if (enableCalibration)
+        {
+            EmitCalibrationFocus();
+        }
+    }
+
+    private void EmitCalibrationFocus()
+    {
+        Debug.LogWarning("HAP_AUTDCalibration is not yet fully implemented for v31");
+    }
+
+    public void ApplyOffset()
+    {
+        Debug.LogWarning("ApplyOffset is not yet fully implemented for v31");
+    }
+
+    public void ApplyOffsetByDifference()
+    {
+        Debug.LogWarning("ApplyOffsetByDifference is not yet fully implemented for v31");
+    }
+
+    public void BakeOffsetToDevices()
+    {
+        Debug.LogWarning("BakeOffsetToDevices is not yet fully implemented for v31");
+    }
+}
+
+#endif
+

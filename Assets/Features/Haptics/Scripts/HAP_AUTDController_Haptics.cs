@@ -1,10 +1,15 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+#if !USE_AUTD3_LEGACY
+using AUTD3;
+using AUTD3.Holo;
+#else
 using AUTD3Sharp;
 using AUTD3Sharp.Driver.Datagram;
 using AUTD3Sharp.Gain;
 using AUTD3Sharp.Modulation;
+#endif
 
 #nullable enable
 
@@ -46,6 +51,38 @@ public partial class HAP_AUTDController
                 offset);
             profiler.EndFociGenerate();
 
+#if !USE_AUTD3_LEGACY
+            if (_client != null && geometry != null)
+            {
+                // 2. クラスタの法線とデバイスの向きに基づき、最適なデバイスにGSPATを割り当ててグループ化
+                profiler.BeginDeviceAllocate();
+                var builder = _client.DatagramBuilder();
+                HAP_GSPATDeviceAllocator.Allocate(
+                    builder,
+                    geometry,
+                    clusterFociList, 
+                    connectedDevices, 
+                    holoAlgorithm, 
+                    enableDirectionalGrouping, 
+                    directionalAngleThreshold, 
+                    focusIntensityPascal,
+                    debugDisabler);
+                var frames = builder.Build();
+                profiler.EndDeviceAllocate();
+
+                // 3. デバイスに送信
+                if (synchronousSend)
+                {
+                    // ── 同期モード（論文計測用） ──
+                    try
+                    {
+                        profiler.BeginSend();
+                        // wait synchronously 
+                        foreach (var frame in frames) { _client.SendCheckedAsync(frame).GetAwaiter().GetResult(); }
+                        frames.Dispose();
+                        builder.Dispose();
+                        profiler.EndSend();
+#else
             // 2. クラスタの法線とデバイスの向きに基づき、最適なデバイスにGSPATを割り当ててグループ化
             profiler.BeginDeviceAllocate();
             var groupDatagram = HAP_GSPATDeviceAllocator.Allocate(
@@ -72,6 +109,7 @@ public partial class HAP_AUTDController
                         profiler.BeginSend();
                         lock (_sendLock) { _autd.Send(groupDatagram); }
                         profiler.EndSend();
+#endif
 
                         // ── Total 計測終了 ──
                         profiler.EndTotal();
@@ -82,11 +120,24 @@ public partial class HAP_AUTDController
                 else
                 {
                     // ── 非同期モード（通常運用） ──
+#if USE_AUTD3_LEGACY
                     // Send をバックグラウンドスレッドで実行し、メインスレッドのFPSを維持
+#endif
                     profiler.EndMainThreadMarker();
 
                     if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
                     {
+#if !USE_AUTD3_LEGACY
+                        _hapticsSendTask = System.Threading.Tasks.Task.Run(async () => 
+                        {
+                            try 
+                            {
+                                profiler.BeginSend();
+                                foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
+                                frames.Dispose();
+                                builder.Dispose();
+                                profiler.EndSend();
+#else
                         _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
                         {
                             try 
@@ -94,6 +145,7 @@ public partial class HAP_AUTDController
                                 profiler.BeginSend();
                                 lock (_sendLock) { _autd.Send(groupDatagram); }
                                 profiler.EndSend();
+#endif
 
                                 // ── Total 計測終了（Send完了後） ──
                                 profiler.EndTotal();
@@ -102,25 +154,61 @@ public partial class HAP_AUTDController
                         });
                         _isCurrentlyOff = false;
                     }
+#if !USE_AUTD3_LEGACY
+                    else
+                    {
+                        // Dispose properly if skipped
+                        frames.Dispose();
+                        builder.Dispose();
+                    }
+#endif
                 }
             }
         }
         else
         {
             // 接触がなくなった場合、出力を停止 (Null)
+#if !USE_AUTD3_LEGACY
+            if (!_isCurrentlyOff && _client != null && geometry != null)
+#else
             if (!_isCurrentlyOff && _autd != null)
+#endif
             {
                 if (synchronousSend)
                 {
                     try
                     {
+#if !USE_AUTD3_LEGACY
+                        using var builder = _client.DatagramBuilder();
+                        var buffer = geometry.PatternBuffer();
+                        Pattern.Null(buffer);
+                        builder.Push(new Pattern(PatternBank.B0, buffer));
+                        using var frames = builder.Build();
+                        foreach (var frame in frames) { _client.SendCheckedAsync(frame).GetAwaiter().GetResult(); }
+#else
                         lock (_sendLock) { _autd.Send(new Null()); }
+#endif
                     }
                     catch (System.Exception e) { Debug.LogException(e); }
                     _isCurrentlyOff = true;
                 }
                 else if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
                 {
+#if !USE_AUTD3_LEGACY
+                    _hapticsSendTask = System.Threading.Tasks.Task.Run(async () => 
+                    {
+                        try 
+                        {
+                            using var builder = _client.DatagramBuilder();
+                            var buffer = geometry.PatternBuffer();
+                            Pattern.Null(buffer);
+                            builder.Push(new Pattern(PatternBank.B0, buffer));
+                            using var frames = builder.Build();
+                            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
+                        }
+                        catch (System.Exception e) { Debug.LogException(e); }
+                    });
+#else
                     _hapticsSendTask = System.Threading.Tasks.Task.Run(() => 
                     {
                         try 
@@ -129,6 +217,7 @@ public partial class HAP_AUTDController
                         }
                         catch (System.Exception e) { Debug.LogException(e); }
                     });
+#endif
                     _isCurrentlyOff = true;
                 }
             }

@@ -1,7 +1,10 @@
 {
   "dependencies": {
     "com.community.antigravity-unity": "https://github.com/usmanbutt-dev/antigravity-unity.git",
-    "com.shinolab.autd3": "https://github.com/shinolab/AUTD3Sharp.git#upm/latest",
+    "com.shinolab.autd3-sdk": "0.3.0",
+    "com.shinolab.autd3-sdk.link.ethercrab": "0.3.0",
+    "com.shinolab.autd3-sdk.link.twincat": "0.3.0",
+    "com.shinolab.autd3-sdk.pattern.holo": "0.3.0",
     "com.shinolab.midair-haptics-unity-core": "https://github.com/shinolab/midair-haptics-unity-core.git",
     "com.unity.collab-proxy": "2.11.3",
     "com.unity.ide.rider": "3.0.39",
@@ -48,5 +51,14 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
-  }
+  },
+  "scopedRegistries": [
+    {
+      "name": "npmjs",
+      "url": "https://registry.npmjs.org",
+      "scopes": [
+        "com.shinolab"
+      ]
+    }
+  ]
 }

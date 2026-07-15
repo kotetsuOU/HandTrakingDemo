@@ -7,11 +7,68 @@
       "dependencies": {},
       "hash": "a4660d9b7ad4a8e3fd2581c4003ebf79db033001"
     },
-    "com.shinolab.autd3": {
-      "version": "file:com.shinolab.autd3",
+    "com.shinolab.autd3-sdk": {
+      "version": "0.3.0",
       "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
+      "source": "registry",
+      "dependencies": {
+        "com.shinolab.autd3-sdk.core": "0.3.0",
+        "com.shinolab.autd3-sdk.pattern": "0.3.0",
+        "com.shinolab.autd3-sdk.modulation": "0.3.0"
+      },
+      "url": "https://registry.npmjs.org"
+    },
+    "com.shinolab.autd3-sdk.core": {
+      "version": "0.3.0",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://registry.npmjs.org"
+    },
+    "com.shinolab.autd3-sdk.link.ethercrab": {
+      "version": "0.3.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.shinolab.autd3-sdk": "0.3.0"
+      },
+      "url": "https://registry.npmjs.org"
+    },
+    "com.shinolab.autd3-sdk.link.twincat": {
+      "version": "0.3.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.shinolab.autd3-sdk": "0.3.0"
+      },
+      "url": "https://registry.npmjs.org"
+    },
+    "com.shinolab.autd3-sdk.modulation": {
+      "version": "0.3.0",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.shinolab.autd3-sdk.core": "0.3.0"
+      },
+      "url": "https://registry.npmjs.org"
+    },
+    "com.shinolab.autd3-sdk.pattern": {
+      "version": "0.3.0",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.shinolab.autd3-sdk.core": "0.3.0"
+      },
+      "url": "https://registry.npmjs.org"
+    },
+    "com.shinolab.autd3-sdk.pattern.holo": {
+      "version": "0.3.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.shinolab.autd3-sdk.pattern": "0.3.0"
+      },
+      "url": "https://registry.npmjs.org"
     },
     "com.shinolab.midair-haptics-unity-core": {
       "version": "https://github.com/shinolab/midair-haptics-unity-core.git",
