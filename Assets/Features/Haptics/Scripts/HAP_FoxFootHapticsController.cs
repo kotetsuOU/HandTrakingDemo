@@ -14,6 +14,22 @@ using static AUTD3Sharp.Units;
 #nullable enable
 
 /// <summary>
+/// Foxの足ハプティクスにおけるターゲット追跡・照射方式の指定。
+/// </summary>
+public enum FootHapticsTrackMode
+{
+    /// <summary>
+    /// 接地しているすべての足へ同時に照射します（複数焦点）。
+    /// </summary>
+    Simultaneous,
+
+    /// <summary>
+    /// 接地している足を時分割で1本ずつ切り替えて照射します（単焦点）。
+    /// </summary>
+    Sequential
+}
+
+/// <summary>
 /// Foxのボーン階層から4本の足の座標を特定し、
 /// HAP_AUTDControllerの送信ループ（UpdateHaptics）内で足の位置にGSPAT等のホログラフィ触覚を照射するクラス。
 /// </summary>
@@ -49,25 +65,34 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
     [Tooltip("どのAUTDデバイスが照射するかを、方向グルーピングで判定する際のクラスタ法線。\n上面から照射するAUTD：Vector3.downを指定（展開面が下向き，足に向かって上からめがける場合）。\n下面から照射するAUTD：Vector3.upを指定。")]
     public Vector3 footTargetNormal = Vector3.down;
 
-    [Header("Custom Mode Settings")]
-    [Tooltip("疑似STMにおいて、同じ足を何フレーム間照射し続けるか（値を大きくすると出力が強く感じられます）。")]
-    public int framesPerFoot = 5;
-    [Tooltip("デバッグ用：有効化すると、接地判定や個別トグルを無視して、全4本の足を常にアクティブ（照射対象）として扱います。")]
-    public bool debugForceActiveAllFeet = false;
-    [Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い（単焦点ではNaiveで十分）。")]
-    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
+public enum FoxFootSTMMode
+{
+    FociSTM,
+    GainSTM
+}
+
+[Header("Custom Mode Settings")]
+[Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
+public FoxFootSTMMode stmMode = FoxFootSTMMode.FociSTM;
+
+[Tooltip("ハードウェアSTMを用いた高速シーケンシャル照射時の周波数（Hz）。")]
+public float sequentialSTMFrequency = 150f;
+
+[Tooltip("照射ターゲットの追跡・照射モード。\nSimultaneous: 接地した足をすべて同時に狙う（複数焦点）。\nSequential: 接地した足を1本ずつ順次切り替える（単焦点）。")]
+public FootHapticsTrackMode trackMode = FootHapticsTrackMode.Sequential;
+
+[Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
+public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
 
     [Header("Debug Visualization")]
+    [Tooltip("デバッグ用：有効化すると、接地判定や個別トグルを無視して、全4本の足を常にアクティブ（照射対象）として扱います。")]
+    public bool debugForceActiveAllFeet = false;
     [Tooltip("Sceneビュー上に足の位置を示すGizmoを描画します。")]
     public bool drawGizmos = true;
     [Tooltip("照射対象となっている足のGizmo色。")]
     public Color activeColor = Color.green;
     [Tooltip("照射対象から外れている（非アクティブまたは非接地）足のGizmo色。")]
     public Color inactiveColor = Color.red;
-
-    private int _currentFootCycleIndex = 0;
-    private int _frameCounter = 0;
-    private Transform? _currentlyActiveFoot = null;
 
     private void Reset()
     {
@@ -182,10 +207,11 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
     {
         var result = new List<HAP_FociGenerator.ClusterFociData>();
         
-        // Customモード中かつNaiveソルバーのときのみ巻回STMを使用
+        // FociSTM は強制的にハードウェアSTM(単焦点シーケンシャル)。
+        // GainSTM は Sequential モードの時に PC計算STM(GSPAT等)のシーケンシャルになります。
         bool useCustomCycle = autdController != null 
             && autdController.holoAlgorithm == HoloAlgorithm.Custom
-            && customInnerAlgorithm == HoloSolverAlgorithm.Naive;
+            && (stmMode == FoxFootSTMMode.FociSTM || (stmMode == FoxFootSTMMode.GainSTM && trackMode == FootHapticsTrackMode.Sequential));
 
         if (useCustomCycle)
         {
@@ -210,33 +236,36 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
 
             if (activeCandidates.Count > 0)
             {
-                _frameCounter++;
-                if (_frameCounter >= framesPerFoot)
+                // 代表点のダミークラスタを作成
+                TrackedCluster dummyCluster = new TrackedCluster
                 {
-                    _frameCounter = 0;
-                    _currentFootCycleIndex = (_currentFootCycleIndex + 1) % activeCandidates.Count;
-                }
+                    Centroid = activeCandidates[0].position,
+                    Normal = footTargetNormal.normalized,
+                    Force = 1.0f,
+                    IsAlive = true
+                };
 
-                // インデックス範囲の境界チェック
-                if (_currentFootCycleIndex >= activeCandidates.Count)
+                var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
+                fociData.UseSTM = true;
+                fociData.IsGainSTM = (stmMode == FoxFootSTMMode.GainSTM);
+                fociData.STMFrequency = sequentialSTMFrequency;
+
+                foreach (var targetFoot in activeCandidates)
                 {
-                    _currentFootCycleIndex = 0;
+                    Vector3 pos = targetFoot.position;
+                    // 各足を個別のSTMフレームとして追加
+                    fociData.STMFrames.Add(new List<Vector3> { 
+                        new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z) 
+                    });
                 }
-
-                var targetFoot = activeCandidates[_currentFootCycleIndex];
-                _currentlyActiveFoot = targetFoot;
-                ProcessFootFoci(targetFoot, true, defaultIntensityPascal, offset, result);
-            }
-            else
-            {
-                _currentlyActiveFoot = null;
-                _frameCounter = 0;
+                
+                result.Add(fociData);
             }
         }
         else
         {
-            _currentlyActiveFoot = null;
             // GSPATマルチフォーカスモード: 接地判定を通過したすべての有効な足へ同時に照射
+
             ProcessFootFoci(frontLeftFoot, enableFrontLeft, defaultIntensityPascal, offset, result);
             ProcessFootFoci(frontRightFoot, enableFrontRight, defaultIntensityPascal, offset, result);
             ProcessFootFoci(backRightFoot, enableBackRight, defaultIntensityPascal, offset, result);
@@ -323,11 +352,9 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
 
         bool useCustomCycle = autdController != null 
             && autdController.holoAlgorithm == HoloAlgorithm.Custom
-            && customInnerAlgorithm == HoloSolverAlgorithm.Naive;
-        if (useCustomCycle && Application.isPlaying)
-        {
-            active = active && (footTransform == _currentlyActiveFoot);
-        }
+            && trackMode == FootHapticsTrackMode.Sequential;
+        // STMを用いる場合はアクティブな足すべてが高速で切り替わるため、すべてを有効として表示する
+        // （特定の一つだけを光らせる処理は不要）
 
         if (!debugForceActiveAllFeet && onlyTargetGrounded && rootTransform != null)
         {

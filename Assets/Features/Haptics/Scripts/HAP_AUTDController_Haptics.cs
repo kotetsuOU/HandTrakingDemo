@@ -60,6 +60,10 @@ public partial class HAP_AUTDController
             }
         }
 
+        string profilerLabel = useFoxFootHaptics
+            ? $"[FoxFoot-{foxFootHapticsController!.stmMode}({foxFootHapticsController!.trackMode})-{effectiveAlgorithm}]"
+            : $"[{effectiveAlgorithm}]";
+
         if (hasActiveTargets)
         {
             var profiler = performanceProfiler;
@@ -148,7 +152,7 @@ public partial class HAP_AUTDController
 #endif
 
                         // ── Total 計測終了 ──
-                        profiler.EndTotal();
+                        profiler.EndTotal(profilerLabel);
                     }
                     catch (System.Exception e) { Debug.LogException(e); }
                     _isCurrentlyOff = false;
@@ -184,7 +188,7 @@ public partial class HAP_AUTDController
 #endif
 
                                 // ── Total 計測終了（Send完了後） ──
-                                profiler.EndTotal();
+                                profiler.EndTotal(profilerLabel);
                             }
                             catch (System.Exception e) { Debug.LogException(e); }
                         });

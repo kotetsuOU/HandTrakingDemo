@@ -107,7 +107,7 @@ public class HAP_AUTDPerformanceProfiler
     }
 
     /// <summary>Total 計測終了（バックグラウンドスレッドでSend完了後に呼ばれる）</summary>
-    public void EndTotal()
+    public void EndTotal(string label = "")
     {
         if (!_enabled) return;
         _swTotal.Stop();
@@ -127,8 +127,9 @@ public class HAP_AUTDPerformanceProfiler
             if (_frameCounter >= _logInterval)
             {
                 _frameCounter = 0;
+                string prefix = string.IsNullOrEmpty(label) ? "" : $"{label} ";
                 UnityEngine.Debug.Log(
-                    $"[HAP_Profiler] Total={LastTotalMs:F3}ms " +
+                    $"[HAP_Profiler] {prefix}Total={LastTotalMs:F3}ms " +
                     $"(FociGen={LastFociGenerateMs:F3}ms, " +
                     $"DevAlloc={LastDeviceAllocateMs:F3}ms, " +
                     $"Send={LastSendMs:F3}ms) " +

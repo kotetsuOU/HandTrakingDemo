@@ -18,6 +18,8 @@ public static class HAP_FociGenerator
         public List<AUTD3.Holo.ControlPoint> SequentialFoci = new List<AUTD3.Holo.ControlPoint>();
         public List<List<Vector3>> STMFrames = new List<List<Vector3>>();
         public bool UseSTM;
+        public bool IsGainSTM;
+        public float STMFrequency = 150f;
 
         public ClusterFociData(TrackedCluster cluster)
         {
@@ -179,6 +181,8 @@ public static class HAP_FociGenerator
         public List<(AUTD3Sharp.Utils.Point3, Amplitude)> SequentialFoci = new List<(AUTD3Sharp.Utils.Point3, Amplitude)>();
         public List<List<Vector3>> STMFrames = new List<List<Vector3>>();
         public bool UseSTM;
+        public bool IsGainSTM;
+        public float STMFrequency = 150f;
 
         public ClusterFociData(TrackedCluster cluster)
         {
