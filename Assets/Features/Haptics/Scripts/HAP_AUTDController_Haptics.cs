@@ -71,8 +71,10 @@ public partial class HAP_AUTDController
             // ── Total 計測開始 ──
             profiler.BeginTotal();
 
-            // 1. 各クラスタから必要な焦点（Foci/STM）を生成
-            profiler.BeginFociGenerate();
+            try
+            {
+                // 1. 各クラスタから必要な焦点（Foci/STM）を生成
+                profiler.BeginFociGenerate();
             List<HAP_FociGenerator.ClusterFociData> clusterFociList;
             if (useFoxFootHaptics)
             {
@@ -163,7 +165,6 @@ public partial class HAP_AUTDController
 #if USE_AUTD3_LEGACY
                     // Send をバックグラウンドスレッドで実行し、メインスレッドのFPSを維持
 #endif
-                    profiler.EndMainThreadMarker();
 
                     if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
                     {
@@ -203,6 +204,11 @@ public partial class HAP_AUTDController
                     }
 #endif
                 }
+            }
+            }
+            finally
+            {
+                profiler.EndMainThreadMarker();
             }
         }
         else

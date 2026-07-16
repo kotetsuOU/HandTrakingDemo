@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 
@@ -131,3 +132,4 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         serializedObject.ApplyModifiedProperties();
     }
 }
+#endif

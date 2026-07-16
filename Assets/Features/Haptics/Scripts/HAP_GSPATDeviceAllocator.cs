@@ -143,7 +143,7 @@ public static class HAP_GSPATDeviceAllocator
     {
         if (clusterData.Count == 0) return new Null();
 
-        bool useSTM = clusterData.Any(c => c.UseSTM);
+        bool useSTM = clusterData.Any(c => c.UseSTM && c.STMFrames != null && c.STMFrames.Count > 1);
 
         if (useSTM)
         {
@@ -180,7 +180,7 @@ public static class HAP_GSPATDeviceAllocator
                     gains.Add(new GSPAT(activeFoci.ToArray(), new GSPATOption()));
                 }
                 
-                return new GainSTM(gains, stmFreq * Hz, new GainSTMOption());
+                return new GainSTM(gains, stmFreq * Hz, new GainSTMOption()).IntoNearest();
             }
             else
             {
@@ -216,7 +216,7 @@ public static class HAP_GSPATDeviceAllocator
                 }
                 
                 // 指定された周波数でSTMを生成
-                return new FociSTM(mergedFrames, stmFreq * Hz);
+                return new FociSTM(mergedFrames, stmFreq * Hz).IntoNearest();
             }
         }
         else
@@ -225,7 +225,26 @@ public static class HAP_GSPATDeviceAllocator
             var mergedFoci = new List<(AUTD3Sharp.Utils.Point3, Amplitude)>();
             foreach (var cData in clusterData)
             {
-                mergedFoci.AddRange(cData.SequentialFoci);
+                if (cData.SequentialFoci.Count > 0)
+                {
+                    mergedFoci.AddRange(cData.SequentialFoci);
+                }
+                else if (cData.STMFrames != null && cData.STMFrames.Count > 0 && cData.STMFrames[0].Count > 0)
+                {
+                    foreach (var p in cData.STMFrames[0])
+                    {
+                        mergedFoci.Add((new AUTD3Sharp.Utils.Point3(p.x, p.y, p.z), focusIntensityPascal * cData.Cluster.Force * Pa));
+                    }
+                }
+            }
+
+            if (mergedFoci.Count == 0)
+            {
+                mergedFoci.Add((new AUTD3Sharp.Utils.Point3(0, 0, 0), 0f * Pa));
+            }
+            if (mergedFoci.Count == 1)
+            {
+                mergedFoci.Add((mergedFoci[0].Item1, 0f * Pa));
             }
 
             if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
@@ -348,7 +367,7 @@ public static class HAP_GSPATDeviceAllocator
     {
         if (clusterData.Count == 0) return null;
 
-        bool useSTM = clusterData.Any(c => c.UseSTM);
+        bool useSTM = clusterData.Any(c => c.UseSTM && c.STMFrames != null && c.STMFrames.Count > 1);
 
         if (useSTM)
         {
@@ -401,7 +420,7 @@ public static class HAP_GSPATDeviceAllocator
                     AUTD3.Holo.Holo.Gspat(geometry, activeFoci.ToArray(), wavelength, option, patterns[i]);
                 }
 
-                return new PatternStm(stmFreq * Hz, patterns);
+                return new PatternStm(stmFreq * Hz, patterns).IntoNearest();
             }
             else
             {
@@ -433,7 +452,7 @@ public static class HAP_GSPATDeviceAllocator
                     controlPointsList.Add(new ControlPoints(points.ToArray(), intensity));
                 }
 
-                return new FociStm(stmFreq * Hz, controlPointsList.ToArray());
+                return new FociStm(stmFreq * Hz, controlPointsList.ToArray()).IntoNearest();
             }
         }
         else
@@ -442,7 +461,17 @@ public static class HAP_GSPATDeviceAllocator
             var mergedFoci = new List<HoloCP>();
             foreach (var cData in clusterData)
             {
-                mergedFoci.AddRange(cData.SequentialFoci);
+                if (cData.SequentialFoci.Count > 0)
+                {
+                    mergedFoci.AddRange(cData.SequentialFoci);
+                }
+                else if (cData.STMFrames != null && cData.STMFrames.Count > 0 && cData.STMFrames[0].Count > 0)
+                {
+                    foreach (var p in cData.STMFrames[0])
+                    {
+                        mergedFoci.Add(new HoloCP(p, Amplitude.FromPascal(focusIntensityPascal * cData.Cluster.Force)));
+                    }
+                }
             }
 
             var wavelength = Pattern.Wavelength(Velocity.FromMS(340f));
@@ -459,15 +488,24 @@ public static class HAP_GSPATDeviceAllocator
             var mask = TransducerMask.Masked(maskArray);
 
             var buffer = geometry.PatternBuffer();
+            if (mergedFoci.Count == 0)
+            {
+                mergedFoci.Add(new HoloCP(new Vector3(0, 0, 0), Amplitude.FromPascal(0f)));
+            }
+            if (mergedFoci.Count == 1)
+            {
+                mergedFoci.Add(new HoloCP(mergedFoci[0].Point, Amplitude.FromPascal(0f)));
+            }
+
+            var option = new GspatOption(repeat: 100, constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
             if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
             {
-                var option = new GspatOption(repeat: 100, constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
                 AUTD3.Holo.Holo.Gspat(geometry, mergedFoci.ToArray(), wavelength, option, buffer);
             }
             else
             {
-                var option = new NaiveOption(constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
-                AUTD3.Holo.Holo.Naive(geometry, mergedFoci.ToArray(), wavelength, option, buffer);
+                var naiveOption = new NaiveOption(constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
+                AUTD3.Holo.Holo.Naive(geometry, mergedFoci.ToArray(), wavelength, naiveOption, buffer);
             }
 
             return new Pattern(PatternBank.B0, buffer);
