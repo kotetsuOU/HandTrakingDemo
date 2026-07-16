@@ -26,6 +26,9 @@ public class AnimationController : MonoBehaviour
     [Tooltip("HCDパイプライン (接触判定の対象を自動更新するため)")]
     public HCD_Pipeline HCDPipeline;
 
+    [Tooltip("手の持ち上げ動作に合わせて追従移動するコントローラー")]
+    public Features.Animation.PR_LiftController liftController;
+
 #if false
     [Tooltip("物理パラメータを動的に切り替えるコントローラー")]
     public Features.Animation.PR_Controller PRController;
@@ -107,6 +110,22 @@ public class AnimationController : MonoBehaviour
                     
                     // ボーンの自動再検出
                     foxFootController.AutoDetectBones();
+                }
+
+                // PR_LiftControllerの更新
+                if (liftController == null)
+                {
+                    liftController = FindFirstObjectByType<Features.Animation.PR_LiftController>();
+                }
+                
+                if (liftController != null)
+                {
+                    liftController.targetTransform = activeObj.transform;
+                    liftController.frontLeftFoot = null;
+                    liftController.frontRightFoot = null;
+                    liftController.backLeftFoot = null;
+                    liftController.backRightFoot = null;
+                    liftController.AutoDetectBones(activeObj.transform);
                 }
 
 

@@ -16,9 +16,13 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
     private SerializedProperty enableBackLeftProp;
     private SerializedProperty enableBackRightProp;
 
-    private SerializedProperty onlyTargetGroundedProp;
-    private SerializedProperty heightThresholdProp;
+    private SerializedProperty disableWhenInAirProp;
+    private SerializedProperty airborneHeightThresholdProp;
     private SerializedProperty rootTransformProp;
+    
+    private SerializedProperty onlyTargetHandContactProp;
+    private SerializedProperty handContactThresholdProp;
+    
     private SerializedProperty footTargetNormalProp;
 
     private SerializedProperty stmModeProp;
@@ -26,7 +30,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
     private SerializedProperty trackModeProp;
     private SerializedProperty customInnerAlgorithmProp;
 
-    private SerializedProperty debugForceActiveAllFeetProp;
     private SerializedProperty drawGizmosProp;
     private SerializedProperty activeColorProp;
     private SerializedProperty inactiveColorProp;
@@ -44,9 +47,13 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         enableBackLeftProp = serializedObject.FindProperty("enableBackLeft");
         enableBackRightProp = serializedObject.FindProperty("enableBackRight");
 
-        onlyTargetGroundedProp = serializedObject.FindProperty("onlyTargetGrounded");
-        heightThresholdProp = serializedObject.FindProperty("heightThreshold");
+        disableWhenInAirProp = serializedObject.FindProperty("disableWhenInAir");
+        airborneHeightThresholdProp = serializedObject.FindProperty("airborneHeightThreshold");
         rootTransformProp = serializedObject.FindProperty("rootTransform");
+
+        onlyTargetHandContactProp = serializedObject.FindProperty("onlyTargetHandContact");
+        handContactThresholdProp = serializedObject.FindProperty("handContactThreshold");
+
         footTargetNormalProp = serializedObject.FindProperty("footTargetNormal");
 
         stmModeProp = serializedObject.FindProperty("stmMode");
@@ -54,7 +61,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         trackModeProp = serializedObject.FindProperty("trackMode");
         customInnerAlgorithmProp = serializedObject.FindProperty("customInnerAlgorithm");
 
-        debugForceActiveAllFeetProp = serializedObject.FindProperty("debugForceActiveAllFeet");
         drawGizmosProp = serializedObject.FindProperty("drawGizmos");
         activeColorProp = serializedObject.FindProperty("activeColor");
         inactiveColorProp = serializedObject.FindProperty("inactiveColor");
@@ -83,14 +89,23 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         EditorGUILayout.PropertyField(enableBackRightProp);
         EditorGUILayout.Space();
 
-        EditorGUILayout.PropertyField(onlyTargetGroundedProp);
-        if (onlyTargetGroundedProp.boolValue)
+        EditorGUILayout.PropertyField(disableWhenInAirProp);
+        if (disableWhenInAirProp.boolValue)
         {
             EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(heightThresholdProp);
+            EditorGUILayout.PropertyField(airborneHeightThresholdProp);
             EditorGUILayout.PropertyField(rootTransformProp);
             EditorGUI.indentLevel--;
         }
+        
+        EditorGUILayout.PropertyField(onlyTargetHandContactProp);
+        if (onlyTargetHandContactProp.boolValue)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(handContactThresholdProp);
+            EditorGUI.indentLevel--;
+        }
+
         EditorGUILayout.PropertyField(footTargetNormalProp);
         EditorGUILayout.Space();
 
@@ -119,7 +134,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();
 
-        EditorGUILayout.PropertyField(debugForceActiveAllFeetProp);
         EditorGUILayout.PropertyField(drawGizmosProp);
         if (drawGizmosProp.boolValue)
         {

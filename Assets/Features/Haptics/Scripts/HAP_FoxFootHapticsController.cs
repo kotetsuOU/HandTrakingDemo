@@ -55,38 +55,43 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
     public bool enableBackLeft = true;
     public bool enableBackRight = true;
 
-    [Header("Conditional Grounding Settings")]
-    [Tooltip("有効時、地面（rootTransformのY座標）に設置している（しきい値以下の高さにある）足のみを照射対象にします。")]
-    public bool onlyTargetGrounded = false;
+    [Header("Animation State Settings")]
+    [Tooltip("有効時、足が空中に浮いているとき（ジャンプ中など）は触覚をオフにします。")]
+    public bool disableWhenInAir = false;
     [Tooltip("接地判定を行うための、ルート位置からの高さのしきい値（メートル）。")]
-    public float heightThreshold = 0.05f;
+    public float airborneHeightThreshold = 0.05f;
     [Tooltip("接地の基準となるキャラクターのルートTransform。未指定の場合は本GameObjectのTransformを使用します。")]
     public Transform? rootTransform;
+
+    [Header("Hand Contact Settings")]
+    [Tooltip("有効時、HCD_Pipelineで検出された手の点群（クラスタ）が足の近くにある時のみ照射します。")]
+    public bool onlyTargetHandContact = false;
+    [Tooltip("手との接触と判定する距離のしきい値（メートル）。")]
+    public float handContactThreshold = 0.1f;
+
     [Tooltip("どのAUTDデバイスが照射するかを、方向グルーピングで判定する際のクラスタ法線。\n上面から照射するAUTD：Vector3.downを指定（展開面が下向き，足に向かって上からめがける場合）。\n下面から照射するAUTD：Vector3.upを指定。")]
     public Vector3 footTargetNormal = Vector3.down;
 
-public enum FoxFootSTMMode
-{
-    FociSTM,
-    GainSTM
-}
+    public enum FoxFootSTMMode
+    {
+        FociSTM,
+        GainSTM
+    }
 
-[Header("Custom Mode Settings")]
-[Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
-public FoxFootSTMMode stmMode = FoxFootSTMMode.FociSTM;
+    [Header("Custom Mode Settings")]
+    [Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
+    public FoxFootSTMMode stmMode = FoxFootSTMMode.FociSTM;
 
-[Tooltip("ハードウェアSTMを用いた高速シーケンシャル照射時の周波数（Hz）。")]
-public float sequentialSTMFrequency = 150f;
+    [Tooltip("ハードウェアSTMを用いた高速シーケンシャル照射時の周波数（Hz）。")]
+    public float sequentialSTMFrequency = 150f;
 
-[Tooltip("照射ターゲットの追跡・照射モード。\nSimultaneous: 接地した足をすべて同時に狙う（複数焦点）。\nSequential: 接地した足を1本ずつ順次切り替える（単焦点）。")]
-public FootHapticsTrackMode trackMode = FootHapticsTrackMode.Sequential;
+    [Tooltip("照射ターゲットの追跡・照射モード。\nSimultaneous: 接地した足をすべて同時に狙う（複数焦点）。\nSequential: 接地した足を1本ずつ順次切り替える（単焦点）。")]
+    public FootHapticsTrackMode trackMode = FootHapticsTrackMode.Sequential;
 
-[Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
-public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
+    [Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
+    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
 
     [Header("Debug Visualization")]
-    [Tooltip("デバッグ用：有効化すると、接地判定や個別トグルを無視して、全4本の足を常にアクティブ（照射対象）として扱います。")]
-    public bool debugForceActiveAllFeet = false;
     [Tooltip("Sceneビュー上に足の位置を示すGizmoを描画します。")]
     public bool drawGizmos = true;
     [Tooltip("照射対象となっている足のGizmo色。")]
@@ -188,13 +193,37 @@ public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
     private bool IsFootActive(Transform? footTransform, bool isEnabled)
     {
         if (footTransform == null) return false;
-        if (debugForceActiveAllFeet) return true;
         if (!isEnabled) return false;
-        if (onlyTargetGrounded && rootTransform != null)
+        if (disableWhenInAir && rootTransform != null)
         {
             float relHeight = footTransform.position.y - rootTransform.position.y;
-            if (relHeight > heightThreshold) return false;
+            if (relHeight > airborneHeightThreshold) return false;
         }
+
+        if (onlyTargetHandContact)
+        {
+            bool hasContact = false;
+            HCD_Pipeline? pipeline = (autdController != null) ? autdController.hcdPipeline : null;
+            if (pipeline == null) pipeline = FindAnyObjectByType<HCD_Pipeline>();
+
+            if (pipeline != null)
+            {
+                var clusters = pipeline.GetTrackedClusters();
+                if (clusters != null)
+                {
+                    foreach (var c in clusters)
+                    {
+                        if (c.IsAlive && Vector3.Distance(c.Centroid, footTransform.position) <= handContactThreshold)
+                        {
+                            hasContact = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!hasContact) return false;
+        }
+
         return true;
     }
 
@@ -347,7 +376,7 @@ public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
         if (footTransform == null) return;
 
         Vector3 pos = footTransform.position;
-        bool active = isEnabled || debugForceActiveAllFeet;
+        bool active = isEnabled;
         bool isGrounded = true;
 
         bool useCustomCycle = autdController != null 
@@ -356,65 +385,115 @@ public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
         // STMを用いる場合はアクティブな足すべてが高速で切り替わるため、すべてを有効として表示する
         // （特定の一つだけを光らせる処理は不要）
 
-        if (!debugForceActiveAllFeet && onlyTargetGrounded && rootTransform != null)
+        if (disableWhenInAir && rootTransform != null)
         {
             float relHeight = pos.y - rootTransform.position.y;
-            if (relHeight > heightThreshold)
+            if (relHeight > airborneHeightThreshold)
             {
                 isGrounded = false;
                 active = false;
             }
         }
 
-        // 1. 接地判定（高さ判定）の可視化線を描画
-        if (rootTransform != null)
+        bool isHandContact = true;
+        if (onlyTargetHandContact)
         {
-            Vector3 groundPt = new Vector3(pos.x, rootTransform.position.y, pos.z);
-            Vector3 threshPt = new Vector3(pos.x, rootTransform.position.y + heightThreshold, pos.z);
+            bool hasContact = false;
+            HCD_Pipeline? pipeline = (autdController != null) ? autdController.hcdPipeline : null;
+            if (pipeline == null) pipeline = FindAnyObjectByType<HCD_Pipeline>();
 
-            // 許容高さしきい値を示す小さな十字を描画
-            Gizmos.color = isEnabled ? activeColor : inactiveColor;
-            Gizmos.DrawLine(threshPt - Vector3.left * 0.01f, threshPt + Vector3.left * 0.01f);
-            Gizmos.DrawLine(threshPt - Vector3.forward * 0.01f, threshPt + Vector3.forward * 0.01f);
-
-            if (onlyTargetGrounded)
+            if (pipeline != null)
             {
-                if (isGrounded)
+                var clusters = pipeline.GetTrackedClusters();
+                if (clusters != null)
                 {
-                    // 接地内（有効な接触）: 足から地面までを有効色で結ぶ
-                    Gizmos.color = isEnabled ? activeColor : inactiveColor;
-                    Gizmos.DrawLine(pos, groundPt);
-                }
-                else
-                {
-                    // 接地外（無効な接触）:
-                    // 1) 地面からしきい値までは有効範囲のライン
-                    Gizmos.color = isEnabled ? activeColor : inactiveColor;
-                    Gizmos.DrawLine(threshPt, groundPt);
-
-                    // 2) しきい値から足の位置（はみ出ている部分）は無効ライン（赤）で結ぶ
-                    Gizmos.color = Color.red;
-                    Gizmos.DrawLine(pos, threshPt);
+                    foreach (var c in clusters)
+                    {
+                        if (c.IsAlive && Vector3.Distance(c.Centroid, pos) <= handContactThreshold)
+                        {
+                            hasContact = true;
+                            break;
+                        }
+                    }
                 }
             }
-            else
+            if (!hasContact)
             {
-                // 接地判定が無効な場合は、足から地面までをシンプルに結ぶ
-                Gizmos.color = isEnabled ? activeColor : inactiveColor;
-                Gizmos.DrawLine(pos, groundPt);
+                isHandContact = false;
+                active = false;
             }
         }
 
-        // 2. 足の位置のGizmo描画
-        Gizmos.color = active ? activeColor : inactiveColor;
-        
-        // 足の位置にワイヤーフレーム球を描画
-        Gizmos.DrawWireSphere(pos, 0.015f);
-        
+        // ベースカラーは「その足が機能として有効か（isEnabled）」で決める
+        Color baseColor = isEnabled ? activeColor : inactiveColor;
+
+        // 1. 接地判定（高さ判定）の可視化線を描画
+        if (disableWhenInAir && rootTransform != null)
+        {
+            Vector3 groundPt = new Vector3(pos.x, rootTransform.position.y, pos.z);
+            Vector3 threshPt = new Vector3(pos.x, rootTransform.position.y + airborneHeightThreshold, pos.z);
+
+            // 許容高さしきい値を示す小さな十字を描画
+            Gizmos.color = baseColor;
+            Gizmos.DrawLine(threshPt - Vector3.left * 0.01f, threshPt + Vector3.left * 0.01f);
+            Gizmos.DrawLine(threshPt - Vector3.forward * 0.01f, threshPt + Vector3.forward * 0.01f);
+
+            if (isGrounded)
+            {
+                // 接地内: 足から地面までを有効色で結ぶ
+                Gizmos.color = baseColor;
+                Gizmos.DrawLine(pos, groundPt);
+            }
+            else
+            {
+                // 接地外: 地面からしきい値までは有効範囲のライン
+                Gizmos.color = baseColor;
+                Gizmos.DrawLine(threshPt, groundPt);
+
+                // しきい値から足の位置（はみ出ている部分）は無効ライン（赤）で結ぶ
+                Gizmos.color = Color.red;
+                Gizmos.DrawLine(pos, threshPt);
+            }
+        }
+
+        // 手の接触判定の可視化 (誤解を招く大きな球は描画せず、接触時にクラスタへ線を引く)
+        if (onlyTargetHandContact)
+        {
+            HCD_Pipeline? pipeline = (autdController != null) ? autdController.hcdPipeline : null;
+            if (pipeline == null) pipeline = FindAnyObjectByType<HCD_Pipeline>();
+
+            if (pipeline != null)
+            {
+                var clusters = pipeline.GetTrackedClusters();
+                if (clusters != null)
+                {
+                    foreach (var c in clusters)
+                    {
+                        if (c.IsAlive && Vector3.Distance(c.Centroid, pos) <= handContactThreshold)
+                        {
+                            // 接触しているクラスタから足元へ線を引く
+                            Gizmos.color = activeColor;
+                            Gizmos.DrawLine(pos, c.Centroid);
+                            Gizmos.DrawWireSphere(c.Centroid, 0.01f);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 照射ターゲットの描画
         if (active)
         {
             // 照射中（有効なアクティブ状態）の場合は実線球を描画して強調
-            Gizmos.DrawSphere(pos, 0.005f);
+            Gizmos.color = activeColor;
+            Gizmos.DrawSphere(pos, 0.01f);
+        }
+        else
+        {
+            // 無効な場合は位置を示すためのワイヤースフィアのみ描画
+            Gizmos.color = baseColor;
+            Gizmos.DrawWireSphere(pos, 0.01f);
         }
     }
 }

@@ -50,6 +50,7 @@ jobs:
           cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
           cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
+          cp Docs/PhysicalResponseLiftController.md temp-wiki/PhysicalResponseLiftController.md
           
           python3 -c '
           import os, re
