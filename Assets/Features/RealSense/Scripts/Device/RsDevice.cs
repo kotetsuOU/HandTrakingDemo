@@ -93,64 +93,104 @@ public class RsDevice : RsFrameProvider
     private Pipeline m_pipeline;
     private string m_deviceName;
 
+    [Tooltip("カメラが見つからない場合のリトライ回数（USB初期化待ち対策）")]
+    public int maxRetries = 10;
+
+    [Tooltip("リトライ間隔（秒）")]
+    public float retryIntervalSeconds = 1f;
+
     void OnEnable()
     {
         m_deviceName = gameObject.name;
         frameCount = 0;
-        m_pipeline = new Pipeline();
+        StartCoroutine(StartWithRetry());
+    }
 
-        using (var cfg = new Config())
+    private IEnumerator StartWithRetry()
+    {
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            switch (DeviceConfiguration.mode)
+            bool success = TryStartPipeline();
+            if (success) yield break;
+
+            if (attempt < maxRetries)
             {
-                case RsConfiguration.Mode.Live:
-                    {
-                        if (!string.IsNullOrEmpty(DeviceConfiguration.RequestedSerialNumber))
-                            cfg.EnableDevice(DeviceConfiguration.RequestedSerialNumber);
-                        foreach (var p in DeviceConfiguration.Profiles)
-                            p.Apply(cfg);
-                        break;
-                    }
-                case RsConfiguration.Mode.Playback:
-                    {
-                        var finalPlaybackPath = GetAbsolutePath(DeviceConfiguration.PlaybackFile);
-                        cfg.EnableDeviceFromFile(finalPlaybackPath);
-                        break;
-                    }
-                case RsConfiguration.Mode.Record:
-                    {
-                        if (!string.IsNullOrEmpty(DeviceConfiguration.RequestedSerialNumber))
-                            cfg.EnableDevice(DeviceConfiguration.RequestedSerialNumber);
+                UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] Pipeline start failed (attempt {attempt}/{maxRetries}). Retrying in {retryIntervalSeconds}s...");
+                yield return new WaitForSeconds(retryIntervalSeconds);
+            }
+            else
+            {
+                UnityEngine.Debug.LogError($"[RsDevice: {m_deviceName}] Pipeline start failed after {maxRetries} attempts. Camera may not be connected.");
+            }
+        }
+    }
 
-                        var finalRecordPath = GetAbsolutePath(DeviceConfiguration.RecordPath);
-                        var recordDir = System.IO.Path.GetDirectoryName(finalRecordPath);
-                        if (!string.IsNullOrEmpty(recordDir) && !System.IO.Directory.Exists(recordDir))
+    private bool TryStartPipeline()
+    {
+        try
+        {
+            if (m_pipeline != null) { m_pipeline.Dispose(); }
+            m_pipeline = new Pipeline();
+
+            using (var cfg = new Config())
+            {
+                switch (DeviceConfiguration.mode)
+                {
+                    case RsConfiguration.Mode.Live:
                         {
-                            System.IO.Directory.CreateDirectory(recordDir);
+                            if (!string.IsNullOrEmpty(DeviceConfiguration.RequestedSerialNumber))
+                                cfg.EnableDevice(DeviceConfiguration.RequestedSerialNumber);
+                            foreach (var p in DeviceConfiguration.Profiles)
+                                p.Apply(cfg);
+                            break;
                         }
+                    case RsConfiguration.Mode.Playback:
+                        {
+                            var finalPlaybackPath = GetAbsolutePath(DeviceConfiguration.PlaybackFile);
+                            cfg.EnableDeviceFromFile(finalPlaybackPath);
+                            break;
+                        }
+                    case RsConfiguration.Mode.Record:
+                        {
+                            if (!string.IsNullOrEmpty(DeviceConfiguration.RequestedSerialNumber))
+                                cfg.EnableDevice(DeviceConfiguration.RequestedSerialNumber);
 
-                        cfg.EnableRecordToFile(finalRecordPath);
-                        UnityEngine.Debug.Log($"[RsDevice: {m_deviceName}] Setup Recording => \nRaw Input: {DeviceConfiguration.RecordPath}\nResolved: {finalRecordPath}");
-                        foreach (var p in DeviceConfiguration.Profiles)
-                            p.Apply(cfg);
-                        break;
-                    }
+                            var finalRecordPath = GetAbsolutePath(DeviceConfiguration.RecordPath);
+                            var recordDir = System.IO.Path.GetDirectoryName(finalRecordPath);
+                            if (!string.IsNullOrEmpty(recordDir) && !System.IO.Directory.Exists(recordDir))
+                            {
+                                System.IO.Directory.CreateDirectory(recordDir);
+                            }
+
+                            cfg.EnableRecordToFile(finalRecordPath);
+                            UnityEngine.Debug.Log($"[RsDevice: {m_deviceName}] Setup Recording => \nRaw Input: {DeviceConfiguration.RecordPath}\nResolved: {finalRecordPath}");
+                            foreach (var p in DeviceConfiguration.Profiles)
+                                p.Apply(cfg);
+                            break;
+                        }
+                }
+
+                ActiveProfile = m_pipeline.Start(cfg);
             }
 
-            ActiveProfile = m_pipeline.Start(cfg);
+            DeviceConfiguration.Profiles = ActiveProfile.Streams.Select(RsVideoStreamRequest.FromProfile).ToArray();
+
+            if (processMode == ProcessMode.Multithread)
+            {
+                stopEvent.Reset();
+                worker = new Thread(WaitForFrames);
+                worker.IsBackground = true;
+                worker.Start();
+            }
+
+            StartCoroutine(WaitAndStart());
+            return true;
         }
-
-        DeviceConfiguration.Profiles = ActiveProfile.Streams.Select(RsVideoStreamRequest.FromProfile).ToArray();
-
-        if (processMode == ProcessMode.Multithread)
+        catch (Exception ex)
         {
-            stopEvent.Reset();
-            worker = new Thread(WaitForFrames);
-            worker.IsBackground = true;
-            worker.Start();
+            UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] Pipeline start error: {ex.Message}");
+            return false;
         }
-
-        StartCoroutine(WaitAndStart());
     }
 
     IEnumerator WaitAndStart()

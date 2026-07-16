@@ -1,4 +1,5 @@
 #if USE_AUTD3_LEGACY
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -27,32 +28,29 @@ public static class HAP_GSPATDeviceAllocator
     {
         if (clusterData.Count == 0) return new Null();
 
+        // 1台しか接続されていない場合は、AUTD3Sharp.Group内部のGCバグを完全に回避するため
+        // 直接Datagramを返します。
+        if (connectedDevices.Count == 1)
+        {
+            if (debugDisabler != null && debugDisabler.IsDisabled(connectedDevices[0].ID))
+            {
+                return new Null();
+            }
+            return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
+        }
+
         // 割り当てなし（全デバイスで全クラスタを共有）
         if (!enableDirectionalGrouping || connectedDevices.Count == 0)
         {
+            // debugDisabler でグループ制御が必要な場合は Group を使う
             if (debugDisabler != null && connectedDevices.Any(d => debugDisabler.IsDisabled(d.ID)))
             {
-                // Disablerで無効化されているデバイスが存在する場合、Groupを使って個別にNullを送る必要がある
-                var overrideGroupDict = new GroupDictionary();
-                var allDatagram = GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
-                foreach (var dev in connectedDevices)
+                return BuildGroup(connectedDevices, (devArrayIdx) =>
                 {
-                    if (debugDisabler.IsDisabled(dev.ID))
-                        overrideGroupDict.Add(dev.ID.ToString(), new Null());
-                    else
-                        overrideGroupDict.Add(dev.ID.ToString(), allDatagram);
-                }
-                string[] deviceIds = new string[connectedDevices.Count];
-                for (int i = 0; i < connectedDevices.Count; i++) {
-                    deviceIds[i] = connectedDevices[i] != null ? connectedDevices[i].ID.ToString() : "null";
-                }
-
-                return new Group(dev => 
-                {
-                    int idx = dev.Idx();
-                    if (idx < 0 || idx >= deviceIds.Length) return "null";
-                    return deviceIds[idx];
-                }, overrideGroupDict);
+                    var dev = connectedDevices[devArrayIdx];
+                    if (debugDisabler.IsDisabled(dev.ID)) return new Null();
+                    return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
+                });
             }
 
             return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
@@ -101,44 +99,61 @@ public static class HAP_GSPATDeviceAllocator
             }
         }
 
-        // 3. GroupDictionary を構築し、各デバイスIDに対応する Datagram を生成
-        var groupDict = new GroupDictionary();
-        foreach (var dev in connectedDevices)
+        // 3. BuildGroup を使って Group を安全に構築
+        return BuildGroup(connectedDevices, (devArrayIdx) =>
         {
+            var dev = connectedDevices[devArrayIdx];
+
             if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID))
             {
                 // 無効化デバイスには強制的にNullを割り当て
-                groupDict.Add(dev.ID.ToString(), new Null());
+                return new Null();
             }
             else if (deviceAssignments.TryGetValue(dev.ID, out var assignedClusters) && assignedClusters.Count > 0)
             {
-                var datagram = GenerateDatagram(assignedClusters, holoAlgorithm, focusIntensityPascal);
-                groupDict.Add(dev.ID.ToString(), datagram);
+                return GenerateDatagram(assignedClusters, holoAlgorithm, focusIntensityPascal);
             }
             else
             {
-                // 担当する接触点がない場合は出力しない
-                groupDict.Add(dev.ID.ToString(), new Null());
+                // 担当する接触点がない場合は Null
+                return new Null();
             }
+        });
+    }
+
+    /// <summary>
+    /// AUTD3Sharp.Group を安全に構築するヘルパー。
+    /// キーとして connectedDevices の配列インデックス（0, 1, 2...）を使用し、
+    /// dev.Idx() との 1:1 対応を保証することで KeyNotFoundException を防ぎます。
+    /// datagrams は GC に収集されないよう GroupDictionary 内で参照を保持します。
+    /// </summary>
+    private static IDatagram BuildGroup(
+        List<AUTD3Device> connectedDevices,
+        Func<int, IDatagram> datagrams)
+    {
+        var groupDict = new GroupDictionary();
+        for (int i = 0; i < connectedDevices.Count; i++)
+        {
+            groupDict.Add(i, datagrams(i));
         }
 
-        // Keyは文字列として設定
-        string[] devIds = new string[connectedDevices.Count];
-        for (int i = 0; i < connectedDevices.Count; i++) {
-            devIds[i] = connectedDevices[i] != null ? connectedDevices[i].ID.ToString() : "null";
-        }
-
-        return new Group(dev => 
+        int maxIdx = connectedDevices.Count;
+        return new Group(dev =>
         {
             int idx = dev.Idx();
-            if (idx < 0 || idx >= devIds.Length) return "null";
-            return devIds[idx];
+            if (idx < 0 || idx >= maxIdx)
+            {
+                UnityEngine.Debug.LogError($"[BuildGroup] idx={idx} is OUT OF RANGE [0,{maxIdx}). Skipping device.");
+                return null;
+            }
+            return (object)idx;
         }, groupDict);
     }
 
     /// <summary>
     /// 割り当てられたクラスタ群の焦点データから、AUTDに送信する単一のDatagramを生成します。
     /// </summary>
+
     private static IDatagram GenerateDatagram(List<HAP_FociGenerator.ClusterFociData> clusterData, HoloAlgorithm holoAlgorithm, float focusIntensityPascal)
     {
         if (clusterData.Count == 0) return new Null();
@@ -245,6 +260,17 @@ public static class HAP_GSPATDeviceAllocator
             if (mergedFoci.Count == 1)
             {
                 mergedFoci.Add((mergedFoci[0].Item1, 0f * Pa));
+            }
+
+            // NaN/Infinity があれば LogError で通知する
+            for (int fi = 0; fi < mergedFoci.Count; fi++)
+            {
+                var (p3, amp) = mergedFoci[fi];
+                float ampPa = amp.Pascal();
+                bool hasNaN = float.IsNaN(p3.X) || float.IsNaN(p3.Y) || float.IsNaN(p3.Z) || float.IsNaN(ampPa);
+                bool hasInf = float.IsInfinity(p3.X) || float.IsInfinity(p3.Y) || float.IsInfinity(p3.Z);
+                if (hasNaN || hasInf)
+                    UnityEngine.Debug.LogError($"[HAP] INVALID foci[{fi}]: pos=({p3.X},{p3.Y},{p3.Z}) amp={ampPa}Pa NaN={hasNaN} Inf={hasInf}");
             }
 
             if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)

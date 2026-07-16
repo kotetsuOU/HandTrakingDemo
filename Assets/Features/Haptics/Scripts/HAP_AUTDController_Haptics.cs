@@ -149,7 +149,7 @@ public partial class HAP_AUTDController
                     try
                     {
                         profiler.BeginSend();
-                        lock (_sendLock) { _autd.Send(groupDatagram); }
+                        if (groupDatagram != null) { lock (_sendLock) { _autd.Send(groupDatagram); } }
                         profiler.EndSend();
 #endif
 
@@ -184,7 +184,7 @@ public partial class HAP_AUTDController
                             try 
                             {
                                 profiler.BeginSend();
-                                lock (_sendLock) { _autd.Send(groupDatagram); }
+                                if (groupDatagram != null) { lock (_sendLock) { _autd.Send(groupDatagram); } }
                                 profiler.EndSend();
 #endif
 
