@@ -107,8 +107,9 @@ namespace Features.Animation
             var clusters = HCD_Pipeline.Instance.GetTrackedClusters();
             if (clusters == null || clusters.Count == 0)
             {
-                // 手が消えた場合は接触リセット
+                // 手が消えた場合は接触リセットして落下処理を行う
                 isContacting = false;
+                ApplyFallBehavior();
                 return;
             }
 
