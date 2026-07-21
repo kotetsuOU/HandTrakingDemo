@@ -395,7 +395,6 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
             }
         }
 
-        bool isHandContact = true;
         if (onlyTargetHandContact)
         {
             bool hasContact = false;
@@ -419,7 +418,6 @@ public class HAP_FoxFootHapticsController : MonoBehaviour
             }
             if (!hasContact)
             {
-                isHandContact = false;
                 active = false;
             }
         }
