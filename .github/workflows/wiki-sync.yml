@@ -11,13 +11,18 @@ on:
       - "Docs/PointCloudPipeline.md"
       - "Docs/OcclusionRendering.md"
       - "Docs/Collision.md"
+      - "Docs/CollisionAlgorithmComparison.md"
       - "Docs/Haptics.md"
+      - "Docs/HapticsAlgorithmComparison.md"
       - "Docs/DebugPCV.md"
       - "Docs/Display3D.md"
       - "Docs/Initialization.md"
+      - "Docs/PhysicalResponse.md"
+      - "Docs/PhysicalResponseLiftController.md"
       - "Docs/AnimationControls.md"
       - "Docs/AUTD3_SDK_Transition.md"
       - "Docs/FoxFootHaptics.md"
+      - "Docs/HowToUseHaptics.md"
   workflow_dispatch:
 
 permissions:
@@ -47,10 +52,11 @@ jobs:
           cp Docs/Display3D.md temp-wiki/Display3D.md
           cp Docs/Initialization.md temp-wiki/Initialization.md
           cp Docs/PhysicalResponse.md temp-wiki/PhysicalResponse.md
+          cp Docs/PhysicalResponseLiftController.md temp-wiki/PhysicalResponseLiftController.md
           cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
           cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
-          cp Docs/PhysicalResponseLiftController.md temp-wiki/PhysicalResponseLiftController.md
+          cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
           
           python3 -c '
           import os, re
@@ -59,11 +65,18 @@ jobs:
               "PointCloudPipeline.md": "PointCloudPipeline",
               "OcclusionRendering.md": "OcclusionRendering",
               "Collision.md": "Collision",
+              "CollisionAlgorithmComparison.md": "CollisionAlgorithmComparison",
               "Haptics.md": "Haptics",
+              "HapticsAlgorithmComparison.md": "HapticsAlgorithmComparison",
               "DebugPCV.md": "DebugPCV",
               "Display3D.md": "Display3D",
+              "Initialization.md": "Initialization",
+              "PhysicalResponse.md": "PhysicalResponse",
+              "PhysicalResponseLiftController.md": "PhysicalResponseLiftController",
               "AnimationControls.md": "AnimationControls",
-              "Initialization.md": "Initialization"
+              "AUTD3_SDK_Transition.md": "AUTD3_SDK_Transition",
+              "FoxFootHaptics.md": "FoxFootHaptics",
+              "HowToUseHaptics.md": "HowToUseHaptics"
           }
           pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):

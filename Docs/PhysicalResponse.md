@@ -1,4 +1,10 @@
-# PhysicalResponse
+# 物理応答パラメータ制御 (PhysicalResponse)
+
+> 📂 **親ノード**: [Wiki.md (ポータル)](./Wiki.md) | 🏷️ **種類**: 🏗️ システム設計書
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
+>
+> 📎 **関連ドキュメント**: [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md)
 
 `PhysicalResponse` は、Midair Haptics Unity Core における各種物理応答（Physics Response）コンポーネントのパラメータを、実行時に一括で調整・管理するためのコントローラースクリプトです。
 

@@ -1,5 +1,9 @@
 # キーボード操作対応表 (Keyboard Controls)
 
+> 📂 **親ノード**: [Wiki.md (ポータル)](./Wiki.md) | 🏷️ **種類**: 📖 リファレンス
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
+
 研究・実験時の撮影やデモを効率化するために、`AnimationController.cs`に以下のショートカットキーがアサインされています。
 このスクリプトはヒエラルキー上のどこか（例えば `Main Camera` や `GameManager`）にアタッチし、インスペクターから操作したい動的オブジェクト（キツネのTransformやAnimator）をセットして使用します。
 

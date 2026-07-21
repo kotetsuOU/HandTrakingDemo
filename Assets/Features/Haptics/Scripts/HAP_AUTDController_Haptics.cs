@@ -24,13 +24,13 @@ public partial class HAP_AUTDController
         // バイパスが有効な場合はここで終了し、Updateからの自動送信を行わない
         if (bypassHaptics) return;
 
-        bool useFoxFootHaptics = foxFootHapticsController != null && foxFootHapticsController.enabled;
+        bool useObjectHaptics = objectHapticsController != null && objectHapticsController.enabled;
         bool hasActiveTargets = false;
         List<TrackedCluster> activeClusters = new List<TrackedCluster>();
 
-        if (useFoxFootHaptics)
+        if (useObjectHaptics)
         {
-            hasActiveTargets = foxFootHapticsController!.HasActiveTargets();
+            hasActiveTargets = objectHapticsController!.HasActiveTargets();
         }
         else
         {
@@ -46,10 +46,10 @@ public partial class HAP_AUTDController
         HoloAlgorithm effectiveAlgorithm = holoAlgorithm;
         if (effectiveAlgorithm == HoloAlgorithm.Custom)
         {
-            if (useFoxFootHaptics)
+            if (useObjectHaptics)
             {
-                // FoxFootCustom用の単焦点内部ソルバー（Naive or GSPAT）をコントローラーから取得し、HoloAlgorithmに変換
-                effectiveAlgorithm = foxFootHapticsController!.customInnerAlgorithm == HoloSolverAlgorithm.Naive
+                // オブジェクトハプティクス用の単焦点内部ソルバー（Naive or GSPAT）をコントローラーから取得し、HoloAlgorithmに変換
+                effectiveAlgorithm = objectHapticsController!.CustomInnerAlgorithm == HoloSolverAlgorithm.Naive
                     ? HoloAlgorithm.Naive
                     : HoloAlgorithm.GSPAT;
             }
@@ -60,8 +60,8 @@ public partial class HAP_AUTDController
             }
         }
 
-        string profilerLabel = useFoxFootHaptics
-            ? $"[FoxFoot-{foxFootHapticsController!.stmMode}({foxFootHapticsController!.trackMode})-{effectiveAlgorithm}]"
+        string profilerLabel = useObjectHaptics
+            ? $"[{objectHapticsController!.GetType().Name}-{objectHapticsController!.STMMode}({objectHapticsController!.TrackMode})-{effectiveAlgorithm}]"
             : $"[{effectiveAlgorithm}]";
 
         if (hasActiveTargets)
@@ -76,9 +76,9 @@ public partial class HAP_AUTDController
                 // 1. 各クラスタから必要な焦点（Foci/STM）を生成
                 profiler.BeginFociGenerate();
             List<HAP_FociGenerator.ClusterFociData> clusterFociList;
-            if (useFoxFootHaptics)
+            if (useObjectHaptics)
             {
-                clusterFociList = foxFootHapticsController!.GetFootFociList(focusIntensityPascal, offset);
+                clusterFociList = objectHapticsController!.GetHapticsTargets(focusIntensityPascal, offset);
             }
             else
             {

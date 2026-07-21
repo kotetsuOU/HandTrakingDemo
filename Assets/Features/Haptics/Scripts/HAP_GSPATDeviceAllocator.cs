@@ -309,6 +309,32 @@ public static class HAP_GSPATDeviceAllocator
     {
         if (clusterData.Count == 0) return;
 
+        // 割り当てなし（全デバイスで全クラスタを共有）
+        if (!enableDirectionalGrouping || connectedDevices.Count == 0)
+        {
+            bool anyDeviceEnabled = false;
+            bool[][] maskArray = new bool[geometry.NumDevices][];
+            for (int d = 0; d < geometry.NumDevices; d++)
+            {
+                maskArray[d] = new bool[geometry[d].NumTransducers];
+                bool isDevDisabled = debugDisabler != null && debugDisabler.IsDisabled(connectedDevices[d].ID);
+                if (!isDevDisabled)
+                {
+                    anyDeviceEnabled = true;
+                    for (int t = 0; t < maskArray[d].Length; t++) maskArray[d][t] = true;
+                }
+            }
+            if (!anyDeviceEnabled) return;
+
+            var mask = TransducerMask.Masked(maskArray);
+            var cmd = GenerateCommandWithMask(geometry, mask, clusterData, holoAlgorithm, focusIntensityPascal);
+            if (cmd != null)
+            {
+                builder.Push(cmd);
+            }
+            return;
+        }
+
         // 1. 各デバイスが担当するクラスタのリストを初期化
         var deviceAssignments = new Dictionary<int, List<HAP_FociGenerator.ClusterFociData>>();
         foreach (var dev in connectedDevices)
@@ -316,50 +342,38 @@ public static class HAP_GSPATDeviceAllocator
             deviceAssignments[dev.ID] = new List<HAP_FociGenerator.ClusterFociData>();
         }
 
-        // 割り当てなし（全デバイスで全クラスタを共有）
-        if (!enableDirectionalGrouping || connectedDevices.Count == 0)
+        // クラスタごとに最適なデバイスを判定して割り当て
+        foreach (var cData in clusterData)
         {
+            bool isAssigned = false;
+            float minAngle = float.MaxValue;
+            AUTD3Device? bestDevice = null;
+
             foreach (var dev in connectedDevices)
             {
                 if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
-                deviceAssignments[dev.ID].AddRange(clusterData);
+
+                // デバイスの正面方向と、クラスタの法線（面から外側に向かうベクトル）とのなす角（度）
+                float angle = Vector3.Angle(dev.transform.forward, -cData.Cluster.Normal);
+                
+                if (angle < minAngle)
+                {
+                    minAngle = angle;
+                    bestDevice = dev;
+                }
+
+                // しきい値以下（十分正面に向かっている）なら担当デバイスに追加
+                if (angle <= directionalAngleThreshold)
+                {
+                    deviceAssignments[dev.ID].Add(cData);
+                    isAssigned = true;
+                }
             }
-        }
-        else
-        {
-            // クラスタごとに最適なデバイスを判定して割り当て
-            foreach (var cData in clusterData)
+
+            // どのデバイスのしきい値も満たさなかった場合、最も正面に近いデバイスに強制割り当て
+            if (!isAssigned && bestDevice != null)
             {
-                bool isAssigned = false;
-                float minAngle = float.MaxValue;
-                AUTD3Device? bestDevice = null;
-
-                foreach (var dev in connectedDevices)
-                {
-                    if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
-
-                    // デバイスの正面方向と、クラスタの法線（面から外側に向かうベクトル）とのなす角（度）
-                    float angle = Vector3.Angle(dev.transform.forward, -cData.Cluster.Normal);
-                    
-                    if (angle < minAngle)
-                    {
-                        minAngle = angle;
-                        bestDevice = dev;
-                    }
-
-                    // しきい値以下（十分正面に向かっている）なら担当デバイスに追加
-                    if (angle <= directionalAngleThreshold)
-                    {
-                        deviceAssignments[dev.ID].Add(cData);
-                        isAssigned = true;
-                    }
-                }
-
-                // どのデバイスのしきい値も満たさなかった場合、最も正面に近いデバイスに強制割り当て
-                if (!isAssigned && bestDevice != null)
-                {
-                    deviceAssignments[bestDevice.ID].Add(cData);
-                }
+                deviceAssignments[bestDevice.ID].Add(cData);
             }
         }
 
@@ -374,7 +388,19 @@ public static class HAP_GSPATDeviceAllocator
 
             if (deviceAssignments.TryGetValue(dev.ID, out var assignedClusters) && assignedClusters.Count > 0)
             {
-                return GenerateDeviceCommand(geometry, deviceIndex, assignedClusters, holoAlgorithm, focusIntensityPascal);
+                // デバイス用マスクの作成
+                bool[][] maskArray = new bool[geometry.NumDevices][];
+                for (int d = 0; d < geometry.NumDevices; d++)
+                {
+                    maskArray[d] = new bool[geometry[d].NumTransducers];
+                    if (d == deviceIndex)
+                    {
+                        for (int t = 0; t < maskArray[d].Length; t++) maskArray[d][t] = true;
+                    }
+                }
+                var mask = TransducerMask.Masked(maskArray);
+
+                return GenerateCommandWithMask(geometry, mask, assignedClusters, holoAlgorithm, focusIntensityPascal);
             }
 
             return null;
@@ -382,11 +408,11 @@ public static class HAP_GSPATDeviceAllocator
     }
 
     /// <summary>
-    /// 割り当てられたクラスタ群の焦点データから、デバイス単位のコマンド（Pattern, FociStm, PatternStm）を生成します。
+    /// 割り当てられたクラスタ群の焦点データと指定マスクから、コマンド（Pattern, FociStm, PatternStm）を生成します。
     /// </summary>
-    private static ICommand? GenerateDeviceCommand(
+    private static ICommand? GenerateCommandWithMask(
         Geometry geometry,
-        int deviceIndex,
+        TransducerMask mask,
         List<HAP_FociGenerator.ClusterFociData> clusterData,
         HoloAlgorithm holoAlgorithm,
         float focusIntensityPascal)
@@ -407,18 +433,6 @@ public static class HAP_GSPATDeviceAllocator
                 // GSPAT STM (CPU計算 -> PatternStm)
                 var patterns = new PatternBuffer[maxSamples];
                 var wavelength = Pattern.Wavelength(Velocity.FromMS(340f));
-
-                // デバイス用マスクの作成
-                bool[][] maskArray = new bool[geometry.NumDevices][];
-                for (int d = 0; d < geometry.NumDevices; d++)
-                {
-                    maskArray[d] = new bool[geometry[d].NumTransducers];
-                    if (d == deviceIndex)
-                    {
-                        for (int t = 0; t < maskArray[d].Length; t++) maskArray[d][t] = true;
-                    }
-                }
-                var mask = TransducerMask.Masked(maskArray);
                 var option = new GspatOption(repeat: 100, constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
 
                 for (int i = 0; i < maxSamples; i++)
@@ -501,18 +515,6 @@ public static class HAP_GSPATDeviceAllocator
             }
 
             var wavelength = Pattern.Wavelength(Velocity.FromMS(340f));
-
-            bool[][] maskArray = new bool[geometry.NumDevices][];
-            for (int d = 0; d < geometry.NumDevices; d++)
-            {
-                maskArray[d] = new bool[geometry[d].NumTransducers];
-                if (d == deviceIndex)
-                {
-                    for (int t = 0; t < maskArray[d].Length; t++) maskArray[d][t] = true;
-                }
-            }
-            var mask = TransducerMask.Masked(maskArray);
-
             var buffer = geometry.PatternBuffer();
             if (mergedFoci.Count == 0)
             {

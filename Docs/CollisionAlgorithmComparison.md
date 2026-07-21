@@ -1,4 +1,8 @@
-# Collision Algorithm Comparison: Native vs GPU
+# 衝突判定アルゴリズム比較: Native C++ vs GPU Compute Shader
+
+> 📂 **親ノード**: [Collision.md (衝突判定システム)](./Collision.md) | 🏷️ **種類**: 🔬 アルゴリズム比較
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
 本ドキュメントでは、元の `com.shinolab.midair-haptics-unity-core` パッケージ（ネイティブ C++ / CPUベース）に実装されていた衝突判定・クラスタリングアルゴリズムと、本プロジェクト向けに再設計された `HCD_Pipeline` (完全 GPU ベース) のアルゴリズムの違い、およびその設計思想と数理モデルについて解説します。
 

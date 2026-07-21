@@ -1,5 +1,9 @@
 # AUTD3 SDK 新旧仕様比較ドキュメント (v3.x/v38 ➔ v31/v0.3.0)
 
+> 📂 **親ノード**: [Haptics.md (AUTD制御システム)](./Haptics.md) | 🏷️ **種類**: 🔧 SDK移行ガイド
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
+
 本ドキュメントでは、本システムでサポートしている AUTD3 SDK の**旧仕様 (Legacy SDK: AUTD3Sharp v38/v3.x系)**と**新仕様 (New SDK: v31/v0.3.0系)**におけるAPI of 設計思想、名前空間、実装方法の違い、およびプロジェクトでの切り替え方法について解説します。
 
 ---

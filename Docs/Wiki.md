@@ -1,14 +1,12 @@
 # RealTimeOcclusion システム統合 Wiki (ポータル)
 
-本プロジェクトは、Intel RealSense 等のセンサーから取得したリアルタイム点群（Point Cloud）を基盤とし、**「視覚的な遮蔽処理（レンダリング・オクルージョン）」**と**「物理的な接触判定・触覚提示（ハプティクス）」**という 2つのサブシステムを軸に構成されています。
+本プロジェクトは、Intel RealSense 等のセンサーから取得したリアルタイム点群（Point Cloud）を基盤とし、**「視覚的な遮蔽処理（オクルージョン）」**と**「物理的な接触判定・触覚提示（ハプティクス）」**という 2つのサブシステムを軸に構成されています。
 
-本ドキュメントは、プロジェクト全体の設計思想・関数仕様を一元管理する統合ポータル（ハブ）です。詳細な機能やアルゴリズムの解説は、以下の専用機能ノード（詳細ドキュメント）に分離されて構成されています。
+本ドキュメントは、プロジェクト全体の構造を俯瞰し、各サブシステムの詳細ドキュメントへナビゲーションする統合ポータルです。
 
 ---
 
-## 1. プロジェクト構造とノード依存関係
-
-各ノードは、データソースであるグローバル点群マネージャー（`RsGlobalPointCloudManager`）をデータハブとし、完全に独立したモジュールとして連携しています。
+## 1. システム全体図
 
 ```mermaid
 graph TD
@@ -19,140 +17,151 @@ graph TD
     classDef common fill:#1E8449,stroke:#27AE60,stroke-width:2px,color:#EAF8F2;
     classDef display fill:#D35400,stroke:#E67E22,stroke-width:2px,color:#FDEDEC;
     classDef control fill:#7D6608,stroke:#9A7D0A,stroke-width:2px,color:#FEF9E7;
+    classDef sub fill:#2C3E50,stroke:#566573,stroke-width:1px,color:#D5D8DC;
 
     subgraph WIKI ["📄 統合ポータル (Wiki.md) - システム全体俯瞰"]
         direction TD
 
-        subgraph Calibration ["⚙️ 0. アライメント・キャリブレーション基盤"]
+        subgraph Calibration ["⚙️ 0. 基盤・初期化"]
             direction LR
             InitNode["初期化とアライメント<br/>(Initialization.md)"]:::common
-            DebugNode["PCV デバッグ空間演算<br/>(DebugPCV.md)"]:::debug
+            DebugNode["PCV デバッグビューア<br/>(DebugPCV.md)"]:::debug
         end
 
-        PointCloudNode["📦 1. 点群ストリーミング・統合ハブ<br/>(PointCloudPipeline.md)"]:::common
+        PointCloudNode["📦 1. 点群ストリーミング・統合パイプライン<br/>(PointCloudPipeline.md)"]:::common
         
         subgraph RealTimeProcessing ["⚡ リアルタイム処理"]
             direction LR
             RenderNode["🎨 2. 視覚オクルージョン<br/>(OcclusionRendering.md)"]:::render
-            HapticsNode["⚡ 3. 衝突判定・トラッキング<br/>(Collision.md)"]:::haptic
-            AutdNode["🔊 4. 超音波ハプティクス出力<br/>(Haptics.md)"]:::haptic
+
+            subgraph HapticsGroup ["🔊 ハプティクス系"]
+                direction TB
+                CollisionNode["⚡ 3. 衝突判定<br/>(Collision.md)"]:::haptic
+                CollisionAlgoNode["└ 🔬 アルゴリズム比較<br/>(CollisionAlgorithmComparison.md)"]:::sub
+                AutdNode["🔊 4. AUTD制御<br/>(Haptics.md)"]:::haptic
+                HapticsAlgoNode["└ 🔬 アルゴリズム比較<br/>(HapticsAlgorithmComparison.md)"]:::sub
+                FoxFootNode["└ 🏗️ Fox足先照射<br/>(FoxFootHaptics.md)"]:::sub
+                HowToNode["└ 📖 使い方ガイド<br/>(HowToUseHaptics.md)"]:::sub
+                SDKNode["└ 🔧 SDK移行ガイド<br/>(AUTD3_SDK_Transition.md)"]:::sub
+            end
         end
 
-        DisplayNode["👓 5. 3D立体視・ハーフミラー制御<br/>(Display3D.md)"]:::display
+        DisplayNode["👓 5. 3D立体視・ハーフミラー<br/>(Display3D.md)"]:::display
         ControlNode["🎮 6. アニメーション・操作<br/>(AnimationControls.md)"]:::control
-        PhysicsNode["🌀 7. 物理応答パラメータ<br/>(PhysicalResponse.md)"]:::control
+
+        subgraph PhysicsGroup ["🌀 7. 物理応答"]
+            direction TB
+            PhysicsNode["物理応答パラメータ<br/>(PhysicalResponse.md)"]:::control
+            LiftNode["└ リフト追従<br/>(PhysicalResponseLiftController.md)"]:::sub
+        end
 
         %% パイプラインデータフロー
-        Calibration -->|"アライメント行列 / デバッグ参照"| PointCloudNode
+        Calibration -->|"アライメント行列"| PointCloudNode
         PointCloudNode -->|"点群統合データ"| RealTimeProcessing
-        HapticsNode -->|"フォーカス・振幅データ"| AutdNode
+        CollisionNode -->|"フォーカス・振幅データ"| AutdNode
         RenderNode -->|"オクルージョン合成結果"| DisplayNode
         
         %% 独立した制御系
         ControlNode -.->|"カメラ追従・UI操作"| RenderNode
-        ControlNode -->|"ターゲット自動連携"| PhysicsNode
+        ControlNode -->|"ターゲット自動連携"| PhysicsGroup
     end
 ```
 
 ---
 
-## 2. 各ノード（サブシステム）へのナビゲーション
+## 2. ドキュメントナビゲーション
 
-それぞれの機能やアルゴリズムの詳細、関数構成、Compute Shader 仕様、最適化ポリシーは以下の詳細 Wiki をご参照ください。
+### ドキュメント種類の凡例
+| アイコン | 種類 | 説明 |
+|:---:|:---|:---|
+| 🏗️ | システム設計書 | コアアーキテクチャ・アルゴリズム詳細 |
+| 🔬 | アルゴリズム比較 | 旧実装 vs 新実装の深堀り資料 |
+| 📖 | How-To / リファレンス | 使い方ガイド・操作一覧 |
+| 🔧 | SDK移行ガイド | SDK バージョン切り替え手順 |
 
-### ⚙️ 0. [初期化とアライメント・キャリブレーション](./Initialization.md) / [PCV デバッグビューア](./DebugPCV.md)
-*   **目的**: 実世界のセンサー（RealSense）と仮想空間のアライメント（位置合わせ）を管理し、三次元点群空間を素早くプレビューしてキャリブレーションを行う基盤です。
-*   **コアモジュールと主要設計特徴**:
-    *   **JSONベースの設定保存・復元**: 各カメラのローカル位置・回転情報を `ChildTransforms.json` にエクスポートおよびインポート。
-    *   **エディタのUndo対応**: 誤操作を防ぐための Undo/Redo (Ctrl+Z) 履歴登録と、エディタ画面の即時更新。
-    *   **レンダリングソース切り替え**: PCV ファイル（CPU読込）と RealSense 統合点群（GPU Buffer）の描画ソースを瞬時に切り替え可能。
-*   **詳細はこちら ──> [Initialization.md](./Initialization.md) / [DebugPCV.md](./DebugPCV.md) を読む**
+### 全ドキュメント一覧
 
----
-
-### 📸 1. [点群ストリーミング・統合パイプライン](./PointCloudPipeline.md)
-*   **目的**: RealSense からのデータ取得、事前フィルタリング、および複数点群の GPU 非同期マージを行います。
-*   **コアモジュールと主要設計特徴**:
-    *   **常時搭載の `RsIntegratedPointCloud` (GPU Direct Mode)**:
-        `RsProcessingPipe` パイプライン内に常時組み込まれ、非同期スレッドから Marshal.Copy されたデータを `RsUnityMainThreadDispatcher` 経由で GPU 上でダイレクト処理し、CPU負荷を最小化。
-    *   **`ColorFilter/` 事前処理**:
-        HSV/YCbCr 空間閾値に基づく肌色等の抽出カリング (`RsColorBasedDepthCulling` / `RsGpuCullingProcessor`)、幾何学的アライメント補正 (`RsDepthToColorCalibration`)、およびパラメータ調整支援 (`RsCullingDebugExporter`) を統合。
-    *   **GPU ゼロコピー・非同期 CommandBuffer マージ**:
-        `RsGlobalPointCloudManager` (GlobalManager) 内で、CommandBuffer (名称 `"RsPointCloud.GlobalMerge"`) を構築し、`Graphics.ExecuteCommandBuffer` により CPU 待機時間ゼロで GPU 上で点群をマージ。
-*   **詳細はこちら ──> [PointCloudPipeline.md](./PointCloudPipeline.md) を読む**
-
----
-
-### 🎨 2. [視覚オクルージョン・レンダリングシステム](./OcclusionRendering.md)
-*   **目的**: 実環境の点群と Unity 仮想オブジェクトの前後遮蔽（オクルージョン）を URP RenderGraph 上で超高速に計算し、エッジ保存型の Hole Filling（穴埋め）を施して滑らかに描画します。
-*   **コアモジュールと主要設計特徴**:
-    *   **常時搭載の `RsIntegratedPointCloud` (GPU Direct Mode)**:
-        `RsProcessingPipe` パイプライン内に常時組み込まれ、非同期スレッドから Marshal.Copy されたデータを `RsUnityMainThreadDispatcher` 経由で GPU 上でダイレクト処理し、CPU負荷を最小化。
-    *   **`ColorFilter/` 事前処理**:
-        HSV/YCbCr 空間閾値に基づく肌色等の抽出カリング (`RsColorBasedDepthCulling` / `RsGpuCullingProcessor`)、幾何学的アライメント補正 (`RsDepthToColorCalibration`)、およびパラメータ調整支援 (`RsCullingDebugExporter`) を統合。
-    *   **GPU ゼロコピー・非同期 CommandBuffer マージ**:
-        `RsGlobalPointCloudManager` (GlobalManager) 内で、CommandBuffer (名称 `"RsPointCloud.GlobalMerge"`) を構築し、`Graphics.ExecuteCommandBuffer` により CPU 待機時間ゼロで GPU 上で点群をマージ。
-    *   **URP RenderGraph へのノンブロッキング・データパッシング**:
-        `PCDRenderPass.RecordRenderGraph` 内で、外部バッファ参照と点数を引き渡すことで、CPU を一切ブロックせずに URP の描画フローへシームレスに組み込み。
-    *   **多段 Compute Shader カーネル (`PCD_Occlusion.compute`)**:
-        Joint Bilateral 補間、Pull-Push 補完、モルフォロジー演算などの多段演算を GPU 側で実行。また、タグベースのオクルージョン最適化 (`EnableTagBasedOptimization`) による仮想オブジェクト同士のセルフオクルージョン防止制御や、D3D11 環境における SRV/UAV 同時バインドハザードを回避する堅牢なアーキテクチャを採用しています。
-*   **詳細はこちら ──> [OcclusionRendering.md](./OcclusionRendering.md) を読む**
+| # | 種類 | ドキュメント | 概要 |
+|:---|:---:|:---|:---|
+| **0** | 🏗️ | [Initialization.md](./Initialization.md) | 複数カメラのアライメント・キャリブレーション |
+| | 🏗️ | [DebugPCV.md](./DebugPCV.md) | 点群データのリアルタイムプレビュー・デバッグビューア |
+| **1** | 🏗️ | [PointCloudPipeline.md](./PointCloudPipeline.md) | RealSense 点群取得 → GPU 非同期マージ |
+| **2** | 🏗️ | [OcclusionRendering.md](./OcclusionRendering.md) | URP RenderGraph 上の点群オクルージョン処理 |
+| **3** | 🏗️ | [Collision.md](./Collision.md) | GPU 衝突判定・クラスタリング (HCD Pipeline) |
+| | 🔬 | └── [CollisionAlgorithmComparison.md](./CollisionAlgorithmComparison.md) | Native C++ vs GPU の数理モデル比較 |
+| **4** | 🏗️ | [Haptics.md](./Haptics.md) | AUTD3 超音波ハプティクス出力制御 |
+| | 🔬 | └── [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | Native C++ vs Pure C# のアルゴリズム比較 |
+| | 🏗️ | └── [FoxFootHaptics.md](./FoxFootHaptics.md) | キツネ足先・尻尾ハプティクス仕様 + カスタム拡張 |
+| | 📖 | └── [HowToUseHaptics.md](./HowToUseHaptics.md) | ハプティクスの初回セットアップ〜使い方ガイド |
+| | 🔧 | └── [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md) | AUTD3 SDK 新旧仕様比較と切り替え方法 |
+| **5** | 🏗️ | [Display3D.md](./Display3D.md) | SRDisplay 視線追跡 + ハーフミラー鏡像制御 |
+| **6** | 📖 | [AnimationControls.md](./AnimationControls.md) | キーボード操作対応表・デバッグ用ショートカット |
+| **7** | 🏗️ | [PhysicalResponse.md](./PhysicalResponse.md) | Softbody/BonePhysics パラメータ一括制御 |
+| | 🏗️ | └── [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md) | 手の点群でキャラクターをリフト追従 |
 
 ---
 
-### ⚡ 3. [空中超音波ハプティクス（衝突判定・トラッキング）](./Collision.md)
-*   **目的**: 統合点群と Unity 上の動的な仮想オブジェクトとの物理的な衝突判定を GPU で並列計算し、ハプティクス提示の座標・法線・強度をトラッキングします。
-*   **コアモジュールと特徴**:
-    *   `HapCollisionDetectors.cs`: C# 衝突オーケストレーター、BakeMesh による GC 対策。
-    *   `HapCollisionDetectors.compute`: Broad-Phase AABB 枝切り、Narrow-Phase サンプリング、アトミック衝突調停。
-*   **詳細はこちら ──> [Collision.md](./Collision.md) を読む**
+## 3. 各サブシステム概要
+
+### ⚙️ 0. 基盤・初期化
+複数 RealSense カメラの位置合わせ（キャリブレーション）と、JSON ベースのアライメント設定の保存・復元を管理します。PCV デバッグビューアにより、点群データの即座のプレビューと GPU/CPU 描画ソースの切り替えが可能です。
+
+📎 詳細: [Initialization.md](./Initialization.md) / [DebugPCV.md](./DebugPCV.md)
 
 ---
 
-### 🔊 4. [空中超音波ハプティクス出力システム](./Haptics.md)
-*   **目的**: 衝突判定モジュールから出力された接触重心や強度データを元に音響ホログラフィアルゴリズム（GSPAT）を適用し、AUTD3ハードウェアを駆動して超音波触覚を提示します。また、外部スクリプトからの直接制御（STMやカスタム波形など）の窓口としても機能します。
-*   **コアモジュールと特徴**:
-    *   **完全な C# ネイティブ設計**: 旧来の独自ネイティブパッケージへの依存を完全に排除し、公式 `AUTD3Sharp` パッケージのみを用いてフルスクラッチで再構築されました。
-    *   `AUTD3Device.cs`: Unity上の物理的なAUTD3アレイデバイスの配置・ID管理。
-    *   `HAP_AUTDController.cs`: リンクモード（TwinCAT / SOEM / Simulator）の統合管理、トラッキングデータに基づく自動マルチフォーカス出力、接触強度（Force）に応じた動的振幅制御。さらに、旧パッケージ相当の高度な手動API（STM、GainGroup、カスタム変調等）を完備。
-    *   `HAP_AUTDCalibration.cs`: 実空間と仮想空間の座標軸を合わせるための専用キャリブレーションツール。Play中の状態保持機能や、個別デバイスの出力オン/オフ切替機能による実機テストを強力にサポートします。
-*   **詳細はこちら ──> [Haptics.md](./Haptics.md) を読む**
+### 📦 1. 点群ストリーミング・統合パイプライン
+RealSense からの非同期データ取得、HSV/YCbCr カラーフィルタリング（肌色抽出等）、および GPU ゼロコピー CommandBuffer マージを行います。統合された点群バッファは、オクルージョンとハプティクスの両パイプラインのデータ源として機能します。
 
-
+📎 詳細: [PointCloudPipeline.md](./PointCloudPipeline.md)
 
 ---
 
-### 👓 5. [3D立体視・ハーフミラー制御システム](./Display3D.md)
-*   **目的**: 物理的な視線トラッキングセンサー（SRDisplay等）が取得した座標と、ハーフミラーを用いた鏡面世界（光学配置）の視差を完全に一致させます。
-*   **コアモジュールと特徴**:
-    *   **SDK標準トラッキングの完全活用**: 独自の座標計算やカメラ同期（`StereoCameraController` 等）を廃止し、SDKの標準カメラ機能（`Use Direct GPU Image Buffer = OFF`）をそのまま活用することで、トラッキング精度とパフォーマンスを最大化。
-    *   **空間の鏡像反転 (`PCDRenderPass`)**: 
-        ハーフミラー越しの正しい視差（パララックス）を得るため、カメラ側の投影行列（フラスタム）は一切いじりません。代わりに、描画対象である点群データをコンピュートシェーダーへ送る直前に、ディスプレイ中心（`CameraAdjuster` の `displayTransform`）を基準としたローカルX軸反転を ViewMatrix に適用します。
-    *   **仮想オブジェクトの同期**: 点群の鏡面世界と空間を一致させるため、Unity上の仮想オブジェクト（例：狐など）は親TransformのスケールXを `-1` に設定するだけで、カリング（裏返り）の破綻なく正しい視差で描画されます。
-*   **詳細はこちら ──> [Display3D.md](./Display3D.md) を読む**
+### 🎨 2. 視覚オクルージョン・レンダリングシステム
+URP RenderGraph 上で点群をスクリーン空間に投影し、仮想オブジェクトとの前後遮蔽を計算します。多段 Compute Shader（Joint Bilateral 補間、Pull-Push 補完、モルフォロジー演算）により、エッジ保存型の滑らかな Hole Filling を実現しています。
+
+📎 詳細: [OcclusionRendering.md](./OcclusionRendering.md)
 
 ---
 
-### 🎮 6. [アニメーション・操作キーシステム](./AnimationControls.md)
-*   **目的**: デモや実験時の評価を効率化するために、撮影やオブジェクト切り替え、オクルージョン手法のパラメータ切り替え、およびキャラクターの操作と視点（カメラ）への追従制御を行います。
-*   **コアモジュールと特徴**:
-    *   **キャラクターの視点追従**: `F` キーで切り替え可能。`Camera.main`（視点）へ向けてキャラクターをY軸回転で自動的かつ滑らかに追従させます。
-    *   **デバッグ・評価用キャプチャ機能**: `Enter`/`Return` キーによる複数デバッグマップ（オクルージョン、ピクセルタグ、統合デプス、近傍）と現在視点カメラ画像の同期保存。
-    *   **リアルタイムパラメータ操作**: 提案手法の一括/個別切り替え（Ablation）、滑らかさ幅（Fade Width）、カーネル関数や分割方向数の切り替えによるインタラクティブな評価。
-*   **詳細はこちら ──> [AnimationControls.md](./AnimationControls.md) を読む**
+### ⚡ 3. 衝突判定・クラスタリング
+統合点群と仮想オブジェクトの接触を GPU で並列計算します。Voxel Grid による高速枝切り、Möller-Trumbore レイキャストによる厳密な内外判定、空間ハッシュによるクラスタリングを経て、安定したトラッキングデータを出力します（処理時間: 0.05ms）。
+
+📎 詳細: [Collision.md](./Collision.md) | 📎 比較: [CollisionAlgorithmComparison.md](./CollisionAlgorithmComparison.md)
 
 ---
 
-### 🌀 7. [物理応答パラメータ制御システム](./PhysicalResponse.md)
-*   **目的**: Midair Haptics Unity Core における各種物理応答（PhysicsProfile, Softbody等）コンポーネントのパラメータを、実行時に一括で調整・管理します。
-*   **コアモジュールと特徴**:
-    *   **SkinnedMesh 階層の自動検出**: Fox などのターゲットを指定するだけで、自動生成された Softbody や BonePhysics 階層をシーンから見つけ出して自動的にリンクします。
-    *   **リアルタイムパラメータ制御**: Stiffness（硬さ）、Damping（減衰）、Force（反発力）などのパラメータを、インスペクターのスライダー操作で動的かつ一括で管理します。
-*   **詳細はこちら ──> [PhysicalResponse.md](./PhysicalResponse.md) を読む**
+### 🔊 4. 超音波ハプティクス出力
+衝突判定からの接触データを元に、GSPAT 等の音響ホログラフィを適用し AUTD3 ハードウェアを駆動します。完全な C# ネイティブ設計で旧ネイティブパッケージを置き換え、手動API（STM、GainGroup等）も完備しています。
+
+📎 詳細: [Haptics.md](./Haptics.md) | 📖 使い方: [HowToUseHaptics.md](./HowToUseHaptics.md)
+📎 比較: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | 🔧 SDK: [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
+📎 Fox照射: [FoxFootHaptics.md](./FoxFootHaptics.md)
 
 ---
 
-## 3. 全体システムの最適化思想と共有価値
+### 👓 5. 3D立体視・ハーフミラー制御
+SDK標準トラッキングを完全活用し、描画空間をディスプレイ中心でX軸反転することでハーフミラー越しの正しい視差を実現します。投影行列の改変なしに鏡面世界を構築する、シンプルで堅牢なアーキテクチャです。
+
+📎 詳細: [Display3D.md](./Display3D.md)
+
+---
+
+### 🎮 6. アニメーション・操作キーシステム
+デモ・実験時のキーボードショートカット（撮影、オブジェクト切り替え、オクルージョン手法の Ablation 切り替え）およびキャラクターの視点追従制御を提供します。
+
+📎 詳細: [AnimationControls.md](./AnimationControls.md)
+
+---
+
+### 🌀 7. 物理応答パラメータ制御
+Midair Haptics の物理応答コンポーネント（Softbody, BonePhysics 等）のパラメータをインスペクターで一括調整します。キャラクターリフト機能により、手の点群でキャラクターを持ち上げるインタラクションも実現しています。
+
+📎 詳細: [PhysicalResponse.md](./PhysicalResponse.md) | [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md)
+
+---
+
+## 4. 全体システムの最適化思想と共有価値
 
 本プロジェクトは、1秒間に数万〜数十万点の点群データをリアルタイムに処理するため、以下の最適化思想をすべての機能ノードで共通して貫いています。
 

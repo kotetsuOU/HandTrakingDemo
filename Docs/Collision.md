@@ -1,8 +1,10 @@
-# RealTimeOcclusion 空中超音波ハプティクス（触覚提示）システム設計思想・アルゴリズム詳細
+# 衝突判定・クラスタリングシステム (HCD Pipeline)
 
-## 🔗 統合プロジェクトポータル
-
-本システムは、プロジェクトのメインポータルである **[RealTimeOcclusion システム統合 Wiki (Wiki.md)](./Wiki.md)** の「ハプティクス（触覚提示）ノード」として位置づけられており、視覚的なレンダリングシステムから完全に独立して設計されています。
+> 📂 **親ノード**: [Wiki.md (ポータル)](./Wiki.md) | 🏷️ **種類**: 🏗️ システム設計書
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
+>
+> 📎 **関連ドキュメント**: [CollisionAlgorithmComparison.md](./CollisionAlgorithmComparison.md)
 
 ---
 

@@ -104,6 +104,7 @@ public class AnimationController : MonoBehaviour
                     foxFootController.frontRightFoot = null;
                     foxFootController.backLeftFoot = null;
                     foxFootController.backRightFoot = null;
+                    foxFootController.tailBone = null;
                     
                     // 新しいアクティブオブジェクトのTransformをルートにする
                     foxFootController.rootTransform = activeObj.transform;

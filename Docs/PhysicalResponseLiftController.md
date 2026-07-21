@@ -1,4 +1,8 @@
-# PhysicalResponseLiftController (キャラクターリフト・追従コントローラー) 仕様書
+# キャラクターリフト・追従コントローラー (PhysicalResponseLiftController)
+
+> 📂 **親ノード**: [PhysicalResponse.md (物理応答パラメータ制御)](./PhysicalResponse.md) | 🏷️ **種類**: 🏗️ システム設計書
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
 本モジュールは、`HCD_Pipeline` によって検出された現実世界の手（点群クラスタ）がキャラクターの足元に近づいた際に、キャラクター全体が手に乗って追従し、持ち上げたり下げたりできるインタラクションを提供するシステムです。
 

@@ -10,11 +10,13 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
     private SerializedProperty frontRightFootProp;
     private SerializedProperty backLeftFootProp;
     private SerializedProperty backRightFootProp;
+    private SerializedProperty tailBoneProp;
 
     private SerializedProperty enableFrontLeftProp;
     private SerializedProperty enableFrontRightProp;
     private SerializedProperty enableBackLeftProp;
     private SerializedProperty enableBackRightProp;
+    private SerializedProperty enableTailProp;
 
     private SerializedProperty disableWhenInAirProp;
     private SerializedProperty airborneHeightThresholdProp;
@@ -41,11 +43,13 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         frontRightFootProp = serializedObject.FindProperty("frontRightFoot");
         backLeftFootProp = serializedObject.FindProperty("backLeftFoot");
         backRightFootProp = serializedObject.FindProperty("backRightFoot");
+        tailBoneProp = serializedObject.FindProperty("tailBone");
 
         enableFrontLeftProp = serializedObject.FindProperty("enableFrontLeft");
         enableFrontRightProp = serializedObject.FindProperty("enableFrontRight");
         enableBackLeftProp = serializedObject.FindProperty("enableBackLeft");
         enableBackRightProp = serializedObject.FindProperty("enableBackRight");
+        enableTailProp = serializedObject.FindProperty("enableTail");
 
         disableWhenInAirProp = serializedObject.FindProperty("disableWhenInAir");
         airborneHeightThresholdProp = serializedObject.FindProperty("airborneHeightThreshold");
@@ -77,6 +81,7 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         EditorGUILayout.PropertyField(frontRightFootProp);
         EditorGUILayout.PropertyField(backLeftFootProp);
         EditorGUILayout.PropertyField(backRightFootProp);
+        EditorGUILayout.PropertyField(tailBoneProp);
         if (GUILayout.Button("Auto Detect Bones"))
         {
             ((HAP_FoxFootHapticsController)target).AutoDetectBones();
@@ -87,6 +92,7 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         EditorGUILayout.PropertyField(enableFrontRightProp);
         EditorGUILayout.PropertyField(enableBackLeftProp);
         EditorGUILayout.PropertyField(enableBackRightProp);
+        EditorGUILayout.PropertyField(enableTailProp);
         EditorGUILayout.Space();
 
         EditorGUILayout.PropertyField(disableWhenInAirProp);
@@ -112,14 +118,14 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         EditorGUILayout.PropertyField(stmModeProp);
         
         // STM Mode に応じた表示の切り替え
-        HAP_FoxFootHapticsController.FoxFootSTMMode mode = (HAP_FoxFootHapticsController.FoxFootSTMMode)stmModeProp.enumValueIndex;
+        HapticsSTMMode mode = (HapticsSTMMode)stmModeProp.enumValueIndex;
         
         EditorGUI.indentLevel++;
         
         // FociSTM / GainSTM 共通
         EditorGUILayout.PropertyField(sequentialSTMFrequencyProp, new GUIContent("STM Frequency (Hz)"));
         
-        if (mode == HAP_FoxFootHapticsController.FoxFootSTMMode.GainSTM)
+        if (mode == HapticsSTMMode.GainSTM)
         {
             // GainSTM の場合のみ表示
             EditorGUILayout.PropertyField(trackModeProp);

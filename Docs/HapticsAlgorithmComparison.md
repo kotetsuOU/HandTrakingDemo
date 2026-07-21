@@ -1,4 +1,8 @@
-# Haptics Algorithm Comparison: Native vs C#
+# ハプティクスアルゴリズム比較: Native C++ vs Pure C#
+
+> 📂 **親ノード**: [Haptics.md (AUTD制御システム)](./Haptics.md) | 🏷️ **種類**: 🔬 アルゴリズム比較
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
 本ドキュメントでは、元の `com.shinolab.midair-haptics-unity-core` パッケージに実装されていたハプティクス（超音波提示）生成アルゴリズムと、本プロジェクト向けに完全 C# で再設計された `HAP_AUTDController` および `HAP_HapticsSources` のアルゴリズムの違い、およびその設計思想について解説します。
 
