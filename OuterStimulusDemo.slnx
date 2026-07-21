@@ -1,0 +1,20 @@
+﻿<Solution>
+  <Project Path="Core.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="RealSense.csproj" />
+  <Project Path="HapticsCollision.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.csproj" />
+  <Project Path="Haptics.csproj" />
+  <Project Path="RealSense.Editor.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.Home.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.SRD2DViewUISample.csproj" />
+  <Project Path="Utils.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.LookAtSampleApp.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.Common.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.UISampleApp.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Editor.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.SimpleSampleApp.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.3DRaycastSampleApp.csproj" />
+  <Project Path="Unity.jp.co.sony.srd.Sample.PostProcessingSampleApp.csproj" />
+</Solution>
