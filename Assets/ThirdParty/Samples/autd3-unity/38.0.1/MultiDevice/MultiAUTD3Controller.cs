@@ -19,6 +19,13 @@ public class MultiAUTD3Controller : MonoBehaviour
         IndependentFocus    // 左右のデバイスがそれぞれ独立してフォーカスを出力するモード
     }
 
+    public enum OutputSide
+{
+    Both,       // 両方出す
+    UpperOnly,   // 左グループ（0,1,6,7）だけ
+    DownOnly   // 右グループ（2,3,4,5）だけ
+}
+
     public enum NonCollisionBehavior
     {
         KeepLastHit,        // 最後に接触した位置にフォーカスを維持する
@@ -50,9 +57,12 @@ public class MultiAUTD3Controller : MonoBehaviour
     [Tooltip("Target2 に対応するデバイスのインデックス一覧（右側グループ）")]
     public int[] downDeviceIndices = new[] { 2, 3, 4, 5 };
 
+    [Tooltip("実行中に 1 / 2 / 3 キーで切り替え可能")]
+    public OutputSide outputSide = OutputSide.Both; 
+
     private Controller? _autd = null;
-    private Vector3 _oldPosition;
-    private Vector3 _oldPosition2;
+    private Vector3? _oldPosition;
+    private Vector3? _oldPosition2;
     private HapCollisionDetectors? _collisionDetector;
     private bool _isCurrentlyOff = false;
 
@@ -90,7 +100,7 @@ public class MultiAUTD3Controller : MonoBehaviour
             _autd.Send(new Focus(pos: Target.transform.position, option: new FocusOption()));
             _oldPosition = Target.transform.position;
         }
-        else if (mode == ControlMode.IndependentFocus && Target != null && Target2 != null)
+        else if (mode == ControlMode.IndependentFocus && Target != null || Target2 != null)
         {
             SendIndependentFocus(Target.transform.position, Target2.transform.position);
             _oldPosition = Target.transform.position;
@@ -98,34 +108,74 @@ public class MultiAUTD3Controller : MonoBehaviour
         }
     }
 
-    private void SendIndependentFocus(Vector3 pos1, Vector3 pos2)
+    private void SendIndependentFocus(Vector3? pos1, Vector3? pos2)
     {
         var leftSet = new HashSet<int>(upperDeviceIndices);
         var rightSet = new HashSet<int>(downDeviceIndices);
 
+        // ① 指示書を空で作って、必要なぶんだけ入れる
+        var gainMap = new Dictionary<object, IGain>();
+        if (pos1.HasValue)
+            gainMap["left"] = new Focus(pos: pos1.Value, option: new FocusOption());
+        if (pos2.HasValue)
+            gainMap["right"] = new Focus(pos: pos2.Value, option: new FocusOption());
+
+        // ② 両方ないなら全停止
+        if (gainMap.Count == 0)
+        {
+            _autd!.Send(new Null());
+            return;
+        }
+
+        // ③ 名札付け。座標がない側には名札を付けない
         var gain = new GainGroup(
-            keyMap: dev => tr => leftSet.Contains(dev.Idx()) ? "left"
-                               : rightSet.Contains(dev.Idx()) ? "right"
-                               : null,
-            gainMap: new Dictionary<object, IGain>
-            {
-                { "left",  new Focus(pos: pos1, option: new FocusOption()) },
-                { "right", new Focus(pos: pos2, option: new FocusOption()) }
-            }
+            keyMap: dev => tr => (pos1.HasValue && leftSet.Contains(dev.Idx()))  ? "left"
+                            : (pos2.HasValue && rightSet.Contains(dev.Idx())) ? "right"
+                            : null,
+            gainMap: gainMap
         );
         _autd!.Send(gain);
     }
+        private Vector3? CurrentPos1()
+    {
+        if (outputSide == OutputSide.DownOnly) return null;   // 右だけモードなら左は出さない
+        if (Target == null) return null;                       // 設定し忘れ対策
+        return Target.transform.position;
+    }
+
+    private Vector3? CurrentPos2()
+    {
+        if (outputSide == OutputSide.UpperOnly) return null;    // 左だけモードなら右は出さない
+        if (Target2 == null) return null;
+        return Target2.transform.position;
+    }
 
     private void Update()
-    {
+{
+    if (Input.anyKeyDown) UnityEngine.Debug.Log($"何か押された: {Input.inputString}");
+            if (Input.GetKeyDown(KeyCode.A))
+            {
+                outputSide = OutputSide.UpperOnly;
+                UnityEngine.Debug.Log("AUTD: 左グループ（0,1,6,7）のみ出力");
+            }
+            if (Input.GetKeyDown(KeyCode.S))
+            {
+                outputSide = OutputSide.DownOnly;
+                UnityEngine.Debug.Log("AUTD: 右グループ（2,3,4,5）のみ出力");
+            }
+            if (Input.GetKeyDown(KeyCode.D))
+            {
+                outputSide = OutputSide.Both;
+                UnityEngine.Debug.Log("AUTD: 両グループ出力");
+            }
         if (_autd == null) return;
 
         if (mode == ControlMode.IndependentFocus)
         {
-            if (Target == null || Target2 == null) return;
 
-            var pos1 = Target.transform.position;
-            var pos2 = Target2.transform.position;
+
+            var pos1 = CurrentPos1();
+            var pos2 = CurrentPos2();
 
             if (pos1 != _oldPosition || pos2 != _oldPosition2)
             {
