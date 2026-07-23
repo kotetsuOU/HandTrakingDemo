@@ -94,10 +94,15 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
 
         float originalFrequency = controller.stmFrequency;
 
+        var expManager = runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
+        bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
+
         // ---- Interval 1 ----
-        trial.metadata["currentInterval"] = $"第 1 刺激 ({freq1:F0} Hz)";
+        string label1 = isDebug ? $"第 1 刺激 ({freq1:F0} Hz)" : "第 1 刺激";
+        string msg1 = isDebug ? $"【 第 1 刺激 】 ({freq1:F0} Hz)" : "【 第 1 刺激 】";
+        trial.metadata["currentInterval"] = label1;
         var uiCtrl = runner.GetComponent<EXP_UIController>() ?? Object.FindAnyObjectByType<EXP_UIController>();
-        uiCtrl?.SetMessage($"【 第 1 刺激 】提示中 ({freq1:F0} Hz)");
+        uiCtrl?.SetMessage(msg1);
         yield return RunInterval(controller, freq1, "Interval1", cueDuration, intervalDuration);
 
         // ---- ISI ----
@@ -108,8 +113,10 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
             yield return new WaitForSeconds(isiDuration);
 
         // ---- Interval 2 ----
-        trial.metadata["currentInterval"] = $"第 2 刺激 ({freq2:F0} Hz)";
-        uiCtrl?.SetMessage($"【 第 2 刺激 】提示中 ({freq2:F0} Hz)");
+        string label2 = isDebug ? $"第 2 刺激 ({freq2:F0} Hz)" : "第 2 刺激";
+        string msg2 = isDebug ? $"【 第 2 刺激 】 ({freq2:F0} Hz)" : "【 第 2 刺激 】";
+        trial.metadata["currentInterval"] = label2;
+        uiCtrl?.SetMessage(msg2);
         yield return RunInterval(controller, freq2, "Interval2", cueDuration, intervalDuration);
 
         // ---- Response Prompt ----

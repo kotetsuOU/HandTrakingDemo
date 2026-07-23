@@ -273,15 +273,16 @@ Unity Editor のメニュー **Tools → EXP → Experiment Control Panel** か�
 - 画面上で「第1刺激 (Z)」「第2刺激 (X)」「実験開始」「実験中断」のボタンをクリックできます。
 - 被験者が画面に触れず、実験者が手元でキー入力や別ウィンドウクリックをして操作したい場合に便利です。
 
-### 3. Unity UI / 外部ボタンからの入力呼び出し (`TriggerResponse`)
+### 4. 本番ブラインドモードとデバッグ表示モード (`isDebugMode`)
 
-Unity UI Canvas 上の `Button` の `OnClick` イベントから `EXP_InputHandler.OnUIButtonClick(string responseValue)` を登録することで、画面上の UI ボタンクリックで応答できます。
+被験者への数値（Hz や cm）の露出を防ぐため、**デフォルト（本番モード）では数値表示を完全に伏せるブラインドモード**になっています。
 
-```csharp
-// スクリプトから直接呼び出す場合
-inputHandler.TriggerResponse("Z"); // 第1刺激を選択
-inputHandler.TriggerResponse("X"); // 第2刺激を選択
-```
+- **本番モード (`isDebugMode = false`, デフォルト)**:
+  - 被験者画面: `【 第 1 刺激 】提示中` / `【 第 2 刺激 】提示中`（数値非表示）
+  - パネル表示: 数値パラメータをマスク（数値漏洩の防止）
+- **デバッグ表示モード (`isDebugMode = true`)**:
+  - パネル最上部の `🐞 デバッグ表示モード (DebugPlay)` にチェックを入れると、動作確認用に被験者画面やパネルに詳細物理数値（`80 Hz` や `-2.0 cm`）が表示されます。
+
 
 ---
 

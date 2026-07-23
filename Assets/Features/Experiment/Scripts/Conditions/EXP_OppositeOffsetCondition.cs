@@ -92,10 +92,15 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
 
         float originalY = controller.oppositeOffset.y;
 
+        var expManager = runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
+        bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
+
         // ---- Interval 1 ----
-        trial.metadata["currentInterval"] = $"第 1 刺激 (Y: {y1 * 100:F1} cm)";
+        string label1 = isDebug ? $"第 1 刺激 (Y: {y1 * 100:F1} cm)" : "第 1 刺激";
+        string msg1 = isDebug ? $"【 第 1 刺激 】 (Y: {y1 * 100:F1} cm)" : "【 第 1 刺激 】";
+        trial.metadata["currentInterval"] = label1;
         var uiCtrl = runner.GetComponent<EXP_UIController>() ?? Object.FindAnyObjectByType<EXP_UIController>();
-        uiCtrl?.SetMessage($"【 第 1 刺激 】提示中 (Y: {y1 * 100:F1} cm)");
+        uiCtrl?.SetMessage(msg1);
         yield return RunInterval(controller, y1, originalY, "Interval1", cueDuration, intervalDuration);
 
         // ---- ISI ----
@@ -106,8 +111,10 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
             yield return new WaitForSeconds(isiDuration);
 
         // ---- Interval 2 ----
-        trial.metadata["currentInterval"] = $"第 2 刺激 (Y: {y2 * 100:F1} cm)";
-        uiCtrl?.SetMessage($"【 第 2 刺激 】提示中 (Y: {y2 * 100:F1} cm)");
+        string label2 = isDebug ? $"第 2 刺激 (Y: {y2 * 100:F1} cm)" : "第 2 刺激";
+        string msg2 = isDebug ? $"【 第 2 刺激 】 (Y: {y2 * 100:F1} cm)" : "【 第 2 刺激 】";
+        trial.metadata["currentInterval"] = label2;
+        uiCtrl?.SetMessage(msg2);
         yield return RunInterval(controller, y2, originalY, "Interval2", cueDuration, intervalDuration);
 
         // ---- Response Prompt ----

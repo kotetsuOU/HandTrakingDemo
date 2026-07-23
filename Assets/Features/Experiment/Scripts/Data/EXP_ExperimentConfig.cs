@@ -19,6 +19,9 @@ public class EXP_ExperimentConfig : ScriptableObject
     [Tooltip("グループ / 条件ラベル（任意）")]
     public string groupLabel = "";
 
+    [Tooltip("デバッグ表示モード (DebugPlay)。trueにすると被験者画面やダッシュボードに物理周波数・Offsetの数値が表示されます。本番実験では false に設定してください。")]
+    public bool isDebugMode = false;
+
     // =====================================================
     // Trial Settings
     // =====================================================

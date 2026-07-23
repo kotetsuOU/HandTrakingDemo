@@ -54,6 +54,35 @@ public class EXP_ExperimentControlWindow : EditorWindow
             }
         }
 
+        EditorGUILayout.Space(4);
+
+        if (EditorApplication.isPlaying)
+        {
+            var managerRef = Object.FindAnyObjectByType<EXP_ExperimentManager>();
+            if (managerRef != null && managerRef.config != null)
+            {
+                using (new EditorGUILayout.HorizontalScope(GUI.skin.box))
+                {
+                    bool isDebugMode = managerRef.config.isDebugMode;
+                    bool newDebugMode = EditorGUILayout.ToggleLeft("🐞 デバッグ表示モード (DebugPlay: 被験者画面やパネルに詳細数値を表示)", isDebugMode, EditorStyles.boldLabel);
+                    if (newDebugMode != isDebugMode)
+                    {
+                        managerRef.config.isDebugMode = newDebugMode;
+                        EditorUtility.SetDirty(managerRef.config);
+                    }
+
+                    if (isDebugMode)
+                    {
+                        DrawBadge("🐞 DEBUG MODE", new Color(0.85f, 0.45f, 0.1f), 11, 20);
+                    }
+                    else
+                    {
+                        DrawBadge("🔒 BLIND (本番)", new Color(0.15f, 0.65f, 0.35f), 11, 20);
+                    }
+                }
+            }
+        }
+
         EditorGUILayout.Space(8);
 
         if (!EditorApplication.isPlaying)
@@ -127,7 +156,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField("試行フェーズ (Phase):", headerItemStyle, GUILayout.Width(130));
-                DrawPhaseBadge(manager.CurrentPhase);
+                DrawPhaseBadge(manager.CurrentPhase, manager);
             }
 
             // 被験者に提示中のメッセージ（特大表示）
@@ -177,18 +206,27 @@ public class EXP_ExperimentControlWindow : EditorWindow
                 if (manager.CurrentTrial.metadata.Count > 0)
                 {
                     EditorGUILayout.Space(6);
-                    GUILayout.Label("詳細パラメータ:", EditorStyles.boldLabel);
-                    var itemLabelStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
-                    var valLabelStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+                    bool isDebug = manager.config != null && manager.config.isDebugMode;
 
-                    foreach (var kv in manager.CurrentTrial.metadata)
+                    if (isDebug)
                     {
-                        string japaneseKey = TranslateMetadataKey(kv.Key);
-                        using (new EditorGUILayout.HorizontalScope())
+                        GUILayout.Label("詳細パラメータ (デバッグ表示中):", EditorStyles.boldLabel);
+                        var itemLabelStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
+                        var valLabelStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+
+                        foreach (var kv in manager.CurrentTrial.metadata)
                         {
-                            EditorGUILayout.LabelField($"  • {japaneseKey}", itemLabelStyle, GUILayout.Width(230));
-                            EditorGUILayout.LabelField(kv.Value, valLabelStyle);
+                            string japaneseKey = TranslateMetadataKey(kv.Key);
+                            using (new EditorGUILayout.HorizontalScope())
+                            {
+                                EditorGUILayout.LabelField($"  • {japaneseKey}", itemLabelStyle, GUILayout.Width(230));
+                                EditorGUILayout.LabelField(kv.Value, valLabelStyle);
+                            }
                         }
+                    }
+                    else
+                    {
+                        EditorGUILayout.HelpBox("🔒 本番ブラインドモード有効中: 被験者への数値漏洩を防止するため、物理数値パラメータは非表示です（データには正常に記録されています）。", MessageType.Info);
                     }
                 }
             }
@@ -422,16 +460,58 @@ public class EXP_ExperimentControlWindow : EditorWindow
         DrawBadge(label, color, 13, 28);
     }
 
-    private static void DrawPhaseBadge(EXP_TrialPhase phase)
+    private static void DrawPhaseBadge(EXP_TrialPhase phase, EXP_ExperimentManager? manager = null)
     {
-        (string label, Color color) = phase switch
+        string label;
+        Color color;
+
+        switch (phase)
         {
-            EXP_TrialPhase.ITI => ("試行間隔 (ITI)", new Color(0.5f, 0.5f, 0.5f)),
-            EXP_TrialPhase.Stimulus => ("刺激提示中 (STIMULUS)", new Color(0.9f, 0.3f, 0.3f)),
-            EXP_TrialPhase.Response => ("応答受付中 (RESPONSE)", new Color(0.15f, 0.8f, 0.35f)),
-            EXP_TrialPhase.Feedback => ("フィードバック (FEEDBACK)", new Color(0.25f, 0.7f, 0.9f)),
-            _ => ("-", Color.gray)
-        };
+            case EXP_TrialPhase.ITI:
+                label = "試行間隔 (ITI)";
+                color = new Color(0.5f, 0.5f, 0.5f);
+                break;
+
+            case EXP_TrialPhase.Stimulus:
+                string currentInterval = manager?.CurrentTrial?.metadata.GetValueOrDefault("currentInterval", "") ?? "";
+                if (currentInterval.Contains("第 1") || currentInterval.Contains("Interval 1"))
+                {
+                    label = "🔊 第 1 刺激 提示中 (STIMULUS)";
+                    color = new Color(0.9f, 0.25f, 0.25f);
+                }
+                else if (currentInterval.Contains("第 2") || currentInterval.Contains("Interval 2"))
+                {
+                    label = "🔊 第 2 刺激 提示中 (STIMULUS)";
+                    color = new Color(0.25f, 0.55f, 0.95f);
+                }
+                else if (currentInterval.Contains("ISI") || currentInterval.Contains("無刺激"))
+                {
+                    label = "⏳ 無刺激間隔 (ISI)";
+                    color = new Color(0.55f, 0.55f, 0.55f);
+                }
+                else
+                {
+                    label = "🔊 刺激提示中 (STIMULUS)";
+                    color = new Color(0.9f, 0.3f, 0.3f);
+                }
+                break;
+
+            case EXP_TrialPhase.Response:
+                label = "🎯 応答受付中 (RESPONSE)";
+                color = new Color(0.15f, 0.8f, 0.35f);
+                break;
+
+            case EXP_TrialPhase.Feedback:
+                label = "💬 フィードバック (FEEDBACK)";
+                color = new Color(0.25f, 0.7f, 0.9f);
+                break;
+
+            default:
+                label = "-";
+                color = Color.gray;
+                break;
+        }
+
         DrawBadge(label, color, 13, 28);
     }
 
