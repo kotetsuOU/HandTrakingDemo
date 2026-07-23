@@ -15,9 +15,10 @@ Intel RealSenseを利用し、オクルージョン処理を反映させた2D映
 以下の環境にて、リアルタイム処理の正常動作を検証しています。
 * **CPU**: Intel Core i9-13900KF
 * **GPU**: NVIDIA GeForce RTX 4080
-* **Display**: QHD (2560 x 1440)
+* **Display**: 4K (3840 x 2160)
 
 * **Intel RealSense SDK 2.0**: プロジェクト内部に独自にカスタマイズしたSDKを同梱しています。外部からの別途インストールは不要です。
+* **Sony Spatial Reality Display SDK**: プロジェクト内部に独自にカスタマイズしたSDKを同梱しています。外部からの別途インストールは不要です。
 * **フリーアニメーション素材**: プロジェクト内に組み込み済みです。
 
 ---
@@ -61,7 +62,7 @@ git lfs pull
    - 調整完了後、`RsTransformController` の Inspector に表示される **「Save Transforms to JSON」** ボタンを押すと、カメラ位置姿勢が `Assets/Config/RealSense/[saveFileName].json` に保存されます。
    - 以前の設定を反映させたいときは **「Load Transforms from JSON」** ボタンで一括読み込み復元が可能です（ロード処理は Undo（Ctrl+Z）に対応しています）。
 
-詳細な設計と手順については、[初期化とアライメント・キャリブレーションシステム (INITIALIZATION.md)](./Docs/INITIALIZATION.md) を参照してください。
+詳細な設計と手順については、[初期化とアライメント・キャリブレーションシステム (Initialization.md)](./Docs/Initialization.md) を参照してください。
 
 ---
 
@@ -115,4 +116,5 @@ git lfs pull
 本プロジェクトには以下のサードパーティ製ソフトウェアおよび外部素材が含まれています。これらの取り扱いについては、各配布元のライセンス条項に従ってください。
 
 * **Intel RealSense SDK 2.0 (Customized)**: Apache License 2.0
+* **Sony Spatial Reality Display SDK**: 各配布元の利用規約に準拠
 * **フリーアニメーション素材**: 各配布元の利用規約に準拠

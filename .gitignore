@@ -12,13 +12,20 @@
 
 # Custom data
 /Assets/HandTrackingData/
-/Assets/HandTrackingDataOld/
+/Assets/Data/HandTrackingDataOld/
 
 # Visual Studio cache directory
 .vs/
 *.csproj
 *.sln
+*.slnx
 
 # External Dependencies & Archives
 *.tgz
 *.zip
+
+*.ps1
+*.editorconfig
+
+# Native dependencies
+/NativePackage/

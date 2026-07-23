@@ -1,0 +1,32 @@
+{
+    "name": "Haptics",
+    "rootNamespace": "",
+    "references": [
+        "RealSense",
+        "AUTD3",
+        "AUTD3.Core",
+        "AUTD3.Pattern",
+        "AUTD3.Pattern.Holo",
+        "AUTD3.Modulation",
+        "AUTD3.Link.TwinCAT",
+        "autd3",
+        "HapticsCollision",
+        "Core",
+        "midair-haptics-unity.autdRuntime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.shinolab.autd3",
+            "expression": "",
+            "define": "USE_AUTD3_LEGACY"
+        }
+    ],
+    "noEngineReferences": false
+}

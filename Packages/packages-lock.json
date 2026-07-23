@@ -5,7 +5,7 @@
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "a4660d9b7ad4a8e3fd2581c4003ebf79db033001"
+      "hash": "9d13ba48c1e2f2d3628e4728b07b65ace21c975a"
     },
     "com.shinolab.autd3": {
       "version": "https://github.com/shinolab/AUTD3Sharp.git#upm/latest",

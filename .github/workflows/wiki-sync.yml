@@ -1,0 +1,109 @@
+name: Sync Wiki Documents
+
+on:
+  push:
+    branches:
+      - 3DDisplay
+      - AUTD
+      - main
+    paths:
+      - "Docs/Wiki.md"
+      - "Docs/PointCloudPipeline.md"
+      - "Docs/OcclusionRendering.md"
+      - "Docs/Collision.md"
+      - "Docs/CollisionAlgorithmComparison.md"
+      - "Docs/Haptics.md"
+      - "Docs/HapticsAlgorithmComparison.md"
+      - "Docs/DebugPCV.md"
+      - "Docs/Display3D.md"
+      - "Docs/Initialization.md"
+      - "Docs/PhysicalResponse.md"
+      - "Docs/PhysicalResponseLiftController.md"
+      - "Docs/AnimationControls.md"
+      - "Docs/AUTD3_SDK_Transition.md"
+      - "Docs/FoxFootHaptics.md"
+      - "Docs/HowToUseHaptics.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v5
+
+      - name: Sync to GitHub Wiki
+        env:
+          WIKI_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+        run: |
+          git clone "$WIKI_REPO" temp-wiki
+          
+          cp Docs/Wiki.md temp-wiki/Home.md
+          cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
+          cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
+          cp Docs/Collision.md temp-wiki/Collision.md
+          cp Docs/CollisionAlgorithmComparison.md temp-wiki/CollisionAlgorithmComparison.md
+          cp Docs/Haptics.md temp-wiki/Haptics.md
+          cp Docs/HapticsAlgorithmComparison.md temp-wiki/HapticsAlgorithmComparison.md
+          cp Docs/DebugPCV.md temp-wiki/DebugPCV.md
+          cp Docs/Display3D.md temp-wiki/Display3D.md
+          cp Docs/Initialization.md temp-wiki/Initialization.md
+          cp Docs/PhysicalResponse.md temp-wiki/PhysicalResponse.md
+          cp Docs/PhysicalResponseLiftController.md temp-wiki/PhysicalResponseLiftController.md
+          cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
+          cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
+          cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
+          cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
+          
+          python3 -c '
+          import os, re
+          mapping = {
+              "Wiki.md": "Home",
+              "PointCloudPipeline.md": "PointCloudPipeline",
+              "OcclusionRendering.md": "OcclusionRendering",
+              "Collision.md": "Collision",
+              "CollisionAlgorithmComparison.md": "CollisionAlgorithmComparison",
+              "Haptics.md": "Haptics",
+              "HapticsAlgorithmComparison.md": "HapticsAlgorithmComparison",
+              "DebugPCV.md": "DebugPCV",
+              "Display3D.md": "Display3D",
+              "Initialization.md": "Initialization",
+              "PhysicalResponse.md": "PhysicalResponse",
+              "PhysicalResponseLiftController.md": "PhysicalResponseLiftController",
+              "AnimationControls.md": "AnimationControls",
+              "AUTD3_SDK_Transition.md": "AUTD3_SDK_Transition",
+              "FoxFootHaptics.md": "FoxFootHaptics",
+              "HowToUseHaptics.md": "HowToUseHaptics"
+          }
+          pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
+          def replace_link(match):
+              filename = match.group(1)
+              if filename in mapping:
+                  return f"({mapping[filename]})"
+              return match.group(0)
+          
+          for wiki_name in mapping.values():
+              fpath = f"temp-wiki/{wiki_name}.md"
+              if os.path.exists(fpath):
+                  with open(fpath, "r", encoding="utf-8") as f:
+                      content = f.read()
+                  new_content = pattern.sub(replace_link, content)
+                  with open(fpath, "w", encoding="utf-8") as f:
+                      f.write(new_content)
+                  print(f"Processed links in {fpath}")
+          '
+          
+          cd temp-wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Auto-sync wiki from main repository (${{ github.sha }})"
+            git push origin HEAD
+          else
+            echo "No changes to sync."
+          fi

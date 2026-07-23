@@ -1,5 +1,9 @@
 # キーボード操作対応表 (Keyboard Controls)
 
+> 📂 **親ノード**: [Wiki.md (ポータル)](./Wiki.md) | 🏷️ **種類**: 📖 リファレンス
+>
+> [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
+
 研究・実験時の撮影やデモを効率化するために、`AnimationController.cs`に以下のショートカットキーがアサインされています。
 このスクリプトはヒエラルキー上のどこか（例えば `Main Camera` や `GameManager`）にアタッチし、インスペクターから操作したい動的オブジェクト（キツネのTransformやAnimator）をセットして使用します。
 
@@ -32,3 +36,12 @@
 * `D` or `→`: 右へ移動 (Right)
 * `E` : 上へ移動 (Up)
 * `Q` : 下へ移動 (Down)
+
+### HCD パイプラインとの連携 (Collision Target Auto-Update)
+インスペクター上の `Auto Update Collision Target` を有効（デフォルト: `true`）にしておくと、`AnimationController` 側で表示中のオブジェクトを切り替えた際（またはエディタ上で非プレイ時に設定を変更した際）、自動的に `HCD_Pipeline` の接触判定対象が追従・更新されます。
+
+- **`SkinnedMeshRenderer` を持つオブジェクト**: アニメーション用のメッシュ表面で判定 (`DetectionMode.SkinnedMeshRenderer`)
+- **`MeshFilter` を持つオブジェクト**: 通常の球などの静的メッシュ表面で判定 (`DetectionMode.MeshFilter`)
+- **どちらも持たないオブジェクト**: 中心座標からの距離で判定 (`DetectionMode.TransformOnly`)
+
+※ Auto Updateが有効な間は、設定の競合を防ぐため `HCD_Pipeline` 側の対象設定UIはグレーアウトされ編集不可となります。手動で特定の対象を検証したい場合は、`AnimationController` の `Auto Update Collision Target` のチェックを外してください。
