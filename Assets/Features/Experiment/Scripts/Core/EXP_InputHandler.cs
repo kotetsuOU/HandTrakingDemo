@@ -39,6 +39,9 @@ public class EXP_InputHandler : MonoBehaviour
     [Tooltip("1試行中の二重入力を防ぐ（最初の入力のみ有効）")]
     public bool blockAfterFirstResponse = true;
 
+    [Tooltip("ウィンドウのフォーカスが外れても（別ウィンドウをクリックしても）Playモードを停止させず背景で実行を継続する")]
+    public bool runInBackground = true;
+
     // =====================================================
     // State (Read-Only)
     // =====================================================
@@ -62,6 +65,14 @@ public class EXP_InputHandler : MonoBehaviour
     // =====================================================
     // Unity Lifecycle
     // =====================================================
+
+    void Awake()
+    {
+        if (runInBackground)
+        {
+            Application.runInBackground = true;
+        }
+    }
 
     void Update()
     {
@@ -92,6 +103,25 @@ public class EXP_InputHandler : MonoBehaviour
     public void ResetResponse()
     {
         HasResponded = false;
+    }
+
+    /// <summary>
+    /// UI ボタンや外部ウィンドウ、EditorWindow、スクリプトなどから直接応答を注入します。
+    /// </summary>
+    /// <param name="responseValue">応答値（例: "Z", "X", "Interval1", "Interval2"）</param>
+    public void TriggerResponse(string responseValue)
+    {
+        if (!IsListening || (blockAfterFirstResponse && HasResponded)) return;
+        Respond(responseValue);
+    }
+
+    /// <summary>
+    /// Unity UI の Button (OnClick) 用のアクセサです。
+    /// Inspector 上の OnClick() にこのメソッドを指定して文字列引数を渡してください。
+    /// </summary>
+    public void OnUIButtonClick(string responseValue)
+    {
+        TriggerResponse(responseValue);
     }
 
     // =====================================================

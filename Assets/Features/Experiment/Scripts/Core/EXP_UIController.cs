@@ -48,6 +48,9 @@ public class EXP_UIController : MonoBehaviour
     [Tooltip("フェード用 CanvasGroup（alpha: 0=透明, 1=黒）")]
     public CanvasGroup? fadePanel;
 
+    [Tooltip("被験者向け応答ボタンの親オブジェクト / CanvasGroup（応答フェーズ中のみ表示・有効化）")]
+    public CanvasGroup? responseButtonPanel;
+
     // =====================================================
     // Events（外部システム連携用）
     // =====================================================
@@ -136,6 +139,17 @@ public class EXP_UIController : MonoBehaviour
     }
 
     /// <summary>
+    /// 被験者向け応答ボタンパネルの表示・有効状態を設定します。
+    /// </summary>
+    public void SetResponseButtonsActive(bool active)
+    {
+        if (!useUnityUI || responseButtonPanel == null) return;
+        responseButtonPanel.alpha = active ? 1f : 0f;
+        responseButtonPanel.interactable = active;
+        responseButtonPanel.blocksRaycasts = active;
+    }
+
+    /// <summary>
     /// 全 UI 要素を非表示にします。試行開始時のクリーンアップに使用してください。
     /// </summary>
     public void ClearAll()
@@ -143,6 +157,7 @@ public class EXP_UIController : MonoBehaviour
         SetMessage("");
         SetFixation(false);
         SetFeedback("");
+        SetResponseButtonsActive(false);
     }
 
     // =====================================================

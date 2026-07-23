@@ -284,6 +284,7 @@ public class EXP_ExperimentManager : MonoBehaviour
         uiController!.SetMessage(message);
         eventMarker!.Mark("InstructionStart");
 
+        _responseReceived = false;
         inputHandler!.StartListening();
         yield return WaitForResponse(timeoutSecs: 0f);   // タイムアウトなし（必ず応答待ち）
         inputHandler.StopListening();
@@ -418,6 +419,7 @@ public class EXP_ExperimentManager : MonoBehaviour
             $"休憩してください（ブロック {blockIndex} / {totalBlocks} 完了）\n"
           + "準備ができたらボタンを押して再開してください。");
 
+        _responseReceived = false;
         inputHandler!.StartListening();
         yield return WaitForResponse(config.breakDuration);   // タイムアウトで自動再開
         inputHandler.StopListening();
@@ -447,12 +449,16 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     private void HandleResponse(string responseValue)
     {
-        if (CurrentTrial == null) return;
-        _responseReceived          = true;
-        CurrentTrial.responseValue = responseValue;
-        CurrentTrial.responseTime  = (double)Time.realtimeSinceStartup;
+        _responseReceived = true;
+
+        if (CurrentTrial != null)
+        {
+            CurrentTrial.responseValue = responseValue;
+            CurrentTrial.responseTime  = (double)Time.realtimeSinceStartup;
+            OnResponseReceived?.Invoke(CurrentTrial);
+        }
+
         eventMarker?.Mark($"Response_{responseValue}");
-        OnResponseReceived?.Invoke(CurrentTrial);
     }
 
     private void TransitionTo(EXP_ExperimentState newState)

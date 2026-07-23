@@ -18,9 +18,11 @@ Assets/Features/Experiment/Scripts/
 │   ├── EXP_EventMarker.cs        ← タイムスタンプ付きイベントログ
 │   ├── EXP_UIController.cs       ← 被験者向け UI 制御
 │   └── EXP_InputHandler.cs       ← キーボード / ゲームパッド入力
-└── Conditions/
-    ├── EXP_OppositeOffsetCondition.cs  ← 2AFC: OppositeOffset Y 値の知覚比較
-    └── EXP_STMFrequencyCondition.cs    ← 2AFC: STM 周波数の知覚比較
+├── Conditions/
+│   ├── EXP_OppositeOffsetCondition.cs  ← 2AFC: OppositeOffset Y 値の知覚比較
+│   └── EXP_STMFrequencyCondition.cs    ← 2AFC: STM 周波数の知覚比較
+└── Editor/
+    └── EXP_ExperimentControlWindow.cs  ← Editor用 外部操作コントロールパネル
 ```
 
 ---
@@ -271,6 +273,34 @@ EXP_ExperimentManager.RunTrial()
 
 ---
 
+## Play モード時のフォーカス停止対策・外部ボタン操作
+
+Build せずに Unity Editor の Play モードで実験を行う場合、画面のフォーカスが外れると一時停止・フレームレート停止することがあります。以下の機能を提供しています。
+
+### 1. フォーカスが外れても背景で Play を継続させる (`runInBackground`)
+
+`EXP_InputHandler` の `runInBackground` を `true` に設定（デフォルトで `true`）にすることで、Unity の `Application.runInBackground = true;` が有効になり、別ウィンドウをクリックしても Play モードのフレーム更新やキー入力受付が停止しません。
+
+### 2. Editor 用外部コントロールパネル (`EXP_ExperimentControlWindow`)
+
+Unity Editor のメニュー **Tools → EXP → Experiment Control Panel** から開くことができます。
+
+- Play モード中に別ウィンドウ（独立パネル）としてドラッグしてデスクトップ上やサブモニターに配置可能。
+- 画面上で「第1刺激 (Z)」「第2刺激 (X)」「実験開始」「実験中断」のボタンをクリックできます。
+- 被験者が画面に触れず、実験者が手元でキー入力や別ウィンドウクリックをして操作したい場合に便利です。
+
+### 3. Unity UI / 外部ボタンからの入力呼び出し (`TriggerResponse`)
+
+Unity UI Canvas 上の `Button` の `OnClick` イベントから `EXP_InputHandler.OnUIButtonClick(string responseValue)` を登録することで、画面上の UI ボタンクリックで応答できます。
+
+```csharp
+// スクリプトから直接呼び出す場合
+inputHandler.TriggerResponse("Z"); // 第1刺激を選択
+inputHandler.TriggerResponse("X"); // 第2刺激を選択
+```
+
+---
+
 ## 変更履歴
 
 | 日付 | 内容 |
@@ -280,3 +310,6 @@ EXP_ExperimentManager.RunTrial()
 | 2026-07-23 | `EXP_BaseCondition` に `StimulusCoroutine()` 拡張ポイントを追加 |
 | 2026-07-23 | `EXP_OppositeOffsetCondition` 新規追加（2AFC, OppositeOffset Y） |
 | 2026-07-23 | `EXP_STMFrequencyCondition` 新規追加（2AFC, STM 周波数） |
+| 2026-07-23 | `EXP_InputHandler` に `runInBackground` と `TriggerResponse()` API を追加 |
+| 2026-07-23 | Editor 拡張 `EXP_ExperimentControlWindow.cs`（独立操作パネル）を作成 |
+
