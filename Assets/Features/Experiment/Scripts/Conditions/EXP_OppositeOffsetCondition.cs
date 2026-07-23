@@ -6,19 +6,8 @@ using System.Collections;
 /// <summary>
 /// 【実験条件】OppositeOffset Y 値の知覚重さ比較（2AFC）。
 /// <para>
-/// Reference 刺激（基準）と Comparison 刺激（比較）を2インターバルで順次提示し、
-/// 「どちらが重く感じたか」を参加者に判断させます（Two-Alternative Forced Choice）。
-/// </para>
-/// <para>
-/// <b>使い方:</b>
-/// <list type="number">
-/// <item>
-///   このアセットを Project ウィンドウで複数作成し（比較したい offset 値ごとに1つ）、
-///   それぞれの <see cref="comparisonOffsetY"/> に -4f 〜 2f の値を設定します。
-/// </item>
-/// <item>全アセットを <c>EXP_TrialSequencer.conditions</c> に登録します。</item>
-/// <item>応答キーは「1つ目が重い: Z」「2つ目が重い: X」などを <c>EXP_ExperimentConfig</c> で設定します。</item>
-/// </list>
+/// 2つの刺激（第1刺激・第2刺激）を順次提示し、「どちらが重く感じたか」を参加者に判断させます。
+/// <see cref="afcMode"/> により「基準 vs 可変」「完全ランダムペア（一対比較）」「固定ペア」を切替可能です。
 /// </para>
 /// </summary>
 [CreateAssetMenu(fileName = "OppositeOffsetCondition", menuName = "EXP/Conditions/OppositeOffsetCondition")]
@@ -36,16 +25,26 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
     // Condition Parameters
     // =====================================================
 
-    [Header("2AFC Parameters")]
-    [Tooltip("基準刺激の OppositeOffset Y 値 [m]（常に固定）")]
+    [Header("2AFC Pair Mode")]
+    [Tooltip("2AFC 刺激ペアの構成モード:\n"
+           + "• ReferenceVsComparison: 基準値(固定) vs 候補リストから選出\n"
+           + "• RandomPair: 候補リストから2つの異なる刺激を完全にランダム抽出 (一対比較法)\n"
+           + "• FixedPair: 指定の referenceOffsetY vs comparisonOffsetY の固定ペア")]
+    public EXP_2AFCMode afcMode = EXP_2AFCMode.RandomPair;
+
+    [Header("Offset Settings")]
+    [Tooltip("基準刺激の OppositeOffset Y 値 [m]（ReferenceVsComparison モードで使用、例: 0.03 = 3cm）")]
     public float referenceOffsetY = 0.03f;
 
-    [Tooltip("比較刺激の OppositeOffset Y 値 [m]（この条件で変化させる値。-0.04 〜 0.02 程度）")]
+    [Tooltip("固定の比較刺激 OppositeOffset Y 値 [m]（FixedPair モードで使用）")]
     public float comparisonOffsetY = 0.0f;
 
-    [Tooltip("インターバル1とインターバル2を参加者ごとにカウンターバランスする\n"
-           + "（true: ランダムに提示順序を入れ替え、metadata に記録します）")]
-    public bool counterbalanceOrder = true;
+    [Tooltip("Y オフセット候補のリスト [m]（ReferenceVsComparison / RandomPair モードで使用）\n（例: -0.04 〜 0.02 m）")]
+    public float[] candidateOffsetsY = new float[] { -0.04f, -0.03f, -0.02f, -0.01f, 0.0f, 0.01f, 0.02f };
+
+    [Header("Presentation Order Randomization")]
+    [Tooltip("有効にすると、第1刺激と第2刺激の提示順序を毎試行 50% の確率でランダム反転させます（時間順序効果の防止）")]
+    public bool randomizePresentationOrder = true;
 
     [Header("Timing")]
     [Tooltip("各インターバルの刺激提示時間 [秒]")]
@@ -56,7 +55,7 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
     [Min(0f)]
     public float isiDuration = 0.5f;
 
-    [Tooltip("インターバル開始直前の合図（\"第X刺激\"テキスト）を表示する時間 [秒]（0 = 表示なし）")]
+    [Tooltip("合図を表示する時間 [秒]（0 = 表示なし）")]
     [Min(0f)]
     public float cueDuration = 0.3f;
 
@@ -64,7 +63,6 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
     // Apply (2AFC なので StimulusCoroutine を使用)
     // =====================================================
 
-    /// <summary>StimulusCoroutine を使用するため空実装。</summary>
     public override void Apply(EXP_TrialData trial) { }
 
     /// <summary>
@@ -73,7 +71,6 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
     /// </summary>
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
-        // コントローラーを自動取得
         if (controller == null)
             controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
 
@@ -83,25 +80,23 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
             yield break;
         }
 
-        // 提示順序の決定（counterbalance）
-        bool refFirst = !counterbalanceOrder || (Random.value >= 0.5f);
-        float interval1Y = refFirst ? referenceOffsetY : comparisonOffsetY;
-        float interval2Y = refFirst ? comparisonOffsetY : referenceOffsetY;
+        // モードに応じた Y オフセットペアの決定
+        (float y1, float y2, string refPos) = DetermineOffsetPair();
 
         // メタデータに記録
-        trial.metadata["referenceOffsetY"]  = referenceOffsetY.ToString("F4");
-        trial.metadata["comparisonOffsetY"] = comparisonOffsetY.ToString("F4");
-        trial.metadata["refFirst"]          = refFirst.ToString();
-        trial.metadata["interval1Y"]        = interval1Y.ToString("F4");
-        trial.metadata["interval2Y"]        = interval2Y.ToString("F4");
+        trial.metadata["afcMode"]           = afcMode.ToString();
+        trial.metadata["interval1Y"]        = y1.ToString("F4");
+        trial.metadata["interval2Y"]        = y2.ToString("F4");
+        trial.metadata["offsetDelta"]       = Mathf.Abs(y1 - y2).ToString("F4");
+        trial.metadata["referencePosition"] = refPos;
 
         float originalY = controller.oppositeOffset.y;
 
         // ---- Interval 1 ----
-        trial.metadata["currentInterval"] = "第 1 刺激 (Interval 1)";
+        trial.metadata["currentInterval"] = $"第 1 刺激 (Y: {y1 * 100:F1} cm)";
         var uiCtrl = runner.GetComponent<EXP_UIController>() ?? Object.FindAnyObjectByType<EXP_UIController>();
-        uiCtrl?.SetMessage("【 第 1 刺激 】提示中");
-        yield return RunInterval(controller, interval1Y, originalY, "Interval1", cueDuration, intervalDuration);
+        uiCtrl?.SetMessage($"【 第 1 刺激 】提示中 (Y: {y1 * 100:F1} cm)");
+        yield return RunInterval(controller, y1, originalY, "Interval1", cueDuration, intervalDuration);
 
         // ---- ISI ----
         trial.metadata["currentInterval"] = "無刺激間隔 (ISI)";
@@ -111,9 +106,9 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
             yield return new WaitForSeconds(isiDuration);
 
         // ---- Interval 2 ----
-        trial.metadata["currentInterval"] = "第 2 刺激 (Interval 2)";
-        uiCtrl?.SetMessage("【 第 2 刺激 】提示中");
-        yield return RunInterval(controller, interval2Y, originalY, "Interval2", cueDuration, intervalDuration);
+        trial.metadata["currentInterval"] = $"第 2 刺激 (Y: {y2 * 100:F1} cm)";
+        uiCtrl?.SetMessage($"【 第 2 刺激 】提示中 (Y: {y2 * 100:F1} cm)");
+        yield return RunInterval(controller, y2, originalY, "Interval2", cueDuration, intervalDuration);
 
         // ---- Response Prompt ----
         trial.metadata["currentInterval"] = "応答受付中";
@@ -123,20 +118,49 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
     public override void OnTrialEnd(EXP_TrialData trial)
     {
         if (controller == null) return;
-
-        // offset を元に戻す（念のため）
         var off = controller.oppositeOffset;
         off.y = referenceOffsetY;
         controller.oppositeOffset = off;
         SetHapticsBypass(controller, false);
     }
 
-    /// <summary>正誤判定なし（閾値推定実験では常に null）。</summary>
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;
 
     // =====================================================
     // Private Helpers
     // =====================================================
+
+    private (float y1, float y2, string refPos) DetermineOffsetPair()
+    {
+        bool swap = randomizePresentationOrder && (Random.value < 0.5f);
+
+        if (afcMode == EXP_2AFCMode.RandomPair && candidateOffsetsY != null && candidateOffsetsY.Length >= 2)
+        {
+            // 候補から重複しない異なる2つの Y オフセットをランダム抽出
+            int idxA = Random.Range(0, candidateOffsetsY.Length);
+            int idxB;
+            do { idxB = Random.Range(0, candidateOffsetsY.Length); } while (idxB == idxA);
+
+            float yA = candidateOffsetsY[idxA];
+            float yB = candidateOffsetsY[idxB];
+            return swap ? (yB, yA, "N/A (RandomPair)") : (yA, yB, "N/A (RandomPair)");
+        }
+        else if (afcMode == EXP_2AFCMode.ReferenceVsComparison && candidateOffsetsY != null && candidateOffsetsY.Length > 0)
+        {
+            // 基準値 vs 候補からランダム抽出した比較値
+            float cmpY = candidateOffsetsY[Random.Range(0, candidateOffsetsY.Length)];
+            return swap
+                ? (cmpY, referenceOffsetY, "Interval2")
+                : (referenceOffsetY, cmpY, "Interval1");
+        }
+        else
+        {
+            // 固定ペア
+            return swap
+                ? (comparisonOffsetY, referenceOffsetY, "Interval2")
+                : (referenceOffsetY, comparisonOffsetY, "Interval1");
+        }
+    }
 
     private IEnumerator RunInterval(
         HAP_HapticsIllusionFoxFootController ctrl,
@@ -146,7 +170,6 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
         float cueSecs,
         float durationSecs)
     {
-        // Y offset を設定
         var off = ctrl.oppositeOffset;
         off.y = offsetY;
         ctrl.oppositeOffset = off;
@@ -166,7 +189,7 @@ public class EXP_OppositeOffsetCondition : EXP_BaseCondition
         ctrl.oppositeOffset = off;
     }
 
-    private void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
+    private static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
     {
         if (ctrl.autdController != null)
         {

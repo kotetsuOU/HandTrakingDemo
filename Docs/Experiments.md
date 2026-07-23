@@ -177,7 +177,17 @@ experimentManager.OnResponseReceived += trial =>
 
 ---
 
-## 実装済み実験条件
+## 実装済み実験条件（2AFC 刺激ペア構成）
+
+2AFC 条件（`EXP_STMFrequencyCondition` / `EXP_OppositeOffsetCondition`）では、Inspector の **`afcMode`** で 3 つのペア構成モードを選択できます：
+
+| 構成モード (`afcMode`) | 説明 | 用途 |
+|---|---|---|
+| **`RandomPair` (推奨・デフォルト)** | 候補リストから**重複しない異なる2つの刺激（A vs B）を完全ランダム選出** | 一対比較法・知覚マップ・全ペアの相対比較 |
+| **`ReferenceVsComparison`** | 固定の**基準刺激 (Reference)** vs 候補リストからランダム選出した**比較刺激 (Comparison)** | 基準値に対する弁別閾 (JND) や主観的等価点 (PSE) 測定 |
+| **`FixedPair`** | 指定した固定の基準値 vs 指定の比較値の単一ペア | 特定ペアのみの検証 |
+
+---
 
 ### 実験1: OppositeOffset Y 値の知覚重さ比較（2AFC）
 
@@ -186,28 +196,11 @@ experimentManager.OnResponseReceived += trial =>
 #### パラダイム
 
 ```
-[ITI] → [Interval 1: 刺激A] → [ISI] → [Interval 2: 刺激B] → [応答: どちらが重い？]
+[ITI] → [Interval 1: Y値 A] → [ISI] → [Interval 2: Y値 B] → [応答: どちらが重い？]
 ```
 
-- `referenceOffsetY`: 基準刺激の Y オフセット（固定）
-- `comparisonOffsetY`: 比較刺激の Y オフセット（この値を条件間で変化させる）
-- 提示順序はランダムに入れ替え（カウンターバランス）、`metadata["refFirst"]` に記録
-
-#### セットアップ手順
-
-1. `Assets/` 任意の場所で右クリック → **Create → EXP → Conditions → OppositeOffsetCondition**
-2. 比較したい Y 値の数だけアセットを作成（例: -0.04, -0.03, -0.02, ..., 0.02 = 7 個）
-3. 各アセットに `comparisonOffsetY` を設定（単位: メートル）
-4. `EXP_TrialSequencer.conditions` に全アセットを登録
-
-#### 記録されるメタデータ
-
-| キー | 内容 |
-|---|---|
-| `referenceOffsetY` | 基準刺激の Y オフセット [m] |
-| `comparisonOffsetY` | 比較刺激の Y オフセット [m] |
-| `refFirst` | `True` = 第1インターバルが基準刺激 |
-| `interval1Y` / `interval2Y` | 実際の提示順序 |
+- `candidateOffsetsY`: 試行ごとに選ばれる Y オフセット候補リスト（例: `-0.04m 〜 0.02m`）
+- 提示順序はカウンターバランスにより自動シャッフルされ、`metadata` に記録されます。
 
 ---
 
@@ -218,20 +211,11 @@ experimentManager.OnResponseReceived += trial =>
 #### パラダイム
 
 ```
-[ITI] → [Interval 1: 周波数A] → [ISI] → [Interval 2: 周波数B] → [応答: どちらが重い？]
+[ITI] → [Interval 1: 周波数 A] → [ISI] → [Interval 2: 周波数 B] → [応答: どちらが重い？]
 ```
 
-- `referenceFrequency`: 基準刺激の STM 周波数 [Hz]（固定）
-- `comparisonFrequency`: 比較刺激の STM 周波数 [Hz]（この値を条件間で変化させる）
-
-#### セットアップ手順
-
-1. 右クリック → **Create → EXP → Conditions → STMFrequencyCondition**
-2. 比較したい周波数の数だけアセットを作成（例: 40, 60, 80, 100, 120, 160 Hz = 6 個）
-3. 各アセットに `comparisonFrequency` を設定
-4. `EXP_TrialSequencer.conditions` に全アセットを登録
-
-#### 記録されるメタデータ
+- `candidateFrequencies`: 試行ごとに選ばれる周波数候補リスト（例: `20, 40, 60, 80, 100, 120, 140, 160` Hz）
+- 実際の超音波ハードウェア (`HAP_AUTDHapticsController`) にも試行毎に即時適用されます。
 
 | キー | 内容 |
 |---|---|

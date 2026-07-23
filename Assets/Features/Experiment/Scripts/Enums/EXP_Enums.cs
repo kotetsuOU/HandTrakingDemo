@@ -86,3 +86,16 @@ public enum EXP_InputDevice
     /// <summary>キーボードとゲームパッドの両方を受け付ける</summary>
     Any
 }
+
+/// <summary>2AFC (二者択一選択) の刺激ペア構成モード</summary>
+public enum EXP_2AFCMode
+{
+    /// <summary>基準刺激 (固定値) vs 比較刺激 (候補リストから選出) のペア</summary>
+    ReferenceVsComparison,
+
+    /// <summary>候補リストから完全にランダムな2つの異なる刺激を選出するペア（一対比較法）</summary>
+    RandomPair,
+
+    /// <summary>固定の基準値 vs 固定の比較値の指定ペア</summary>
+    FixedPair
+}

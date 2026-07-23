@@ -6,19 +6,8 @@ using System.Collections;
 /// <summary>
 /// 【実験条件】STM 周波数の知覚重さ比較（2AFC）。
 /// <para>
-/// Reference 刺激（基準周波数）と Comparison 刺激（比較周波数）を2インターバルで順次提示し、
-/// 「どちらが重く感じたか」を参加者に判断させます（Two-Alternative Forced Choice）。
-/// </para>
-/// <para>
-/// <b>使い方:</b>
-/// <list type="number">
-/// <item>
-///   このアセットを Project ウィンドウで比較周波数の数だけ作成し、
-///   それぞれの <see cref="comparisonFrequency"/> に比較したい Hz 値を設定します。
-/// </item>
-/// <item>全アセットを <c>EXP_TrialSequencer.conditions</c> に登録します。</item>
-/// <item>応答キーは「1つ目が重い: Z」「2つ目が重い: X」などを <c>EXP_ExperimentConfig</c> で設定します。</item>
-/// </list>
+/// 2つの刺激（第1刺激・第2刺激）を順次提示し、「どちらが重く感じたか」を参加者に判断させます。
+/// <see cref="afcMode"/> により「基準 vs 可変」「完全ランダムペア（一対比較）」「固定ペア」を切替可能です。
 /// </para>
 /// </summary>
 [CreateAssetMenu(fileName = "STMFrequencyCondition", menuName = "EXP/Conditions/STMFrequencyCondition")]
@@ -36,18 +25,28 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
     // Condition Parameters
     // =====================================================
 
-    [Header("2AFC Parameters")]
-    [Tooltip("基準刺激の STM 周波数 [Hz]（常に固定）")]
+    [Header("2AFC Pair Mode")]
+    [Tooltip("2AFC 刺激ペアの構成モード:\n"
+           + "• ReferenceVsComparison: 基準値(固定) vs 候補リストから選出\n"
+           + "• RandomPair: 候補リストから2つの異なる刺激を完全にランダム抽出 (一対比較法)\n"
+           + "• FixedPair: 指定の referenceFrequency vs comparisonFrequency の固定ペア")]
+    public EXP_2AFCMode afcMode = EXP_2AFCMode.RandomPair;
+
+    [Header("Frequency Settings")]
+    [Tooltip("基準刺激の STM 周波数 [Hz]（ReferenceVsComparison モードで使用）")]
     [Min(1f)]
     public float referenceFrequency = 80f;
 
-    [Tooltip("比較刺激の STM 周波数 [Hz]（この条件で変化させる値）")]
+    [Tooltip("固定の比較刺激 STM 周波数 [Hz]（FixedPair モードで使用）")]
     [Min(1f)]
     public float comparisonFrequency = 120f;
 
-    [Tooltip("インターバル1とインターバル2を参加者ごとにカウンターバランスする\n"
-           + "（true: ランダムに提示順序を入れ替え、metadata に記録します）")]
-    public bool counterbalanceOrder = true;
+    [Tooltip("周波数候補のリスト [Hz]（ReferenceVsComparison / RandomPair モードで使用）")]
+    public float[] candidateFrequencies = new float[] { 20f, 40f, 60f, 80f, 100f, 120f, 140f, 160f };
+
+    [Header("Presentation Order Randomization")]
+    [Tooltip("有効にすると、第1刺激と第2刺激の提示順序を毎試行 50% の確率でランダム反転させます（時間順序効果の防止）")]
+    public bool randomizePresentationOrder = true;
 
     [Header("Timing")]
     [Tooltip("各インターバルの刺激提示時間 [秒]")]
@@ -58,7 +57,7 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
     [Min(0f)]
     public float isiDuration = 0.5f;
 
-    [Tooltip("インターバル開始直前の合図を表示する時間 [秒]（0 = 表示なし）")]
+    [Tooltip("合図を表示する時間 [秒]（0 = 表示なし）")]
     [Min(0f)]
     public float cueDuration = 0.3f;
 
@@ -66,7 +65,6 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
     // Apply (2AFC なので StimulusCoroutine を使用)
     // =====================================================
 
-    /// <summary>StimulusCoroutine を使用するため空実装。</summary>
     public override void Apply(EXP_TrialData trial) { }
 
     /// <summary>
@@ -75,7 +73,6 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
     /// </summary>
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
-        // コントローラーを自動取得
         if (controller == null)
             controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
 
@@ -85,24 +82,22 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
             yield break;
         }
 
-        // 提示順序の決定（counterbalance）
-        bool refFirst = !counterbalanceOrder || (Random.value >= 0.5f);
-        float freq1 = refFirst ? referenceFrequency : comparisonFrequency;
-        float freq2 = refFirst ? comparisonFrequency : referenceFrequency;
+        // モードに応じた周波数ペアの決定
+        (float freq1, float freq2, string refPos) = DetermineFrequencyPair();
 
         // メタデータに記録
-        trial.metadata["referenceFrequency"]  = referenceFrequency.ToString("F2");
-        trial.metadata["comparisonFrequency"] = comparisonFrequency.ToString("F2");
-        trial.metadata["refFirst"]            = refFirst.ToString();
-        trial.metadata["interval1Frequency"]  = freq1.ToString("F2");
-        trial.metadata["interval2Frequency"]  = freq2.ToString("F2");
+        trial.metadata["afcMode"]            = afcMode.ToString();
+        trial.metadata["interval1Frequency"] = freq1.ToString("F2");
+        trial.metadata["interval2Frequency"] = freq2.ToString("F2");
+        trial.metadata["frequencyDelta"]     = Mathf.Abs(freq1 - freq2).ToString("F2");
+        trial.metadata["referencePosition"]  = refPos;
 
         float originalFrequency = controller.stmFrequency;
 
         // ---- Interval 1 ----
-        trial.metadata["currentInterval"] = "第 1 刺激 (Interval 1)";
+        trial.metadata["currentInterval"] = $"第 1 刺激 ({freq1:F0} Hz)";
         var uiCtrl = runner.GetComponent<EXP_UIController>() ?? Object.FindAnyObjectByType<EXP_UIController>();
-        uiCtrl?.SetMessage("【 第 1 刺激 】提示中");
+        uiCtrl?.SetMessage($"【 第 1 刺激 】提示中 ({freq1:F0} Hz)");
         yield return RunInterval(controller, freq1, "Interval1", cueDuration, intervalDuration);
 
         // ---- ISI ----
@@ -113,8 +108,8 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
             yield return new WaitForSeconds(isiDuration);
 
         // ---- Interval 2 ----
-        trial.metadata["currentInterval"] = "第 2 刺激 (Interval 2)";
-        uiCtrl?.SetMessage("【 第 2 刺激 】提示中");
+        trial.metadata["currentInterval"] = $"第 2 刺激 ({freq2:F0} Hz)";
+        uiCtrl?.SetMessage($"【 第 2 刺激 】提示中 ({freq2:F0} Hz)");
         yield return RunInterval(controller, freq2, "Interval2", cueDuration, intervalDuration);
 
         // ---- Response Prompt ----
@@ -125,18 +120,47 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
     public override void OnTrialEnd(EXP_TrialData trial)
     {
         if (controller == null) return;
-
-        // 周波数を基準値に戻す
-        controller.stmFrequency = referenceFrequency;
+        ApplyFrequencyToAllControllers(controller, referenceFrequency);
         SetHapticsBypass(controller, false);
     }
 
-    /// <summary>正誤判定なし（閾値推定実験では常に null）。</summary>
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;
 
     // =====================================================
     // Private Helpers
     // =====================================================
+
+    private (float freq1, float freq2, string refPos) DetermineFrequencyPair()
+    {
+        bool swap = randomizePresentationOrder && (Random.value < 0.5f);
+
+        if (afcMode == EXP_2AFCMode.RandomPair && candidateFrequencies != null && candidateFrequencies.Length >= 2)
+        {
+            // 候補から重複しない異なる2つの周波数をランダム抽出
+            int idxA = Random.Range(0, candidateFrequencies.Length);
+            int idxB;
+            do { idxB = Random.Range(0, candidateFrequencies.Length); } while (idxB == idxA);
+
+            float fA = candidateFrequencies[idxA];
+            float fB = candidateFrequencies[idxB];
+            return swap ? (fB, fA, "N/A (RandomPair)") : (fA, fB, "N/A (RandomPair)");
+        }
+        else if (afcMode == EXP_2AFCMode.ReferenceVsComparison && candidateFrequencies != null && candidateFrequencies.Length > 0)
+        {
+            // 基準値 vs 候補からランダム抽出した比較値
+            float cmpFreq = candidateFrequencies[Random.Range(0, candidateFrequencies.Length)];
+            return swap
+                ? (cmpFreq, referenceFrequency, "Interval2")
+                : (referenceFrequency, cmpFreq, "Interval1");
+        }
+        else
+        {
+            // 固定ペア
+            return swap
+                ? (comparisonFrequency, referenceFrequency, "Interval2")
+                : (referenceFrequency, comparisonFrequency, "Interval1");
+        }
+    }
 
     private IEnumerator RunInterval(
         HAP_HapticsIllusionFoxFootController ctrl,
@@ -145,7 +169,7 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
         float cueSecs,
         float durationSecs)
     {
-        ctrl.stmFrequency = frequency;
+        ApplyFrequencyToAllControllers(ctrl, frequency);
         SetHapticsBypass(ctrl, false);
 
         if (cueSecs > 0f)
@@ -157,10 +181,27 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
     private void StopHaptics(HAP_HapticsIllusionFoxFootController ctrl, float originalFrequency)
     {
         SetHapticsBypass(ctrl, true);
-        ctrl.stmFrequency = originalFrequency;
+        ApplyFrequencyToAllControllers(ctrl, originalFrequency);
     }
 
-    private void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
+    private static void ApplyFrequencyToAllControllers(HAP_HapticsIllusionFoxFootController ctrl, float freq)
+    {
+        ctrl.stmFrequency = freq;
+        ctrl.sequentialSTMFrequency = freq;
+
+        if (ctrl.autdController != null)
+        {
+            ctrl.autdController.stmFrequency = freq;
+        }
+
+        var mainController = Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
+        if (mainController != null)
+        {
+            mainController.stmFrequency = freq;
+        }
+    }
+
+    private static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
     {
         if (ctrl.autdController != null)
         {
