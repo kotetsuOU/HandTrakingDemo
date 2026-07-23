@@ -4,8 +4,7 @@ using static EXP_PanelElementDrawers;
 #nullable enable
 
 /// <summary>
-/// コントロールパネルの条件表示・操作ボタン・応答入力パネル描画コンポーネント。
-/// 全 4 パラダイム (2AFC, SingleStimulus, ABX, Adjustment) のダイナミック UI レンダリングに対応。
+/// コントロールパネルの条件表示・操作ボタン・応答入力パネル描画コンポーネント（全4パラダイムUI対応）。
 /// </summary>
 public static class EXP_ControlInputPanelDrawer
 {
@@ -24,10 +23,8 @@ public static class EXP_ControlInputPanelDrawer
             {
                 GUILayout.Label($"現在の条件名: {manager.CurrentTrial.conditionName}", GetBoldLabelStyle());
                 GUILayout.FlexibleSpace();
-
-                string badgeLabel = manager.CurrentTrial.isPractice ? "練習試行" : "本試行";
-                Color badgeColor = manager.CurrentTrial.isPractice ? new Color(0.9f, 0.55f, 0.1f) : new Color(0.2f, 0.6f, 0.9f);
-                DrawBadge(badgeLabel, badgeColor, 12, 24);
+                DrawBadge(manager.CurrentTrial.isPractice ? "練習試行" : "本試行",
+                          manager.CurrentTrial.isPractice ? new Color(0.9f, 0.55f, 0.1f) : new Color(0.2f, 0.6f, 0.9f), 12, 24);
             }
 
             if (manager.CurrentTrial.metadata.Count > 0)
@@ -45,10 +42,7 @@ public static class EXP_ControlInputPanelDrawer
                         }
                     }
                 }
-                else
-                {
-                    DrawMessageBox("🔒 本番ブラインドモード有効中: 被験者への数値漏洩を防止するため物理数値は非表示です。");
-                }
+                else DrawMessageBox("🔒 本番ブラインドモード有効中: 物理数値は非表示です。");
             }
         }
     }
@@ -64,19 +58,15 @@ public static class EXP_ControlInputPanelDrawer
             var prevBg = GUI.backgroundColor;
 
             if (GUI.enabled) GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
-            if (GUILayout.Button($"▶ 実験を開始する ({keys.startKey})", GetBigButtonStyle(), GUILayout.Height(44)))
-            {
+            if (GUILayout.Button($"☑ 同意して実験を開始する ({keys.startKey})", GetBigButtonStyle(), GUILayout.Height(44)))
                 manager.StartExperiment();
-            }
 
             GUI.backgroundColor = prevBg;
             GUI.enabled = (manager.CurrentState != EXP_ExperimentState.Idle && manager.CurrentState != EXP_ExperimentState.Finished);
 
             if (GUI.enabled) GUI.backgroundColor = new Color(0.9f, 0.35f, 0.35f);
             if (GUILayout.Button($"■ 実験を中断する ({keys.abortKey})", GetBigButtonStyle(), GUILayout.Height(44)))
-            {
                 manager.AbortExperiment();
-            }
 
             GUI.backgroundColor = prevBg;
             GUI.enabled = true;
@@ -120,7 +110,7 @@ public static class EXP_ControlInputPanelDrawer
 
     private static void DrawIdlePanel(EXP_ExperimentManager manager, EXP_KeyBindings keys)
     {
-        DrawBadge("📝 被験者情報の入力（実験開始前）", new Color(0.2f, 0.6f, 0.9f), 13, 28);
+        DrawBadge("📝 被験者情報の入力＆同意確認（実験開始前）", new Color(0.2f, 0.6f, 0.9f), 13, 28);
         GUILayout.Space(6);
 
         using (new GUILayout.VerticalScope(GUI.skin.box))
@@ -146,7 +136,7 @@ public static class EXP_ControlInputPanelDrawer
         var prevBg = GUI.backgroundColor;
         GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
 
-        if (GUILayout.Button($"▶ 上記の設定で実験を開始する ({keys.startKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(55)))
+        if (GUILayout.Button($"☑ 実験手続きに同意し、開始する ({keys.startKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(55)))
         {
             manager.StartExperiment();
         }
@@ -155,13 +145,13 @@ public static class EXP_ControlInputPanelDrawer
 
     private static void DrawInstructionPanel(EXP_InputHandler? inputHandler, EXP_KeyBindings keys)
     {
-        DrawBadge("● 入力受付中: 準備完了後に「次へ進む」を押してください", new Color(0.1f, 0.78f, 0.3f), 13, 28);
+        DrawBadge("● 同意・教示確認中: 内容を確認後「進む」を押してください", new Color(0.1f, 0.78f, 0.3f), 13, 28);
         GUILayout.Space(8);
 
         var prevBg = GUI.backgroundColor;
         GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f);
 
-        if (GUILayout.Button($"👉 被験者準備完了 / 次へ進む ({keys.nextKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(58)))
+        if (GUILayout.Button($"☑ 内容を確認して進む ({keys.nextKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(58)))
         {
             inputHandler?.TriggerResponse("Space");
         }
@@ -204,15 +194,12 @@ public static class EXP_ControlInputPanelDrawer
 
         using (new GUILayout.HorizontalScope())
         {
-            if (GUILayout.Button($"【 ▲ 値を上げる 】\n({keys.upKey} / W)", GetBigChoiceButtonStyle(), GUILayout.Height(55)))
-                inputHandler?.TriggerResponse("Up");
-
-            if (GUILayout.Button($"【 ▼ 値を下げる 】\n({keys.downKey} / S)", GetBigChoiceButtonStyle(), GUILayout.Height(55)))
-                inputHandler?.TriggerResponse("Down");
+            if (GUILayout.Button($"【 ▲ 値を上げる 】 ({keys.upKey} / W)", GetBigChoiceButtonStyle(), GUILayout.Height(55))) inputHandler?.TriggerResponse("Up");
+            if (GUILayout.Button($"【 ▼ 値を下げる 】 ({keys.downKey} / S)", GetBigChoiceButtonStyle(), GUILayout.Height(55))) inputHandler?.TriggerResponse("Down");
         }
 
         GUI.backgroundColor = new Color(0.35f, 0.85f, 0.4f);
-        if (GUILayout.Button($"【 🟢 調整値を確定する 】\n({keys.confirmKey} / Enter)", GetBigChoiceButtonStyle(), GUILayout.Height(48)))
+        if (GUILayout.Button($"【 🟢 調整値を確定する 】 ({keys.confirmKey} / Enter)", GetBigChoiceButtonStyle(), GUILayout.Height(48)))
         {
             inputHandler?.TriggerResponse("Space");
         }
@@ -237,11 +224,8 @@ public static class EXP_ControlInputPanelDrawer
 
         using (new GUILayout.HorizontalScope())
         {
-            if (GUILayout.Button(label1, GetBigChoiceButtonStyle(), GUILayout.Height(62)))
-                inputHandler?.TriggerResponse("Z");
-
-            if (GUILayout.Button(label2, GetBigChoiceButtonStyle(), GUILayout.Height(62)))
-                inputHandler?.TriggerResponse("X");
+            if (GUILayout.Button(label1, GetBigChoiceButtonStyle(), GUILayout.Height(62))) inputHandler?.TriggerResponse("Z");
+            if (GUILayout.Button(label2, GetBigChoiceButtonStyle(), GUILayout.Height(62))) inputHandler?.TriggerResponse("X");
         }
         GUI.backgroundColor = prevBg;
     }

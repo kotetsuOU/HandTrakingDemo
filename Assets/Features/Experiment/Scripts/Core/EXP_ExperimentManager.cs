@@ -18,11 +18,14 @@ public class EXP_ExperimentManager : MonoBehaviour
     [Header("Experiment Settings (Foldable)")]
     public EXP_SessionSettings settings = new EXP_SessionSettings();
 
-    [Header("Sub Components")]
+    [Header("Sub Components & Text Assets")]
     public EXP_TrialSequencer? sequencer;
     public EXP_DataRecorder? dataRecorder;
     public EXP_EventMarker? eventMarker;
     public EXP_InputHandler? inputHandler;
+
+    [Tooltip("教示・同意・説明文章アセット（空の場合は標準デフォルト文章が適用されます）")]
+    public EXP_InstructionTextConfig? instructionText;
 
     [Header("UI References")]
     public TMP_Text? messageText;

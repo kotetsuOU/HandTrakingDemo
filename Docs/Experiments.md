@@ -8,6 +8,7 @@ Assets/Features/Experiment/Scripts/
 │   └── EXP_Enums.cs              ← 列挙型定義
 ├── Data/
 │   ├── EXP_SessionSettings.cs            ← 実験設定データ（Foldable 構造体）
+│   ├── EXP_InstructionTextConfig.cs      ← 教示・同意・説明文章アセット (ScriptableObject)
 │   ├── EXP_TrialData.cs                  ← 1試行のデータ構造
 │   └── EXP_ExperimentSession.cs          ← セッション実行時情報
 ├── Paradigms/                            ← ★ 実験パラダイムの抽象基底クラス群
@@ -278,13 +279,13 @@ Build せずに Unity Editor の Play モードで実験を行う場合、画面
 
 `EXP_InputHandler` の `runInBackground` を `true` に設定（デフォルトで `true`）にすることで、Unity の `Application.runInBackground = true;` が有効になり、別ウィンドウをクリックしても Play モードのフレーム更新やキー入力受付が停止しません。
 
-### 2. 被験者情報入力フォームと ID 匿名化保存
+### 2. インフォームド・コンセント（同意）➔ 実験教示の 2 段階倫理手続き
 
-実験開始前（`Idle` 状態）のコントロールパネル上で、その場の被験者の情報を直接フォーム入力できます。
+被験者実験の安全・倫理的手続きに準拠し、以下の 2 段階の確認ステップで進行します。
 
-- **`participantId` (被験者 ID)**: `P001` など。外部出力ファイル名（`Trial_P001_timestamp.csv`）に使用され、個人情報を特定できないよう完全に**匿名化保存**されます。
-- **`participantName` (被験者 氏名)**: 被験者の名前。個人の内部管理および照合用として CSV / JSON のヘッダーデータ内のみに記録されます。
-- **`groupLabel` (グループ名)**: 実験条件群キー（任意）。
+1. **未開始パネル**: `☑ 実験手続きに同意し、開始する` ボタンを押して開始。
+2. **ステップ 1: 同意文章提示 (`Informed Consent`)**: 被験者画面に同意事項（目的・匿名化・任意参加）を提示 ➔ `☑ 同意して進む` ボタン（Space キー）を押す ➔ `ConsentGiven` イベントがログに刻印。
+3. **ステップ 2: 実験説明提示 (`Instruction`)**: 被験者画面に具体的なタスクと操作ガイドを提示 ➔ `👉 次へ進む` ボタンで練習試行 / 本試行へ。
 
 ### 3. Editor 用外部コントロールパネル (`EXP_ExperimentControlWindow`)
 

@@ -5,7 +5,7 @@ using System.Collections;
 
 /// <summary>
 /// 【実験フローコントローラー】
-/// 実験全体のマクロ進行フロー（教示 ➔ 練習試行ループ ➔ 本試行ブロックループ ➔ ブロック休憩 ➔ 終了）のコルーチン制御を担当します。
+/// 実験全体のマクロ進行フロー（同意確認 ➔ 教示 ➔ 練習試行 ➔ 本試行 ➔ 休憩 ➔ 終了）を担当します。
 /// </summary>
 public static class EXP_ExperimentFlowController
 {
@@ -15,6 +15,7 @@ public static class EXP_ExperimentFlowController
         var dataRecorder = manager.dataRecorder;
         var eventMarker = manager.eventMarker;
         var inputHandler = manager.inputHandler;
+        var txt = manager.instructionText;
 
         manager.TransitionTo(EXP_ExperimentState.Instruction);
 
@@ -36,12 +37,26 @@ public static class EXP_ExperimentFlowController
         dataRecorder?.InitializeSession(session);
         eventMarker?.Mark($"ExperimentStart_{manager.participantId}");
 
-        // --- 1. 教示フェーズ ---
+        // --- 1. 同意確認フェーズ (Informed Consent) ---
         manager.SetFixation(false);
-        manager.SetMessage(
-            "【実験の説明】\n\n"
-          + "これより触覚刺激の比較実験を開始します。\n"
-          + "準備ができたらボタン（または Space キー）を押してください。");
+        string consentTitle = txt != null ? txt.consentTitle : "【実験協力・同意のお願い】";
+        string consentBody  = txt != null ? txt.consentBody  : "本実験は触覚知覚の測定を目的としています。データは完全匿名化されます。\n同意される場合はボタンを押してください。";
+
+        manager.SetMessage($"{consentTitle}\n\n{consentBody}\n\n【☑ 同意して進む】(Space キー / クリック)");
+
+        manager.ResetResponseReceived();
+        inputHandler?.StartListening();
+        yield return manager.WaitForResponse(0f);
+        inputHandler?.StopListening();
+        eventMarker?.Mark("ConsentGiven");
+
+        manager.ClearAll();
+
+        // --- 2. 実験説明・教示フェーズ (Instruction) ---
+        string mainTitle = txt != null ? txt.mainInstructionTitle : "【実験の説明】";
+        string mainBody  = txt != null ? txt.mainInstructionBody  : "これより触覚刺激の比較実験を開始します。\n準備ができたら「次へ進む」を押してください。";
+
+        manager.SetMessage($"{mainTitle}\n\n{mainBody}");
 
         manager.ResetResponseReceived();
         inputHandler?.StartListening();
@@ -50,7 +65,7 @@ public static class EXP_ExperimentFlowController
 
         manager.ClearAll();
 
-        // --- 2. 練習試行 ---
+        // --- 3. 練習試行 ---
         if (manager.practiceTrialCount > 0)
         {
             manager.TransitionTo(EXP_ExperimentState.Practice);
@@ -67,7 +82,7 @@ public static class EXP_ExperimentFlowController
             manager.ClearAll();
         }
 
-        // --- 3. 本試行 ---
+        // --- 4. 本試行 ---
         manager.TransitionTo(EXP_ExperimentState.Trial);
         eventMarker?.Mark("MainTrialsStart");
 
@@ -93,7 +108,7 @@ public static class EXP_ExperimentFlowController
             }
         }
 
-        // --- 4. 終了フェーズ ---
+        // --- 5. 終了フェーズ ---
         manager.TransitionTo(EXP_ExperimentState.Finished);
         session.isFinished = true;
         session.sessionEndTime = (double)Time.realtimeSinceStartup;
@@ -101,11 +116,10 @@ public static class EXP_ExperimentFlowController
         dataRecorder?.FinalizeSession(session);
         eventMarker?.Mark("ExperimentFinished");
 
-        manager.SetMessage(
-            "【全試行完了】\n\n"
-          + "実験が終了しました。ご協力ありがとうございました。\n"
-          + "データは正常に保存されました。");
+        string compText = txt != null ? txt.completionText
+                                      : "【全試行完了】\n\n実験が終了しました。ご協力ありがとうございました。\nデータは正常に保存されました。";
 
+        manager.SetMessage(compText);
         manager.InvokeExperimentFinished(session);
         Debug.Log($"[EXP_ExperimentManager] 全試行完了 (総試行数: {session.completedTrials})");
     }
@@ -120,7 +134,6 @@ public static class EXP_ExperimentFlowController
             var cond = seqReadOnly[i % condCount];
             yield return EXP_TrialRunner.RunTrial(manager, i, blockIndex: -1, isPractice: true, cond);
         }
-
         manager.eventMarker?.Mark("PracticeEnd");
     }
 
@@ -130,9 +143,7 @@ public static class EXP_ExperimentFlowController
         manager.eventMarker?.Mark($"BlockBreak_{blockIndex}");
 
         manager.SetFixation(false);
-        manager.SetMessage(
-            $"休憩してください（ブロック {blockIndex} / {totalBlocks} 完了）\n"
-          + "準備ができたらボタンを押して再開してください。");
+        manager.SetMessage($"休憩してください（ブロック {blockIndex} / {totalBlocks} 完了）\n準備ができたらボタンを押して再開してください。");
 
         manager.ResetResponseReceived();
         manager.inputHandler?.StartListening();
