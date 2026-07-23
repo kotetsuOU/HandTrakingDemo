@@ -44,6 +44,27 @@ public enum HapticsGenerationMode
 }
 
 /// <summary>
+/// 触覚出力のターゲットデータソース（焦点の生成元）
+/// </summary>
+public enum HapticsSourceMode
+{
+    /// <summary>
+    /// HCD_Pipeline による手の接触判定点群を自動追従
+    /// </summary>
+    AutoHCD,
+
+    /// <summary>
+    /// objectHapticsControllers のカスタムオブジェクト目標群を使用
+    /// </summary>
+    ObjectTarget,
+
+    /// <summary>
+    /// 手動 API 制御モード（Updateでの自動出力を停止）
+    /// </summary>
+    Manual
+}
+
+/// <summary>
 /// AUTD3デバイスとの通信接続タイプ
 /// </summary>
 public enum AUTDLinkType

@@ -10,8 +10,9 @@ using UnityEditor;
 public class HAP_AUTDHapticsControllerEditor : Editor
 {
     private SerializedProperty hardwareControllerProp = null!;
+    private SerializedProperty sourceModeProp = null!;
     private SerializedProperty hcdPipelineProp = null!;
-    private SerializedProperty objectHapticsControllerProp = null!;
+    private SerializedProperty objectHapticsControllersProp = null!;
 
     private SerializedProperty generationModeProp = null!;
     private SerializedProperty centroidSourceProp = null!;
@@ -38,8 +39,9 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     private void OnEnable()
     {
         hardwareControllerProp = serializedObject.FindProperty("hardwareController");
+        sourceModeProp = serializedObject.FindProperty("sourceMode");
         hcdPipelineProp = serializedObject.FindProperty("hcdPipeline");
-        objectHapticsControllerProp = serializedObject.FindProperty("objectHapticsController");
+        objectHapticsControllersProp = serializedObject.FindProperty("objectHapticsControllers");
 
         generationModeProp = serializedObject.FindProperty("generationMode");
         centroidSourceProp = serializedObject.FindProperty("centroidSource");
@@ -76,9 +78,25 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         }
         EditorGUILayout.Space();
 
-        // Dependencies
-        EditorGUILayout.PropertyField(hcdPipelineProp);
-        EditorGUILayout.PropertyField(objectHapticsControllerProp);
+        // Target Source & Dependencies
+        EditorGUILayout.PropertyField(sourceModeProp);
+        HapticsSourceMode sourceMode = (HapticsSourceMode)sourceModeProp.enumValueIndex;
+
+        EditorGUI.indentLevel++;
+        if (sourceMode == HapticsSourceMode.AutoHCD)
+        {
+            EditorGUILayout.PropertyField(hcdPipelineProp);
+        }
+        else if (sourceMode == HapticsSourceMode.ObjectTarget)
+        {
+            EditorGUILayout.PropertyField(objectHapticsControllersProp, new GUIContent("Object Target Controllers"), true);
+            EditorGUILayout.PropertyField(hcdPipelineProp, new GUIContent("HCD Pipeline (Optional)"));
+        }
+        else if (sourceMode == HapticsSourceMode.Manual)
+        {
+            EditorGUILayout.HelpBox("Manual Mode: Automatic Update outputs are disabled. Control ultrasound outputs via API calls (SetFocus, SetFocusStm, etc.).", MessageType.Info);
+        }
+        EditorGUI.indentLevel--;
         EditorGUILayout.Space();
 
         // Operation Mode

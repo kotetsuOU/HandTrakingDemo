@@ -25,20 +25,35 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     [Tooltip("物理通信接続および送信を担当する HAP_AUTDHardwareController の参照。未指定時は自動取得します。")]
     public HAP_AUTDHardwareController hardwareController = null!;
 
+    [Header("Operation Settings")]
+    [Tooltip("触覚出力のターゲットデータソース（AutoHCD: 手の接触クラスタ、ObjectTarget: オブジェクト部位ターゲット、Manual: 手動API）")]
+    public HapticsSourceMode sourceMode = HapticsSourceMode.AutoHCD;
+
+    [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
+    public HapticsGenerationMode generationMode = HapticsGenerationMode.Simplified;
+
     [Header("Dependencies")]
     [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
     public HCD_Pipeline hcdPipeline = null!;
 
-    [UnityEngine.Serialization.FormerlySerializedAs("foxFootHapticsController")]
-    [Tooltip("オブジェクトのハプティクス制御コンポーネント。アタッチされている場合、物理接触の代わりに特定オブジェクト位置へ照射します。")]
-    public HAP_BaseObjectHapticsController? objectHapticsController;
+    [Tooltip("オブジェクトのハプティクス制御コンポーネントのリスト。アタッチされている場合、特定オブジェクト位置へ照射します。")]
+    public List<HAP_BaseObjectHapticsController> objectHapticsControllers = new List<HAP_BaseObjectHapticsController>();
 
-    [HideInInspector]
-    public bool bypassHaptics = false;
-
-    [Header("Operation Settings")]
-    [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
-    public HapticsGenerationMode generationMode = HapticsGenerationMode.Simplified;
+    /// <summary>
+    /// 単一オブジェクトコントローラーとの互換用アクセサ。最初の要素を返します/セットします。
+    /// </summary>
+    public HAP_BaseObjectHapticsController? objectHapticsController
+    {
+        get => objectHapticsControllers.FirstOrDefault(c => c != null);
+        set
+        {
+            objectHapticsControllers.RemoveAll(c => c == null);
+            if (value != null && !objectHapticsControllers.Contains(value))
+            {
+                objectHapticsControllers.Insert(0, value);
+            }
+        }
+    }
 
     [Header("Precision Sources")]
     [Tooltip("接触領域の「重心」に対して基本的な超音波の焦点を生成するソース設定")]
@@ -152,17 +167,25 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     /// </summary>
     private void UpdateHaptics()
     {
-        if (bypassHaptics) return;
+        if (bypassHaptics || sourceMode == HapticsSourceMode.Manual) return;
 
-        bool useObjectHaptics = objectHapticsController != null && objectHapticsController.enabled;
         bool hasActiveTargets = false;
         List<TrackedCluster> activeClusters = new List<TrackedCluster>();
+        List<HAP_FociGenerator.ClusterFociData> clusterFociList = new List<HAP_FociGenerator.ClusterFociData>();
 
-        if (useObjectHaptics)
+        if (sourceMode == HapticsSourceMode.ObjectTarget)
         {
-            hasActiveTargets = objectHapticsController!.HasActiveTargets();
+            foreach (var ctrl in objectHapticsControllers)
+            {
+                if (ctrl != null && ctrl.enabled && ctrl.HasActiveTargets())
+                {
+                    var foci = ctrl.GetHapticsTargets(focusIntensityPascal, offset);
+                    clusterFociList.AddRange(foci);
+                }
+            }
+            hasActiveTargets = clusterFociList.Count > 0;
         }
-        else
+        else if (sourceMode == HapticsSourceMode.AutoHCD)
         {
             if (hcdPipeline != null)
             {
@@ -184,12 +207,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
             try
             {
                 profiler.BeginFociGenerate();
-                List<HAP_FociGenerator.ClusterFociData> clusterFociList;
-                if (useObjectHaptics)
-                {
-                    clusterFociList = objectHapticsController!.GetHapticsTargets(focusIntensityPascal, offset);
-                }
-                else
+                if (sourceMode == HapticsSourceMode.AutoHCD)
                 {
                     clusterFociList = HAP_FociGenerator.Generate(
                         activeClusters, 
