@@ -5,6 +5,7 @@ using static EXP_PanelElementDrawers;
 
 /// <summary>
 /// コントロールパネルの条件表示・操作ボタン・応答入力パネル描画コンポーネント。
+/// <see cref="EXP_InputHandler.keyBindings"/> のキー設定を動的反映します。
 /// </summary>
 public static class EXP_ControlInputPanelDrawer
 {
@@ -63,13 +64,16 @@ public static class EXP_ControlInputPanelDrawer
     public static void DrawControlButtonsSection(EXP_ExperimentManager manager)
     {
         DrawSectionHeader("4. 実験コントロール操作");
+        var inputHandler = manager.inputHandler ?? manager.GetComponent<EXP_InputHandler>();
+        var keys = inputHandler != null ? inputHandler.keyBindings : new EXP_KeyBindings();
+
         using (new GUILayout.HorizontalScope())
         {
             GUI.enabled = (manager.CurrentState == EXP_ExperimentState.Idle);
             var prevBg = GUI.backgroundColor;
             if (GUI.enabled) GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
 
-            if (GUILayout.Button("▶ 実験を開始する (Space)", GetBigButtonStyle(), GUILayout.Height(44)))
+            if (GUILayout.Button($"▶ 実験を開始する ({keys.startKey})", GetBigButtonStyle(), GUILayout.Height(44)))
             {
                 manager.StartExperiment();
             }
@@ -78,7 +82,7 @@ public static class EXP_ControlInputPanelDrawer
             GUI.enabled = (manager.CurrentState != EXP_ExperimentState.Idle && manager.CurrentState != EXP_ExperimentState.Finished);
             if (GUI.enabled) GUI.backgroundColor = new Color(0.9f, 0.35f, 0.35f);
 
-            if (GUILayout.Button("■ 実験を中断する (Esc)", GetBigButtonStyle(), GUILayout.Height(44)))
+            if (GUILayout.Button($"■ 実験を中断する ({keys.abortKey})", GetBigButtonStyle(), GUILayout.Height(44)))
             {
                 manager.AbortExperiment();
             }
@@ -92,13 +96,14 @@ public static class EXP_ControlInputPanelDrawer
     {
         DrawSectionHeader("5. コンテキスト操作 & 参加者応答パネル");
         var inputHandler = manager.inputHandler ?? manager.GetComponent<EXP_InputHandler>();
+        var keys = inputHandler != null ? inputHandler.keyBindings : new EXP_KeyBindings();
 
         using (new GUILayout.VerticalScope(GUI.skin.box))
         {
             // A. 未開始状態 (Idle)
             if (manager.CurrentState == EXP_ExperimentState.Idle)
             {
-                DrawBadge("💡 待機中: 上部の「▶ 実験を開始する」ボタンを押すと実験がスタートします", new Color(0.5f, 0.5f, 0.5f), 13, 28);
+                DrawBadge($"💡 待機中: 上部の「▶ 実験を開始する」ボタンを押すか [{keys.startKey}] キーで開始します", new Color(0.5f, 0.5f, 0.5f), 13, 28);
             }
             // B. 教示画面 (Instruction) または 休憩画面 (Break)
             else if (manager.CurrentState == EXP_ExperimentState.Instruction || manager.CurrentState == EXP_ExperimentState.Break)
@@ -108,7 +113,7 @@ public static class EXP_ControlInputPanelDrawer
 
                 var prevBg = GUI.backgroundColor;
                 GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f);
-                if (GUILayout.Button("👉 被験者準備完了 / 次へ進む (Space キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(58)))
+                if (GUILayout.Button($"👉 被験者準備完了 / 次へ進む ({keys.nextKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(58)))
                 {
                     inputHandler?.TriggerResponse("Space");
                 }
@@ -130,11 +135,11 @@ public static class EXP_ControlInputPanelDrawer
 
                     using (new GUILayout.HorizontalScope())
                     {
-                        if (GUILayout.Button("【 1 】 第 1 刺激が重い\n(Z キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(65)))
+                        if (GUILayout.Button($"【 1 】 第 1 刺激が重い\n({keys.choice1Key} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(65)))
                         {
                             inputHandler?.TriggerResponse("Z");
                         }
-                        if (GUILayout.Button("【 2 】 第 2 刺激が重い\n(X キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(65)))
+                        if (GUILayout.Button($"【 2 】 第 2 刺激が重い\n({keys.choice2Key} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(65)))
                         {
                             inputHandler?.TriggerResponse("X");
                         }

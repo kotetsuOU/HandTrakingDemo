@@ -1,21 +1,33 @@
 using UnityEngine;
 using System;
-using System.Collections.Generic;
 
 #nullable enable
 
 /// <summary>
+/// 実験で使用する全キーバインディングの設定構造体。
+/// Inspector で自由にカスタムキーを設定・カスタマイズできます。
+/// </summary>
+[Serializable]
+public class EXP_KeyBindings
+{
+    [Tooltip("実験開始キー（デフォルト: Space）")]
+    public KeyCode startKey = KeyCode.Space;
+
+    [Tooltip("次へ進む / 準備完了キー（デフォルト: Space）")]
+    public KeyCode nextKey = KeyCode.Space;
+
+    [Tooltip("実験中断キー（デフォルト: Escape）")]
+    public KeyCode abortKey = KeyCode.Escape;
+
+    [Tooltip("第 1 刺激選択キー（デフォルト: Z）")]
+    public KeyCode choice1Key = KeyCode.Z;
+
+    [Tooltip("第 2 刺激選択キー（デフォルト: X）")]
+    public KeyCode choice2Key = KeyCode.X;
+}
+
+/// <summary>
 /// キーボード・ゲームパッド両対応の参加者入力受付コンポーネント。
-/// <para>
-/// - キーボード: Unity 旧 Input API（<see cref="Input.GetKeyDown"/>）で処理します。
-/// - ゲームパッド: Unity 新 Input System（<see cref="UnityEngine.InputSystem.Gamepad"/>）で処理します。
-///   新 Input System が有効でない場合は Gamepad 入力は無効になります。
-/// </para>
-/// <para>
-/// 応答を受け取ったときは <see cref="OnResponse"/> イベントが発火します。
-/// <see cref="EXP_ExperimentManager"/> から <see cref="StartListening"/> /
-/// <see cref="StopListening"/> を呼んで受付を制御してください。
-/// </para>
 /// </summary>
 public class EXP_InputHandler : MonoBehaviour
 {
@@ -24,42 +36,29 @@ public class EXP_InputHandler : MonoBehaviour
     // =====================================================
 
     [Header("Input Settings")]
-    [Tooltip("使用するデバイス種別")]
     public EXP_InputDevice inputDevice = EXP_InputDevice.Any;
 
-    [Tooltip("キーボード使用時の応答キーリスト（Z, X, Space, Return など）")]
-    public KeyCode[] responseKeys = new KeyCode[] { KeyCode.Z, KeyCode.X, KeyCode.Space, KeyCode.Return };
+    [Header("Key Bindings")]
+    public EXP_KeyBindings keyBindings = new EXP_KeyBindings();
 
-    [Tooltip("ゲームパッド使用時のボタン名リスト（InputSystem の Control 名）\n"
-           + "例: buttonSouth, buttonNorth, buttonEast, buttonWest,\n"
-           + "    leftTrigger, rightTrigger, leftShoulder, rightShoulder")]
+    [Header("Gamepad Settings")]
     public string[] gamepadButtons = new string[] { "buttonSouth", "buttonNorth" };
 
     [Header("Behavior")]
-    [Tooltip("1試行中の二重入力を防ぐ（最初の入力のみ有効）")]
     public bool blockAfterFirstResponse = true;
-
-    [Tooltip("ウィンドウのフォーカスが外れても（別ウィンドウをクリックしても）Playモードを停止させず背景で実行を継続する")]
     public bool runInBackground = true;
 
     // =====================================================
     // State (Read-Only)
     // =====================================================
 
-    /// <summary>現在入力を受け付けているかどうか</summary>
     public bool IsListening { get; private set; } = false;
-
-    /// <summary>すでに応答を受け取ったかどうか</summary>
     public bool HasResponded { get; private set; } = false;
 
     // =====================================================
     // Events
     // =====================================================
 
-    /// <summary>
-    /// 参加者が応答したときに発火します。
-    /// 引数は応答したキーコード名またはゲームパッドボタン名です。
-    /// </summary>
     public event Action<string>? OnResponse;
 
     // =====================================================
@@ -69,63 +68,31 @@ public class EXP_InputHandler : MonoBehaviour
     void Awake()
     {
         if (runInBackground)
-        {
             Application.runInBackground = true;
-        }
     }
 
     void Update()
     {
         if (!IsListening || (blockAfterFirstResponse && HasResponded)) return;
-
         CheckKeyboard();
-        CheckGamepad();
     }
 
     // =====================================================
     // Public API
     // =====================================================
 
-    /// <summary>入力受け付けを開始します。HasResponded をリセットします。</summary>
-    public void StartListening()
-    {
-        HasResponded = false;
-        IsListening  = true;
-    }
+    public void StartListening() { HasResponded = false; IsListening = true; }
+    public void StopListening()  { IsListening = false; }
+    public void ResetResponse()  { HasResponded = false; }
 
-    /// <summary>入力受け付けを停止します。</summary>
-    public void StopListening()
-    {
-        IsListening = false;
-    }
-
-    /// <summary>HasResponded フラグのみをリセットします（IsListening は変更しません）。</summary>
-    public void ResetResponse()
-    {
-        HasResponded = false;
-    }
-
-    /// <summary>
-    /// UI ボタンや外部ウィンドウ、EditorWindow、スクリプトなどから直接応答を注入します。
-    /// </summary>
-    /// <param name="responseValue">応答値（例: "Z", "X", "Interval1", "Interval2"）</param>
     public void TriggerResponse(string responseValue)
     {
         if (!IsListening || (blockAfterFirstResponse && HasResponded)) return;
         Respond(responseValue);
     }
 
-    /// <summary>
-    /// Unity UI の Button (OnClick) 用のアクセサです。
-    /// Inspector 上の OnClick() にこのメソッドを指定して文字列引数を渡してください。
-    /// </summary>
-    public void OnUIButtonClick(string responseValue)
-    {
-        TriggerResponse(responseValue);
-    }
-
     // =====================================================
-    // Private Input Polling
+    // Private Helpers
     // =====================================================
 
     private void CheckKeyboard()
@@ -133,41 +100,15 @@ public class EXP_InputHandler : MonoBehaviour
         if (inputDevice != EXP_InputDevice.Keyboard && inputDevice != EXP_InputDevice.Any)
             return;
 
-        foreach (var key in responseKeys)
-        {
-            if (Input.GetKeyDown(key))
-            {
-                Respond(key.ToString());
-                return;
-            }
-        }
-    }
-
-    private void CheckGamepad()
-    {
-        if (inputDevice != EXP_InputDevice.Gamepad && inputDevice != EXP_InputDevice.Any)
-            return;
-
-#if ENABLE_INPUT_SYSTEM
-        var gamepad = UnityEngine.InputSystem.Gamepad.current;
-        if (gamepad == null) return;
-
-        foreach (var btnName in gamepadButtons)
-        {
-            var control = gamepad.FindControl(btnName)
-                as UnityEngine.InputSystem.Controls.ButtonControl;
-            if (control != null && control.wasPressedThisFrame)
-            {
-                Respond(btnName);
-                return;
-            }
-        }
-#endif
+        if (Input.GetKeyDown(keyBindings.choice1Key)) Respond("Z");
+        else if (Input.GetKeyDown(keyBindings.choice2Key)) Respond("X");
+        else if (Input.GetKeyDown(keyBindings.nextKey)) Respond("Space");
+        else if (Input.GetKeyDown(keyBindings.startKey)) Respond("Space");
     }
 
     private void Respond(string responseValue)
     {
-        if (blockAfterFirstResponse) HasResponded = true;
+        HasResponded = true;
         OnResponse?.Invoke(responseValue);
     }
 }
