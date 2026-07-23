@@ -29,6 +29,15 @@ public class EXP_ExperimentSession
     /// <summary>セッション終了日時（ISO 8601 形式）</summary>
     public string endTimeISO = "";
 
+    /// <summary>セッション開始タイムスタンプ（秒）</summary>
+    public double sessionStartTime;
+
+    /// <summary>セッション終了タイムスタンプ（秒）</summary>
+    public double sessionEndTime;
+
+    /// <summary>完了フラグ</summary>
+    public bool isFinished;
+
     // =====================================================
     // Progress
     // =====================================================

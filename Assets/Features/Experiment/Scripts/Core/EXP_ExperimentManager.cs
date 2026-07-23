@@ -1,26 +1,13 @@
 using UnityEngine;
 using System;
 using System.Collections;
-using System.IO;
+using TMPro;
 
 #nullable enable
 
 /// <summary>
-/// 実験全体のステートマシン。被験者実験の司令塔コンポーネント。
-/// <para>
-/// 依存コンポーネント（<see cref="EXP_TrialSequencer"/>, <see cref="EXP_DataRecorder"/>,
-/// <see cref="EXP_EventMarker"/>, <see cref="EXP_UIController"/>, <see cref="EXP_InputHandler"/>）
-/// は同一 GameObject 上に配置するか、Inspector で参照を設定してください。
-/// 未設定の場合は Awake() 時に自動取得または自動追加されます。
-/// </para>
-/// <para>
-/// 最小セットアップ:
-/// <list type="number">
-/// <item><see cref="EXP_ExperimentConfig"/> を作成して <see cref="config"/> に設定</item>
-/// <item><see cref="EXP_BaseCondition"/> を継承した条件を <see cref="sequencer"/>.conditions に登録</item>
-/// <item>Play Mode で Space キー、またはコードから <see cref="StartExperiment"/> を呼ぶ</item>
-/// </list>
-/// </para>
+/// 被験者実験のメインステートマシン（司令塔）。
+/// 全体ステート管理、Block / Trial のルーフ、各コンポーネントの統括、イベント発火を行います。
 /// </summary>
 public class EXP_ExperimentManager : MonoBehaviour
 {
@@ -42,11 +29,15 @@ public class EXP_ExperimentManager : MonoBehaviour
     [Tooltip("イベントマーカー。未設定時は同一 GameObject から自動取得します。")]
     public EXP_EventMarker? eventMarker;
 
-    [Tooltip("UI コントローラー。未設定時は同一 GameObject から自動取得します。")]
-    public EXP_UIController? uiController;
-
     [Tooltip("入力ハンドラー。未設定時は同一 GameObject から自動取得します。")]
     public EXP_InputHandler? inputHandler;
+
+    [Header("UI References (被験者画面用)")]
+    [Tooltip("メッセージ / 教示テキスト (TMP_Text)")]
+    public TMP_Text? messageText;
+
+    [Tooltip("固視点オブジェクト（表示 / 非表示を切り替えます）")]
+    public GameObject? fixationCross;
 
     [Header("Debug")]
     [Tooltip("Space キーで実験開始、Escape キーで中断できるようにする（デバッグ用）")]
@@ -59,23 +50,26 @@ public class EXP_ExperimentManager : MonoBehaviour
     /// <summary>現在の実験ステート</summary>
     public EXP_ExperimentState CurrentState { get; private set; } = EXP_ExperimentState.Idle;
 
-    /// <summary>現在の試行フェーズ</summary>
+    /// <summary>現在の試行内フェーズ</summary>
     public EXP_TrialPhase CurrentPhase { get; private set; } = EXP_TrialPhase.ITI;
 
-    /// <summary>現在実行中のセッション情報（実験開始後に設定されます）</summary>
+    /// <summary>実行中のアクティブセッション</summary>
     public EXP_ExperimentSession? CurrentSession { get; private set; }
 
-    /// <summary>現在実行中の試行データ（試行中のみ非 null）</summary>
+    /// <summary>実行中の試行データ（非試行時は null）</summary>
     public EXP_TrialData? CurrentTrial { get; private set; }
+
+    /// <summary>被験者画面に表示中のメッセージ</summary>
+    public string CurrentMessage { get; private set; } = "";
 
     // =====================================================
     // Events
     // =====================================================
 
-    /// <summary>実験ステートが変化したときに発火</summary>
-    public event Action<EXP_ExperimentState>? OnStateChanged;
+    /// <summary>ステートが遷移したときに発火 (oldState, newState)</summary>
+    public event Action<EXP_ExperimentState, EXP_ExperimentState>? OnStateChanged;
 
-    /// <summary>試行が開始されたときに発火</summary>
+    /// <summary>試行が開始したときに発火</summary>
     public event Action<EXP_TrialData>? OnTrialStarted;
 
     /// <summary>参加者が応答したときに発火（応答情報はすでに trial に書き込まれています）</summary>
@@ -105,7 +99,6 @@ public class EXP_ExperimentManager : MonoBehaviour
         sequencer    ??= GetOrAdd<EXP_TrialSequencer>();
         dataRecorder ??= GetOrAdd<EXP_DataRecorder>();
         eventMarker  ??= GetOrAdd<EXP_EventMarker>();
-        uiController ??= GetOrAdd<EXP_UIController>();
         inputHandler ??= GetOrAdd<EXP_InputHandler>();
     }
 
@@ -137,168 +130,176 @@ public class EXP_ExperimentManager : MonoBehaviour
     // Public API
     // =====================================================
 
-    /// <summary>
-    /// 実験を開始します。
-    /// <see cref="config"/> が未設定の場合はエラーログを出して何もしません。
-    /// </summary>
     public void StartExperiment()
     {
-        if (config == null)
-        {
-            Debug.LogError("[EXP_ExperimentManager] config が設定されていません。");
-            return;
-        }
         if (CurrentState != EXP_ExperimentState.Idle)
         {
-            Debug.LogWarning("[EXP_ExperimentManager] 実験はすでに開始されています。");
+            Debug.LogWarning("[EXP_ExperimentManager] すでに実験が開始されています。");
             return;
         }
 
-        StartCoroutine(RunExperiment());
+        if (config == null)
+        {
+            Debug.LogError("[EXP_ExperimentManager] ExperimentConfig が設定されていません。");
+            return;
+        }
+
+        StartCoroutine(MainExperimentLoop());
     }
 
-    /// <summary>
-    /// 実験を中断します。ここまでのデータは保存されます。
-    /// </summary>
     public void AbortExperiment()
     {
-        StopAllCoroutines();
-        inputHandler?.StopListening();
+        if (CurrentState == EXP_ExperimentState.Idle || CurrentState == EXP_ExperimentState.Finished)
+            return;
 
-        if (CurrentSession != null && dataRecorder != null)
+        StopAllCoroutines();
+
+        if (inputHandler != null)
+            inputHandler.StopListening();
+
+        if (CurrentSession != null)
         {
-            CurrentSession.FinalizeSession();
-            dataRecorder.SaveAll(CurrentSession);
+            CurrentSession.isFinished = true;
+            dataRecorder?.FinalizeSession(CurrentSession);
         }
 
         eventMarker?.Mark("ExperimentAborted");
-        TransitionTo(EXP_ExperimentState.Finished);
-        uiController?.SetMessage("実験を中断しました。");
+        ClearAll();
+
+        TransitionTo(EXP_ExperimentState.Idle);
         OnExperimentAborted?.Invoke();
-        Debug.LogWarning("[EXP_ExperimentManager] 実験が中断されました。");
+        Debug.Log("[EXP_ExperimentManager] 実験を中断しました。");
+    }
+
+    public void SetMessage(string message)
+    {
+        CurrentMessage = message ?? "";
+        if (messageText != null)
+        {
+            messageText.text = CurrentMessage;
+            messageText.gameObject.SetActive(!string.IsNullOrEmpty(CurrentMessage));
+        }
+    }
+
+    public void SetFixation(bool visible)
+    {
+        if (fixationCross != null)
+            fixationCross.SetActive(visible);
+    }
+
+    public void ClearAll()
+    {
+        SetMessage("");
+        SetFixation(false);
     }
 
     // =====================================================
-    // Main Coroutine
+    // Main Loop Coroutine
     // =====================================================
 
-    private IEnumerator RunExperiment()
+    private IEnumerator MainExperimentLoop()
     {
-        // --- セッション初期化 ---
-        CurrentSession = EXP_ExperimentSession.Create(config.participantId, config.groupLabel);
+        TransitionTo(EXP_ExperimentState.Instruction);
 
-        string resolvedDir = string.IsNullOrEmpty(config.outputDirectory)
-            ? Path.Combine(Application.persistentDataPath, "ExperimentData")
-            : config.outputDirectory;
-
-        // サブコンポーネントの設定を config に同期
-        dataRecorder!.dataFormat       = config.dataFormat;
-        dataRecorder!.outputDirectory  = resolvedDir;
-        dataRecorder!.filePrefix       = config.filePrefix;
-        dataRecorder!.Initialize(CurrentSession);
-
-        eventMarker!.Initialize(resolvedDir, CurrentSession.sessionId);
-        eventMarker!.logToConsole = !config.suppressLogs;
-
-        inputHandler!.inputDevice    = config.inputDevice;
-        inputHandler!.responseKeys   = config.responseKeys;
-        inputHandler!.gamepadButtons = config.gamepadButtons;
-
-        uiController!.useUnityUI = config.useUnityUI;
-
-        // 乱数シード
-        if (config.randomSeed >= 0)
-            UnityEngine.Random.InitState(config.randomSeed);
-
-        // シーケンス構築
-        sequencer!.randomSeed = config.randomSeed;
-        sequencer!.BuildSequence();
-        CurrentSession.totalTrials = sequencer.TotalTrials;
-
-        eventMarker.Mark("ExperimentStart");
-        Log($"実験開始: 参加者 {config.participantId}, セッション {CurrentSession.sessionId}");
-
-        // --- 教示 ---
-        yield return RunInstruction(
-            "実験を開始します。\n準備ができたらボタンを押してください。");
-
-        // --- 練習試行 ---
-        if (config.practiceTrialCount > 0)
+        CurrentSession = new EXP_ExperimentSession
         {
-            yield return RunPracticeBlock();
-            yield return RunInstruction(
-                "練習が終わりました。本番を始めます。\nボタンを押して続けてください。");
-            // 本番用に再シャッフル
-            sequencer.BuildSequence();
+            participantId   = config.participantId,
+            groupLabel      = config.groupLabel,
+            sessionStartTime = (double)Time.realtimeSinceStartup,
+        };
+
+        if (sequencer != null)
+        {
+            sequencer.GenerateSequence();
+            CurrentSession.totalTrials = sequencer.TotalTrials;
         }
 
-        // --- 本試行 ---
-        TransitionTo(EXP_ExperimentState.Trial);
-        eventMarker.Mark("MainTrialsStart");
+        dataRecorder?.InitializeSession(CurrentSession);
+        eventMarker?.Mark($"ExperimentStart_{config.participantId}");
 
-        int totalTrials = sequencer.TotalTrials;
-        int blockSize   = config.trialsPerBlock > 0 ? config.trialsPerBlock : totalTrials;
-        int trialIndex  = 0;
-        int blockIndex  = 0;
+        // --- 1. 教示フェーズ ---
+        SetFixation(false);
+        SetMessage(
+            "【実験の説明】\n\n"
+          + "これより触覚刺激の比較実験を開始します。\n"
+          + "準備ができたらボタン（または Space キー）を押してください。");
 
-        while (!sequencer.IsFinished)
+        _responseReceived = false;
+        inputHandler?.StartListening();
+        yield return WaitForResponse(0f);
+        inputHandler?.StopListening();
+
+        ClearAll();
+
+        // --- 2. 練習試行 ---
+        if (config.practiceTrialCount > 0)
         {
-            var condition = sequencer.GetNextCondition();
-            if (condition == null) break;
+            TransitionTo(EXP_ExperimentState.Practice);
+            eventMarker?.Mark("PracticeStart");
 
-            yield return RunTrial(trialIndex, blockIndex, isPractice: false, condition);
-            CurrentSession.completedTrials++;
-            uiController.SetProgress((float)(trialIndex + 1) / totalTrials);
-            trialIndex++;
+            SetMessage("【練習セッション】\nこれから練習試行を行います。\n準備ができたらボタンを押してください。");
+            _responseReceived = false;
+            inputHandler?.StartListening();
+            yield return WaitForResponse(0f);
+            inputHandler?.StopListening();
 
-            // ブロック境界でブレイク挿入（最終試行は除く）
-            bool isBlockEnd = (config.blockCount > 1)
-                           && (trialIndex % blockSize == 0)
-                           && !sequencer.IsFinished;
-            if (isBlockEnd)
+            ClearAll();
+            yield return RunPracticeTrials();
+
+            SetMessage("【練習終了】\n練習セッションが完了しました。\n次から本試行を開始します。ボタンを押してください。");
+            _responseReceived = false;
+            inputHandler?.StartListening();
+            yield return WaitForResponse(0f);
+            inputHandler?.StopListening();
+
+            ClearAll();
+        }
+
+        // --- 3. 本試行 ---
+        TransitionTo(EXP_ExperimentState.Trial);
+        eventMarker?.Mark("MainTrialsStart");
+
+        int totalBlocks = config.blockCount;
+        int trialsPerBlock = config.trialsPerBlock;
+
+        for (int block = 0; block < totalBlocks; block++)
+        {
+            for (int t = 0; t < trialsPerBlock; t++)
             {
-                blockIndex++;
-                yield return RunBreak(blockIndex, config.blockCount);
+                var condition = sequencer?.NextCondition();
+                if (condition == null) break;
+
+                int globalTrialIndex = block * trialsPerBlock + t;
+                yield return RunTrial(globalTrialIndex, blockIndex: block, isPractice: false, condition);
+
+                if (CurrentState == EXP_ExperimentState.Idle) yield break;
+            }
+
+            if (block < totalBlocks - 1 && config.breakDuration > 0f)
+            {
+                yield return RunBreak(block + 1, totalBlocks);
             }
         }
 
-        // --- 終了 ---
-        eventMarker.Mark("ExperimentEnd");
-        CurrentSession!.FinalizeSession();
-        dataRecorder.SaveAll(CurrentSession);
-
+        // --- 4. 終了フェーズ ---
         TransitionTo(EXP_ExperimentState.Finished);
-        uiController.SetMessage("実験が終了しました。\nご参加ありがとうございました。");
+        CurrentSession.isFinished = true;
+        CurrentSession.sessionEndTime = (double)Time.realtimeSinceStartup;
+
+        dataRecorder?.FinalizeSession(CurrentSession);
+        eventMarker?.Mark("ExperimentFinished");
+
+        SetMessage(
+            "【全試行完了】\n\n"
+          + "実験が終了しました。ご協力ありがとうございました。\n"
+          + "データは正常に保存されました。");
+
         OnExperimentFinished?.Invoke(CurrentSession);
-
-        Log($"実験完了: {CurrentSession.completedTrials} 試行, 正答率 {CurrentSession.accuracy:P1}");
+        Debug.Log($"[EXP_ExperimentManager] 全試行完了 (総試行数: {CurrentSession.completedTrials})");
     }
 
-    // =====================================================
-    // Phase Coroutines
-    // =====================================================
-
-    private IEnumerator RunInstruction(string message)
+    private IEnumerator RunPracticeTrials()
     {
-        TransitionTo(EXP_ExperimentState.Instruction);
-        uiController!.SetMessage(message);
-        eventMarker!.Mark("InstructionStart");
-
-        _responseReceived = false;
-        inputHandler!.StartListening();
-        yield return WaitForResponse(timeoutSecs: 0f);   // タイムアウトなし（必ず応答待ち）
-        inputHandler.StopListening();
-
-        uiController.ClearAll();
-        eventMarker.Mark("InstructionEnd");
-    }
-
-    private IEnumerator RunPracticeBlock()
-    {
-        TransitionTo(EXP_ExperimentState.Practice);
-        eventMarker!.Mark("PracticeStart");
-
-        // 練習は conditions リストの先頭から循環して使用
         var seqReadOnly = sequencer!.GetSequence();
         int condCount = seqReadOnly.Count;
         for (int i = 0; i < config.practiceTrialCount; i++)
@@ -308,13 +309,12 @@ public class EXP_ExperimentManager : MonoBehaviour
             yield return RunTrial(i, blockIndex: -1, isPractice: true, cond);
         }
 
-        eventMarker.Mark("PracticeEnd");
+        eventMarker?.Mark("PracticeEnd");
     }
 
     private IEnumerator RunTrial(
         int trialIndex, int blockIndex, bool isPractice, EXP_BaseCondition condition)
     {
-        // --- 試行データ初期化 ---
         CurrentTrial = new EXP_TrialData
         {
             trialIndex      = trialIndex,
@@ -324,22 +324,21 @@ public class EXP_ExperimentManager : MonoBehaviour
             trialStartTime  = (double)Time.realtimeSinceStartup,
         };
 
-        eventMarker!.Mark($"TrialStart_{trialIndex}_{condition.conditionName}");
+        eventMarker?.Mark($"TrialStart_{trialIndex}_{condition.conditionName}");
         OnTrialStarted?.Invoke(CurrentTrial);
 
         // --- ITI ---
         CurrentPhase = EXP_TrialPhase.ITI;
-        uiController!.SetFixation(true);
-        uiController.SetFeedback("");
+        SetFixation(true);
+
         if (config.itiDuration > 0f)
             yield return new WaitForSeconds(config.itiDuration);
 
         // --- Stimulus ---
         CurrentPhase = EXP_TrialPhase.Stimulus;
         CurrentTrial.stimulusOnsetTime = (double)Time.realtimeSinceStartup;
-        eventMarker.Mark("StimulusOn");
+        eventMarker?.Mark("StimulusOn");
 
-        // StimulusCoroutine が実装されていればそちらを優先、なければ Apply() を使用
         var stimCoro = condition.StimulusCoroutine(CurrentTrial, this);
         if (stimCoro != null)
         {
@@ -353,95 +352,73 @@ public class EXP_ExperimentManager : MonoBehaviour
         // --- Response ---
         CurrentPhase = EXP_TrialPhase.Response;
         _responseReceived = false;
-        inputHandler!.StartListening();
+        inputHandler?.StartListening();
 
-        // 刺激が固定時間で消えるケース
         if (config.stimulusDuration > 0f)
             yield return new WaitForSeconds(config.stimulusDuration);
 
-        // 応答またはタイムアウトまで待機
         yield return WaitForResponse(config.responseTimeout);
-        inputHandler.StopListening();
-        eventMarker.Mark("StimulusOff");
+        inputHandler?.StopListening();
+        eventMarker?.Mark("StimulusOff");
 
-        // タイムアウト判定
         if (!_responseReceived)
         {
             CurrentTrial.responseType  = EXP_ResponseType.Timeout;
             CurrentTrial.responseTime  = (double)Time.realtimeSinceStartup;
             CurrentTrial.isCorrect     = false;
-            eventMarker.Mark("Timeout");
+            eventMarker?.Mark("Timeout");
         }
         else
         {
-            // 条件クラスに正誤判定を委ねる
             CurrentTrial.isCorrect = condition.EvaluateResponse(CurrentTrial);
             if (CurrentTrial.isCorrect == true)
             {
                 CurrentTrial.responseType = EXP_ResponseType.Correct;
-                CurrentSession!.correctTrials++;
             }
             else if (CurrentTrial.isCorrect == false)
             {
                 CurrentTrial.responseType = EXP_ResponseType.Incorrect;
             }
-            // null = 正誤判定なし → responseType は None のまま（response は記録済み）
         }
 
-        // --- Feedback ---
-        if (config.feedbackDuration > 0f && config.showFeedback)
-        {
-            CurrentPhase = EXP_TrialPhase.Feedback;
-            uiController.ShowFeedback(CurrentTrial.responseType);
-            yield return new WaitForSeconds(config.feedbackDuration);
-            uiController.SetFeedback("");
-        }
-
-        uiController.SetFixation(false);
+        SetFixation(false);
         condition.OnTrialEnd(CurrentTrial);
 
-        // --- 記録 ---
-        dataRecorder!.RecordTrial(CurrentTrial);
+        dataRecorder?.RecordTrial(CurrentTrial);
         CurrentSession?.trialDataList.Add(CurrentTrial);
 
         OnTrialCompleted?.Invoke(CurrentTrial);
-        eventMarker.Mark($"TrialEnd_{trialIndex}");
+        eventMarker?.Mark($"TrialEnd_{trialIndex}");
         CurrentTrial = null;
     }
 
     private IEnumerator RunBreak(int blockIndex, int totalBlocks)
     {
         TransitionTo(EXP_ExperimentState.Break);
-        eventMarker!.Mark($"BlockBreak_{blockIndex}");
+        eventMarker?.Mark($"BlockBreak_{blockIndex}");
 
-        uiController!.SetFixation(false);
-        uiController.SetMessage(
+        SetFixation(false);
+        SetMessage(
             $"休憩してください（ブロック {blockIndex} / {totalBlocks} 完了）\n"
           + "準備ができたらボタンを押して再開してください。");
 
         _responseReceived = false;
-        inputHandler!.StartListening();
-        yield return WaitForResponse(config.breakDuration);   // タイムアウトで自動再開
-        inputHandler.StopListening();
+        inputHandler?.StartListening();
+        yield return WaitForResponse(config.breakDuration);
+        inputHandler?.StopListening();
 
-        uiController.ClearAll();
+        ClearAll();
         TransitionTo(EXP_ExperimentState.Trial);
     }
 
-    // =====================================================
-    // Helpers
-    // =====================================================
-
-    /// <summary>
-    /// 応答またはタイムアウトまでフレームを待機します。
-    /// <paramref name="timeoutSecs"/> が 0 以下の場合はタイムアウトなし（応答まで無限待機）。
-    /// </summary>
     private IEnumerator WaitForResponse(float timeoutSecs)
     {
         float elapsed = 0f;
         while (!_responseReceived)
         {
-            if (timeoutSecs > 0f && elapsed >= timeoutSecs) yield break;
+            if (timeoutSecs > 0f && elapsed >= timeoutSecs)
+                yield break;
+
             elapsed += Time.deltaTime;
             yield return null;
         }
@@ -449,8 +426,6 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     private void HandleResponse(string responseValue)
     {
-        _responseReceived = true;
-
         if (CurrentTrial != null)
         {
             CurrentTrial.responseValue = responseValue;
@@ -458,26 +433,18 @@ public class EXP_ExperimentManager : MonoBehaviour
             OnResponseReceived?.Invoke(CurrentTrial);
         }
 
-        eventMarker?.Mark($"Response_{responseValue}");
+        _responseReceived = true;
     }
 
     private void TransitionTo(EXP_ExperimentState newState)
     {
+        var oldState = CurrentState;
         CurrentState = newState;
-        OnStateChanged?.Invoke(newState);
-        Log($"State → {newState}");
+        OnStateChanged?.Invoke(oldState, newState);
     }
 
     private T GetOrAdd<T>() where T : Component
     {
-        var component = GetComponent<T>();
-        if (component == null) component = gameObject.AddComponent<T>();
-        return component;
-    }
-
-    private void Log(string message)
-    {
-        if (config != null && config.suppressLogs) return;
-        Debug.Log($"[EXP_ExperimentManager] {message}");
+        return GetComponent<T>() ?? gameObject.AddComponent<T>();
     }
 }

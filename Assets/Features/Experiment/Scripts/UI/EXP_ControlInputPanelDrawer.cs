@@ -4,7 +4,7 @@ using static EXP_PanelElementDrawers;
 #nullable enable
 
 /// <summary>
-/// コントロールパネルの条件表示・ボタン操作・応答入力パネル描画コンポーネント（200行以内）。
+/// コントロールパネルの条件表示・ボタン操作・応答入力パネル描画コンポーネント。
 /// </summary>
 public static class EXP_ControlInputPanelDrawer
 {

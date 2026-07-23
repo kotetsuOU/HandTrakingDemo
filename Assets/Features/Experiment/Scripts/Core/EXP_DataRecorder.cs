@@ -124,6 +124,16 @@ public class EXP_DataRecorder : MonoBehaviour
         Debug.Log($"[EXP_DataRecorder] 保存完了: {_recordedTrials.Count} 試行");
     }
 
+    /// <summary>
+    /// セッション開始時に呼び出します（Initialize のエイリアス）。
+    /// </summary>
+    public void InitializeSession(EXP_ExperimentSession session) => Initialize(session);
+
+    /// <summary>
+    /// セッション終了時に全データを保存します（SaveAll のエイリアス）。
+    /// </summary>
+    public void FinalizeSession(EXP_ExperimentSession session) => SaveAll(session);
+
     // =====================================================
     // CSV
     // =====================================================

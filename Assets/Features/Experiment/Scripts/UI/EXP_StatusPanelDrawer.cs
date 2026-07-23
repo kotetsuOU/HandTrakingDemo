@@ -130,14 +130,13 @@ public static class EXP_StatusPanelDrawer
                 DrawPhaseBadge(manager.CurrentPhase, manager);
             }
 
-            var uiCtrl = manager.uiController ?? manager.GetComponent<EXP_UIController>();
-            if (uiCtrl != null && uiCtrl.messageText != null && !string.IsNullOrEmpty(uiCtrl.messageText.text))
+            if (!string.IsNullOrEmpty(manager.CurrentMessage))
             {
                 GUILayout.Space(8);
                 GUILayout.Label("💬 被験者画面に表示中のメッセージ:", GetBoldLabelStyle());
                 using (new GUILayout.VerticalScope(GUI.skin.box))
                 {
-                    GUILayout.Label(uiCtrl.messageText.text, GetCenterBoldStyle());
+                    GUILayout.Label(manager.CurrentMessage, GetCenterBoldStyle());
                 }
             }
         }

@@ -102,6 +102,9 @@ public class EXP_TrialSequencer : MonoBehaviour
                 + $"{_trialSequence.Count} 試行 / シード: {(randomSeed < 0 ? "ランダム" : randomSeed.ToString())}");
     }
 
+    /// <summary>シーケンスを生成します（BuildSequence のエイリアス）。</summary>
+    public void GenerateSequence() => BuildSequence();
+
     /// <summary>
     /// 次の試行の条件を返し、内部インデックスを 1 進めます。
     /// シーケンスが終了している場合は null を返します。
@@ -115,6 +118,9 @@ public class EXP_TrialSequencer : MonoBehaviour
         }
         return _trialSequence[_currentIndex++];
     }
+
+    /// <summary>次の試行条件を取得します（GetNextCondition のエイリアス）。</summary>
+    public EXP_BaseCondition? NextCondition() => GetNextCondition();
 
     /// <summary>
     /// 指定インデックスの条件を返します（インデックスは進めません）。

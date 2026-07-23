@@ -8,7 +8,7 @@ using static EXP_ControlInputPanelDrawer;
 /// <summary>
 /// 【実験用コントロールダッシュボード 描画メインオーケストレーター】
 /// <see cref="EXP_StatusPanelDrawer"/> と <see cref="EXP_ControlInputPanelDrawer"/> を順次呼び出し、
-/// ダッシュボード全体のレイアウトを統括します（200行以内）。
+/// ダッシュボード全体のレイアウトを統括します。
 /// </summary>
 public static class EXP_ControlPanelDrawer
 {

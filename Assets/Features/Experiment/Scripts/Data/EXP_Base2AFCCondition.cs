@@ -96,23 +96,21 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         trial.metadata["valueDelta"]        = Mathf.Abs(val1 - val2).ToString("F4");
         trial.metadata["referencePosition"] = refPos;
 
-        var expManager = runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
+        var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
         bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
-
-        var uiCtrl = runner.GetComponent<EXP_UIController>() ?? Object.FindAnyObjectByType<EXP_UIController>();
 
         // ---- Interval 1 ----
         string debugStr1 = FormatValueForDebug(val1);
         string label1 = isDebug ? $"第 1 刺激 ({debugStr1})" : "第 1 刺激";
         string msg1 = isDebug ? $"【 第 1 刺激 】 ({debugStr1})" : "【 第 1 刺激 】";
         trial.metadata["currentInterval"] = label1;
-        uiCtrl?.SetMessage(msg1);
+        expManager?.SetMessage(msg1);
 
         yield return RunSingleInterval(controller, val1, cueDuration, intervalDuration);
 
         // ---- ISI ----
         trial.metadata["currentInterval"] = "無刺激間隔 (ISI)";
-        uiCtrl?.SetMessage("・ ・ ・");
+        expManager?.SetMessage("・ ・ ・");
         StopHaptics(controller);
         if (isiDuration > 0f)
             yield return new WaitForSeconds(isiDuration);
@@ -122,13 +120,13 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         string label2 = isDebug ? $"第 2 刺激 ({debugStr2})" : "第 2 刺激";
         string msg2 = isDebug ? $"【 第 2 刺激 】 ({debugStr2})" : "【 第 2 刺激 】";
         trial.metadata["currentInterval"] = label2;
-        uiCtrl?.SetMessage(msg2);
+        expManager?.SetMessage(msg2);
 
         yield return RunSingleInterval(controller, val2, cueDuration, intervalDuration);
 
         // ---- Response Prompt ----
         trial.metadata["currentInterval"] = "応答受付中";
-        uiCtrl?.SetMessage("どちらが重かったですか？\n【1】第 1 刺激 (Z)   /   【2】第 2 刺激 (X)");
+        expManager?.SetMessage("どちらが重かったですか？\n【1】第 1 刺激 (Z)   /   【2】第 2 刺激 (X)");
     }
 
     public override void OnTrialEnd(EXP_TrialData trial)
