@@ -19,11 +19,8 @@ using static AUTD3Sharp.Units;
 #nullable enable
 
 /// <summary>
-/// AUTD3デバイス群との物理接続（TwinCAT / SOEM / Simulator）、
-/// およびハードウェア設定（Modulation, Silencer, Fan, Temperature）の管理を行う専用マネージャー。
-/// 
-/// HAP_AUTDController などの上位コンポーネントから参照され、
-/// デバイス接続のライフサイクル管理と底層のデータ送信インターフェースを提供します。
+/// AUTD3デバイス群との物理接続（TwinCAT / SOEM / Simulator）のライフサイクル管理、
+/// およびハードウェア設定（Modulation, Silencer, Fan, Temperature）の管理を行うマネージャー。
 /// </summary>
 public class HAP_AUTDHardwareManager : MonoBehaviour
 {
@@ -34,32 +31,9 @@ public class HAP_AUTDHardwareManager : MonoBehaviour
     [Tooltip("SOEM使用時のネットワークアダプタ名（必要であれば指定）")]
     public string soemAdapterName = "";
 
-    [Header("Hardware Settings")]
-    [Tooltip("環境温度（摂氏）。音速計算に使用され、焦点の正確さに影響します。室温に合わせてください。")]
-    public float temperature = 25f;
-
-    [Tooltip("デバイス冷却ファンのON/OFF。高出力で長時間使用する場合は ON にしてください。")]
-    public bool enableFan = false;
-
-    [Header("Modulation Settings")]
-    [Tooltip("変調モード。\nSine: 指定周波数で明滅（ブーンという感触）。\nStatic: 連続出力（押される感触）。")]
-    public ModulationMode modulationMode = ModulationMode.Sine;
-
-    [Tooltip("サイン波の変調周波数 (Hz)。一般的に人間の皮膚は 150〜200Hz で最も感度が高くなります。")]
-    public float sineFrequency = 150f;
-
-    [Tooltip("定常波(Static)の振幅 (0.0〜1.0)。通常は1.0を使用します。")]
-    public float staticAmplitude = 1.0f;
-
-    [Header("Silencer Settings")]
-    [Tooltip("サイレンサーのモード。可聴ノイズ（ジージー音）を減らします。\nFixedUpdateRate: 強度と位相のステップで指定。\nFixedCompletionTime: 完了時間で指定。")]
-    public SilencerMode silencerMode = SilencerMode.FixedUpdateRate;
-
-    [Tooltip("位相の変化ステップ。小さいほど静かになりますが、応答が遅れます。")]
-    public ushort silencerStepPhase = 500;
-
-    [Tooltip("振幅の変化ステップ。小さいほど静かになりますが、応答が遅れます。")]
-    public ushort silencerStepAmplitude = 65535;
+    [Header("Hardware Parameters")]
+    [Tooltip("ハードウェア動作パラメータ（Modulation, Silencer, Fan, Temp）")]
+    public HAP_AUTDHardwareSettings settings = new HAP_AUTDHardwareSettings();
 
     [HideInInspector]
     public List<AUTD3Device> connectedDevices = new List<AUTD3Device>();
@@ -86,7 +60,7 @@ public class HAP_AUTDHardwareManager : MonoBehaviour
     private readonly object _sendLock = new object();
     public object SendLock => _sendLock;
 
-    // 前回の設定を記憶して変更を検知するためのフィールド
+    // 設定変更検知用の記憶フィールド
     private ModulationMode _prevModMode;
     private float _prevSineFreq;
     private float _prevStaticAmp;
@@ -189,30 +163,221 @@ public class HAP_AUTDHardwareManager : MonoBehaviour
     {
         if (!IsConnected) return;
 
-        // インスペクターの設定変更を監視して適用
         CheckForConfigChanges();
     }
 
     /// <summary>
-    /// インスペクターで変更されたハードウェア設定を検知し、デバイスに適用します。
+    /// 設定の変更を監視し、変更があった場合のみデバイスへ再送信します。
     /// </summary>
     public void CheckForConfigChanges()
     {
-        bool modulationChanged = (_prevModMode != modulationMode) ||
-                                 (_prevSineFreq != sineFrequency) ||
-                                 (_prevStaticAmp != staticAmplitude);
+        bool modulationChanged = (_prevModMode != settings.modulationMode) ||
+                                 (_prevSineFreq != settings.sineFrequency) ||
+                                 (_prevStaticAmp != settings.staticAmplitude);
         if (modulationChanged) ApplyModulation();
 
-        bool silencerChanged = (_prevSilencerMode != silencerMode) ||
-                               (_prevSilStepPhase != silencerStepPhase) ||
-                               (_prevSilStepAmp != silencerStepAmplitude);
+        bool silencerChanged = (_prevSilencerMode != settings.silencerMode) ||
+                               (_prevSilStepPhase != settings.silencerStepPhase) ||
+                               (_prevSilStepAmp != settings.silencerStepAmplitude);
         if (silencerChanged) ApplySilencer();
 
-        if (_prevFanState != enableFan) ApplyFan();
+        if (_prevFanState != settings.enableFan) ApplyFan();
 #if USE_AUTD3_LEGACY
-        if (_prevTemperature != temperature) ApplyTemperature();
+        if (_prevTemperature != settings.temperature) ApplyTemperature();
 #endif
     }
+
+    /// <summary>
+    /// 変調（Modulation）設定をデバイスに送信します。
+    /// </summary>
+#if !USE_AUTD3_LEGACY
+    public async void ApplyModulation()
+    {
+        if (_client == null || _geometry == null) return;
+
+        try
+        {
+            using var builder = _client.DatagramBuilder();
+            using var modulationBuffer = Modulation.ModulationBuffer();
+
+            switch (settings.modulationMode)
+            {
+                case ModulationMode.Sine:
+                    Modulation.Sine(settings.sineFrequency * Hz, new SineOption(), modulationBuffer);
+                    builder.Push(new Modulation(SamplingConfig.Freq4k, modulationBuffer));
+                    break;
+                case ModulationMode.Static:
+                    byte intensity = (byte)Mathf.Clamp(settings.staticAmplitude * 255f, 0, 255);
+                    Modulation.Constant(intensity, modulationBuffer);
+                    builder.Push(new Modulation(SamplingConfig.Freq4k, modulationBuffer));
+                    break;
+            }
+
+            using var frames = builder.Build();
+            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
+
+            _prevModMode = settings.modulationMode;
+            _prevSineFreq = settings.sineFrequency;
+            _prevStaticAmp = settings.staticAmplitude;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply modulation: {ex.Message}");
+        }
+    }
+#else
+    public void ApplyModulation()
+    {
+        if (_autd == null) return;
+
+        try
+        {
+            switch (settings.modulationMode)
+            {
+                case ModulationMode.Sine:
+                    lock (_sendLock) { _autd.Send(new Sine(freq: settings.sineFrequency * Hz, option: new SineOption())); }
+                    break;
+                case ModulationMode.Static:
+                    lock (_sendLock) { _autd.Send(new Static()); }
+                    break;
+            }
+
+            _prevModMode = settings.modulationMode;
+            _prevSineFreq = settings.sineFrequency;
+            _prevStaticAmp = settings.staticAmplitude;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply modulation: {ex.Message}");
+        }
+    }
+#endif
+
+    /// <summary>
+    /// サイレンサー（Silencer）設定をデバイスに送信します。
+    /// </summary>
+#if !USE_AUTD3_LEGACY
+    public async void ApplySilencer()
+    {
+        if (_client == null || _geometry == null) return;
+
+        try
+        {
+            using var builder = _client.DatagramBuilder();
+
+            switch (settings.silencerMode)
+            {
+                case SilencerMode.Disabled:
+                    builder.Push(SetSilencer.Disable());
+                    break;
+                case SilencerMode.FixedUpdateRate:
+                    builder.Push(new SetSilencer(new FixedUpdateRate(intensity: settings.silencerStepAmplitude, phase: settings.silencerStepPhase)));
+                    break;
+                case SilencerMode.FixedCompletionTime:
+                    builder.Push(new SetSilencer(new FixedCompletionTime()));
+                    break;
+            }
+
+            using var frames = builder.Build();
+            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
+
+            _prevSilencerMode = settings.silencerMode;
+            _prevSilStepPhase = settings.silencerStepPhase;
+            _prevSilStepAmp = settings.silencerStepAmplitude;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply silencer: {ex.Message}");
+        }
+    }
+#else
+    public void ApplySilencer()
+    {
+        if (_autd == null) return;
+
+        try
+        {
+            switch (settings.silencerMode)
+            {
+                case SilencerMode.Disabled:
+                    lock (_sendLock) { _autd.Send(Silencer.Disable()); }
+                    break;
+                case SilencerMode.FixedUpdateRate:
+                    lock (_sendLock) { _autd.Send(new Silencer(new FixedUpdateRate { Intensity = settings.silencerStepAmplitude, Phase = settings.silencerStepPhase })); }
+                    break;
+                case SilencerMode.FixedCompletionTime:
+                    lock (_sendLock) { _autd.Send(new Silencer(new FixedCompletionTime())); }
+                    break;
+            }
+
+            _prevSilencerMode = settings.silencerMode;
+            _prevSilStepPhase = settings.silencerStepPhase;
+            _prevSilStepAmp = settings.silencerStepAmplitude;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply silencer: {ex.Message}");
+        }
+    }
+#endif
+
+    /// <summary>
+    /// 冷却ファンの状態（ON/OFF）を適用します。
+    /// </summary>
+#if !USE_AUTD3_LEGACY
+    public async void ApplyFan()
+    {
+        if (_client == null || _geometry == null) return;
+
+        try
+        {
+            using var builder = _client.DatagramBuilder();
+            builder.Push(new ForceFan(settings.enableFan));
+
+            using var frames = builder.Build();
+            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
+
+            _prevFanState = settings.enableFan;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply fan state: {ex.Message}");
+        }
+    }
+#else
+    public void ApplyFan()
+    {
+        if (_autd == null) return;
+
+        try
+        {
+            lock (_sendLock) { _autd.Send(new ForceFan(dev => settings.enableFan)); }
+            _prevFanState = settings.enableFan;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply fan state: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 環境温度（摂氏）を適用します。
+    /// </summary>
+    public void ApplyTemperature()
+    {
+        if (_autd == null) return;
+
+        try
+        {
+            _autd.Environment.SetSoundSpeedFromTemp(settings.temperature);
+            _prevTemperature = settings.temperature;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to set temperature: {ex.Message}");
+        }
+    }
+#endif
 
     /// <summary>
     /// 出力を停止 (Null 送信) します。
@@ -253,198 +418,6 @@ public class HAP_AUTDHardwareManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to send Null: {ex.Message}");
-        }
-    }
-#endif
-
-    /// <summary>
-    /// 変調（Modulation）設定をデバイスに送信します。
-    /// </summary>
-#if !USE_AUTD3_LEGACY
-    public async void ApplyModulation()
-    {
-        if (_client == null || _geometry == null) return;
-
-        try
-        {
-            using var builder = _client.DatagramBuilder();
-            using var modulationBuffer = Modulation.ModulationBuffer();
-
-            switch (modulationMode)
-            {
-                case ModulationMode.Sine:
-                    Modulation.Sine(sineFrequency * Hz, new SineOption(), modulationBuffer);
-                    builder.Push(new Modulation(SamplingConfig.Freq4k, modulationBuffer));
-                    break;
-                case ModulationMode.Static:
-                    byte intensity = (byte)Mathf.Clamp(staticAmplitude * 255f, 0, 255);
-                    Modulation.Constant(intensity, modulationBuffer);
-                    builder.Push(new Modulation(SamplingConfig.Freq4k, modulationBuffer));
-                    break;
-            }
-
-            using var frames = builder.Build();
-            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
-
-            _prevModMode = modulationMode;
-            _prevSineFreq = sineFrequency;
-            _prevStaticAmp = staticAmplitude;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply modulation: {ex.Message}");
-        }
-    }
-#else
-    public void ApplyModulation()
-    {
-        if (_autd == null) return;
-
-        try
-        {
-            switch (modulationMode)
-            {
-                case ModulationMode.Sine:
-                    lock (_sendLock) { _autd.Send(new Sine(freq: sineFrequency * Hz, option: new SineOption())); }
-                    break;
-                case ModulationMode.Static:
-                    lock (_sendLock) { _autd.Send(new Static()); }
-                    break;
-            }
-
-            _prevModMode = modulationMode;
-            _prevSineFreq = sineFrequency;
-            _prevStaticAmp = staticAmplitude;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply modulation: {ex.Message}");
-        }
-    }
-#endif
-
-    /// <summary>
-    /// サイレンサー（Silencer）設定をデバイスに送信します。
-    /// </summary>
-#if !USE_AUTD3_LEGACY
-    public async void ApplySilencer()
-    {
-        if (_client == null || _geometry == null) return;
-
-        try
-        {
-            using var builder = _client.DatagramBuilder();
-
-            switch (silencerMode)
-            {
-                case SilencerMode.Disabled:
-                    builder.Push(SetSilencer.Disable());
-                    break;
-                case SilencerMode.FixedUpdateRate:
-                    builder.Push(new SetSilencer(new FixedUpdateRate(intensity: silencerStepAmplitude, phase: silencerStepPhase)));
-                    break;
-                case SilencerMode.FixedCompletionTime:
-                    builder.Push(new SetSilencer(new FixedCompletionTime()));
-                    break;
-            }
-
-            using var frames = builder.Build();
-            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
-
-            _prevSilencerMode = silencerMode;
-            _prevSilStepPhase = silencerStepPhase;
-            _prevSilStepAmp = silencerStepAmplitude;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply silencer: {ex.Message}");
-        }
-    }
-#else
-    public void ApplySilencer()
-    {
-        if (_autd == null) return;
-
-        try
-        {
-            switch (silencerMode)
-            {
-                case SilencerMode.Disabled:
-                    lock (_sendLock) { _autd.Send(Silencer.Disable()); }
-                    break;
-                case SilencerMode.FixedUpdateRate:
-                    lock (_sendLock) { _autd.Send(new Silencer(new FixedUpdateRate { Intensity = silencerStepAmplitude, Phase = silencerStepPhase })); }
-                    break;
-                case SilencerMode.FixedCompletionTime:
-                    lock (_sendLock) { _autd.Send(new Silencer(new FixedCompletionTime())); }
-                    break;
-            }
-
-            _prevSilencerMode = silencerMode;
-            _prevSilStepPhase = silencerStepPhase;
-            _prevSilStepAmp = silencerStepAmplitude;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply silencer: {ex.Message}");
-        }
-    }
-#endif
-
-    /// <summary>
-    /// 冷却ファンの状態（ON/OFF）を適用します。
-    /// </summary>
-#if !USE_AUTD3_LEGACY
-    public async void ApplyFan()
-    {
-        if (_client == null || _geometry == null) return;
-
-        try
-        {
-            using var builder = _client.DatagramBuilder();
-            builder.Push(new ForceFan(enableFan));
-
-            using var frames = builder.Build();
-            foreach (var frame in frames) { await _client.SendCheckedAsync(frame); }
-
-            _prevFanState = enableFan;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply fan state: {ex.Message}");
-        }
-    }
-#else
-    public void ApplyFan()
-    {
-        if (_autd == null) return;
-
-        try
-        {
-            lock (_sendLock) { _autd.Send(new ForceFan(dev => enableFan)); }
-            _prevFanState = enableFan;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to apply fan state: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// 環境温度（摂氏）を適用します。
-    /// </summary>
-    public void ApplyTemperature()
-    {
-        if (_autd == null) return;
-
-        try
-        {
-            _autd.Environment.SetSoundSpeedFromTemp(temperature);
-            _prevTemperature = temperature;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[HAP_AUTDHardwareManager] Failed to set temperature: {ex.Message}");
         }
     }
 #endif

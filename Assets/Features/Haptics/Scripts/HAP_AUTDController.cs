@@ -15,35 +15,16 @@ using AUTD3Sharp.Gain;
 
 #nullable enable
 
-public enum HapticsGenerationMode
-{
-    Simplified,
-    Precision
-}
-
-public enum AUTDLinkType
-{
-    TwinCAT,
-    SOEM,
-    Simulator
-}
-
 /// <summary>
 /// HCD_Pipeline によって計算された接触重心を受け取り、
 /// AUTD3デバイス群に GSPAT (Acoustic Holography) 等を用いてマルチフォーカス出力を行うコントローラー。
 /// 
 /// 公式AUTD3SharpのC#ネイティブラッパーとして機能し、ハードウェア接続・制御は HAP_AUTDHardwareManager に委譲します。
-/// 
-/// ※ ファイル分割構成:
-/// - HAP_AUTDController.cs : コアロジック（Inspector設定、Awake/Update）
-/// - HAP_AUTDController_Config.cs : ハードウェア設定監視の委譲
-/// - HAP_AUTDController_Haptics.cs : 接触クラスタからの触覚データ(STM/Sequential)生成・送信
-/// - HAP_AUTDController_API.cs : 外部スクリプトからの手動操作API
 /// </summary>
 public partial class HAP_AUTDController : MonoBehaviour
 {
     [Header("Hardware Reference")]
-    [Tooltip("AUTDデバイスの物理接続およびハードウェア設定を管理するマネージャー。未指定時は自動取得します。")]
+    [Tooltip("AUTDデバイスの物理接続および動作パラメータを管理するマネージャー。未指定時は自動取得します。")]
     public HAP_AUTDHardwareManager hardwareManager = null!;
 
     [Header("Dependencies")]
@@ -70,43 +51,43 @@ public partial class HAP_AUTDController : MonoBehaviour
     }
     public float temperature
     {
-        get => hardwareManager != null ? hardwareManager.temperature : 25f;
-        set { if (hardwareManager != null) hardwareManager.temperature = value; }
+        get => hardwareManager != null ? hardwareManager.settings.temperature : 25f;
+        set { if (hardwareManager != null) hardwareManager.settings.temperature = value; }
     }
     public bool enableFan
     {
-        get => hardwareManager != null ? hardwareManager.enableFan : false;
-        set { if (hardwareManager != null) hardwareManager.enableFan = value; }
+        get => hardwareManager != null ? hardwareManager.settings.enableFan : false;
+        set { if (hardwareManager != null) hardwareManager.settings.enableFan = value; }
     }
     public ModulationMode modulationMode
     {
-        get => hardwareManager != null ? hardwareManager.modulationMode : ModulationMode.Sine;
-        set { if (hardwareManager != null) hardwareManager.modulationMode = value; }
+        get => hardwareManager != null ? hardwareManager.settings.modulationMode : ModulationMode.Sine;
+        set { if (hardwareManager != null) hardwareManager.settings.modulationMode = value; }
     }
     public float sineFrequency
     {
-        get => hardwareManager != null ? hardwareManager.sineFrequency : 150f;
-        set { if (hardwareManager != null) hardwareManager.sineFrequency = value; }
+        get => hardwareManager != null ? hardwareManager.settings.sineFrequency : 150f;
+        set { if (hardwareManager != null) hardwareManager.settings.sineFrequency = value; }
     }
     public float staticAmplitude
     {
-        get => hardwareManager != null ? hardwareManager.staticAmplitude : 1.0f;
-        set { if (hardwareManager != null) hardwareManager.staticAmplitude = value; }
+        get => hardwareManager != null ? hardwareManager.settings.staticAmplitude : 1.0f;
+        set { if (hardwareManager != null) hardwareManager.settings.staticAmplitude = value; }
     }
     public SilencerMode silencerMode
     {
-        get => hardwareManager != null ? hardwareManager.silencerMode : SilencerMode.FixedUpdateRate;
-        set { if (hardwareManager != null) hardwareManager.silencerMode = value; }
+        get => hardwareManager != null ? hardwareManager.settings.silencerMode : SilencerMode.FixedUpdateRate;
+        set { if (hardwareManager != null) hardwareManager.settings.silencerMode = value; }
     }
     public ushort silencerStepPhase
     {
-        get => hardwareManager != null ? hardwareManager.silencerStepPhase : (ushort)500;
-        set { if (hardwareManager != null) hardwareManager.silencerStepPhase = value; }
+        get => hardwareManager != null ? hardwareManager.settings.silencerStepPhase : (ushort)500;
+        set { if (hardwareManager != null) hardwareManager.settings.silencerStepPhase = value; }
     }
     public ushort silencerStepAmplitude
     {
-        get => hardwareManager != null ? hardwareManager.silencerStepAmplitude : (ushort)65535;
-        set { if (hardwareManager != null) hardwareManager.silencerStepAmplitude = value; }
+        get => hardwareManager != null ? hardwareManager.settings.silencerStepAmplitude : (ushort)65535;
+        set { if (hardwareManager != null) hardwareManager.settings.silencerStepAmplitude = value; }
     }
 
     private readonly object _fallbackLock = new object();
@@ -115,9 +96,7 @@ public partial class HAP_AUTDController : MonoBehaviour
     public void ApplyModulation() { if (hardwareManager != null) hardwareManager.ApplyModulation(); }
     public void ApplySilencer() { if (hardwareManager != null) hardwareManager.ApplySilencer(); }
     public void ApplyFan() { if (hardwareManager != null) hardwareManager.ApplyFan(); }
-#if USE_AUTD3_LEGACY
     public void ApplyTemperature() { if (hardwareManager != null) hardwareManager.ApplyTemperature(); }
-#endif
 
     [Header("Operation Settings")]
     [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
@@ -221,7 +200,6 @@ public partial class HAP_AUTDController : MonoBehaviour
                 hardwareManager = FindAnyObjectByType<HAP_AUTDHardwareManager>();
                 if (hardwareManager == null)
                 {
-                    Debug.LogWarning("[HAP_AUTDController] HAP_AUTDHardwareManager is not assigned and was not found in the scene. Adding component automatically.");
                     hardwareManager = gameObject.AddComponent<HAP_AUTDHardwareManager>();
                 }
             }
@@ -246,9 +224,6 @@ public partial class HAP_AUTDController : MonoBehaviour
         performanceProfiler.LogEnabled = enableLog;
         performanceProfiler.LogInterval = profilingLogInterval;
 
-        // インスペクターの設定変更を監視して適用（HAP_AUTDController_Config.cs -> hardwareManager）
-        CheckForConfigChanges();
-        
         // Modulation Override の解決
         ResolveModulationOverrides();
 
@@ -273,4 +248,3 @@ public partial class HAP_AUTDController : MonoBehaviour
 #endif
     }
 }
-

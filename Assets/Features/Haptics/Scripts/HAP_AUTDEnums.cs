@@ -57,6 +57,25 @@ public enum ModulationMode
 }
 
 /// <summary>
+/// 触覚生成モード（単純1点 or 形状に沿った精密生成）
+/// </summary>
+public enum HapticsGenerationMode
+{
+    Simplified,
+    Precision
+}
+
+/// <summary>
+/// AUTD3デバイスとの通信接続タイプ
+/// </summary>
+public enum AUTDLinkType
+{
+    TwinCAT,
+    SOEM,
+    Simulator
+}
+
+/// <summary>
 /// サイレンサーモード（超音波出力の急激な変化を和らげ、騒音を減らす設定）
 /// </summary>
 public enum SilencerMode
