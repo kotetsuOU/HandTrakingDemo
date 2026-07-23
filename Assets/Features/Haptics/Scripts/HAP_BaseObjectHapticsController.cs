@@ -155,7 +155,7 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
 
     protected virtual void OnDrawGizmos()
     {
-        if (!drawGizmos) return;
+        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return;
 
         foreach (var info in TargetInfos)
         {

@@ -191,7 +191,7 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
 
     protected override void OnDrawGizmos()
     {
-        if (!drawGizmos) return;
+        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return;
 
         int idx = 0;
         Color[] colors = new Color[] { Color.cyan, Color.magenta, Color.yellow, Color.green };

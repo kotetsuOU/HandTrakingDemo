@@ -61,7 +61,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     }
 
     /// <summary>
-    /// 指定されたインデックスのコントローラーのみを enabled = true にし、他を enabled = false に排他切り替えします。
+    /// 指定されたインデックスのコントローラーのみを enabled / GameObject.SetActive = true にし、他を非アクティブへ連動切り替えします。
     /// </summary>
     public void SetActiveControllerIndex(int index)
     {
@@ -76,9 +76,17 @@ public class HAP_AUTDHapticsController : MonoBehaviour
 
         for (int i = 0; i < objectHapticsControllers.Count; i++)
         {
-            if (objectHapticsControllers[i] != null)
+            var ctrl = objectHapticsControllers[i];
+            if (ctrl != null)
             {
-                objectHapticsControllers[i].enabled = (i == activeObjectControllerIndex);
+                bool isActive = (i == activeObjectControllerIndex);
+                ctrl.enabled = isActive;
+
+                // 自身とは別のGameObjectにアタッチされている場合、GameObject自体の SetActive も同期
+                if (ctrl.gameObject != this.gameObject)
+                {
+                    ctrl.gameObject.SetActive(isActive);
+                }
             }
         }
     }
