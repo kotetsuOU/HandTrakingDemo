@@ -30,7 +30,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
     private SerializedProperty stmModeProp;
     private SerializedProperty sequentialSTMFrequencyProp;
     private SerializedProperty trackModeProp;
-    private SerializedProperty customInnerAlgorithmProp;
 
     private SerializedProperty drawGizmosProp;
     private SerializedProperty activeColorProp;
@@ -63,7 +62,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         stmModeProp = serializedObject.FindProperty("stmMode");
         sequentialSTMFrequencyProp = serializedObject.FindProperty("sequentialSTMFrequency");
         trackModeProp = serializedObject.FindProperty("trackMode");
-        customInnerAlgorithmProp = serializedObject.FindProperty("customInnerAlgorithm");
 
         drawGizmosProp = serializedObject.FindProperty("drawGizmos");
         activeColorProp = serializedObject.FindProperty("activeColor");
@@ -129,7 +127,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         {
             // GainSTM の場合のみ表示
             EditorGUILayout.PropertyField(trackModeProp);
-            EditorGUILayout.PropertyField(customInnerAlgorithmProp);
         }
         else
         {

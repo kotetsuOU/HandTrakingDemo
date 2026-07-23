@@ -15,28 +15,6 @@ public enum HoloAlgorithm
     /// <summary>
     /// Naiveアルゴリズム（計算は単純だが、フォーカス数が増えると精度が下がる場合がある）
     /// </summary>
-    Naive,
-
-    /// <summary>
-    /// クラス独自のカスタムアルゴリズム・照射モードを使用します
-    /// </summary>
-    Custom
-}
-
-/// <summary>
-/// 実際に位相・振幅計算を行うホログラフィソルバーの選択
-/// HoloAlgorithmと異なり、Custom等の特殊モードを含まない純粋な計算エンジン選択に使用します
-/// </summary>
-public enum HoloSolverAlgorithm
-{
-    /// <summary>
-    /// GSPATソルバー（多焦点向けの反復最適化。単焦点には過剰）
-    /// </summary>
-    GSPAT,
-
-    /// <summary>
-    /// Naiveソルバー（単焦点向けに最適。素子数にO(N)で軽量）
-    /// </summary>
     Naive
 }
 

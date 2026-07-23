@@ -31,7 +31,6 @@ public static class HAP_ObjectFociGenerator
         if (controller == null) return result;
 
         bool useCustomCycle = controller.autdController != null 
-            && controller.autdController.holoAlgorithm == HoloAlgorithm.Custom
             && (controller.stmMode == HapticsSTMMode.FociSTM || (controller.stmMode == HapticsSTMMode.GainSTM && controller.trackMode == HapticsTrackMode.Sequential));
 
         if (useCustomCycle)

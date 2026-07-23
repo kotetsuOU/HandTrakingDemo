@@ -73,11 +73,8 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     [Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
     public HapticsSTMMode stmMode = HapticsSTMMode.FociSTM;
 
-    [Tooltip("STMの再生周波数 (Hz)。")]
+    [Tooltip("STMの再生周波数 (Hz)。単焦点・多焦点いずれのSTMでも再生速度として利用されます。")]
     public float stmFrequency = 150f;
-
-    [Tooltip("単焦点計算に使用する内部ソルバー（Customアルゴリズム選択時等のフォールバック）。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
-    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
 
 #if USE_AUTD3_LEGACY
     [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
@@ -175,17 +172,9 @@ public class HAP_AUTDHapticsController : MonoBehaviour
             }
         }
 
-        HoloAlgorithm effectiveAlgorithm = holoAlgorithm;
-        if (effectiveAlgorithm == HoloAlgorithm.Custom)
-        {
-            HoloSolverAlgorithm innerAlg = useObjectHaptics
-                ? objectHapticsController!.CustomInnerAlgorithm
-                : customInnerAlgorithm;
-
-            effectiveAlgorithm = innerAlg == HoloSolverAlgorithm.Naive
-                ? HoloAlgorithm.Naive
-                : HoloAlgorithm.GSPAT;
-        }
+        HoloAlgorithm effectiveAlgorithm = (stmMode == HapticsSTMMode.FociSTM)
+            ? HoloAlgorithm.Naive
+            : holoAlgorithm;
 
         if (hasActiveTargets)
         {

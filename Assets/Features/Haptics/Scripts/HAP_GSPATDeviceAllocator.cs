@@ -167,7 +167,7 @@ public static class HAP_GSPATDeviceAllocator
             float stmFreq = clusterData.First(c => c.UseSTM).STMFrequency;
             bool isGainStm = clusterData.Any(c => c.IsGainSTM);
 
-            if (isGainStm && (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom))
+            if (isGainStm && holoAlgorithm == HoloAlgorithm.GSPAT)
             {
                 // GainSTM (PC計算による複数焦点STM) の生成
                 var gains = new List<IGain>();
@@ -273,7 +273,7 @@ public static class HAP_GSPATDeviceAllocator
                     UnityEngine.Debug.LogError($"[HAP] INVALID foci[{fi}]: pos=({p3.X},{p3.Y},{p3.Z}) amp={ampPa}Pa NaN={hasNaN} Inf={hasInf}");
             }
 
-            if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
+            if (holoAlgorithm == HoloAlgorithm.GSPAT)
                 return new GSPAT(mergedFoci.ToArray(), new GSPATOption());
             else
                 return new Naive(mergedFoci.ToArray(), new NaiveOption());
@@ -428,7 +428,7 @@ public static class HAP_GSPATDeviceAllocator
             float stmFreq = clusterData.First(c => c.UseSTM).STMFrequency;
             bool isGainStm = clusterData.Any(c => c.IsGainSTM);
             
-            if (isGainStm && (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom))
+            if (isGainStm && holoAlgorithm == HoloAlgorithm.GSPAT)
             {
                 // GSPAT STM (CPU計算 -> PatternStm)
                 var patterns = new PatternBuffer[maxSamples];
@@ -526,7 +526,7 @@ public static class HAP_GSPATDeviceAllocator
             }
 
             var option = new GspatOption(repeat: 100, constraint: null, directivity: Directivity.Sphere, backend: default, mask: mask);
-            if (holoAlgorithm == HoloAlgorithm.GSPAT || holoAlgorithm == HoloAlgorithm.Custom)
+            if (holoAlgorithm == HoloAlgorithm.GSPAT)
             {
                 AUTD3.Holo.Holo.Gspat(geometry, mergedFoci.ToArray(), wavelength, option, buffer);
             }

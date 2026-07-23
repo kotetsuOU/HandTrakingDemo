@@ -28,13 +28,23 @@
 物理的な AUTD3 デバイスの配置（トランスフォーム）と管理用IDを表すシンプルなマーカーコンポーネントです。
 Unityシーン内に配置されたこのオブジェクトの位置と回転が、そのまま音響シミュレーションにおける超音波振動子の基準座標系となります。
 
-### `HAP_AUTDController.cs`
-ハプティクス出力のメインオーケストレーターです。`OperationMode` により、自動制御モードと手動制御モードを切り替えることができます。
-役割を明確にするため、Controller自身は以下の `partial class` に分割されており、ハプティクスの具体的な計算は外部の静的クラスへ委譲しています。
-- `HAP_AUTDController.cs`: コアロジック（Inspector設定、Awake/Update/OnDestroy）
-- `HAP_AUTDController_Config.cs`: ハードウェア設定の適用（Modulation, Silencer, Fan など）
-- `HAP_AUTDController_Haptics.cs`: `HCD_Pipeline` から接触クラスタを受け取り、GSPAT等の信号を生成・自動送信する処理
-- `HAP_AUTDController_API.cs`: 手動制御や外部からの操作API群
+### コントローラー構造（解体・役割分離設計）
+神クラス化および多重 Serialize 参照を防ぐため、コントローラーは役割ごとに**通信・ハードウェア制御**と**触覚演算パイプライン**の2つの独立した `MonoBehaviour` コンポーネントに物理分割されています。
+
+#### `HAP_AUTDHardwareController.cs`
+物理接続およびデバイスの環境設定、手動操作 API を管理するコンポーネントです。
+- **機能**: デバイス物理接続（TwinCAT / SOEM / Simulator）、ファン・環境温度設定、変調 (Modulation)、サイレンサー (Silencer) の維持適用。
+- **手動 API**: `SetFocus()`, `SetHolo()`, `SetFan()`, `SetNull()`, `Send()` などの操作インターフェースを提供。
+- **内部設計**: 通信およびパラメータ適用ロジックは非MonoBehaviourな純粋 C# サービスクラス（`HAP_AUTDLinkService`, `HAP_AUTDModulationService`）に隠蔽カプセル化されており、Inspector の肥大化や余計なコンポーネント参照を防いでいます。
+
+#### `HAP_AUTDHapticsController.cs`
+リアルタイム触覚信号の演算と照射制御を担当するパイプラインコンポーネントです。
+- **機能**: `HCD_Pipeline` から確定した接触点・クラスタデータを受け取り、リアルタイムに焦点・GSPAT（Acoustic Holography）・STM（Spatio-Temporal Modulation）を計算。`HAP_AUTDHardwareController` 経由で超音波を出力。
+- **ソース設定**: 接触領域の「重心 (Centroid)」「形状楕円 (Ellipse)」「ランダム点 (Random)」などの各表現ソース設定を独立保持。
+
+#### 純粋 C# サービスクラス (POCO Services)
+- `HAP_AUTDLinkService.cs`: 通信ライフサイクル（Open/Close）、`Client`/`Geometry`/`Controller` の所有、送信ロック（`SendLock`）の管理を担当。
+- `HAP_AUTDModulationService.cs`: 変調・サイレンサー・ファン・温度設定の差分変更を監視し、変更時のみデバイスへパラメータ送信を適用。
 
 また、接触データから実際のフォーカス（焦点）を生成する処理や、デバイスへの割り当て処理は以下のクラスが担当します。
 - `HAP_FociGenerator.cs`: 手・接触クラスタデータから焦点（Centroid/Ellipse/Random）を生成

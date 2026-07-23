@@ -23,7 +23,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
 
     private SerializedProperty stmModeProp = null!;
     private SerializedProperty stmFrequencyProp = null!;
-    private SerializedProperty customInnerAlgorithmProp = null!;
     private SerializedProperty gainStmModeProp = null!;
 
     private SerializedProperty offsetProp = null!;
@@ -52,7 +51,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
 
         stmModeProp = serializedObject.FindProperty("stmMode");
         stmFrequencyProp = serializedObject.FindProperty("stmFrequency");
-        customInnerAlgorithmProp = serializedObject.FindProperty("customInnerAlgorithm");
         gainStmModeProp = serializedObject.FindProperty("gainStmMode");
 
         offsetProp = serializedObject.FindProperty("offset");
@@ -105,17 +103,18 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         EditorGUI.indentLevel++;
         EditorGUILayout.PropertyField(stmFrequencyProp, new GUIContent("STM Frequency (Hz)"));
 
-        HoloAlgorithm holoAlg = (HoloAlgorithm)holoAlgorithmProp.enumValueIndex;
         HapticsSTMMode stmMode = (HapticsSTMMode)stmModeProp.enumValueIndex;
 
-        if (stmMode == HapticsSTMMode.GainSTM && gainStmModeProp != null)
+        if (stmMode == HapticsSTMMode.FociSTM)
         {
-            EditorGUILayout.PropertyField(gainStmModeProp, new GUIContent("Gain STM Mode"));
+            EditorGUILayout.HelpBox("FociSTM uses hardware single-focus (Naive) calculation at the specified frequency.", MessageType.Info);
         }
-
-        if (stmMode == HapticsSTMMode.GainSTM || holoAlg == HoloAlgorithm.Custom)
+        else if (stmMode == HapticsSTMMode.GainSTM)
         {
-            EditorGUILayout.PropertyField(customInnerAlgorithmProp);
+            if (gainStmModeProp != null)
+            {
+                EditorGUILayout.PropertyField(gainStmModeProp, new GUIContent("Gain STM Mode"));
+            }
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();

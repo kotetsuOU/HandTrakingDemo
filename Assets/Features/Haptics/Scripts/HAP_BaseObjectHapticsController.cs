@@ -63,9 +63,6 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     [Tooltip("照射ターゲットの追跡・照射モード。\nSimultaneous: すべて同時に狙う（複数焦点）。\nSequential: 1つずつ順次切り替える（単焦点）。")]
     public HapticsTrackMode trackMode = HapticsTrackMode.Sequential;
 
-    [Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
-    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
-
     [Header("Debug Visualization")]
     [Tooltip("Sceneビュー上にターゲットの位置を示すGizmoを描画します。")]
     public bool drawGizmos = true;
@@ -102,11 +99,6 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     {
         return HAP_ObjectFociGenerator.Generate(this, defaultIntensityPascal, offset);
     }
-
-    /// <summary>
-    /// 単焦点計算に使用する内部ソルバー。
-    /// </summary>
-    public virtual HoloSolverAlgorithm CustomInnerAlgorithm => customInnerAlgorithm;
 
     /// <summary>
     /// STMの照射モード。
