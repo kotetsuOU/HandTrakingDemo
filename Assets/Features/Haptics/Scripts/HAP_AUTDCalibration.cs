@@ -11,6 +11,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
 {
     public HAP_AUTDHapticsController hapticsController = null!;
     public HAP_AUTDHardwareController hardwareController = null!;
+    public HAP_AUTDTransformLoader transformLoader = null!;
 
     [Header("Calibration Mode")]
     [Tooltip("When enabled, bypasses normal Haptics output and emits calibration focus based on the settings below.")]
@@ -37,6 +38,11 @@ public class HAP_AUTDCalibration : MonoBehaviour
     {
         if (hapticsController == null) hapticsController = FindAnyObjectByType<HAP_AUTDHapticsController>();
         if (hardwareController == null) hardwareController = FindAnyObjectByType<HAP_AUTDHardwareController>();
+        if (transformLoader == null)
+        {
+            if (hapticsController != null && hapticsController.transformLoader != null) transformLoader = hapticsController.transformLoader;
+            else transformLoader = FindAnyObjectByType<HAP_AUTDTransformLoader>();
+        }
     }
 
     void Update()
@@ -60,7 +66,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
         foreach (var b in targetDevices) if (!b) allTrue = false;
 
         byte intensityVal = (byte)Mathf.Clamp(focusAmplitude * 255f, 0f, 255f);
-        Vector3 offset = hapticsController != null ? hapticsController.offset : Vector3.zero;
+        Vector3 offset = transformLoader != null ? transformLoader.offset : Vector3.zero;
 
         AUTD3Sharp.Driver.Datagram.IDatagram targetDatagram;
         
@@ -123,27 +129,29 @@ public class HAP_AUTDCalibration : MonoBehaviour
                 if (deviceIndex < 0 || deviceIndex >= mapping.Length) return "null";
                 return mapping[deviceIndex];
             }, groupDict);
+
+            hardwareController.Send(groupDatagram);
         }
     }
 
     /// <summary>
-    /// 迴ｾ蝨ｨ縺ｮ縺薙・繧ｪ繝悶ず繧ｧ繧ｯ繝医・Transform繧但UTDController縺ｮOffset縺ｫ驕ｩ逕ｨ縺励€∽ｽ咲ｽｮ繧偵Μ繧ｻ繝・ヨ縺励∪縺・
+    /// 現在のこのオブジェクトのTransformをTransformLoaderのOffsetに適用し、位置をリセットします。
     /// </summary>
     public void ApplyOffset()
     {
-        if (hapticsController == null) return;
+        if (transformLoader == null) return;
         
-        hapticsController.offset += this.transform.localPosition;
+        transformLoader.offset += this.transform.localPosition;
         this.transform.localPosition = Vector3.zero;
         this.transform.localRotation = Quaternion.identity;
     }
 
     /// <summary>
-    /// 迴ｾ蝨ｨ縺ｮFocusTarget縺ｨ豁｣隗｣菴咲ｽｮ・・ruePositionTarget・峨・蟾ｮ蛻・°繧峨が繝輔そ繝・ヨ繧定ｨ育ｮ励＠驕ｩ逕ｨ縺励∪縺・
+    /// 現在のFocusTargetと正解位置（truePositionTarget）の差分からオフセットを計算し適用します。
     /// </summary>
     public void ApplyOffsetByDifference()
     {
-        if (hapticsController == null) return;
+        if (transformLoader == null) return;
         
         Vector3 focusPos = singleFocusTarget != null ? singleFocusTarget.position : singleFocusPosition;
         
@@ -154,20 +162,19 @@ public class HAP_AUTDCalibration : MonoBehaviour
         }
 
         Vector3 diff = focusPos - truePositionTarget.position;
-        hapticsController.offset += diff;
+        transformLoader.offset += diff;
         
-        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {hapticsController.offset}");
+        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {transformLoader.offset}");
     }
 
     /// <summary>
-    /// 迴ｾ蝨ｨ縺ｮoffset繧探argetDevices縺ｧ驕ｸ謚槭＆繧後※縺・ｋAUTD3Device縺ｮTransform縺ｫ豌ｸ邯夂噪縺ｫ蜿肴丐・・ake・峨＠縲｛ffset繧偵Μ繧ｻ繝・ヨ縺励∪縺吶€・
-    /// ・・argetPos_cmd = TargetPos + offset 縺後ョ繝舌う繧ｹ縺九ｉ縺ｮ逶ｸ蟇ｾ霍晞屬縺ｨ縺ｪ繧九◆繧√€√ョ繝舌う繧ｹ閾ｪ菴薙ｒ -offset 遘ｻ蜍輔＆縺帙ｋ縺薙→縺ｧ蜷後§蜉ｹ譫懊ｒ蠕励∪縺呻ｼ・
+    /// 現在のoffsetをTargetDevicesで選択されているAUTD3DeviceのTransformに永続的に反映（Bake）し、offsetをリセットします。
     /// </summary>
     public void BakeOffsetToDevices()
     {
-        if (hapticsController == null) return;
+        if (transformLoader == null) return;
 
-        Vector3 currentOffset = hapticsController.offset;
+        Vector3 currentOffset = transformLoader.offset;
         if (currentOffset == Vector3.zero)
         {
             Debug.Log("[Calibration] Offset is already zero. Nothing to bake.");
@@ -186,18 +193,15 @@ public class HAP_AUTDCalibration : MonoBehaviour
         {
             if (i < targetDevices.Count && targetDevices[i])
             {
-                // Edit繝｢繝ｼ繝峨↑縺ｩ縺ｧUndo繧堤匳骭ｲ縺吶ｋ蝣ｴ蜷医・Editor繧ｹ繧ｯ繝ｪ繝励ヨ蛛ｴ縺ｧ陦後≧
                 devices[i].transform.position -= currentOffset;
                 bakedCount++;
             }
         }
 
-        hapticsController.offset = Vector3.zero;
+        transformLoader.offset = Vector3.zero;
         Debug.Log($"[Calibration] Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
     }
 }
-
-
 
 #else
 
@@ -214,6 +218,7 @@ using HoloCP = AUTD3.Holo.ControlPoint;
 public class HAP_AUTDCalibration : MonoBehaviour
 {
     public HAP_AUTDHapticsController autdController = null!;
+    public HAP_AUTDTransformLoader transformLoader = null!;
 
     [Header("Calibration Mode")]
     [Tooltip("有効化すると通常のHaptics出力をバイパスし、この設定に基づき出力を行います")]
@@ -242,6 +247,16 @@ public class HAP_AUTDCalibration : MonoBehaviour
 
     private System.Threading.Tasks.Task? _calibrationTask = null;
 
+    void Awake()
+    {
+        if (autdController == null) autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
+        if (transformLoader == null)
+        {
+            if (autdController != null && autdController.transformLoader != null) transformLoader = autdController.transformLoader;
+            else transformLoader = FindAnyObjectByType<HAP_AUTDTransformLoader>();
+        }
+    }
+
     void Update()
     {
         if (autdController == null) return;
@@ -262,6 +277,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
 
         var client = autdController.client;
         var geometry = autdController.geometry;
+        Vector3 offset = transformLoader != null ? transformLoader.offset : Vector3.zero;
 
         var activeFoci = new List<HoloCP>();
         if (useMultiFocus && multiFocusPositions.Count > 0)
@@ -269,7 +285,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
             foreach (var p in multiFocusPositions)
             {
                 activeFoci.Add(new HoloCP(
-                    new Vector3(p.x + autdController.offset.x, p.y + autdController.offset.y, p.z + autdController.offset.z),
+                    new Vector3(p.x + offset.x, p.y + offset.y, p.z + offset.z),
                     Amplitude.FromPascal(focusAmplitude * 10000f)
                 ));
             }
@@ -278,7 +294,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
         {
             Vector3 pos = singleFocusTarget != null ? singleFocusTarget.position : singleFocusPosition;
             activeFoci.Add(new HoloCP(
-                new Vector3(pos.x + autdController.offset.x, pos.y + autdController.offset.y, pos.z + autdController.offset.z),
+                new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z),
                 Amplitude.FromPascal(focusAmplitude * 10000f)
             ));
         }
@@ -317,23 +333,23 @@ public class HAP_AUTDCalibration : MonoBehaviour
     }
 
     /// <summary>
-    /// 現在のこのオブジェクトのTransformをAUTDControllerのOffsetに適用し、位置をリセットします。
+    /// 現在のこのオブジェクトのTransformをTransformLoaderのOffsetに適用し、位置をリセットします。
     /// </summary>
     public void ApplyOffset()
     {
-        if (autdController == null) return;
+        if (transformLoader == null) return;
         
-        autdController.offset += this.transform.localPosition;
+        transformLoader.offset += this.transform.localPosition;
         this.transform.localPosition = Vector3.zero;
         this.transform.localRotation = Quaternion.identity;
     }
 
     /// <summary>
-    /// 現在のFocusTargetと正解位置（TruePositionTarget）の差分からオフセットを計算し適用します。
+    /// 現在のFocusTargetと正解位置（truePositionTarget）の差分からオフセットを計算し適用します。
     /// </summary>
     public void ApplyOffsetByDifference()
     {
-        if (autdController == null) return;
+        if (transformLoader == null) return;
         
         Vector3 focusPos = singleFocusTarget != null ? singleFocusTarget.position : singleFocusPosition;
         
@@ -344,19 +360,19 @@ public class HAP_AUTDCalibration : MonoBehaviour
         }
 
         Vector3 diff = focusPos - truePositionTarget.position;
-        autdController.offset += diff;
+        transformLoader.offset += diff;
         
-        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {autdController.offset}");
+        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {transformLoader.offset}");
     }
 
     /// <summary>
-    /// 現在のoffsetをTargetDevicesで選択されているAUTD3DeviceのTransformに永続的に反映し、offsetをリセットします。
+    /// 現在のoffsetをTargetDevicesで選択されているAUTD3DeviceのTransformに永続的に反映（Bake）し、offsetをリセットします。
     /// </summary>
     public void BakeOffsetToDevices()
     {
-        if (autdController == null) return;
+        if (transformLoader == null) return;
 
-        Vector3 currentOffset = autdController.offset;
+        Vector3 currentOffset = transformLoader.offset;
         if (currentOffset == Vector3.zero)
         {
             Debug.Log("[Calibration] Offset is already zero. Nothing to bake.");
@@ -380,12 +396,9 @@ public class HAP_AUTDCalibration : MonoBehaviour
             }
         }
 
-        autdController.offset = Vector3.zero;
+        transformLoader.offset = Vector3.zero;
         Debug.Log($"[Calibration] Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
     }
 }
 
 #endif
-
-
- 

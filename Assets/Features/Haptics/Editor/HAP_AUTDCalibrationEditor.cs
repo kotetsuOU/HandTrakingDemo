@@ -5,7 +5,7 @@ using System.Linq;
 [CustomEditor(typeof(HAP_AUTDCalibration))]
 public class HAP_AUTDCalibrationEditor : Editor
 {
-    private HAP_AUTDCalibration script;
+    private HAP_AUTDCalibration script = null!;
     private const string PREFS_KEY = "HAP_AUTDCalibration_State";
 
     private void OnEnable()
@@ -37,8 +37,12 @@ public class HAP_AUTDCalibrationEditor : Editor
         // ------------------
         // Controller Ref
         // ------------------
-        EditorGUILayout.PropertyField(serializedObject.FindProperty("autdController"));
+        var autdProp = serializedObject.FindProperty("autdController") ?? serializedObject.FindProperty("hapticsController");
+        if (autdProp != null) EditorGUILayout.PropertyField(autdProp);
         
+        var transformLoaderProp = serializedObject.FindProperty("transformLoader");
+        if (transformLoaderProp != null) EditorGUILayout.PropertyField(transformLoaderProp);
+
         EditorGUILayout.Space();
 
         // ------------------
@@ -130,20 +134,20 @@ public class HAP_AUTDCalibrationEditor : Editor
         
         if (GUILayout.Button("Apply Transform Offset (Legacy)", GUILayout.Height(24)))
         {
-            if (script.hapticsController != null)
+            if (script.transformLoader != null)
             {
-                Undo.RecordObject(script.hapticsController, "Apply AUTD Offset");
+                Undo.RecordObject(script.transformLoader, "Apply AUTD Offset");
                 Undo.RecordObject(script.transform, "Reset Calibration Transform");
                 
                 script.ApplyOffset();
                 
-                EditorUtility.SetDirty(script.hapticsController);
+                EditorUtility.SetDirty(script.transformLoader);
                 if (Application.isPlaying) SaveState();
-                Debug.Log("[Calibration] Applied legacy offset to AUTD Controller.");
+                Debug.Log("[Calibration] Applied legacy offset to AUTD TransformLoader.");
             }
             else
             {
-                Debug.LogWarning("[Calibration] AUTD Controller is not assigned.");
+                Debug.LogWarning("[Calibration] AUTD TransformLoader is not assigned.");
             }
         }
 
@@ -151,18 +155,18 @@ public class HAP_AUTDCalibrationEditor : Editor
 
         if (GUILayout.Button("Calculate & Add Offset\n(FocusTarget -> TruePosition)", GUILayout.Height(36)))
         {
-            if (script.hapticsController != null)
+            if (script.transformLoader != null)
             {
-                Undo.RecordObject(script.hapticsController, "Calculate & Add AUTD Offset");
+                Undo.RecordObject(script.transformLoader, "Calculate & Add AUTD Offset");
                 
                 script.ApplyOffsetByDifference();
                 
-                EditorUtility.SetDirty(script.hapticsController);
+                EditorUtility.SetDirty(script.transformLoader);
                 if (Application.isPlaying) SaveState();
             }
             else
             {
-                Debug.LogWarning("[Calibration] AUTD Controller is not assigned.");
+                Debug.LogWarning("[Calibration] AUTD TransformLoader is not assigned.");
             }
         }
 
@@ -175,7 +179,7 @@ public class HAP_AUTDCalibrationEditor : Editor
         GUI.backgroundColor = new Color(1f, 0.8f, 0.5f);
         if (GUILayout.Button("Bake Offset to Devices\n(Reset Offset & Move Devices)", GUILayout.Height(36)))
         {
-            if (script.hapticsController != null)
+            if (script.transformLoader != null)
             {
                 var allDevices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None).OrderBy(d => d.ID).ToArray();
                 for (int i = 0; i < allDevices.Length; i++)
@@ -185,11 +189,11 @@ public class HAP_AUTDCalibrationEditor : Editor
                         Undo.RecordObject(allDevices[i].transform, "Bake AUTD Offset to Device");
                     }
                 }
-                Undo.RecordObject(script.hapticsController, "Bake AUTD Offset (Reset)");
+                Undo.RecordObject(script.transformLoader, "Bake AUTD Offset (Reset)");
                 
                 script.BakeOffsetToDevices();
                 
-                EditorUtility.SetDirty(script.hapticsController);
+                EditorUtility.SetDirty(script.transformLoader);
                 for (int i = 0; i < allDevices.Length; i++)
                 {
                     if (i < script.targetDevices.Count && script.targetDevices[i])
@@ -201,23 +205,23 @@ public class HAP_AUTDCalibrationEditor : Editor
             }
             else
             {
-                Debug.LogWarning("[Calibration] AUTD Controller is not assigned.");
+                Debug.LogWarning("[Calibration] AUTD TransformLoader is not assigned.");
             }
         }
         GUI.backgroundColor = Color.white;
         GUI.enabled = true;
 
-        if (script.hapticsController != null)
+        if (script.transformLoader != null)
         {
             EditorGUILayout.Space();
             
             EditorGUI.BeginChangeCheck();
-            Vector3 newOffset = EditorGUILayout.Vector3Field("Current Offset", script.hapticsController.offset);
+            Vector3 newOffset = EditorGUILayout.Vector3Field("Current Offset", script.transformLoader.offset);
             if (EditorGUI.EndChangeCheck())
             {
-                Undo.RecordObject(script.hapticsController, "Edit AUTD Offset");
-                script.hapticsController.offset = newOffset;
-                EditorUtility.SetDirty(script.hapticsController);
+                Undo.RecordObject(script.transformLoader, "Edit AUTD Offset");
+                script.transformLoader.offset = newOffset;
+                EditorUtility.SetDirty(script.transformLoader);
                 if (Application.isPlaying) SaveState();
             }
         }
@@ -247,7 +251,7 @@ public class HAP_AUTDCalibrationEditor : Editor
             singleFocusPosition = script.singleFocusPosition,
             multiFocusPositions = script.multiFocusPositions.ToArray(),
             focusAmplitude = script.focusAmplitude,
-            autdOffset = script.hapticsController != null ? script.hapticsController.offset : Vector3.zero
+            autdOffset = script.transformLoader != null ? script.transformLoader.offset : Vector3.zero
         };
 
         string json = JsonUtility.ToJson(state);
@@ -273,11 +277,11 @@ public class HAP_AUTDCalibrationEditor : Editor
                 if (state.multiFocusPositions != null) script.multiFocusPositions = state.multiFocusPositions.ToList();
                 script.focusAmplitude = state.focusAmplitude;
 
-                if (script.hapticsController != null)
+                if (script.transformLoader != null)
                 {
-                    Undo.RecordObject(script.hapticsController, "Restore AUTD Offset");
-                    script.hapticsController.offset = state.autdOffset;
-                    EditorUtility.SetDirty(script.hapticsController);
+                    Undo.RecordObject(script.transformLoader, "Restore AUTD Offset");
+                    script.transformLoader.offset = state.autdOffset;
+                    EditorUtility.SetDirty(script.transformLoader);
                 }
 
                 EditorUtility.SetDirty(script);

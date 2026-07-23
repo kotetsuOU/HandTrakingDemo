@@ -10,14 +10,11 @@ using UnityEditor;
 public class HAP_AUTDHapticsControllerEditor : Editor
 {
     private SerializedProperty hardwareControllerProp = null!;
+    private SerializedProperty transformLoaderProp = null!;
     private SerializedProperty sourceModeProp = null!;
     private SerializedProperty hcdPipelineProp = null!;
+    private SerializedProperty hcdFociSettingsProp = null!;
     private SerializedProperty objectHapticsControllersProp = null!;
-
-    private SerializedProperty generationModeProp = null!;
-    private SerializedProperty centroidSourceProp = null!;
-    private SerializedProperty ellipseSourceProp = null!;
-    private SerializedProperty randomSourceProp = null!;
 
     private SerializedProperty holoAlgorithmProp = null!;
     private SerializedProperty focusIntensityPascalProp = null!;
@@ -26,7 +23,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     private SerializedProperty stmFrequencyProp = null!;
     private SerializedProperty gainStmModeProp = null!;
 
-    private SerializedProperty offsetProp = null!;
     private SerializedProperty enableDirectionalGroupingProp = null!;
     private SerializedProperty directionalAngleThresholdProp = null!;
 
@@ -39,14 +35,11 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     private void OnEnable()
     {
         hardwareControllerProp = serializedObject.FindProperty("hardwareController");
+        transformLoaderProp = serializedObject.FindProperty("transformLoader");
         sourceModeProp = serializedObject.FindProperty("sourceMode");
         hcdPipelineProp = serializedObject.FindProperty("hcdPipeline");
+        hcdFociSettingsProp = serializedObject.FindProperty("hcdFociSettings");
         objectHapticsControllersProp = serializedObject.FindProperty("objectHapticsControllers");
-
-        generationModeProp = serializedObject.FindProperty("generationMode");
-        centroidSourceProp = serializedObject.FindProperty("centroidSource");
-        ellipseSourceProp = serializedObject.FindProperty("ellipseSource");
-        randomSourceProp = serializedObject.FindProperty("randomSource");
 
         holoAlgorithmProp = serializedObject.FindProperty("holoAlgorithm");
         focusIntensityPascalProp = serializedObject.FindProperty("focusIntensityPascal");
@@ -55,7 +48,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         stmFrequencyProp = serializedObject.FindProperty("stmFrequency");
         gainStmModeProp = serializedObject.FindProperty("gainStmMode");
 
-        offsetProp = serializedObject.FindProperty("offset");
         enableDirectionalGroupingProp = serializedObject.FindProperty("enableDirectionalGrouping");
         directionalAngleThresholdProp = serializedObject.FindProperty("directionalAngleThreshold");
 
@@ -70,11 +62,17 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     {
         serializedObject.Update();
 
-        // Hardware Component Reference
+        // Hardware Component References
         EditorGUILayout.PropertyField(hardwareControllerProp);
         if (hardwareControllerProp.objectReferenceValue == null)
         {
             EditorGUILayout.HelpBox("HardwareController is not assigned. It will be auto-detected or created on Awake.", MessageType.Info);
+        }
+
+        EditorGUILayout.PropertyField(transformLoaderProp);
+        if (transformLoaderProp.objectReferenceValue == null)
+        {
+            EditorGUILayout.HelpBox("TransformLoader is not assigned. It will be auto-detected on Awake.", MessageType.Info);
         }
         EditorGUILayout.Space();
 
@@ -86,6 +84,7 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         if (sourceMode == HapticsSourceMode.AutoHCD)
         {
             EditorGUILayout.PropertyField(hcdPipelineProp);
+            EditorGUILayout.PropertyField(hcdFociSettingsProp);
         }
         else if (sourceMode == HapticsSourceMode.ObjectTarget)
         {
@@ -97,18 +96,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
             EditorGUILayout.HelpBox("Manual Mode: Automatic Update outputs are disabled. Control ultrasound outputs via API calls (SetFocus, SetFocusStm, etc.).", MessageType.Info);
         }
         EditorGUI.indentLevel--;
-        EditorGUILayout.Space();
-
-        // Operation Mode
-        EditorGUILayout.PropertyField(generationModeProp);
-        if ((HapticsGenerationMode)generationModeProp.enumValueIndex == HapticsGenerationMode.Precision)
-        {
-            EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(centroidSourceProp, true);
-            EditorGUILayout.PropertyField(ellipseSourceProp, true);
-            EditorGUILayout.PropertyField(randomSourceProp, true);
-            EditorGUI.indentLevel--;
-        }
         EditorGUILayout.Space();
 
         // Acoustic Holography
@@ -137,8 +124,7 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();
 
-        // Coordinate & Directional Grouping
-        EditorGUILayout.PropertyField(offsetProp);
+        // Directional Grouping
         EditorGUILayout.PropertyField(enableDirectionalGroupingProp);
         if (enableDirectionalGroupingProp.boolValue)
         {

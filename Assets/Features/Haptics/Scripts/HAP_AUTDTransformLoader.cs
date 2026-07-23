@@ -49,6 +49,10 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
     [Tooltip("自動生成するデバイスの最大数")]
     public int prefabCount = 20;
 
+    [Header("Calibration / Coordinate Settings")]
+    [Tooltip("すべての焦点位置に加算されるオフセット。デバイスの原点とUnity上の位置を微調整するのに使います。")]
+    public Vector3 offset = Vector3.zero;
+
     /// <summary>
     /// 現在のシーン上のAUTDデバイスの配置をJSONファイルに保存します。
     /// （IDの重複は無視されます）

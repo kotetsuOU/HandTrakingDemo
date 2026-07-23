@@ -25,16 +25,19 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     [Tooltip("物理通信接続および送信を担当する HAP_AUTDHardwareController の参照。未指定時は自動取得します。")]
     public HAP_AUTDHardwareController hardwareController = null!;
 
+    [Tooltip("配置・座標オフセットを管理する HAP_AUTDTransformLoader の参照。未指定時は自動取得します。")]
+    public HAP_AUTDTransformLoader transformLoader = null!;
+
     [Header("Operation Settings")]
     [Tooltip("触覚出力のターゲットデータソース（AutoHCD: 手の接触クラスタ、ObjectTarget: オブジェクト部位ターゲット、Manual: 手動API）")]
     public HapticsSourceMode sourceMode = HapticsSourceMode.AutoHCD;
 
-    [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
-    public HapticsGenerationMode generationMode = HapticsGenerationMode.Simplified;
-
     [Header("Dependencies")]
     [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
     public HCD_Pipeline hcdPipeline = null!;
+
+    [Tooltip("HCDの焦点生成設定を行う HAP_HCDFociSettings の参照。未指定時は自動取得します。")]
+    public HAP_HCDFociSettings hcdFociSettings = null!;
 
     [Tooltip("オブジェクトのハプティクス制御コンポーネントのリスト。アタッチされている場合、特定オブジェクト位置へ照射します。")]
     public List<HAP_BaseObjectHapticsController> objectHapticsControllers = new List<HAP_BaseObjectHapticsController>();
@@ -58,26 +61,12 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     [HideInInspector]
     public bool bypassHaptics = false;
 
-    [Header("Precision Sources")]
-    [Tooltip("接触領域の「重心」に対して基本的な超音波の焦点を生成するソース設定")]
-    public HAP_HapticsCentroidSource centroidSource = new HAP_HapticsCentroidSource();
-    
-    [Tooltip("接触領域の「形状」を主成分分析(PCA)し、楕円状となぞるSTMを生成するソース設定")]
-    public HAP_HapticsEllipseSource ellipseSource = new HAP_HapticsEllipseSource();
-    
-    [Tooltip("接触領域内でランダムに16点をサンプリングし、不規則に飛び回るSTM（ザラザラ感）を生成するソース設定")]
-    public HAP_HapticsRandomSource randomSource = new HAP_HapticsRandomSource();
-
     [Header("Acoustic Settings")]
     [Tooltip("ホログラフィアルゴリズム。\nGSPAT: 高速・高品質。\nNaive: 計算は軽いが音圧や精度が落ちます。")]
     public HoloAlgorithm holoAlgorithm = HoloAlgorithm.GSPAT;
     
     [Tooltip("超音波の出力強度 (Pascal)。最大で 10000 程度。大きすぎるとデバイスの保護回路が働くか、クリッピングが発生します。")]
     public float focusIntensityPascal = 10000f;
-
-    [Header("Coordinate Settings")]
-    [Tooltip("すべての焦点位置に加算されるオフセット。デバイスの原点とUnity上の位置を微調整するのに使います。")]
-    public Vector3 offset = Vector3.zero;
 
     [Header("Directional Grouping")]
     [Tooltip("有効にすると、接触点の法線ベクトル（向き）とAUTDデバイスの向きを比較し、最適なデバイスからのみ超音波を照射します。")]
@@ -148,9 +137,30 @@ public class HAP_AUTDHapticsController : MonoBehaviour
             }
         }
 
+        if (transformLoader == null)
+        {
+            transformLoader = GetComponent<HAP_AUTDTransformLoader>();
+            if (transformLoader == null)
+            {
+                transformLoader = FindAnyObjectByType<HAP_AUTDTransformLoader>();
+            }
+        }
+
         if (hcdPipeline == null)
         {
             hcdPipeline = FindAnyObjectByType<HCD_Pipeline>();
+        }
+
+        if (hcdFociSettings == null)
+        {
+            if (hcdPipeline != null)
+            {
+                hcdFociSettings = hcdPipeline.GetComponent<HAP_HCDFociSettings>();
+            }
+            if (hcdFociSettings == null)
+            {
+                hcdFociSettings = FindAnyObjectByType<HAP_HCDFociSettings>();
+            }
         }
     }
 
@@ -172,6 +182,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     {
         if (bypassHaptics || sourceMode == HapticsSourceMode.Manual) return;
 
+        Vector3 currentOffset = transformLoader != null ? transformLoader.offset : Vector3.zero;
         bool hasActiveTargets = false;
         List<TrackedCluster> activeClusters = new List<TrackedCluster>();
         List<HAP_FociGenerator.ClusterFociData> clusterFociList = new List<HAP_FociGenerator.ClusterFociData>();
@@ -182,7 +193,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
             {
                 if (ctrl != null && ctrl.enabled && ctrl.HasActiveTargets())
                 {
-                    var foci = ctrl.GetHapticsTargets(focusIntensityPascal, offset);
+                    var foci = ctrl.GetHapticsTargets(focusIntensityPascal, currentOffset);
                     clusterFociList.AddRange(foci);
                 }
             }
@@ -212,16 +223,29 @@ public class HAP_AUTDHapticsController : MonoBehaviour
                 profiler.BeginFociGenerate();
                 if (sourceMode == HapticsSourceMode.AutoHCD)
                 {
-                    clusterFociList = HAP_FociGenerator.Generate(
-                        activeClusters, 
-                        generationMode, 
-                        centroidSource, 
-                        ellipseSource, 
-                        randomSource, 
-                        focusIntensityPascal, 
-                        offset,
-                        stmMode,
-                        stmFrequency);
+                    if (hcdFociSettings != null)
+                    {
+                        clusterFociList = hcdFociSettings.GenerateFoci(
+                            activeClusters,
+                            focusIntensityPascal,
+                            currentOffset,
+                            stmMode,
+                            stmFrequency);
+                    }
+                    else
+                    {
+                        // フォールバック: 設定オブジェクトが見つからない場合は Simplified モードで計算
+                        clusterFociList = HAP_FociGenerator.Generate(
+                            activeClusters,
+                            HapticsGenerationMode.Simplified,
+                            new HAP_HapticsCentroidSource(),
+                            new HAP_HapticsEllipseSource(),
+                            new HAP_HapticsRandomSource(),
+                            focusIntensityPascal,
+                            currentOffset,
+                            stmMode,
+                            stmFrequency);
+                    }
                 }
                 profiler.EndFociGenerate();
 

@@ -37,10 +37,18 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 - **手動 API**: `SetFocus()`, `SetHolo()`, `SetFan()`, `SetNull()`, `Send()` などの操作インターフェースを提供。
 - **内部設計**: 通信およびパラメータ適用ロジックは非MonoBehaviourな純粋 C# サービスクラス（`HAP_AUTDLinkService`, `HAP_AUTDModulationService`）に隠蔽カプセル化されており、Inspector の肥大化や余計なコンポーネント参照を防いでいます。
 
-#### `HAP_AUTDHapticsController.cs`
-リアルタイム触覚信号の演算と照射制御を担当するパイプラインコンポーネントです。
-- **機能**: `HCD_Pipeline` から確定した接触点・クラスタデータを受け取り、リアルタイムに焦点・GSPAT（Acoustic Holography）・STM（Spatio-Temporal Modulation）を計算。`HAP_AUTDHardwareController` 経由で超音波を出力。
-- **ソース設定**: 接触領域の「重心 (Centroid)」「形状楕円 (Ellipse)」「ランダム点 (Random)」などの各表現ソース設定を独立保持。
+#### HAP_AUTDHapticsController.cs
+リアルタイム触覚信号のオーケストレーションと照射制御を担当するパイプラインコンポーネントです。
+- **機能**: ターゲットソース（AutoHCD, ObjectTarget, Manual）の切り替え、HCD_Pipeline やオブジェクト部位ターゲットから集約した焦点の受け取り、GSPAT（Acoustic Holography）・STM（Spatio-Temporal Modulation）の計算・送信指示。HAP_AUTDHardwareController 経由で超音波を出力。
+
+#### HAP_AUTDTransformLoader.cs
+シーン上の AUTD3 デバイス群の配置（位置・回転）を JSON ファイルに保存・復元するコンポーネントです。
+- **機能**: デバイス配置データの保存/読み込み、不足デバイスの自動プレハブ生成。
+- **キャリブレーション Offset 管理**: デバイスアレイの基準原点と Unity 空間の位置補正用パラメータ offset (Vector3) を管理します。
+
+#### HAP_HCDFociSettings.cs
+HCD (Hand Contact Detection) クラスタから焦点（Foci）をどのようなアルゴリズムで生成するかを管理する設定コンポーネントです。
+- **機能**: generationMode (Simplified / Precision) および「重心 (Centroid)」「形状楕円 (Ellipse)」「ランダム点 (Random)」などの各表現ソース設定を独立保持。HCD_Pipeline にアタッチして使用されます。
 
 #### 純粋 C# サービスクラス (POCO Services)
 - `HAP_AUTDLinkService.cs`: 通信ライフサイクル（Open/Close）、`Client`/`Geometry`/`Controller` の所有、送信ロック（`SendLock`）の管理を担当。
@@ -78,8 +86,8 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 #### マルチオブジェクトターゲット制御 (`objectHapticsControllers`)
 複数のオブジェクト部位ターゲット（`HAP_BaseObjectHapticsController`）を `objectHapticsControllers` リストに一括登録・管理できます。単一参照 `objectHapticsController` プロパティも後方互換アクセサとして提供されます。
 
-#### ハプティクス生成モード (Generation Mode)
-AutoHCD モードでは、計算負荷と提示の表現力に応じて以下の2つの生成モードを切り替えることができます。
+#### ハプティクス生成モード (Generation Mode & HAP_HCDFociSettings)
+AutoHCD モードでは、HCD_Pipeline に配置された HAP_HCDFociSettings コンポーネントを通じて、計算負荷と提示の表現力に応じた生成モードを切り替えることができます。
 
 - **Simplified (簡易モード)**
   抽出された接触クラスタの「重心座標」に対して、単一の焦点（Focus）を生成する最速・最軽量のモードです。従来の単純な接触提示と同等に動作します。
@@ -259,6 +267,7 @@ Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
  ├── HAP_AUTDPerformanceProfiler.cs# ハプティクス全体の処理時間・送信遅延計測プロファイラー
  ├── HAP_BaseObjectHapticsController.cs# オブジェクト部位ハプティクス制御の抽象基底クラス
+ ├── HAP_HCDFociSettings.cs        # HCDクラスタからの焦点生成モード(GenerationMode)と精密ソース設定コンポーネント
  ├── HAP_FociGenerator.cs          # 手・接触クラスタからの触覚データ(Focus)生成ロジック
  ├── HAP_ObjectFociGenerator.cs    # オブジェクト部位ターゲットからの焦点・STM生成ロジック
  ├── HAP_GSPATDeviceAllocator.cs   # デバイスとクラスタの指向性・IDに基づく割り当て・データグラム生成
@@ -274,6 +283,7 @@ Assets/Features/Haptics/Scripts/
  ├── HCD_AutdControllerBridge.cs   # (旧互換用) HCD_PipelineとAUTDControllerを繋ぐブリッジ
  └── Editor/
       ├── HAP_AUTDControllerEditor.cs  # HAP_AUTDController 用カスタムエディタ (GUIレイアウト・表示制御)
+      ├── HAP_HCDFociSettingsEditor.cs # HAP_HCDFociSettings 用カスタムエディタ
       ├── HAP_FoxFootHapticsControllerEditor.cs
       ├── HAP_AUTDTransformLoaderEditor.cs
       └── HAP_AUTDCalibrationEditor.cs  # キャリブレーション設定のエディタ保持用
@@ -313,7 +323,7 @@ AUTD3Sharp (v38) では、`TwinCAT`以外のリンク（`SOEM` および `Simula
 - **出力のオーバーライド**: `Enable Calibration` にチェックを入れると、通常の自動トラッキング出力を無視（バイパス）し、指定した単一または複数の焦点のみを出力します。
 - **ターゲットデバイスの選択**: シーン内の全 `AUTD3Device` を検知し、インスペクター上のチェックボックスから特定のデバイス（例: デバイス0とデバイス3だけ）に絞ってテスト出力が行えます。
 - **オフセットの自動計算と適用 (`Calculate & Add Offset`)**: 「理想の焦点位置 (FocusTarget)」と「実際の焦点位置 (TruePosition)」を指定することで、その差分から必要な位置ズレ (Offset) を自動計算し、コントローラー (`HAP_AUTDController`) の Offset パラメータに加算します。また、インスペクター上で現在の Offset の値を直接手入力して微調整することも可能です。
-- **デバイス位置への永続化 (`Bake Offset to Devices`)**: コントローラーに設定された現在の Offset 量を、**Target Devices でチェックがオンになっているデバイスのみ**の Transform (座標) に物理的に反映（逆移動）させ、Offset をゼロにリセットします。これにより、複数台のデバイスアレイ環境において「1台ずつ順番にチェックを入れて個別のズレをキャリブレーションしては Bake する」という、高度な個別補正ワークフローが可能になります。
+- **デバイス位置への永続化 (`Bake Offset to Devices`)**: HAP_AUTDTransformLoader に設定された現在の Offset 量を、**Target Devices でチェックがオンになっているデバイスのみ**の Transform (座標) に物理的に反映（逆移動）させ、Offset をゼロにリセットします。これにより、複数台のデバイスアレイ環境において「1台ずつ順番にチェックを入れて個別のズレをキャリブレーションしては Bake する」という、高度な個別補正ワークフローが可能になります。
 - **Playモード状態の保持**: キャリブレーションの性質上、Playモード実行中に様々な調整が行われます。専用の拡張エディタ (`HAP_AUTDCalibrationEditor`) によって、Play中に調整した設定値や直接編集した Offset が適切に退避され、Playモード終了時にEditモードのシーンへ自動で引き継がれます。
 
 ---
