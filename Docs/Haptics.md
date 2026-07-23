@@ -57,13 +57,26 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 - `HAP_GizmoVisualizer.cs` / `HAP_GizmoVisualizer_Surface.cs`: デバイスの配置、グループ化された色分け、および仮想オブジェクト表面への照射割り当て状況をGizmoとして可視化します。mmスケールの極小メッシュモデルにも対応しています。
 - `HAP_AUTDDebugDisabler.cs`: 接続順序（Index）ではなく物理的なデバイスIDをキーとして、特定デバイスの出力およびGizmo描画を個別に無効化（Null出力）する機能を提供します。多台数環境でのトラブルシューティングに役立ちます。
 
-#### 動作モード (Operation Mode)
+#### ターゲットソースと直交する3軸アーキテクチャ (3-Axis Architecture)
+`HAP_AUTDHapticsController` の動作設定は、以下の3つの独立した軸に整理されています。
 
-- **AutoHCD (自動追従モード)**
-  毎フレーム `HCD_Pipeline.GetTrackedClusters()` を呼び出し、接触しているオブジェクトの座標に対して自動で音響ホログラフィ（GSPAT / Naive）やSTM（時空間変調）を用いてマルチフォーカス出力を生成し続けます。接触がなくなると自動で Null（停止）出力を送信します。
+| 軸 | 設定項目 (`Enum`) | 選択肢 | 概要と役割 |
+|---|---|---|---|
+| **軸 1: ターゲットデータソース** | **`sourceMode`** | • **`AutoHCD`**<br>• **`ObjectTarget`**<br>• **`Manual`** | **目標焦点（出力座標）の生成元を指定**<br>- `AutoHCD`: 手の接触クラスタ (`HCD_Pipeline`) から動的生成<br>- `ObjectTarget`: 登録された `objectHapticsControllers` リストから自動取得（各コントローラー内で接触判定等を内部評価）<br>- `Manual`: 外部API呼出による手動操作 |
+| **軸 2: 空間ソルバー** | **`holoAlgorithm`** | • **`GSPAT`**<br>• **`Naive`** | **複数の焦点を空間的にどう合成計算するか**<br>- `GSPAT`: 多焦点向けの反復最適化計算（高精度）<br>- `Naive`: 単一焦点向け直接位相計算（軽量） |
+| **軸 3: 時間・STM駆動方式** | **`stmMode`** | • **`FociSTM`**<br>• **`GainSTM`** | **時間変化（変調軌跡）をどうデバイスに送るか**<br>- `FociSTM`: ハードウェアFPGA単焦点軌跡（強制的に内部はNaive計算、`stmFrequency`再生速度を指定）<br>- `GainSTM`: ソフトウェア多焦点パターン列（軸2のSolverを使用） |
 
+#### ターゲットデータソースモード (Source Mode)
+
+- **AutoHCD (手接触自動追従モード)**
+  毎フレーム `HCD_Pipeline.GetTrackedClusters()` を呼び出し、手とオブジェクトの接触点群に対して自動で音響ホログラフィ（GSPAT / Naive）やSTMを用いてマルチフォーカス出力を生成します。
+- **ObjectTarget (オブジェクト部位ターゲットモード)**
+  `objectHapticsControllers` リストに登録されたカスタムハプティクス制御コンポーネント（キツネの足・尻尾・手持ちオブジェクト等）からターゲット座標を集約して出力します。各コントローラー内設定（`onlyTargetHandContact`）により、手との近接接触判定とも連動可能です。
 - **Manual (手動API制御モード)**
-  `Update()` での自動上書きを停止し、外部のスクリプトから呼び出されるAPI（`SetFocusStm` など）による明示的な超音波出力を優先します。旧パッケージが持っていた複雑な機能を手動でトリガーしたい場合に使用します。
+  `Update()` での自動出力を停止し、外部スクリプトからの明示的なAPI呼び出し（`SetFocus`, `SetFocusStm` など）を優先します。
+
+#### マルチオブジェクトターゲット制御 (`objectHapticsControllers`)
+複数のオブジェクト部位ターゲット（`HAP_BaseObjectHapticsController`）を `objectHapticsControllers` リストに一括登録・管理できます。単一参照 `objectHapticsController` プロパティも後方互換アクセサとして提供されます。
 
 #### ハプティクス生成モード (Generation Mode)
 AutoHCD モードでは、計算負荷と提示の表現力に応じて以下の2つの生成モードを切り替えることができます。
