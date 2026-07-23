@@ -32,16 +32,20 @@ public enum AUTDLinkType
 /// HCD_Pipeline によって計算された接触重心を受け取り、
 /// AUTD3デバイス群に GSPAT (Acoustic Holography) 等を用いてマルチフォーカス出力を行うコントローラー。
 /// 
-/// 公式AUTD3SharpのC#ネイティブラッパーとして機能します。
+/// 公式AUTD3SharpのC#ネイティブラッパーとして機能し、ハードウェア接続・制御は HAP_AUTDHardwareManager に委譲します。
 /// 
 /// ※ ファイル分割構成:
-/// - HAP_AUTDController.cs : コアロジック（Inspector設定、Awake/Update/OnDestroy）
-/// - HAP_AUTDController_Config.cs : ハードウェア設定の適用（Modulation, Silencer, Fan など）
-/// - HAP_AUTDController_Haptics.cs : 接触クラスタからの触覚データ(STM/Sequential)生成
+/// - HAP_AUTDController.cs : コアロジック（Inspector設定、Awake/Update）
+/// - HAP_AUTDController_Config.cs : ハードウェア設定監視の委譲
+/// - HAP_AUTDController_Haptics.cs : 接触クラスタからの触覚データ(STM/Sequential)生成・送信
 /// - HAP_AUTDController_API.cs : 外部スクリプトからの手動操作API
 /// </summary>
 public partial class HAP_AUTDController : MonoBehaviour
 {
+    [Header("Hardware Reference")]
+    [Tooltip("AUTDデバイスの物理接続およびハードウェア設定を管理するマネージャー。未指定時は自動取得します。")]
+    public HAP_AUTDHardwareManager hardwareManager = null!;
+
     [Header("Dependencies")]
     [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
     public HCD_Pipeline hcdPipeline = null!;
@@ -53,12 +57,67 @@ public partial class HAP_AUTDController : MonoBehaviour
     [HideInInspector]
     public bool bypassHaptics = false;
 
-    [Header("Link Settings")]
-    [Tooltip("AUTDデバイスとの接続方法を選択します")]
-    public AUTDLinkType linkType = AUTDLinkType.TwinCAT;
+    // 後方互換性のための HardwareManager 委譲プロパティ
+    public AUTDLinkType linkType
+    {
+        get => hardwareManager != null ? hardwareManager.linkType : AUTDLinkType.TwinCAT;
+        set { if (hardwareManager != null) hardwareManager.linkType = value; }
+    }
+    public string soemAdapterName
+    {
+        get => hardwareManager != null ? hardwareManager.soemAdapterName : "";
+        set { if (hardwareManager != null) hardwareManager.soemAdapterName = value; }
+    }
+    public float temperature
+    {
+        get => hardwareManager != null ? hardwareManager.temperature : 25f;
+        set { if (hardwareManager != null) hardwareManager.temperature = value; }
+    }
+    public bool enableFan
+    {
+        get => hardwareManager != null ? hardwareManager.enableFan : false;
+        set { if (hardwareManager != null) hardwareManager.enableFan = value; }
+    }
+    public ModulationMode modulationMode
+    {
+        get => hardwareManager != null ? hardwareManager.modulationMode : ModulationMode.Sine;
+        set { if (hardwareManager != null) hardwareManager.modulationMode = value; }
+    }
+    public float sineFrequency
+    {
+        get => hardwareManager != null ? hardwareManager.sineFrequency : 150f;
+        set { if (hardwareManager != null) hardwareManager.sineFrequency = value; }
+    }
+    public float staticAmplitude
+    {
+        get => hardwareManager != null ? hardwareManager.staticAmplitude : 1.0f;
+        set { if (hardwareManager != null) hardwareManager.staticAmplitude = value; }
+    }
+    public SilencerMode silencerMode
+    {
+        get => hardwareManager != null ? hardwareManager.silencerMode : SilencerMode.FixedUpdateRate;
+        set { if (hardwareManager != null) hardwareManager.silencerMode = value; }
+    }
+    public ushort silencerStepPhase
+    {
+        get => hardwareManager != null ? hardwareManager.silencerStepPhase : (ushort)500;
+        set { if (hardwareManager != null) hardwareManager.silencerStepPhase = value; }
+    }
+    public ushort silencerStepAmplitude
+    {
+        get => hardwareManager != null ? hardwareManager.silencerStepAmplitude : (ushort)65535;
+        set { if (hardwareManager != null) hardwareManager.silencerStepAmplitude = value; }
+    }
 
-    [Tooltip("SOEM使用時のネットワークアダプタ名（必要であれば指定）")]
-    public string soemAdapterName = "";
+    private readonly object _fallbackLock = new object();
+    public object _sendLock => hardwareManager != null ? hardwareManager.SendLock : _fallbackLock;
+
+    public void ApplyModulation() { if (hardwareManager != null) hardwareManager.ApplyModulation(); }
+    public void ApplySilencer() { if (hardwareManager != null) hardwareManager.ApplySilencer(); }
+    public void ApplyFan() { if (hardwareManager != null) hardwareManager.ApplyFan(); }
+#if USE_AUTD3_LEGACY
+    public void ApplyTemperature() { if (hardwareManager != null) hardwareManager.ApplyTemperature(); }
+#endif
 
     [Header("Operation Settings")]
     [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
@@ -80,33 +139,6 @@ public partial class HAP_AUTDController : MonoBehaviour
     
     [Tooltip("超音波の出力強度 (Pascal)。最大で 10000 程度。大きすぎるとデバイスの保護回路が働くか、クリッピングが発生します。")]
     public float focusIntensityPascal = 10000f;
-
-    [Header("Modulation Settings")]
-    [Tooltip("変調モード。\nSine: 指定周波数で明滅（ブーンという感触）。\nStatic: 連続出力（押される感触）。")]
-    public ModulationMode modulationMode = ModulationMode.Sine;
-    
-    [Tooltip("サイン波の変調周波数 (Hz)。一般的に人間の皮膚は 150〜200Hz で最も感度が高くなります。")]
-    public float sineFrequency = 150f;
-    
-    [Tooltip("定常波(Static)の振幅 (0.0〜1.0)。通常は1.0を使用します。")]
-    public float staticAmplitude = 1.0f;
-
-    [Header("Silencer Settings")]
-    [Tooltip("サイレンサーのモード。可聴ノイズ（ジージー音）を減らします。\nFixedUpdateRate: 強度と位相のステップで指定。\nFixedCompletionTime: 完了時間で指定。")]
-    public SilencerMode silencerMode = SilencerMode.FixedUpdateRate;
-    
-    [Tooltip("位相の変化ステップ。小さいほど静かになりますが、応答が遅れます。")]
-    public ushort silencerStepPhase = 500;
-    
-    [Tooltip("振幅の変化ステップ。小さいほど静かになりますが、応答が遅れます。")]
-    public ushort silencerStepAmplitude = 65535;
-
-    [Header("Hardware Settings")]
-    [Tooltip("環境温度（摂氏）。音速計算に使用され、焦点の正確さに影響します。室温に合わせてください。")]
-    public float temperature = 25f;
-    
-    [Tooltip("デバイス冷却ファンのON/OFF。高出力で長時間使用する場合は ON にしてください。")]
-    public bool enableFan = false;
 
     [Header("Coordinate Settings")]
     [Tooltip("すべての焦点位置に加算されるオフセット。デバイスの原点とUnity上の位置を微調整するのに使います。")]
@@ -161,47 +193,39 @@ public partial class HAP_AUTDController : MonoBehaviour
     [HideInInspector]
     public HAP_AUTDPerformanceProfiler performanceProfiler = new HAP_AUTDPerformanceProfiler();
 
-    [HideInInspector]
-    public List<AUTD3Device> connectedDevices = new List<AUTD3Device>();
+    public List<AUTD3Device> connectedDevices => hardwareManager != null ? hardwareManager.connectedDevices : new List<AUTD3Device>();
 
     [HideInInspector]
     public HAP_AUTDDebugDisabler? debugDisabler;
 
 #if !USE_AUTD3_LEGACY
-    private Client? _client = null;
-    [HideInInspector]
-    public Geometry? geometry = null;
+    public Client? _client => hardwareManager != null ? hardwareManager.Client : null;
+    public Geometry? geometry => hardwareManager != null ? hardwareManager.Geometry : null;
 #else
-    private Controller? _autd = null;
+    public Controller? _autd => hardwareManager != null ? hardwareManager.Autd : null;
 #endif
 
     private bool _isCurrentlyOff = true;
     
-    // スレッドセーフかつ非同期に送信を行うためのロックとタスク
-    private readonly object _sendLock = new object();
     private System.Threading.Tasks.Task? _hapticsSendTask = null;
 
-    // 前回の設定を記憶して変更を検知するためのフィールド
-    private ModulationMode _prevModMode;
-    private float _prevSineFreq;
-    private float _prevStaticAmp;
-    
-    private SilencerMode _prevSilencerMode;
-    private ushort _prevSilStepPhase;
-    private ushort _prevSilStepAmp;
-    
-    private bool _prevFanState;
-#if USE_AUTD3_LEGACY
-    private float _prevTemperature;
-#endif
-
-#if !USE_AUTD3_LEGACY
-    async void Awake()
-#else
     void Awake()
-#endif
     {
         debugDisabler = GetComponent<HAP_AUTDDebugDisabler>();
+
+        if (hardwareManager == null)
+        {
+            hardwareManager = GetComponent<HAP_AUTDHardwareManager>();
+            if (hardwareManager == null)
+            {
+                hardwareManager = FindAnyObjectByType<HAP_AUTDHardwareManager>();
+                if (hardwareManager == null)
+                {
+                    Debug.LogWarning("[HAP_AUTDController] HAP_AUTDHardwareManager is not assigned and was not found in the scene. Adding component automatically.");
+                    hardwareManager = gameObject.AddComponent<HAP_AUTDHardwareManager>();
+                }
+            }
+        }
 
         if (hcdPipeline == null)
         {
@@ -211,138 +235,18 @@ public partial class HAP_AUTDController : MonoBehaviour
                 Debug.LogWarning("[HAP_AUTDController] HCD_Pipeline is not assigned and could not be found in the scene.");
             }
         }
-
-        // シーン内のすべての AUTD3Device コンポーネントを収集し、ID順にソートしてデバイス配置情報を生成
-        connectedDevices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None)
-            .OrderBy(obj => obj.ID)
-            .ToList();
-
-#if !USE_AUTD3_LEGACY
-        var devices = connectedDevices.Select(obj => new Autd3(obj.transform.position, obj.transform.rotation)).ToList();
-        geometry = new Geometry(devices);
-#else
-        var devices = connectedDevices.Select(obj => new AUTD3Sharp.AUTD3(pos: obj.transform.position, rot: obj.transform.rotation)).ToList();
-#endif
-
-        Debug.Log($"[HAP_AUTDController] Attempting to connect to AUTD3. Found {devices.Count} AUTD3Device components in the scene.");
-
-        try
-        {
-#if USE_AUTD3_LEGACY
-            // タイムアウト対策として5秒に延長
-            var option = new AUTD3Sharp.SenderOption { Timeout = AUTD3Sharp.Duration.FromMillis(5000) };
-#endif
-            switch (linkType)
-            {
-                case AUTDLinkType.TwinCAT:
-#if !USE_AUTD3_LEGACY
-                    _client = await Client.OpenAsync(geometry, AUTD3.Link.TwinCATLinkOption.Local(), new ClientConfig());
-#else
-                    _autd = Controller.OpenWithOption(devices, new AUTD3Sharp.Link.TwinCAT(), option);
-#endif
-                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via TwinCAT.");
-                    break;
-                
-#if USE_AUTD3_LEGACY
-                case AUTDLinkType.SOEM:
-                    Debug.LogWarning("[HAP_AUTDController] SOEMを使用するには Unity Package Manager から SOEMリンクパッケージ のインストールが必要です。インストール後、スクリプト内のコメントアウトを外してください。");
-                    // 【注意】SOEMリンクパッケージをインストール後、以下のコメントアウトを外してください
-                    /*
-                    var soemLink = new AUTD3Sharp.Link.SOEM();
-                    // if (!string.IsNullOrEmpty(soemAdapterName)) { soemLink = soemLink.WithIfname(soemAdapterName); }
-                    _autd = Controller.OpenWithOption(devices, soemLink, option);
-                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via SOEM.");
-                    */
-                    break;
-#endif
-                
-                case AUTDLinkType.Simulator:
-#if !USE_AUTD3_LEGACY
-                    Debug.LogWarning("[HAP_AUTDController] Simulator (Remote link) is not available in the current v31 installation. Link initialization skipped.");
-#else
-                    Debug.LogWarning("[HAP_AUTDController] Simulatorを使用するには autd3-server を起動しておく必要があります。(https://github.com/shinolab/autd3-server)");
-                    
-                    var simLink = new AUTD3Sharp.Link.Remote(new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 8080), new AUTD3Sharp.Link.RemoteOption());
-                    _autd = Controller.OpenWithOption(devices, simLink, option);
-                    Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 via Simulator (Remote).");
-#endif
-                    break;
-            }
-
-#if !USE_AUTD3_LEGACY
-            if (_client == null)
-#else
-            if (_autd == null)
-#endif
-            {
-                Debug.LogWarning("[HAP_AUTDController] Link initialization was skipped or failed. Haptics will be bypassed.");
-                return;
-            }
-
-            // 初期設定の送信
-#if USE_AUTD3_LEGACY
-            ApplyTemperature();
-#endif
-            ApplyModulation();
-            ApplySilencer();
-            ApplyFan();
-            
-            // 初期状態はオフ (Null出力)
-#if !USE_AUTD3_LEGACY
-            using (var builder = _client.DatagramBuilder())
-            {
-                var buffer = geometry.PatternBuffer();
-                Pattern.Null(buffer);
-                builder.Push(new Pattern(PatternBank.B0, buffer));
-                
-                using var frames = builder.Build();
-                foreach (var frame in frames)
-                {
-                    await _client.SendCheckedAsync(frame);
-                }
-            }
-#else
-            _autd.Send(new Null());
-#endif
-            
-            _isCurrentlyOff = true;
-            
-#if !USE_AUTD3_LEGACY
-            Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 devices.");
-#else
-            Debug.Log("[HAP_AUTDController] Successfully connected to AUTD3 devices via TwinCAT.");
-#endif
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError(ex);
-#if !USE_AUTD3_LEGACY
-            Debug.LogError("[HAP_AUTDController] Failed to connect to AUTD3. Ensure the target link is running.");
-#else
-            Debug.LogError("[HAP_AUTDController] Failed to connect to AUTD3 via TwinCAT. Ensure TwinCAT is running in Run Mode.");
-#endif
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#elif UNITY_STANDALONE
-            Application.Quit();
-#endif
-        }
     }
 
     void Update()
     {
-#if !USE_AUTD3_LEGACY
-        if (_client == null || geometry == null) return;
-#else
-        if (_autd == null) return;
-#endif
+        if (hardwareManager == null || !hardwareManager.IsConnected) return;
 
         // プロファイラー設定の同期
         performanceProfiler.Enabled = enableProfiling;
         performanceProfiler.LogEnabled = enableLog;
         performanceProfiler.LogInterval = profilingLogInterval;
 
-        // インスペクターの設定変更を監視して適用（HAP_AUTDController_Config.cs）
+        // インスペクターの設定変更を監視して適用（HAP_AUTDController_Config.cs -> hardwareManager）
         CheckForConfigChanges();
         
         // Modulation Override の解決
@@ -368,48 +272,5 @@ public partial class HAP_AUTDController : MonoBehaviour
         );
 #endif
     }
-
-#if !USE_AUTD3_LEGACY
-    private async void OnDestroy()
-    {
-        if (_client != null)
-        {
-            using (var builder = _client.DatagramBuilder())
-            {
-                var buffer = geometry!.PatternBuffer();
-                Pattern.Null(buffer);
-                builder.Push(new Pattern(PatternBank.B0, buffer));
-                using var frames = builder.Build();
-                foreach (var frame in frames)
-                {
-                    await _client.SendCheckedAsync(frame);
-                }
-            }
-            
-            await _client.CloseAsync();
-            _client.Dispose();
-            _client = null;
-            Debug.Log("[HAP_AUTDController] AUTD3 connection closed.");
-        }
-        if (geometry != null)
-        {
-            geometry.Dispose();
-            geometry = null;
-        }
-    }
-#else
-    private void OnDestroy()
-    {
-        if (_autd != null)
-        {
-            _autd.Send(new Null());
-            _autd.Close();
-            _autd.Dispose();
-            _autd = null;
-            Debug.Log("[HAP_AUTDController] AUTD3 connection closed.");
-        }
-    }
-#endif
-
-    // Modulation overrides logic has been moved to HAP_AUTDController_Haptics.cs
 }
+
