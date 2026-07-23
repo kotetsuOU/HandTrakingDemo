@@ -56,7 +56,7 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseCondition
         trial.metadata["initialValue"] = currentValue.ToString("F4");
 
         var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
-        bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
+        bool isDebug = expManager != null && expManager.isDebugMode;
 
         if (expManager != null)
             expManager.SetPhase(EXP_TrialPhase.Response);

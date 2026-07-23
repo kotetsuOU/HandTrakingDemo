@@ -7,7 +7,7 @@ Assets/Features/Experiment/Scripts/
 ├── Enums/
 │   └── EXP_Enums.cs              ← 列挙型定義
 ├── Data/
-│   ├── EXP_ExperimentConfig.cs           ← 実験設定 (ScriptableObject)
+│   ├── EXP_SessionSettings.cs            ← 実験設定データ（Foldable 構造体）
 │   ├── EXP_TrialData.cs                  ← 1試行のデータ構造
 │   └── EXP_ExperimentSession.cs          ← セッション実行時情報
 ├── Paradigms/                            ← ★ 実験パラダイムの抽象基底クラス群
@@ -278,7 +278,15 @@ Build せずに Unity Editor の Play モードで実験を行う場合、画面
 
 `EXP_InputHandler` の `runInBackground` を `true` に設定（デフォルトで `true`）にすることで、Unity の `Application.runInBackground = true;` が有効になり、別ウィンドウをクリックしても Play モードのフレーム更新やキー入力受付が停止しません。
 
-### 2. Editor 用外部コントロールパネル (`EXP_ExperimentControlWindow`)
+### 2. 被験者情報入力フォームと ID 匿名化保存
+
+実験開始前（`Idle` 状態）のコントロールパネル上で、その場の被験者の情報を直接フォーム入力できます。
+
+- **`participantId` (被験者 ID)**: `P001` など。外部出力ファイル名（`Trial_P001_timestamp.csv`）に使用され、個人情報を特定できないよう完全に**匿名化保存**されます。
+- **`participantName` (被験者 氏名)**: 被験者の名前。個人の内部管理および照合用として CSV / JSON のヘッダーデータ内のみに記録されます。
+- **`groupLabel` (グループ名)**: 実験条件群キー（任意）。
+
+### 3. Editor 用外部コントロールパネル (`EXP_ExperimentControlWindow`)
 
 Unity Editor のメニュー **Tools → EXP → Experiment Control Panel** から開くことができます。
 

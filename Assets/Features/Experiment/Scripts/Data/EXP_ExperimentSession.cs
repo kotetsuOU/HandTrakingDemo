@@ -14,8 +14,11 @@ public class EXP_ExperimentSession
     // Session Identity
     // =====================================================
 
-    /// <summary>参加者 ID</summary>
+    /// <summary>参加者 ID（匿名化ファイル名に使用）</summary>
     public string participantId = "";
+
+    /// <summary>参加者 氏名（管理ログ記録用）</summary>
+    public string participantName = "";
 
     /// <summary>グループ / 条件ラベル</summary>
     public string groupLabel = "";

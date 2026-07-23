@@ -26,15 +26,15 @@ public static class EXP_StatusPanelDrawer
 
         GUILayout.Space(4);
 
-        if (Application.isPlaying && manager.config != null)
+        if (Application.isPlaying)
         {
             using (new GUILayout.HorizontalScope(GUI.skin.box))
             {
-                bool isDebugMode = manager.config.isDebugMode;
+                bool isDebugMode = manager.isDebugMode;
                 bool newDebugMode = GUILayout.Toggle(isDebugMode, " 🐞 デバッグ表示モード (DebugPlay: 被験者画面やパネルに詳細数値を表示)", GetBoldLabelStyle());
                 if (newDebugMode != isDebugMode)
                 {
-                    manager.config.isDebugMode = newDebugMode;
+                    manager.isDebugMode = newDebugMode;
                 }
 
                 GUILayout.FlexibleSpace();
@@ -104,9 +104,12 @@ public static class EXP_StatusPanelDrawer
 
             using (new GUILayout.HorizontalScope())
             {
-                GUILayout.Label($"被験者 ID: {manager.CurrentSession?.participantId ?? "-"}", GetBoldLabelStyle());
+                string pId = manager.CurrentSession?.participantId ?? "-";
+                string pName = manager.CurrentSession?.participantName ?? "";
+                string displayInfo = string.IsNullOrEmpty(pName) ? $"被験者 ID: {pId}" : $"被験者 ID: {pId} ({pName})";
+                GUILayout.Label(displayInfo, GetBoldLabelStyle());
 
-                bool isDebug = manager.config != null && manager.config.isDebugMode;
+                bool isDebug = manager.isDebugMode;
                 if (isDebug && manager.CurrentSession != null)
                 {
                     GUILayout.FlexibleSpace();

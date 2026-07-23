@@ -7,11 +7,7 @@ using TMPro;
 
 /// <summary>
 /// 被験者実験のメインステートマネージャー（統括窓口）。
-/// コンポーネント保持、ステート状態、および外部 API / イベント発火を管理します（200行以内）。
-/// <para>
-/// 実際の進行フローは <see cref="EXP_ExperimentFlowController"/>、
-/// 1試行の実行エンジンは <see cref="EXP_TrialRunner"/> が担当します。
-/// </para>
+/// 実験設定（<see cref="EXP_SessionSettings"/>）、コンポーネント保持、ステート状態管理、および外部 API を統括します。
 /// </summary>
 public class EXP_ExperimentManager : MonoBehaviour
 {
@@ -19,9 +15,8 @@ public class EXP_ExperimentManager : MonoBehaviour
     // Inspector Settings
     // =====================================================
 
-    [Header("Configuration")]
-    [Tooltip("実験設定 ScriptableObject（必須）")]
-    public EXP_ExperimentConfig config = null!;
+    [Header("Experiment Settings (Foldable)")]
+    public EXP_SessionSettings settings = new EXP_SessionSettings();
 
     [Header("Sub Components")]
     public EXP_TrialSequencer? sequencer;
@@ -29,12 +24,25 @@ public class EXP_ExperimentManager : MonoBehaviour
     public EXP_EventMarker? eventMarker;
     public EXP_InputHandler? inputHandler;
 
-    [Header("UI References (被験者画面用)")]
+    [Header("UI References")]
     public TMP_Text? messageText;
     public GameObject? fixationCross;
 
-    [Header("Debug")]
+    [Header("Debug Control")]
     public bool debugKeyEnabled = true;
+
+    // Direct Access Properties (Convenience Accessors)
+    public string participantId { get => settings.participantId; set => settings.participantId = value; }
+    public string participantName { get => settings.participantName; set => settings.participantName = value; }
+    public string groupLabel { get => settings.groupLabel; set => settings.groupLabel = value; }
+    public bool isDebugMode { get => settings.isDebugMode; set => settings.isDebugMode = value; }
+    public int trialsPerBlock { get => settings.trialsPerBlock; set => settings.trialsPerBlock = value; }
+    public int blockCount { get => settings.blockCount; set => settings.blockCount = value; }
+    public int practiceTrialCount { get => settings.practiceTrialCount; set => settings.practiceTrialCount = value; }
+    public float itiDuration { get => settings.itiDuration; set => settings.itiDuration = value; }
+    public float stimulusDuration { get => settings.stimulusDuration; set => settings.stimulusDuration = value; }
+    public float responseTimeout { get => settings.responseTimeout; set => settings.responseTimeout = value; }
+    public float breakDuration { get => settings.breakDuration; set => settings.breakDuration = value; }
 
     // =====================================================
     // State (Read-Only)
@@ -73,26 +81,19 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     void OnEnable()
     {
-        if (inputHandler != null)
-            inputHandler.OnResponse += HandleResponse;
+        if (inputHandler != null) inputHandler.OnResponse += HandleResponse;
     }
 
     void OnDisable()
     {
-        if (inputHandler != null)
-            inputHandler.OnResponse -= HandleResponse;
+        if (inputHandler != null) inputHandler.OnResponse -= HandleResponse;
     }
 
     void Update()
     {
         if (!debugKeyEnabled) return;
-
-        if (Input.GetKeyDown(KeyCode.Space) && CurrentState == EXP_ExperimentState.Idle)
-            StartExperiment();
-
-        if (Input.GetKeyDown(KeyCode.Escape) && CurrentState != EXP_ExperimentState.Idle
-                                             && CurrentState != EXP_ExperimentState.Finished)
-            AbortExperiment();
+        if (Input.GetKeyDown(KeyCode.Space) && CurrentState == EXP_ExperimentState.Idle) StartExperiment();
+        if (Input.GetKeyDown(KeyCode.Escape) && CurrentState != EXP_ExperimentState.Idle && CurrentState != EXP_ExperimentState.Finished) AbortExperiment();
     }
 
     // =====================================================
@@ -101,31 +102,16 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     public void StartExperiment()
     {
-        if (CurrentState != EXP_ExperimentState.Idle)
-        {
-            Debug.LogWarning("[EXP_ExperimentManager] すでに実験が開始されています。");
-            return;
-        }
-
-        if (config == null)
-        {
-            Debug.LogError("[EXP_ExperimentManager] ExperimentConfig が設定されていません。");
-            return;
-        }
-
+        if (CurrentState != EXP_ExperimentState.Idle) return;
         StartCoroutine(EXP_ExperimentFlowController.RunMainLoop(this));
     }
 
     public void AbortExperiment()
     {
-        if (CurrentState == EXP_ExperimentState.Idle || CurrentState == EXP_ExperimentState.Finished)
-            return;
-
+        if (CurrentState == EXP_ExperimentState.Idle || CurrentState == EXP_ExperimentState.Finished) return;
         StopAllCoroutines();
 
-        if (inputHandler != null)
-            inputHandler.StopListening();
-
+        if (inputHandler != null) inputHandler.StopListening();
         if (CurrentSession != null)
         {
             CurrentSession.isFinished = true;
@@ -137,7 +123,6 @@ public class EXP_ExperimentManager : MonoBehaviour
 
         TransitionTo(EXP_ExperimentState.Idle);
         OnExperimentAborted?.Invoke();
-        Debug.Log("[EXP_ExperimentManager] 実験を中断しました。");
     }
 
     public void SetMessage(string message)
@@ -150,18 +135,9 @@ public class EXP_ExperimentManager : MonoBehaviour
         }
     }
 
-    public void SetFixation(bool visible)
-    {
-        if (fixationCross != null)
-            fixationCross.SetActive(visible);
-    }
-
+    public void SetFixation(bool visible) { if (fixationCross != null) fixationCross.SetActive(visible); }
     public void SetPhase(EXP_TrialPhase phase) => CurrentPhase = phase;
     public void ClearAll() { SetMessage(""); SetFixation(false); }
-
-    // =====================================================
-    // Internal Helper Methods (Used by Flow & Trial Controllers)
-    // =====================================================
 
     public void TransitionTo(EXP_ExperimentState newState)
     {
@@ -180,9 +156,7 @@ public class EXP_ExperimentManager : MonoBehaviour
         float elapsed = 0f;
         while (!_responseReceived)
         {
-            if (timeoutSecs > 0f && elapsed >= timeoutSecs)
-                yield break;
-
+            if (timeoutSecs > 0f && elapsed >= timeoutSecs) yield break;
             elapsed += Time.deltaTime;
             yield return null;
         }
@@ -200,7 +174,6 @@ public class EXP_ExperimentManager : MonoBehaviour
             CurrentTrial.responseTime  = (double)Time.realtimeSinceStartup;
             OnResponseReceived?.Invoke(CurrentTrial);
         }
-
         _responseReceived = true;
     }
 

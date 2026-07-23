@@ -85,7 +85,7 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         trial.metadata["referencePosition"] = refPos;
 
         var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
-        bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
+        bool isDebug = expManager != null && expManager.isDebugMode;
 
         // ---- Interval 1 ----
         string debugStr1 = FormatValueForDebug(val1);

@@ -9,9 +9,6 @@ using System.Collections;
 /// </summary>
 public static class EXP_TrialRunner
 {
-    /// <summary>
-    /// 単一試行を実行します。
-    /// </summary>
     public static IEnumerator RunTrial(
         EXP_ExperimentManager manager,
         int trialIndex,
@@ -38,8 +35,8 @@ public static class EXP_TrialRunner
         manager.SetPhase(EXP_TrialPhase.ITI);
         manager.SetFixation(true);
 
-        if (manager.config.itiDuration > 0f)
-            yield return new WaitForSeconds(manager.config.itiDuration);
+        if (manager.itiDuration > 0f)
+            yield return new WaitForSeconds(manager.itiDuration);
 
         // --- 2. Stimulus (刺激提示) ---
         manager.SetPhase(EXP_TrialPhase.Stimulus);
@@ -61,10 +58,10 @@ public static class EXP_TrialRunner
         manager.ResetResponseReceived();
         manager.inputHandler?.StartListening();
 
-        if (manager.config.stimulusDuration > 0f)
-            yield return new WaitForSeconds(manager.config.stimulusDuration);
+        if (manager.stimulusDuration > 0f)
+            yield return new WaitForSeconds(manager.stimulusDuration);
 
-        yield return manager.WaitForResponse(manager.config.responseTimeout);
+        yield return manager.WaitForResponse(manager.responseTimeout);
         manager.inputHandler?.StopListening();
         manager.eventMarker?.Mark("StimulusOff");
 
@@ -79,14 +76,8 @@ public static class EXP_TrialRunner
         else
         {
             trial.isCorrect = condition.EvaluateResponse(trial);
-            if (trial.isCorrect == true)
-            {
-                trial.responseType = EXP_ResponseType.Correct;
-            }
-            else if (trial.isCorrect == false)
-            {
-                trial.responseType = EXP_ResponseType.Incorrect;
-            }
+            if (trial.isCorrect == true) trial.responseType = EXP_ResponseType.Correct;
+            else if (trial.isCorrect == false) trial.responseType = EXP_ResponseType.Incorrect;
         }
 
         manager.SetFixation(false);

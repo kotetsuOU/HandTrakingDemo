@@ -11,7 +11,6 @@ public static class EXP_ExperimentFlowController
 {
     public static IEnumerator RunMainLoop(EXP_ExperimentManager manager)
     {
-        var config = manager.config;
         var sequencer = manager.sequencer;
         var dataRecorder = manager.dataRecorder;
         var eventMarker = manager.eventMarker;
@@ -21,8 +20,9 @@ public static class EXP_ExperimentFlowController
 
         var session = new EXP_ExperimentSession
         {
-            participantId    = config.participantId,
-            groupLabel       = config.groupLabel,
+            participantId    = manager.participantId,
+            participantName  = manager.participantName,
+            groupLabel       = manager.groupLabel,
             sessionStartTime = (double)Time.realtimeSinceStartup,
         };
         manager.SetCurrentSession(session);
@@ -34,7 +34,7 @@ public static class EXP_ExperimentFlowController
         }
 
         dataRecorder?.InitializeSession(session);
-        eventMarker?.Mark($"ExperimentStart_{config.participantId}");
+        eventMarker?.Mark($"ExperimentStart_{manager.participantId}");
 
         // --- 1. 教示フェーズ ---
         manager.SetFixation(false);
@@ -51,7 +51,7 @@ public static class EXP_ExperimentFlowController
         manager.ClearAll();
 
         // --- 2. 練習試行 ---
-        if (config.practiceTrialCount > 0)
+        if (manager.practiceTrialCount > 0)
         {
             manager.TransitionTo(EXP_ExperimentState.Practice);
             eventMarker?.Mark("PracticeStart");
@@ -71,8 +71,8 @@ public static class EXP_ExperimentFlowController
         manager.TransitionTo(EXP_ExperimentState.Trial);
         eventMarker?.Mark("MainTrialsStart");
 
-        int totalBlocks = config.blockCount;
-        int trialsPerBlock = config.trialsPerBlock;
+        int totalBlocks = manager.blockCount;
+        int trialsPerBlock = manager.trialsPerBlock;
 
         for (int block = 0; block < totalBlocks; block++)
         {
@@ -87,7 +87,7 @@ public static class EXP_ExperimentFlowController
                 if (manager.CurrentState == EXP_ExperimentState.Idle) yield break;
             }
 
-            if (block < totalBlocks - 1 && config.breakDuration > 0f)
+            if (block < totalBlocks - 1 && manager.breakDuration > 0f)
             {
                 yield return RunBreak(manager, block + 1, totalBlocks);
             }
@@ -114,7 +114,7 @@ public static class EXP_ExperimentFlowController
     {
         var seqReadOnly = manager.sequencer!.GetSequence();
         int condCount = seqReadOnly.Count;
-        for (int i = 0; i < manager.config.practiceTrialCount; i++)
+        for (int i = 0; i < manager.practiceTrialCount; i++)
         {
             if (condCount == 0) break;
             var cond = seqReadOnly[i % condCount];
@@ -136,7 +136,7 @@ public static class EXP_ExperimentFlowController
 
         manager.ResetResponseReceived();
         manager.inputHandler?.StartListening();
-        yield return manager.WaitForResponse(manager.config.breakDuration);
+        yield return manager.WaitForResponse(manager.breakDuration);
         manager.inputHandler?.StopListening();
 
         manager.ClearAll();

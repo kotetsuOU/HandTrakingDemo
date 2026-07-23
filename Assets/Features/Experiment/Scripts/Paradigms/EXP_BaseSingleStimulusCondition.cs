@@ -57,7 +57,7 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
         trial.metadata["stimulusValue"] = val.ToString("F4");
 
         var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
-        bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
+        bool isDebug = expManager != null && expManager.isDebugMode;
 
         string debugStr = FormatValueForDebug(val);
         string label = isDebug ? $"刺激提示中 ({debugStr})" : "刺激提示中";
