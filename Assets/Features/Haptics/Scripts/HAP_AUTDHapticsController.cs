@@ -55,6 +55,9 @@ public class HAP_AUTDHapticsController : MonoBehaviour
         }
     }
 
+    [HideInInspector]
+    public bool bypassHaptics = false;
+
     [Header("Precision Sources")]
     [Tooltip("接触領域の「重心」に対して基本的な超音波の焦点を生成するソース設定")]
     public HAP_HapticsCentroidSource centroidSource = new HAP_HapticsCentroidSource();
