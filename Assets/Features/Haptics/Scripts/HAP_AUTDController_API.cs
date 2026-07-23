@@ -46,7 +46,7 @@ public partial class HAP_AUTDController
     public void SetFan(bool on)
     {
         enableFan = on;
-        if (hardwareManager != null) hardwareManager.ApplyFan();
+        ApplyFan();
     }
 
     /// <summary>
@@ -298,7 +298,7 @@ public partial class HAP_AUTDController
     public void SetFan(bool on)
     {
         enableFan = on;
-        if (hardwareManager != null) hardwareManager.ApplyFan();
+        ApplyFan();
     }
 
     /// <summary>

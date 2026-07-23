@@ -4,14 +4,27 @@ using UnityEditor;
 
 /// <summary>
 /// HAP_AUTDController の Inspector 表示を最適化し、
-/// 触覚生成・アルゴリズム・アプリ設定に特化してスマートに表示するカスタムエディタ。
+/// 依存コンポーネント、通信、ハードウェア、触覚生成設定を綺麗にグループ化して表示するカスタムエディタ。
 /// </summary>
 [CustomEditor(typeof(HAP_AUTDController))]
 public class HAP_AUTDControllerEditor : Editor
 {
-    private SerializedProperty hardwareManagerProp = null!;
     private SerializedProperty hcdPipelineProp = null!;
     private SerializedProperty objectHapticsControllerProp = null!;
+
+    private SerializedProperty linkTypeProp = null!;
+    private SerializedProperty soemAdapterNameProp = null!;
+
+    private SerializedProperty temperatureProp = null!;
+    private SerializedProperty enableFanProp = null!;
+
+    private SerializedProperty modulationModeProp = null!;
+    private SerializedProperty sineFrequencyProp = null!;
+    private SerializedProperty staticAmplitudeProp = null!;
+
+    private SerializedProperty silencerModeProp = null!;
+    private SerializedProperty silencerStepPhaseProp = null!;
+    private SerializedProperty silencerStepAmplitudeProp = null!;
 
     private SerializedProperty generationModeProp = null!;
     private SerializedProperty centroidSourceProp = null!;
@@ -37,9 +50,22 @@ public class HAP_AUTDControllerEditor : Editor
 
     private void OnEnable()
     {
-        hardwareManagerProp = serializedObject.FindProperty("hardwareManager");
         hcdPipelineProp = serializedObject.FindProperty("hcdPipeline");
         objectHapticsControllerProp = serializedObject.FindProperty("objectHapticsController");
+
+        linkTypeProp = serializedObject.FindProperty("linkType");
+        soemAdapterNameProp = serializedObject.FindProperty("soemAdapterName");
+
+        temperatureProp = serializedObject.FindProperty("temperature");
+        enableFanProp = serializedObject.FindProperty("enableFan");
+
+        modulationModeProp = serializedObject.FindProperty("modulationMode");
+        sineFrequencyProp = serializedObject.FindProperty("sineFrequency");
+        staticAmplitudeProp = serializedObject.FindProperty("staticAmplitude");
+
+        silencerModeProp = serializedObject.FindProperty("silencerMode");
+        silencerStepPhaseProp = serializedObject.FindProperty("silencerStepPhase");
+        silencerStepAmplitudeProp = serializedObject.FindProperty("silencerStepAmplitude");
 
         generationModeProp = serializedObject.FindProperty("generationMode");
         centroidSourceProp = serializedObject.FindProperty("centroidSource");
@@ -68,13 +94,26 @@ public class HAP_AUTDControllerEditor : Editor
     {
         serializedObject.Update();
 
-        // Hardware Manager Reference
-        EditorGUILayout.LabelField("Hardware Component Link", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(hardwareManagerProp);
-        if (hardwareManagerProp.objectReferenceValue == null)
+        var controller = (HAP_AUTDController)target;
+
+        // Status Banner
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        if (Application.isPlaying)
         {
-            EditorGUILayout.HelpBox("HardwareManager is not assigned. It will be auto-detected or created on Awake.", MessageType.Info);
+            if (controller.LinkService.IsConnected)
+            {
+                EditorGUILayout.HelpBox($"Status: Connected via {controller.linkType} ({controller.connectedDevices.Count} devices)", MessageType.Info);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("Status: Disconnected / Bypassed", MessageType.Warning);
+            }
         }
+        else
+        {
+            EditorGUILayout.LabelField("AUTD Controller System", EditorStyles.boldLabel);
+        }
+        EditorGUILayout.EndVertical();
         EditorGUILayout.Space();
 
         // Dependencies
@@ -83,8 +122,48 @@ public class HAP_AUTDControllerEditor : Editor
         EditorGUILayout.PropertyField(objectHapticsControllerProp);
         EditorGUILayout.Space();
 
+        // Link Settings
+        EditorGUILayout.LabelField("Connection & Link", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(linkTypeProp);
+        if ((AUTDLinkType)linkTypeProp.enumValueIndex == AUTDLinkType.SOEM)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(soemAdapterNameProp);
+            EditorGUI.indentLevel--;
+        }
+        EditorGUILayout.Space();
+
+        // Hardware & Modulation Settings
+        EditorGUILayout.LabelField("Hardware Environment & Modulation", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(temperatureProp);
+        EditorGUILayout.PropertyField(enableFanProp);
+        EditorGUILayout.PropertyField(modulationModeProp);
+        EditorGUI.indentLevel++;
+        if ((ModulationMode)modulationModeProp.enumValueIndex == ModulationMode.Sine)
+        {
+            EditorGUILayout.PropertyField(sineFrequencyProp);
+        }
+        else
+        {
+            EditorGUILayout.PropertyField(staticAmplitudeProp);
+        }
+        EditorGUI.indentLevel--;
+        EditorGUILayout.Space();
+
+        // Silencer Settings
+        EditorGUILayout.LabelField("Silencer Filter", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(silencerModeProp);
+        EditorGUI.indentLevel++;
+        if ((SilencerMode)silencerModeProp.enumValueIndex == SilencerMode.FixedUpdateRate)
+        {
+            EditorGUILayout.PropertyField(silencerStepPhaseProp);
+            EditorGUILayout.PropertyField(silencerStepAmplitudeProp);
+        }
+        EditorGUI.indentLevel--;
+        EditorGUILayout.Space();
+
         // Operation Settings
-        EditorGUILayout.LabelField("Generation & Operation Mode", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Haptics Generation & Operation", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(generationModeProp);
         if ((HapticsGenerationMode)generationModeProp.enumValueIndex == HapticsGenerationMode.Precision)
         {
@@ -114,15 +193,6 @@ public class HAP_AUTDControllerEditor : Editor
         if (stmMode == HapticsSTMMode.GainSTM || holoAlg == HoloAlgorithm.Custom)
         {
             EditorGUILayout.PropertyField(customInnerAlgorithmProp);
-        }
-
-        if (stmMode == HapticsSTMMode.FociSTM && holoAlg != HoloAlgorithm.Custom)
-        {
-            EditorGUILayout.HelpBox("FociSTM mode utilizes hardware single-focus calculation.", MessageType.Info);
-        }
-        else if (stmMode == HapticsSTMMode.GainSTM)
-        {
-            EditorGUILayout.HelpBox("GainSTM mode utilizes CPU GSPAT/PatternStm calculation for multi-focus STM.", MessageType.Info);
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();
