@@ -5,11 +5,11 @@ using System.Collections.Generic;
 #nullable enable
 
 /// <summary>
-/// 【実験用コントロールダッシュボード】（日本語版）
-/// Unity Editor メニュー Tools -> EXP -> 実験コントロールパネル から開ける独立した EditorWindow。
+/// 【被験者実験 コントロールダッシュボード】（大文字＆2AFCリアルタイム逐次インジケーター付き）
+/// Tools -> EXP -> 実験コントロールパネル から開けます。
 /// <para>
-/// Build しなくても Unity Editor の Play モード中に別ウィンドウ（独立パネル）としてポップアウト・サブモニター等に配置し、
-/// 今何を行うべきかのガイド付きで、実験の全ステータス（進捗バー、フェーズ、刺激パラメータ、被験者向けメッセージ）を日本語でリアルタイム表示・操作できます。
+/// 逐次比較法（2AFC）で「第1刺激提示中」「無刺激間隔(ISI)」「第2刺激提示中」「応答受付中」を
+/// ド派手な巨大リアルタイムインジケーターと大きなフォントで一目で把握できます。
 /// </para>
 /// </summary>
 public class EXP_ExperimentControlWindow : EditorWindow
@@ -21,7 +21,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
     public static void OpenWindow()
     {
         var window = GetWindow<EXP_ExperimentControlWindow>("実験コントロールパネル");
-        window.minSize = new Vector2(380, 560);
+        window.minSize = new Vector2(440, 620);
         window.Show();
     }
 
@@ -37,24 +37,28 @@ public class EXP_ExperimentControlWindow : EditorWindow
 
     void OnGUI()
     {
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(10);
+
+        // 大フォント用スタイル定義
+        var titleStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 16 };
+        var sectionStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
 
         // ヘッダー
         using (new EditorGUILayout.HorizontalScope())
         {
-            GUILayout.Label("被験者実験 コントロールダッシュボード", EditorStyles.boldLabel);
+            GUILayout.Label("被験者実験 コントロールダッシュボード", titleStyle);
             GUILayout.FlexibleSpace();
             if (EditorApplication.isPlaying)
             {
-                DrawBadge("実行中 (PLAY)", new Color(0.1f, 0.75f, 0.2f));
+                DrawBadge("実行中 (PLAY)", new Color(0.1f, 0.75f, 0.2f), 13, 24);
             }
             else
             {
-                DrawBadge("停止中 (STOP)", new Color(0.5f, 0.5f, 0.5f));
+                DrawBadge("停止中 (STOP)", new Color(0.5f, 0.5f, 0.5f), 13, 24);
             }
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(8);
 
         if (!EditorApplication.isPlaying)
         {
@@ -72,16 +76,16 @@ public class EXP_ExperimentControlWindow : EditorWindow
         _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
 
         // =====================================================
-        // 0. ナビゲーション・操作ガイド（今何をすべきか？）
+        // 0. ナビゲーション・操作ガイド & リアルタイム刺激インジケーター（超巨大表示）
         // =====================================================
-        DrawActionGuide(manager);
+        DrawActionGuideAndIntervalIndicator(manager);
 
-        EditorGUILayout.Space(10);
+        EditorGUILayout.Space(12);
 
         // =====================================================
         // 1. 進捗バー & セッション概要
         // =====================================================
-        DrawSectionHeader("1. 実験の進捗・セッション概要");
+        DrawSectionHeader("1. 実験の進捗・セッション概要", sectionStyle);
 
         using (new EditorGUILayout.VerticalScope(GUI.skin.box))
         {
@@ -90,57 +94,64 @@ public class EXP_ExperimentControlWindow : EditorWindow
             float progress = total > 0 ? (float)completed / total : 0f;
 
             string progressText = $"試行進捗: {completed} / {total} 試行完了 ({progress:P0})";
-            Rect progressRect = GUILayoutUtility.GetRect(18, 24, GUILayout.ExpandWidth(true));
+            Rect progressRect = GUILayoutUtility.GetRect(18, 30, GUILayout.ExpandWidth(true));
             EditorGUI.ProgressBar(progressRect, progress, progressText);
 
-            EditorGUILayout.Space(6);
+            EditorGUILayout.Space(8);
 
+            var largeLabelStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("被験者 ID:", manager.CurrentSession?.participantId ?? "-", EditorStyles.boldLabel);
-                EditorGUILayout.LabelField("正答率:", manager.CurrentSession != null ? $"{manager.CurrentSession.accuracy:P1}" : "-", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("被験者 ID:", manager.CurrentSession?.participantId ?? "-", largeLabelStyle);
+                EditorGUILayout.LabelField("正答率:", manager.CurrentSession != null ? $"{manager.CurrentSession.accuracy:P1}" : "-", largeLabelStyle);
             }
         }
 
-        EditorGUILayout.Space(10);
+        EditorGUILayout.Space(12);
 
         // =====================================================
         // 2. 現在のステータス & フェーズ
         // =====================================================
-        DrawSectionHeader("2. 現在のステータスとフェーズ");
+        DrawSectionHeader("2. 現在のステータスとフェーズ", sectionStyle);
 
         using (new EditorGUILayout.VerticalScope(GUI.skin.box))
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("全体状態:", GUILayout.Width(70));
+                EditorGUILayout.LabelField("全体状態:", GUILayout.Width(75));
                 DrawStateBadge(manager.CurrentState);
 
                 GUILayout.Space(10);
 
-                EditorGUILayout.LabelField("試行フェーズ:", GUILayout.Width(80));
+                EditorGUILayout.LabelField("試行フェーズ:", GUILayout.Width(85));
                 DrawPhaseBadge(manager.CurrentPhase);
             }
 
-            // 被験者に提示中のメッセージ
+            // 被験者に提示中のメッセージ（特大表示）
             var uiCtrl = manager.uiController ?? manager.GetComponent<EXP_UIController>();
             if (uiCtrl != null && uiCtrl.messageText != null && !string.IsNullOrEmpty(uiCtrl.messageText.text))
             {
-                EditorGUILayout.Space(8);
-                GUILayout.Label("💬 被験者画面に表示中のメッセージ:", EditorStyles.miniBoldLabel);
+                EditorGUILayout.Space(10);
+                GUILayout.Label("💬 被験者画面に表示中のメッセージ:", EditorStyles.boldLabel);
                 using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
                 {
-                    EditorGUILayout.SelectableLabel(uiCtrl.messageText.text, EditorStyles.wordWrappedLabel, GUILayout.Height(38));
+                    var msgStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
+                    {
+                        fontSize = 15,
+                        fontStyle = FontStyle.Bold,
+                        alignment = TextAnchor.MiddleCenter
+                    };
+                    EditorGUILayout.SelectableLabel(uiCtrl.messageText.text, msgStyle, GUILayout.Height(50));
                 }
             }
         }
 
-        EditorGUILayout.Space(10);
+        EditorGUILayout.Space(12);
 
         // =====================================================
         // 3. 現在の試行条件パラメータ
         // =====================================================
-        DrawSectionHeader("3. 実行中の試行条件パラメータ");
+        DrawSectionHeader("3. 実行中の試行条件パラメータ", sectionStyle);
 
         using (new EditorGUILayout.VerticalScope(GUI.skin.box))
         {
@@ -148,44 +159,55 @@ public class EXP_ExperimentControlWindow : EditorWindow
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.LabelField("現在の条件名:", manager.CurrentTrial.conditionName, EditorStyles.boldLabel);
+                    var paramHeaderStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+                    EditorGUILayout.LabelField("現在の条件名:", manager.CurrentTrial.conditionName, paramHeaderStyle);
                     if (manager.CurrentTrial.isPractice)
                     {
-                        DrawBadge("練習試行", new Color(0.9f, 0.55f, 0.1f));
+                        DrawBadge("練習試行", new Color(0.9f, 0.55f, 0.1f), 12, 22);
                     }
                     else
                     {
-                        DrawBadge("本試行", new Color(0.2f, 0.6f, 0.9f));
+                        DrawBadge("本試行", new Color(0.2f, 0.6f, 0.9f), 12, 22);
                     }
                 }
 
                 if (manager.CurrentTrial.metadata.Count > 0)
                 {
-                    EditorGUILayout.Space(4);
-                    GUILayout.Label("詳細パラメータ:", EditorStyles.miniBoldLabel);
+                    EditorGUILayout.Space(6);
+                    GUILayout.Label("詳細パラメータ:", EditorStyles.boldLabel);
+                    var itemLabelStyle = new GUIStyle(EditorStyles.label) { fontSize = 12 };
+                    var valLabelStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+
                     foreach (var kv in manager.CurrentTrial.metadata)
                     {
                         string japaneseKey = TranslateMetadataKey(kv.Key);
                         using (new EditorGUILayout.HorizontalScope())
                         {
-                            EditorGUILayout.LabelField($"  • {japaneseKey} ({kv.Key})", GUILayout.Width(220));
-                            EditorGUILayout.LabelField(kv.Value, EditorStyles.boldLabel);
+                            EditorGUILayout.LabelField($"  • {japaneseKey}", itemLabelStyle, GUILayout.Width(230));
+                            EditorGUILayout.LabelField(kv.Value, valLabelStyle);
                         }
                     }
                 }
             }
             else
             {
-                EditorGUILayout.LabelField("現在実行中の試行はありません（待機中）", EditorStyles.centeredGreyMiniLabel);
+                var emptyStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel) { fontSize = 12 };
+                EditorGUILayout.LabelField("現在実行中の試行はありません（待機中）", emptyStyle);
             }
         }
 
-        EditorGUILayout.Space(10);
+        EditorGUILayout.Space(12);
 
         // =====================================================
         // 4. メイン操作ボタン（開始・中断・進行）
         // =====================================================
-        DrawSectionHeader("4. 実験コントロール操作");
+        DrawSectionHeader("4. 実験コントロール操作", sectionStyle);
+
+        var btnStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontSize = 14,
+            fontStyle = FontStyle.Bold
+        };
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -193,7 +215,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
             var prevBg = GUI.backgroundColor;
             if (GUI.enabled) GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
 
-            if (GUILayout.Button("▶ 実験を開始する (Space)", GUILayout.Height(40)))
+            if (GUILayout.Button("▶ 実験を開始する (Space)", btnStyle, GUILayout.Height(44)))
             {
                 manager.StartExperiment();
             }
@@ -202,7 +224,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
             GUI.enabled = (manager.CurrentState != EXP_ExperimentState.Idle && manager.CurrentState != EXP_ExperimentState.Finished);
             if (GUI.enabled) GUI.backgroundColor = new Color(0.9f, 0.35f, 0.35f);
 
-            if (GUILayout.Button("■ 実験を中断する (Esc)", GUILayout.Height(40)))
+            if (GUILayout.Button("■ 実験を中断する (Esc)", btnStyle, GUILayout.Height(44)))
             {
                 manager.AbortExperiment();
             }
@@ -211,12 +233,12 @@ public class EXP_ExperimentControlWindow : EditorWindow
             GUI.enabled = true;
         }
 
-        EditorGUILayout.Space(12);
+        EditorGUILayout.Space(14);
 
         // =====================================================
-        // 5. 参加者応答パネル（入力ボタン）
+        // 5. 参加者応答パネル（超巨大入力ボタン）
         // =====================================================
-        DrawSectionHeader("5. 参加者応答入力パネル");
+        DrawSectionHeader("5. 参加者応答入力パネル", sectionStyle);
 
         var inputHandler = manager.inputHandler ?? manager.GetComponent<EXP_InputHandler>();
         bool isListening = inputHandler != null && inputHandler.IsListening &&
@@ -226,28 +248,35 @@ public class EXP_ExperimentControlWindow : EditorWindow
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("入力受付状態:", EditorStyles.boldLabel, GUILayout.Width(90));
+                var inputHeaderStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+                EditorGUILayout.LabelField("入力受付状態:", inputHeaderStyle, GUILayout.Width(100));
                 if (isListening)
                 {
-                    DrawBadge("● 応答受付中 (ボタン/キー有効)", new Color(0.1f, 0.8f, 0.3f));
+                    DrawBadge("● 応答受付中 (ボタン/キー有効)", new Color(0.1f, 0.8f, 0.3f), 13, 24);
                 }
                 else
                 {
-                    DrawBadge("入力ロック (待機中)", new Color(0.5f, 0.5f, 0.5f));
+                    DrawBadge("入力ロック (待機中)", new Color(0.5f, 0.5f, 0.5f), 13, 24);
                 }
             }
 
-            EditorGUILayout.Space(8);
+            EditorGUILayout.Space(10);
 
             GUI.enabled = isListening;
             var defaultBg = GUI.backgroundColor;
 
             if (isListening) GUI.backgroundColor = new Color(0.55f, 0.88f, 1.0f);
 
+            var bigChoiceBtnStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 15,
+                fontStyle = FontStyle.Bold
+            };
+
             // 教示中や休憩中用の決定・次へボタン
             if (manager.CurrentState == EXP_ExperimentState.Instruction || manager.CurrentState == EXP_ExperimentState.Break)
             {
-                if (GUILayout.Button("👉 次へ進む / 準備完了 (クリック)", GUILayout.Height(48)))
+                if (GUILayout.Button("👉 次へ進む / 準備完了 (クリック)", bigChoiceBtnStyle, GUILayout.Height(55)))
                 {
                     inputHandler?.TriggerResponse("Space");
                 }
@@ -255,14 +284,14 @@ public class EXP_ExperimentControlWindow : EditorWindow
             else
             {
                 // 2AFC 専用巨大応答ボタン
-                GUILayout.Label("重さ比較の判断選択 (直接クリックで回答):", EditorStyles.miniBoldLabel);
+                GUILayout.Label("重さ比較の判断選択 (直接クリックで回答):", EditorStyles.boldLabel);
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("【 1 】 第 1 刺激が重い\n(Z キー / クリック)", GUILayout.Height(54)))
+                    if (GUILayout.Button("【 1 】 第 1 刺激が重い\n(Z キー / クリック)", bigChoiceBtnStyle, GUILayout.Height(62)))
                     {
                         inputHandler?.TriggerResponse("Z");
                     }
-                    if (GUILayout.Button("【 2 】 第 2 刺激が重い\n(X キー / クリック)", GUILayout.Height(54)))
+                    if (GUILayout.Button("【 2 】 第 2 刺激が重い\n(X キー / クリック)", bigChoiceBtnStyle, GUILayout.Height(62)))
                     {
                         inputHandler?.TriggerResponse("X");
                     }
@@ -277,10 +306,10 @@ public class EXP_ExperimentControlWindow : EditorWindow
     }
 
     // =====================================================
-    // アクションガイド（今何をすべきかの案内メッセージ）
+    // アクションガイド & 2AFC リアルタイム刺激提示インジケーター
     // =====================================================
 
-    private static void DrawActionGuide(EXP_ExperimentManager manager)
+    private static void DrawActionGuideAndIntervalIndicator(EXP_ExperimentManager manager)
     {
         string guideText;
         MessageType messageType = MessageType.Info;
@@ -288,7 +317,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
         switch (manager.CurrentState)
         {
             case EXP_ExperimentState.Idle:
-                guideText = "👉 【準備完了】下の「▶ 実験を開始する (Space)」ボタン、または Space キーを押して実験を開始してください。";
+                guideText = "👉 【準備完了】上の「▶ 実験を開始する (Space)」ボタンを押してください。";
                 messageType = MessageType.Info;
                 break;
 
@@ -330,22 +359,38 @@ public class EXP_ExperimentControlWindow : EditorWindow
         }
 
         EditorGUILayout.HelpBox(guideText, messageType);
+
+        // 2AFC リアルタイム逐次刺激インジケーター（刺激提示中 / 応答待機中 に特大バッジを表示）
+        if (manager.CurrentState == EXP_ExperimentState.Trial && manager.CurrentTrial != null)
+        {
+            string currentInterval = manager.CurrentTrial.metadata.GetValueOrDefault("currentInterval", "");
+            if (!string.IsNullOrEmpty(currentInterval))
+            {
+                EditorGUILayout.Space(4);
+                Color badgeBg = currentInterval.Contains("第 1") ? new Color(0.9f, 0.25f, 0.25f)
+                              : currentInterval.Contains("第 2") ? new Color(0.25f, 0.55f, 0.95f)
+                              : currentInterval.Contains("応答") ? new Color(0.15f, 0.8f, 0.35f)
+                              : new Color(0.6f, 0.6f, 0.6f);
+
+                DrawBadge($"⚡ 現在の刺激フェーズ: {currentInterval}", badgeBg, 15, 34);
+            }
+        }
     }
 
     // =====================================================
     // UI ヘルパー & バッジ描画
     // =====================================================
 
-    private static void DrawSectionHeader(string title)
+    private static void DrawSectionHeader(string title, GUIStyle style)
     {
-        EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+        EditorGUILayout.LabelField(title, style);
     }
 
-    private static void DrawBadge(string text, Color color)
+    private static void DrawBadge(string text, Color color, int fontSize = 12, float height = 22)
     {
         var style = new GUIStyle(GUI.skin.box)
         {
-            fontSize = 11,
+            fontSize = fontSize,
             fontStyle = FontStyle.Bold,
             alignment = TextAnchor.MiddleCenter,
             normal = { textColor = Color.white }
@@ -353,7 +398,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
 
         var prevColor = GUI.color;
         GUI.color = color;
-        GUILayout.Box(text, style, GUILayout.Height(20));
+        GUILayout.Box(text, style, GUILayout.Height(height));
         GUI.color = prevColor;
     }
 
@@ -369,7 +414,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
             EXP_ExperimentState.Finished => ("実験終了 (FINISHED)", new Color(0.6f, 0.3f, 0.85f)),
             _ => ("不明", Color.gray)
         };
-        DrawBadge(label, color);
+        DrawBadge(label, color, 12, 22);
     }
 
     private static void DrawPhaseBadge(EXP_TrialPhase phase)
@@ -382,7 +427,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
             EXP_TrialPhase.Feedback => ("フィードバック (FEEDBACK)", new Color(0.25f, 0.7f, 0.9f)),
             _ => ("-", Color.gray)
         };
-        DrawBadge(label, color);
+        DrawBadge(label, color, 12, 22);
     }
 
     private static string TranslateMetadataKey(string key)
@@ -398,6 +443,7 @@ public class EXP_ExperimentControlWindow : EditorWindow
             "comparisonFrequency" => "比較 STM 周波数 [Hz]",
             "interval1Frequency" => "第1刺激の STM 周波数 [Hz]",
             "interval2Frequency" => "第2刺激の STM 周波数 [Hz]",
+            "currentInterval" => "現在の刺激提示フェーズ",
             _ => key
         };
     }

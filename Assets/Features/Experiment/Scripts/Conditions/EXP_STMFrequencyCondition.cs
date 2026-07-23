@@ -100,17 +100,26 @@ public class EXP_STMFrequencyCondition : EXP_BaseCondition
         float originalFrequency = controller.stmFrequency;
 
         // ---- Interval 1 ----
+        trial.metadata["currentInterval"] = "第 1 刺激 (Interval 1)";
+        var uiCtrl = runner.GetComponent<EXP_UIController>() ?? Object.FindAnyObjectByType<EXP_UIController>();
+        uiCtrl?.SetMessage("【 第 1 刺激 】提示中");
         yield return RunInterval(controller, freq1, "Interval1", cueDuration, intervalDuration);
 
         // ---- ISI ----
+        trial.metadata["currentInterval"] = "無刺激間隔 (ISI)";
+        uiCtrl?.SetMessage("・ ・ ・");
         StopHaptics(controller, originalFrequency);
         if (isiDuration > 0f)
             yield return new WaitForSeconds(isiDuration);
 
         // ---- Interval 2 ----
+        trial.metadata["currentInterval"] = "第 2 刺激 (Interval 2)";
+        uiCtrl?.SetMessage("【 第 2 刺激 】提示中");
         yield return RunInterval(controller, freq2, "Interval2", cueDuration, intervalDuration);
 
-        // 後片付けは OnTrialEnd() で行う
+        // ---- Response Prompt ----
+        trial.metadata["currentInterval"] = "応答受付中";
+        uiCtrl?.SetMessage("どちらが重かったですか？\n【1】第1刺激 (Z)   /   【2】第2刺激 (X)");
     }
 
     public override void OnTrialEnd(EXP_TrialData trial)
