@@ -7,15 +7,19 @@ Assets/Features/Experiment/Scripts/
 ├── Enums/
 │   └── EXP_Enums.cs              ← 列挙型定義
 ├── Data/
-│   ├── EXP_ExperimentConfig.cs   ← 実験設定 (ScriptableObject)
-│   ├── EXP_BaseCondition.cs      ← 実験条件の基底 (abstract ScriptableObject)
-│   ├── EXP_Base2AFCCondition.cs  ← 2AFC実験条件の抽象基底 (abstract ScriptableObject)
-│   ├── EXP_TrialData.cs          ← 1試行のデータ構造
-│   └── EXP_ExperimentSession.cs  ← セッション実行時情報
+│   ├── EXP_ExperimentConfig.cs           ← 実験設定 (ScriptableObject)
+│   ├── EXP_TrialData.cs                  ← 1試行のデータ構造
+│   └── EXP_ExperimentSession.cs          ← セッション実行時情報
+├── Paradigms/                            ← ★ 実験パラダイムの抽象基底クラス群
+│   ├── EXP_BaseCondition.cs              ← 実験条件の全共通最上位基底
+│   ├── EXP_Base2AFCCondition.cs          ← パラダイム1: 2AFC（二選択強制選択）抽象基底
+│   ├── EXP_BaseSingleStimulusCondition.cs ← パラダイム2: 単一刺激（Detection / Rating）抽象基底
+│   ├── EXP_BaseABXCondition.cs             ← パラダイム3: ABX（3段階同種識別）抽象基底
+│   └── EXP_BaseAdjustmentCondition.cs      ← パラダイム4: 調整法（Method of Adjustment / PSE探索）抽象基底
 ├── Core/
-│   ├── EXP_ExperimentManager.cs         ← 実験ステート＆コンポーネント統括マネージャー (177行)
-│   ├── EXP_ExperimentFlowController.cs  ← 実験全体フロー制御（教示・練習・本試行・休憩コルーチン） (141行)
-│   ├── EXP_TrialRunner.cs               ← 1試行実行サイクル（ITI・刺激・応答・判定・記録） (105行)
+│   ├── EXP_ExperimentManager.cs         ← 実験ステート＆コンポーネント統括マネージャー
+│   ├── EXP_ExperimentFlowController.cs  ← 実験全体フロー制御（教示・練習・本試行・休憩コルーチン）
+│   ├── EXP_TrialRunner.cs               ← 1試行実行サイクル（ITI・刺激・応答・判定・記録）
 │   ├── EXP_TrialSequencer.cs            ← 試行シーケンス管理
 │   ├── EXP_DataRecorder.cs              ← CSV / JSON 保存
 │   ├── EXP_EventMarker.cs               ← タイムスタンプ付きイベントログ
@@ -27,7 +31,7 @@ Assets/Features/Experiment/Scripts/
 │   ├── EXP_PanelElementDrawers.cs    ← バッジ・進捗バー共通描画
 │   ├── EXP_MetadataTranslator.cs     ← メタデータ日本語ローカライズ
 │   └── EXP_InGameControlPanel.cs    ← Build後用 インゲームコントロールパネル
-├── Conditions/
+├── Conditions/                          ← ★ 具体的実験条件 (ScriptableObject)
 │   ├── EXP_OppositeOffsetCondition.cs  ← 2AFC: OppositeOffset Y 値の知覚比較
 │   └── EXP_STMFrequencyCondition.cs    ← 2AFC: STM 周波数の知覚比較
 └── Editor/

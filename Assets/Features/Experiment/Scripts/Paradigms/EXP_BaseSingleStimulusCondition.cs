@@ -1,0 +1,116 @@
+using UnityEngine;
+using System.Collections;
+
+#nullable enable
+
+/// <summary>
+/// 【単一刺激実験条件の共通基底クラス (Detection / Rating パラダイム)】
+/// <see cref="EXP_BaseCondition"/> を継承し、単一の刺激を提示して検出の有無 (Yes/No) や
+/// マグニチュード評定 (Rating) を行う実験パラダイムの共通ロジックを提供します。
+/// </summary>
+public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
+{
+    // =====================================================
+    // Reference
+    // =====================================================
+
+    [HideInInspector]
+    [System.NonSerialized]
+    public HAP_HapticsIllusionFoxFootController? controller;
+
+    // =====================================================
+    // Timing Settings
+    // =====================================================
+
+    [Header("Timing Settings")]
+    [Tooltip("刺激提示時間 [秒]")]
+    [Min(0.1f)]
+    public float stimulusDuration = 2.0f;
+
+    [Tooltip("刺激提示前の合図（Cue）表示時間 [秒]")]
+    [Min(0f)]
+    public float cueDuration = 0.3f;
+
+    // =====================================================
+    // Abstract Interface (派生クラスで実装)
+    // =====================================================
+
+    protected abstract float GetTargetValue();
+    protected abstract void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value);
+    protected abstract void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl);
+    protected abstract string FormatValueForDebug(float value);
+
+    // =====================================================
+    // Base Implementations
+    // =====================================================
+
+    public override void Apply(EXP_TrialData trial) { }
+
+    public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
+    {
+        if (controller == null)
+            controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
+
+        float val = GetTargetValue();
+
+        // メタデータ記録
+        trial.metadata["stimulusValue"] = val.ToString("F4");
+
+        var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
+        bool isDebug = expManager != null && expManager.config != null && expManager.config.isDebugMode;
+
+        string debugStr = FormatValueForDebug(val);
+        string label = isDebug ? $"刺激提示中 ({debugStr})" : "刺激提示中";
+        string msg = isDebug ? $"【 刺激提示中 】 ({debugStr})" : "【 刺激提示中 】";
+
+        trial.metadata["currentInterval"] = label;
+        expManager?.SetMessage(msg);
+
+        // 刺激提示
+        if (controller != null)
+        {
+            ApplyValueToController(controller, val);
+            SetHapticsBypass(controller, false);
+        }
+
+        if (cueDuration > 0f)
+            yield return new WaitForSeconds(cueDuration);
+
+        yield return new WaitForSeconds(stimulusDuration);
+
+        // 応答受付メッセージ
+        trial.metadata["currentInterval"] = "応答受付中";
+        if (expManager != null)
+        {
+            expManager.SetMessage("刺激を感じましたか？\n【1】はい (Z)   /   【2】いいえ (X)");
+            expManager.SetPhase(EXP_TrialPhase.Response);
+        }
+    }
+
+    public override void OnTrialEnd(EXP_TrialData trial)
+    {
+        if (controller != null)
+        {
+            ResetValueOnTrialEnd(controller);
+            SetHapticsBypass(controller, false);
+        }
+    }
+
+    public override bool? EvaluateResponse(EXP_TrialData trial) => null;
+
+    protected static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
+    {
+        if (ctrl.autdController != null)
+        {
+            ctrl.autdController.bypassHaptics = bypass;
+        }
+        else
+        {
+            var mainController = Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
+            if (mainController != null)
+                mainController.bypassHaptics = bypass;
+            else
+                ctrl.enabled = !bypass;
+        }
+    }
+}
