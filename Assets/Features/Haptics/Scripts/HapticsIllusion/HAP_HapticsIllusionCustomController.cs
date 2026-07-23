@@ -26,8 +26,22 @@ public class HapticsIllusionTargetConfig
     [Tooltip("焦点照射の目標となる Transform（接点、または接点以外の任意位置）")]
     public Transform? targetTransform;
 
-    [Tooltip("この焦点を担当する AUTD デバイスのインデックス (0, 1, 2...)")]
-    public int assignedDeviceIndex = 0;
+    [Tooltip("この焦点を担当する AUTD デバイスグループ")]
+    public HAP_AUTDDeviceGroup assignedDeviceGroup = new HAP_AUTDDeviceGroup(new int[] { 0 });
+
+    /// <summary>
+    /// 下位互換用：担当 AUTD インデックス
+    /// </summary>
+    public int assignedDeviceIndex
+    {
+        get => (assignedDeviceGroup != null && assignedDeviceGroup.HasAnyDevice) ? assignedDeviceGroup.SelectedDeviceIDs[0] : 0;
+        set
+        {
+            if (assignedDeviceGroup == null) assignedDeviceGroup = new HAP_AUTDDeviceGroup();
+            assignedDeviceGroup.Clear();
+            assignedDeviceGroup.SetDeviceSelected(value, true);
+        }
+    }
 
     [Tooltip("焦点位置のローカル/法線方向オフセット (メートル)。\n表面: 0, 内側(めり込み): マイナス, 外側: プラス")]
     public Vector3 offsetPosition = Vector3.zero;
@@ -67,7 +81,7 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
         new HapticsIllusionTargetConfig
         {
             focusName = "Contact Point Focus (AUTD #0)",
-            assignedDeviceIndex = 0,
+            assignedDeviceGroup = new HAP_AUTDDeviceGroup(new int[] { 0 }),
             useSTM = true,
             stmFrequency = 80f,
             stmRadius = 0.005f
@@ -75,7 +89,7 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
         new HapticsIllusionTargetConfig
         {
             focusName = "Non-Contact / Opposite Focus (AUTD #1)",
-            assignedDeviceIndex = 1,
+            assignedDeviceGroup = new HAP_AUTDDeviceGroup(new int[] { 1 }),
             useSTM = true,
             stmFrequency = 80f,
             stmRadius = 0.005f
@@ -139,7 +153,11 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
             };
 
             var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
-            fociData.AssignedDeviceIndex = cfg.assignedDeviceIndex;
+            fociData.AssignedDeviceIndices = new List<int>(cfg.assignedDeviceGroup.SelectedDeviceIDs);
+            if (cfg.assignedDeviceGroup.HasAnyDevice)
+            {
+                fociData.AssignedDeviceIndex = cfg.assignedDeviceGroup.SelectedDeviceIDs[0];
+            }
             fociData.UseSTM = cfg.useSTM;
             fociData.STMFrequency = cfg.stmFrequency;
 
@@ -223,10 +241,6 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
                 }
             }
 
-#if UNITY_EDITOR
-            UnityEditor.Handles.Label(centerPos + Vector3.up * 0.015f, 
-                $"[{cfg.focusName}]\nAUTD #{cfg.assignedDeviceIndex} | {(cfg.useSTM ? $"{cfg.stmFrequency}Hz STM" : "Static Focus")}");
-#endif
             idx++;
         }
     }

@@ -21,11 +21,39 @@ using static AUTD3Sharp.Units;
 public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
 {
     [Header("Device Allocation Settings")]
-    [Tooltip("接点（足の表面）へ照射を担当する AUTD デバイスのインデックス (例: 0)")]
-    public int contactDeviceIndex = 0;
+    [Tooltip("接点（足の表面）へ照射を担当する AUTD デバイスグループ")]
+    public HAP_AUTDDeviceGroup contactDeviceGroup = new HAP_AUTDDeviceGroup(new int[] { 0 });
 
-    [Tooltip("接点の反対側（裏側/回り込み検証位置）へ照射を担当する AUTD デバイスのインデックス (例: 1)")]
-    public int oppositeDeviceIndex = 1;
+    [Tooltip("接点の反対側（裏側/回り込み検証位置）へ照射を担当する AUTD デバイスグループ")]
+    public HAP_AUTDDeviceGroup oppositeDeviceGroup = new HAP_AUTDDeviceGroup(new int[] { 1 });
+
+    /// <summary>
+    /// 下位互換用：接点側 AUTD インデックス
+    /// </summary>
+    public int contactDeviceIndex
+    {
+        get => (contactDeviceGroup != null && contactDeviceGroup.HasAnyDevice) ? contactDeviceGroup.SelectedDeviceIDs[0] : 0;
+        set
+        {
+            if (contactDeviceGroup == null) contactDeviceGroup = new HAP_AUTDDeviceGroup();
+            contactDeviceGroup.Clear();
+            contactDeviceGroup.SetDeviceSelected(value, true);
+        }
+    }
+
+    /// <summary>
+    /// 下位互換用：反対側 AUTD インデックス
+    /// </summary>
+    public int oppositeDeviceIndex
+    {
+        get => (oppositeDeviceGroup != null && oppositeDeviceGroup.HasAnyDevice) ? oppositeDeviceGroup.SelectedDeviceIDs[0] : 1;
+        set
+        {
+            if (oppositeDeviceGroup == null) oppositeDeviceGroup = new HAP_AUTDDeviceGroup();
+            oppositeDeviceGroup.Clear();
+            oppositeDeviceGroup.SetDeviceSelected(value, true);
+        }
+    }
 
     [Tooltip("反対側（裏側）への焦点照射を有効にするかどうか")]
     public bool enableOppositeFocus = true;
@@ -53,7 +81,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
 
     /// <summary>
     /// FoxFootの足検知・接触判定を維持したまま、
-    /// 接点側 (contactDeviceIndex) と 反対側 (oppositeDeviceIndex) に独立した焦点データを生成して返します。
+    /// 接点側 (contactDeviceGroup) と 反対側 (oppositeDeviceGroup) に独立した焦点データを生成して返します。
     /// </summary>
     public override List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
     {
@@ -68,24 +96,24 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
             Vector3 footPos = info.Transform.position + offset;
             Vector3 normal = footTargetNormal.normalized; // 例: down
 
-            // 1. 接点側の焦点データ生成 (contactDeviceIndex 用)
+            // 1. 接点側の焦点データ生成 (contactDeviceGroup 用)
             Vector3 contactPos = footPos + contactOffset;
-            var contactFociData = CreateFociDataForDevice(
+            var contactFociData = CreateFociDataForGroup(
                 contactPos,
                 normal,
-                contactDeviceIndex,
+                contactDeviceGroup.SelectedDeviceIDs,
                 defaultIntensityPascal
             );
             result.Add(contactFociData);
 
-            // 2. 反対側（裏側）の焦点データ生成 (oppositeDeviceIndex 用)
+            // 2. 反対側（裏側）の焦点データ生成 (oppositeDeviceGroup 用)
             if (enableOppositeFocus)
             {
                 Vector3 oppositePos = footPos + oppositeOffset;
-                var oppositeFociData = CreateFociDataForDevice(
+                var oppositeFociData = CreateFociDataForGroup(
                     oppositePos,
                     -normal, // 反対向きの法線
-                    oppositeDeviceIndex,
+                    oppositeDeviceGroup.SelectedDeviceIDs,
                     defaultIntensityPascal
                 );
                 result.Add(oppositeFociData);
@@ -96,12 +124,12 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
     }
 
     /// <summary>
-    /// 指定された位置・デバイスインデックス向けに ClusterFociData を構築するヘルパー
+    /// 指定された位置・デバイスグループ向けに ClusterFociData を構築するヘルパー
     /// </summary>
-    private HAP_FociGenerator.ClusterFociData CreateFociDataForDevice(
+    private HAP_FociGenerator.ClusterFociData CreateFociDataForGroup(
         Vector3 position,
         Vector3 normal,
-        int deviceIndex,
+        List<int> deviceIDs,
         float intensityPascal)
     {
         TrackedCluster dummyCluster = new TrackedCluster
@@ -113,7 +141,11 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
         };
 
         var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
-        fociData.AssignedDeviceIndex = deviceIndex;
+        fociData.AssignedDeviceIndices = new List<int>(deviceIDs);
+        if (deviceIDs.Count > 0)
+        {
+            fociData.AssignedDeviceIndex = deviceIDs[0];
+        }
         fociData.UseSTM = useSTM;
         fociData.STMFrequency = stmFrequency;
 
@@ -199,13 +231,6 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
                 }
             }
 
-#if UNITY_EDITOR
-            if (isActive)
-            {
-                UnityEditor.Handles.Label(contactPos + Vector3.up * 0.02f, 
-                    $"[{info.Name}]\nFront: AUTD #{contactDeviceIndex} | Back: AUTD #{oppositeDeviceIndex}");
-            }
-#endif
         }
     }
 

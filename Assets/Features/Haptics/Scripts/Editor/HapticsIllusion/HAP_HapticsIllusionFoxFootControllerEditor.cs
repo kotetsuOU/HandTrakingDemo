@@ -28,8 +28,8 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
     private SerializedProperty footTargetNormalProp;
 
     // Haptics Illusion Specific Properties
-    private SerializedProperty contactDeviceIndexProp;
-    private SerializedProperty oppositeDeviceIndexProp;
+    private SerializedProperty contactDeviceGroupProp;
+    private SerializedProperty oppositeDeviceGroupProp;
     private SerializedProperty enableOppositeFocusProp;
     private SerializedProperty contactOffsetProp;
     private SerializedProperty oppositeOffsetProp;
@@ -67,8 +67,8 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
         footTargetNormalProp = serializedObject.FindProperty("footTargetNormal");
 
         // Haptics Illusion Properties
-        contactDeviceIndexProp = serializedObject.FindProperty("contactDeviceIndex");
-        oppositeDeviceIndexProp = serializedObject.FindProperty("oppositeDeviceIndex");
+        contactDeviceGroupProp = serializedObject.FindProperty("contactDeviceGroup");
+        oppositeDeviceGroupProp = serializedObject.FindProperty("oppositeDeviceGroup");
         enableOppositeFocusProp = serializedObject.FindProperty("enableOppositeFocus");
         contactOffsetProp = serializedObject.FindProperty("contactOffset");
         oppositeOffsetProp = serializedObject.FindProperty("oppositeOffset");
@@ -86,7 +86,7 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
     {
         serializedObject.Update();
 
-        EditorGUILayout.HelpBox("【Haptics Illusion Mode】\nFoxFootのボーン検出・接触判定を継承し、接点側(AUTD #0)と反対側(AUTD #1)から独立した焦点/STMを照射します。", MessageType.Info);
+        EditorGUILayout.HelpBox("【Haptics Illusion Mode】\nFoxFootのボーン検出・接触判定を継承し、接点側と反対側から独立した焦点/STMを照射します。各AUTDデバイスの割り当てをチェックボックスで個別に選択・グルーピングできます。", MessageType.Info);
         EditorGUILayout.Space();
 
         EditorGUILayout.PropertyField(autdControllerProp);
@@ -95,8 +95,14 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
         // 1. Illusion Settings Section
         EditorGUILayout.LabelField("Illusion Device & Offset Settings", EditorStyles.boldLabel);
         EditorGUI.indentLevel++;
-        EditorGUILayout.PropertyField(contactDeviceIndexProp, new GUIContent("Contact AUTD Index"));
-        EditorGUILayout.PropertyField(oppositeDeviceIndexProp, new GUIContent("Opposite AUTD Index"));
+        
+        HAP_AUTDDeviceGroupEditorUtility.DrawGroupMatrix(
+            "AUTD Device Group Selection",
+            ("Contact (Front)", contactDeviceGroupProp),
+            ("Opposite (Back)", oppositeDeviceGroupProp)
+        );
+        EditorGUILayout.Space();
+
         EditorGUILayout.PropertyField(enableOppositeFocusProp, new GUIContent("Enable Opposite Focus"));
         EditorGUILayout.PropertyField(contactOffsetProp, new GUIContent("Contact Offset"));
         if (enableOppositeFocusProp.boolValue)
