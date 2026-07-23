@@ -72,17 +72,59 @@ public static class HAP_GSPATDeviceAllocator
             if (cData.AssignedDeviceIndex >= 0 || hasGroupIndices)
             {
                 // 明示的なデバイスインデックス/グループが指定されている場合
+                // 1. Disablerで有効かつGroupに含まれる候補デバイスを抽出
+                var candidateDevs = new List<AUTD3Device>();
                 for (int i = 0; i < connectedDevices.Count; i++)
                 {
                     var dev = connectedDevices[i];
                     if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
 
                     bool match = (cData.AssignedDeviceIndex >= 0 && (i == cData.AssignedDeviceIndex || dev.ID == cData.AssignedDeviceIndex)) ||
-                                 (hasGroupIndices && (cData.AssignedDeviceIndices.Contains(i) || cData.AssignedDeviceIndices.Contains(dev.ID)));
-
+                                 (hasGroupIndices && cData.AssignedDeviceIndices != null && (cData.AssignedDeviceIndices.Contains(i) || cData.AssignedDeviceIndices.Contains(dev.ID)));
                     if (match)
                     {
-                        deviceAssignments[dev.ID].Add(cData);
+                        candidateDevs.Add(dev);
+                    }
+                }
+
+                if (candidateDevs.Count > 0)
+                {
+                    if (enableDirectionalGrouping)
+                    {
+                        // 2. Directional Grouping有効時：候補の中から角度閾値に収まるデバイスに絞り込み
+                        bool assigned = false;
+                        float groupMinAngle = float.MaxValue;
+                        AUTD3Device? bestDev = null;
+
+                        foreach (var dev in candidateDevs)
+                        {
+                            float angle = Vector3.Angle(dev.transform.forward, -cData.Cluster.Normal);
+                            if (angle < groupMinAngle)
+                            {
+                                groupMinAngle = angle;
+                                bestDev = dev;
+                            }
+
+                            if (angle <= directionalAngleThreshold)
+                            {
+                                deviceAssignments[dev.ID].Add(cData);
+                                assigned = true;
+                            }
+                        }
+
+                        // どの候補デバイスも閾値内に収まらない場合、Group内で最も向きが適した1台を割り当て
+                        if (!assigned && bestDev != null)
+                        {
+                            deviceAssignments[bestDev.ID].Add(cData);
+                        }
+                    }
+                    else
+                    {
+                        // 3. Directional Grouping無効時：Group内の有効な全デバイスに割り当て
+                        foreach (var dev in candidateDevs)
+                        {
+                            deviceAssignments[dev.ID].Add(cData);
+                        }
                     }
                 }
                 continue;
@@ -373,17 +415,59 @@ public static class HAP_GSPATDeviceAllocator
             if (cData.AssignedDeviceIndex >= 0 || hasGroupIndices)
             {
                 // 明示的なデバイスインデックス/グループが指定されている場合
+                // 1. Disablerで有効かつGroupに含まれる候補デバイスを抽出
+                var candidateDevs = new List<AUTD3Device>();
                 for (int i = 0; i < connectedDevices.Count; i++)
                 {
                     var dev = connectedDevices[i];
                     if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
 
                     bool match = (cData.AssignedDeviceIndex >= 0 && (i == cData.AssignedDeviceIndex || dev.ID == cData.AssignedDeviceIndex)) ||
-                                 (hasGroupIndices && (cData.AssignedDeviceIndices.Contains(i) || cData.AssignedDeviceIndices.Contains(dev.ID)));
-
+                                 (hasGroupIndices && cData.AssignedDeviceIndices != null && (cData.AssignedDeviceIndices.Contains(i) || cData.AssignedDeviceIndices.Contains(dev.ID)));
                     if (match)
                     {
-                        deviceAssignments[dev.ID].Add(cData);
+                        candidateDevs.Add(dev);
+                    }
+                }
+
+                if (candidateDevs.Count > 0)
+                {
+                    if (enableDirectionalGrouping)
+                    {
+                        // 2. Directional Grouping有効時：候補の中から角度閾値に収まるデバイスに絞り込み
+                        bool assigned = false;
+                        float groupMinAngle = float.MaxValue;
+                        AUTD3Device? bestDev = null;
+
+                        foreach (var dev in candidateDevs)
+                        {
+                            float angle = Vector3.Angle(dev.transform.forward, -cData.Cluster.Normal);
+                            if (angle < groupMinAngle)
+                            {
+                                groupMinAngle = angle;
+                                bestDev = dev;
+                            }
+
+                            if (angle <= directionalAngleThreshold)
+                            {
+                                deviceAssignments[dev.ID].Add(cData);
+                                assigned = true;
+                            }
+                        }
+
+                        // どの候補デバイスも閾値内に収まらない場合、Group内で最も向きが適した1台を割り当て
+                        if (!assigned && bestDev != null)
+                        {
+                            deviceAssignments[bestDev.ID].Add(cData);
+                        }
+                    }
+                    else
+                    {
+                        // 3. Directional Grouping無効時：Group内の有効な全デバイスに割り当て
+                        foreach (var dev in candidateDevs)
+                        {
+                            deviceAssignments[dev.ID].Add(cData);
+                        }
                     }
                 }
                 continue;
