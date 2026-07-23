@@ -4,7 +4,7 @@ using static EXP_PanelElementDrawers;
 #nullable enable
 
 /// <summary>
-/// コントロールパネルの条件表示・ボタン操作・応答入力パネル描画コンポーネント。
+/// コントロールパネルの条件表示・操作ボタン・応答入力パネル描画コンポーネント。
 /// </summary>
 public static class EXP_ControlInputPanelDrawer
 {
@@ -90,58 +90,71 @@ public static class EXP_ControlInputPanelDrawer
 
     public static void DrawResponsePanelSection(EXP_ExperimentManager manager)
     {
-        DrawSectionHeader("5. 参加者応答入力パネル");
+        DrawSectionHeader("5. コンテキスト操作 & 参加者応答パネル");
         var inputHandler = manager.inputHandler ?? manager.GetComponent<EXP_InputHandler>();
-        bool isListening = inputHandler != null && inputHandler.IsListening &&
-                           (!inputHandler.blockAfterFirstResponse || !inputHandler.HasResponded);
 
         using (new GUILayout.VerticalScope(GUI.skin.box))
         {
-            using (new GUILayout.HorizontalScope())
+            // A. 未開始状態 (Idle)
+            if (manager.CurrentState == EXP_ExperimentState.Idle)
             {
-                GUILayout.Label("入力受付状態:", GetBoldLabelStyle(), GUILayout.Width(100));
-                if (isListening)
-                {
-                    DrawBadge("● 応答受付中 (ボタン/キー有効)", new Color(0.1f, 0.78f, 0.3f), 13, 28);
-                }
-                else
-                {
-                    DrawBadge("🔒 入力ロック中 (待機中 / 刺激照射中)", new Color(0.5f, 0.5f, 0.5f), 13, 28);
-                }
+                DrawBadge("💡 待機中: 上部の「▶ 実験を開始する」ボタンを押すと実験がスタートします", new Color(0.5f, 0.5f, 0.5f), 13, 28);
             }
-
-            GUILayout.Space(8);
-
-            GUI.enabled = isListening;
-            var defaultBg = GUI.backgroundColor;
-
-            if (isListening) GUI.backgroundColor = new Color(0.55f, 0.88f, 1.0f);
-
-            if (manager.CurrentState == EXP_ExperimentState.Instruction || manager.CurrentState == EXP_ExperimentState.Break)
+            // B. 教示画面 (Instruction) または 休憩画面 (Break)
+            else if (manager.CurrentState == EXP_ExperimentState.Instruction || manager.CurrentState == EXP_ExperimentState.Break)
             {
-                if (GUILayout.Button("👉 次へ進む / 準備完了 (クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(55)))
+                DrawBadge("● 入力受付中: 準備完了後に「次へ進む」を押してください", new Color(0.1f, 0.78f, 0.3f), 13, 28);
+                GUILayout.Space(8);
+
+                var prevBg = GUI.backgroundColor;
+                GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f);
+                if (GUILayout.Button("👉 被験者準備完了 / 次へ進む (Space キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(58)))
                 {
                     inputHandler?.TriggerResponse("Space");
                 }
+                GUI.backgroundColor = prevBg;
             }
-            else
+            // C. 試行実行中 (Practice / Trial)
+            else if (manager.CurrentState == EXP_ExperimentState.Trial || manager.CurrentState == EXP_ExperimentState.Practice)
             {
-                GUILayout.Label("重さ比較の判断選択 (直接クリックで回答):", GetBoldLabelStyle());
-                using (new GUILayout.HorizontalScope())
+                bool isResponsePhase = (manager.CurrentPhase == EXP_TrialPhase.Response) ||
+                    (manager.CurrentTrial != null && manager.CurrentTrial.metadata.TryGetValue("currentInterval", out var ci) && ci.Contains("応答"));
+
+                if (isResponsePhase)
                 {
-                    if (GUILayout.Button("【 1 】 第 1 刺激が重い\n(Z キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(62)))
+                    DrawBadge("● 応答受付中: 重さ比較の判断を選択してください", new Color(0.1f, 0.78f, 0.3f), 13, 28);
+                    GUILayout.Space(8);
+
+                    var prevBg = GUI.backgroundColor;
+                    GUI.backgroundColor = new Color(0.55f, 0.88f, 1.0f);
+
+                    using (new GUILayout.HorizontalScope())
                     {
-                        inputHandler?.TriggerResponse("Z");
+                        if (GUILayout.Button("【 1 】 第 1 刺激が重い\n(Z キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(65)))
+                        {
+                            inputHandler?.TriggerResponse("Z");
+                        }
+                        if (GUILayout.Button("【 2 】 第 2 刺激が重い\n(X キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(65)))
+                        {
+                            inputHandler?.TriggerResponse("X");
+                        }
                     }
-                    if (GUILayout.Button("【 2 】 第 2 刺激が重い\n(X キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(62)))
-                    {
-                        inputHandler?.TriggerResponse("X");
-                    }
+                    GUI.backgroundColor = prevBg;
+                }
+                else
+                {
+                    DrawBadge("🔒 刺激照射中 / 待機中 (入力受付オフ)", new Color(0.5f, 0.5f, 0.5f), 13, 28);
+                    GUILayout.Space(6);
+                    GUILayout.Label("触覚刺激を照射中、または試行間待機中です。提示終了までお待ちください...", GetMiniLabelStyle());
                 }
             }
-
-            GUI.backgroundColor = defaultBg;
-            GUI.enabled = true;
+            // D. 全試行完了 (Finished)
+            else if (manager.CurrentState == EXP_ExperimentState.Finished)
+            {
+                DrawBadge("🎉 実験セッション完了: 全試行が終了しました", new Color(0.6f, 0.3f, 0.85f), 13, 28);
+                GUILayout.Space(6);
+                GUILayout.Label("実験データは正常に保存されました。", GetMiniLabelStyle());
+            }
         }
     }
 }

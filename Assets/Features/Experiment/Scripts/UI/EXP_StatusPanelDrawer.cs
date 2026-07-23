@@ -105,8 +105,13 @@ public static class EXP_StatusPanelDrawer
             using (new GUILayout.HorizontalScope())
             {
                 GUILayout.Label($"被験者 ID: {manager.CurrentSession?.participantId ?? "-"}", GetBoldLabelStyle());
-                GUILayout.FlexibleSpace();
-                GUILayout.Label($"正答率: {(manager.CurrentSession != null ? $"{manager.CurrentSession.accuracy:P1}" : "-")}", GetBoldLabelStyle());
+
+                bool isDebug = manager.config != null && manager.config.isDebugMode;
+                if (isDebug && manager.CurrentSession != null)
+                {
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"正答率 (デバッグ): {manager.CurrentSession.accuracy:P1}", GetBoldLabelStyle());
+                }
             }
         }
     }

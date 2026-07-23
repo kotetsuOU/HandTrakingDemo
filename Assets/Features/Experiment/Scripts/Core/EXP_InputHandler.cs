@@ -27,8 +27,8 @@ public class EXP_InputHandler : MonoBehaviour
     [Tooltip("使用するデバイス種別")]
     public EXP_InputDevice inputDevice = EXP_InputDevice.Any;
 
-    [Tooltip("キーボード使用時の応答キーリスト（複数のキーを同時に登録できます）")]
-    public KeyCode[] responseKeys = new KeyCode[] { KeyCode.Z, KeyCode.X };
+    [Tooltip("キーボード使用時の応答キーリスト（Z, X, Space, Return など）")]
+    public KeyCode[] responseKeys = new KeyCode[] { KeyCode.Z, KeyCode.X, KeyCode.Space, KeyCode.Return };
 
     [Tooltip("ゲームパッド使用時のボタン名リスト（InputSystem の Control 名）\n"
            + "例: buttonSouth, buttonNorth, buttonEast, buttonWest,\n"

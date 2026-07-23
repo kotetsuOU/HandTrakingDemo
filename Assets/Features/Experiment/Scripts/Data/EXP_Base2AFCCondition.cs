@@ -51,22 +51,11 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
     // Abstract Interface (派生クラスで実装)
     // =====================================================
 
-    /// <summary>基準物理値（Reference）を取得します。</summary>
     protected abstract float GetReferenceValue();
-
-    /// <summary>固定比較物理値（Fixed Comparison）を取得します。</summary>
     protected abstract float GetFixedComparisonValue();
-
-    /// <summary>候補物理値リスト（Candidates）を取得します。</summary>
     protected abstract float[] GetCandidateValues();
-
-    /// <summary>物理値をコントローラーやハードウェアへ適用します。</summary>
     protected abstract void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value);
-
-    /// <summary>試行終了時の物理値リセット処理を行います。</summary>
     protected abstract void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl);
-
-    /// <summary>デバッグ表示用の値文字列（例: "80 Hz" や "Y: -2.0 cm"）を取得します。</summary>
     protected abstract string FormatValueForDebug(float value);
 
     // =====================================================
@@ -82,11 +71,10 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
 
         if (controller == null)
         {
-            Debug.LogError($"[{GetType().Name}] HAP_HapticsIllusionFoxFootController が見つかりません。");
-            yield break;
+            Debug.LogWarning($"[{GetType().Name}] HAP_HapticsIllusionFoxFootController が見つかりません（ダミータイマーで動作します）。");
         }
 
-        // ペアの物理決定
+        // ペアの物理値決定
         (float val1, float val2, string refPos) = DeterminePairValues();
 
         // メタデータ記録
@@ -126,14 +114,20 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
 
         // ---- Response Prompt ----
         trial.metadata["currentInterval"] = "応答受付中";
-        expManager?.SetMessage("どちらが重かったですか？\n【1】第 1 刺激 (Z)   /   【2】第 2 刺激 (X)");
+        if (expManager != null)
+        {
+            expManager.SetMessage("どちらが重かったですか？\n【1】第 1 刺激 (Z)   /   【2】第 2 刺激 (X)");
+            expManager.SetPhase(EXP_TrialPhase.Response);
+        }
     }
 
     public override void OnTrialEnd(EXP_TrialData trial)
     {
-        if (controller == null) return;
-        ResetValueOnTrialEnd(controller);
-        SetHapticsBypass(controller, false);
+        if (controller != null)
+        {
+            ResetValueOnTrialEnd(controller);
+            SetHapticsBypass(controller, false);
+        }
     }
 
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;
@@ -171,13 +165,16 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
     }
 
     protected IEnumerator RunSingleInterval(
-        HAP_HapticsIllusionFoxFootController ctrl,
+        HAP_HapticsIllusionFoxFootController? ctrl,
         float value,
         float cueSecs,
         float durationSecs)
     {
-        ApplyValueToController(ctrl, value);
-        SetHapticsBypass(ctrl, false);
+        if (ctrl != null)
+        {
+            ApplyValueToController(ctrl, value);
+            SetHapticsBypass(ctrl, false);
+        }
 
         if (cueSecs > 0f)
             yield return new WaitForSeconds(cueSecs);
@@ -185,9 +182,12 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         yield return new WaitForSeconds(durationSecs);
     }
 
-    protected void StopHaptics(HAP_HapticsIllusionFoxFootController ctrl)
+    protected void StopHaptics(HAP_HapticsIllusionFoxFootController? ctrl)
     {
-        SetHapticsBypass(ctrl, true);
+        if (ctrl != null)
+        {
+            SetHapticsBypass(ctrl, true);
+        }
     }
 
     protected static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)

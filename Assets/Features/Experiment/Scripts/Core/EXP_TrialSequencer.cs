@@ -76,8 +76,10 @@ public class EXP_TrialSequencer : MonoBehaviour
         var validConditions = conditions.Where(c => c != null).ToList();
         if (validConditions.Count == 0)
         {
-            Debug.LogWarning("[EXP_TrialSequencer] 登録された条件がありません。conditions リストを確認してください。");
-            return;
+            Debug.LogWarning("[EXP_TrialSequencer] 登録された条件アセットがありません。デフォルトの 2AFC STMFrequencyCondition を動的適用します。");
+            var defaultCond = ScriptableObject.CreateInstance<EXP_STMFrequencyCondition>();
+            defaultCond.conditionName = "Default_2AFC_STMFrequency";
+            validConditions.Add(defaultCond);
         }
 
         // 各条件を repetitions 回追加

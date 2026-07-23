@@ -187,6 +187,11 @@ public class EXP_ExperimentManager : MonoBehaviour
             fixationCross.SetActive(visible);
     }
 
+    public void SetPhase(EXP_TrialPhase phase)
+    {
+        CurrentPhase = phase;
+    }
+
     public void ClearAll()
     {
         SetMessage("");
@@ -237,16 +242,9 @@ public class EXP_ExperimentManager : MonoBehaviour
             TransitionTo(EXP_ExperimentState.Practice);
             eventMarker?.Mark("PracticeStart");
 
-            SetMessage("【練習セッション】\nこれから練習試行を行います。\n準備ができたらボタンを押してください。");
-            _responseReceived = false;
-            inputHandler?.StartListening();
-            yield return WaitForResponse(0f);
-            inputHandler?.StopListening();
-
-            ClearAll();
             yield return RunPracticeTrials();
 
-            SetMessage("【練習終了】\n練習セッションが完了しました。\n次から本試行を開始します。ボタンを押してください。");
+            SetMessage("【練習完了】\n次から本試行を開始します。準備ができたらボタンを押してください。");
             _responseReceived = false;
             inputHandler?.StartListening();
             yield return WaitForResponse(0f);
@@ -315,6 +313,8 @@ public class EXP_ExperimentManager : MonoBehaviour
     private IEnumerator RunTrial(
         int trialIndex, int blockIndex, bool isPractice, EXP_BaseCondition condition)
     {
+        _responseReceived = false;
+
         CurrentTrial = new EXP_TrialData
         {
             trialIndex      = trialIndex,
