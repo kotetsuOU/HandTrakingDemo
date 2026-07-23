@@ -1,25 +1,15 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System;
+using TMPro;
 
 #nullable enable
 
-// TextMeshPro が存在しない環境でもコンパイルできるよう conditional using
-#if !UNITY_EDITOR && UNITY_STANDALONE
-using TMPro;
-#else
-using TMPro;
-#endif
-
 /// <summary>
-/// 被験者向け UI の制御コンポーネント。
+/// 被験者向け UI および インゲームコントロールパネルの制御コンポーネント。
 /// <para>
 /// <see cref="EXP_ExperimentConfig.useUnityUI"/> が false の場合、
-/// Unity UI への操作は一切スキップし、イベント（<see cref="OnMessageChanged"/> など）のみを発火します。
-/// 外部表示システム（別ウィンドウ・別PCなど）と連携する場合はイベントを購読してください。
-/// </para>
-/// <para>
-/// TextMeshPro が存在しない場合は <c>TMP_Text</c> の代わりに通常の <c>Text</c> を参照してください。
+/// Unity UI への操作はスキップし、イベントのみを発火します。
 /// </para>
 /// </summary>
 public class EXP_UIController : MonoBehaviour
@@ -51,6 +41,10 @@ public class EXP_UIController : MonoBehaviour
     [Tooltip("被験者向け応答ボタンの親オブジェクト / CanvasGroup（応答フェーズ中のみ表示・有効化）")]
     public CanvasGroup? responseButtonPanel;
 
+    [Header("In-Game Control Panel (Build Standalone Support)")]
+    [Tooltip("Build 後 (exe 実行時) でも画面上で実験操作パネルを表示・開閉できるコンポーネント")]
+    public EXP_InGameControlPanel? inGameControlPanel;
+
     // =====================================================
     // Events（外部システム連携用）
     // =====================================================
@@ -74,10 +68,6 @@ public class EXP_UIController : MonoBehaviour
     // Public API
     // =====================================================
 
-    /// <summary>
-    /// メッセージテキストを設定します。
-    /// </summary>
-    /// <param name="message">表示するテキスト（空文字列で非表示）</param>
     public void SetMessage(string message)
     {
         OnMessageChanged?.Invoke(message);
@@ -87,9 +77,6 @@ public class EXP_UIController : MonoBehaviour
         messageText.gameObject.SetActive(!string.IsNullOrEmpty(message));
     }
 
-    /// <summary>
-    /// 固視点の表示状態を設定します。
-    /// </summary>
     public void SetFixation(bool visible)
     {
         OnFixationChanged?.Invoke(visible);
@@ -98,11 +85,6 @@ public class EXP_UIController : MonoBehaviour
         fixationCross.SetActive(visible);
     }
 
-    /// <summary>
-    /// フィードバックテキストを設定します。
-    /// </summary>
-    /// <param name="feedback">表示テキスト（空文字列で非表示）</param>
-    /// <param name="color">テキストカラー（null = 変更なし）</param>
     public void SetFeedback(string feedback, Color? color = null)
     {
         OnFeedbackChanged?.Invoke(feedback);
@@ -113,10 +95,6 @@ public class EXP_UIController : MonoBehaviour
         feedbackText.gameObject.SetActive(!string.IsNullOrEmpty(feedback));
     }
 
-    /// <summary>
-    /// 進捗バーを更新します。
-    /// </summary>
-    /// <param name="value">進捗（0.0〜1.0）</param>
     public void SetProgress(float value)
     {
         OnProgressChanged?.Invoke(value);
@@ -125,10 +103,6 @@ public class EXP_UIController : MonoBehaviour
         progressBar.value = Mathf.Clamp01(value);
     }
 
-    /// <summary>
-    /// フェードパネルの表示状態を設定します（即時切替）。
-    /// </summary>
-    /// <param name="black">true = 黒画面、false = 透明</param>
     public void SetFade(bool black)
     {
         OnFadeChanged?.Invoke(black);
@@ -138,9 +112,6 @@ public class EXP_UIController : MonoBehaviour
         fadePanel.blocksRaycasts = black;
     }
 
-    /// <summary>
-    /// 被験者向け応答ボタンパネルの表示・有効状態を設定します。
-    /// </summary>
     public void SetResponseButtonsActive(bool active)
     {
         if (!useUnityUI || responseButtonPanel == null) return;
@@ -149,9 +120,6 @@ public class EXP_UIController : MonoBehaviour
         responseButtonPanel.blocksRaycasts = active;
     }
 
-    /// <summary>
-    /// 全 UI 要素を非表示にします。試行開始時のクリーンアップに使用してください。
-    /// </summary>
     public void ClearAll()
     {
         SetMessage("");
@@ -160,25 +128,10 @@ public class EXP_UIController : MonoBehaviour
         SetResponseButtonsActive(false);
     }
 
-    // =====================================================
-    // Convenience Methods
-    // =====================================================
+    public void ShowCorrect() => SetFeedback("◯", Color.green);
+    public void ShowIncorrect() => SetFeedback("✕", Color.red);
+    public void ShowTimeout() => SetFeedback("Too Slow", Color.yellow);
 
-    /// <summary>正解フィードバックを表示します（緑の「◯」）。</summary>
-    public void ShowCorrect()
-        => SetFeedback("◯", Color.green);
-
-    /// <summary>不正解フィードバックを表示します（赤の「✕」）。</summary>
-    public void ShowIncorrect()
-        => SetFeedback("✕", Color.red);
-
-    /// <summary>タイムアウトフィードバックを表示します（黄色の「Too Slow」）。</summary>
-    public void ShowTimeout()
-        => SetFeedback("Too Slow", Color.yellow);
-
-    /// <summary>
-    /// 応答種別に応じたフィードバックを自動表示します。
-    /// </summary>
     public void ShowFeedback(EXP_ResponseType responseType)
     {
         switch (responseType)
@@ -187,6 +140,20 @@ public class EXP_UIController : MonoBehaviour
             case EXP_ResponseType.Incorrect: ShowIncorrect(); break;
             case EXP_ResponseType.Timeout:   ShowTimeout();   break;
             default:                         SetFeedback(""); break;
+        }
+    }
+
+    void Awake()
+    {
+        if (inGameControlPanel == null)
+            inGameControlPanel = GetComponent<EXP_InGameControlPanel>() ?? gameObject.AddComponent<EXP_InGameControlPanel>();
+    }
+
+    public void ToggleInGameControlPanel()
+    {
+        if (inGameControlPanel != null)
+        {
+            inGameControlPanel.ToggleVisibility();
         }
     }
 }

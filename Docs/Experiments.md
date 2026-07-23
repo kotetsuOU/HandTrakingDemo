@@ -9,6 +9,7 @@ Assets/Features/Experiment/Scripts/
 ├── Data/
 │   ├── EXP_ExperimentConfig.cs   ← 実験設定 (ScriptableObject)
 │   ├── EXP_BaseCondition.cs      ← 実験条件の基底 (abstract ScriptableObject)
+│   ├── EXP_Base2AFCCondition.cs  ← 2AFC実験条件の抽象基底 (abstract ScriptableObject)
 │   ├── EXP_TrialData.cs          ← 1試行のデータ構造
 │   └── EXP_ExperimentSession.cs  ← セッション実行時情報
 ├── Core/
@@ -16,13 +17,20 @@ Assets/Features/Experiment/Scripts/
 │   ├── EXP_TrialSequencer.cs     ← 試行シーケンス管理
 │   ├── EXP_DataRecorder.cs       ← CSV / JSON 保存
 │   ├── EXP_EventMarker.cs        ← タイムスタンプ付きイベントログ
-│   ├── EXP_UIController.cs       ← 被験者向け UI 制御
 │   └── EXP_InputHandler.cs       ← キーボード / ゲームパッド入力
+├── UI/
+│   ├── EXP_UIController.cs          ← 被験者向け UI 制御 & HUD パネル連携
+│   ├── EXP_ControlPanelDrawer.cs    ← GUI描画統括オーケストレーター (50行)
+│   ├── EXP_StatusPanelDrawer.cs     ← ステータス・進捗・バッジ描画 (150行)
+│   ├── EXP_ControlInputPanelDrawer.cs ← 条件・操作ボタン・応答入力描画 (150行)
+│   ├── EXP_PanelElementDrawers.cs    ← バッジ・進捗バー共通描画 (75行)
+│   ├── EXP_MetadataTranslator.cs     ← メタデータ日本語ローカライズ (35行)
+│   └── EXP_InGameControlPanel.cs    ← Build後用 インゲームコントロールパネル (F1, 85行)
 ├── Conditions/
 │   ├── EXP_OppositeOffsetCondition.cs  ← 2AFC: OppositeOffset Y 値の知覚比較
 │   └── EXP_STMFrequencyCondition.cs    ← 2AFC: STM 周波数の知覚比較
 └── Editor/
-    └── EXP_ExperimentControlWindow.cs  ← Editor用 外部操作コントロールパネル
+    └── EXP_ExperimentControlWindow.cs  ← Editor用 ウィンドウ (Drawerを呼び出す超軽量実装)
 ```
 
 ---
