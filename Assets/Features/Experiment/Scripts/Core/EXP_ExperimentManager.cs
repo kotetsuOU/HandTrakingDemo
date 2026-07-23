@@ -167,7 +167,7 @@ public class EXP_ExperimentManager : MonoBehaviour
 
         if (CurrentSession != null && dataRecorder != null)
         {
-            CurrentSession.Finalize();
+            CurrentSession.FinalizeSession();
             dataRecorder.SaveAll(CurrentSession);
         }
 
@@ -264,7 +264,7 @@ public class EXP_ExperimentManager : MonoBehaviour
 
         // --- 終了 ---
         eventMarker.Mark("ExperimentEnd");
-        CurrentSession.Finalize();
+        CurrentSession!.FinalizeSession();
         dataRecorder.SaveAll(CurrentSession);
 
         TransitionTo(EXP_ExperimentState.Finished);
@@ -337,7 +337,17 @@ public class EXP_ExperimentManager : MonoBehaviour
         CurrentPhase = EXP_TrialPhase.Stimulus;
         CurrentTrial.stimulusOnsetTime = (double)Time.realtimeSinceStartup;
         eventMarker.Mark("StimulusOn");
-        condition.Apply(CurrentTrial);
+
+        // StimulusCoroutine が実装されていればそちらを優先、なければ Apply() を使用
+        var stimCoro = condition.StimulusCoroutine(CurrentTrial, this);
+        if (stimCoro != null)
+        {
+            yield return stimCoro;
+        }
+        else
+        {
+            condition.Apply(CurrentTrial);
+        }
 
         // --- Response ---
         CurrentPhase = EXP_TrialPhase.Response;

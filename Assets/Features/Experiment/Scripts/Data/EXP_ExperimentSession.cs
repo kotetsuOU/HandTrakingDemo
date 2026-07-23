@@ -73,7 +73,7 @@ public class EXP_ExperimentSession
     /// <summary>
     /// セッション終了時に呼び出し、終了時刻を記録します。
     /// </summary>
-    public void Finalize()
+    public void FinalizeSession()
     {
         endTimeISO = DateTime.Now.ToString("o");
     }

@@ -46,6 +46,10 @@ public abstract class EXP_BaseCondition : ScriptableObject
     /// <summary>
     /// この条件を1試行に適用します。刺激提示・ハプティクス起動などをここに記述してください。
     /// EXP_ExperimentManager の Stimulus フェーズ開始時に呼ばれます。
+    /// <para>
+    /// 2AFC など複数インターバルを必要とする場合は <see cref="StimulusCoroutine"/> をオーバーライドし、
+    /// このメソッドは空実装にしてください。
+    /// </para>
     /// </summary>
     /// <param name="trial">現在の試行データ。metadata などを書き込めます。</param>
     public abstract void Apply(EXP_TrialData trial);
@@ -68,4 +72,19 @@ public abstract class EXP_BaseCondition : ScriptableObject
     /// <param name="trial">応答情報が書き込まれた試行データ</param>
     /// <returns>正誤判定結果（null = 判定なし）</returns>
     public virtual bool? EvaluateResponse(EXP_TrialData trial) => null;
+
+    /// <summary>
+    /// 2AFC など複数インターバルが必要な刺激提示をコルーチンで実装する場合にオーバーライドします。
+    /// null を返す場合（デフォルト）は <see cref="Apply"/> が代わりに呼ばれます。
+    /// <para>
+    /// このコルーチン内で <see cref="EXP_TrialData.metadata"/> への書き込みや
+    /// ハプティクスの起動・停止を制御してください。
+    /// 応答待機は EXP_ExperimentManager 側で行うため、ここには含めないでください。
+    /// </para>
+    /// </summary>
+    /// <param name="trial">現在の試行データ</param>
+    /// <param name="runner">コルーチン起動に使用する MonoBehaviour</param>
+    /// <returns>コルーチン実装がある場合は IEnumerator、ない場合は null</returns>
+    public virtual System.Collections.IEnumerator? StimulusCoroutine(
+        EXP_TrialData trial, MonoBehaviour runner) => null;
 }

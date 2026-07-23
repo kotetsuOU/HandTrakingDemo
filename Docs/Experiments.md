@@ -11,13 +11,16 @@ Assets/Features/Experiment/Scripts/
 │   ├── EXP_BaseCondition.cs      ← 実験条件の基底 (abstract ScriptableObject)
 │   ├── EXP_TrialData.cs          ← 1試行のデータ構造
 │   └── EXP_ExperimentSession.cs  ← セッション実行時情報
-└── Core/
-    ├── EXP_ExperimentManager.cs  ← 実験ステートマシン（司令塔）
-    ├── EXP_TrialSequencer.cs     ← 試行シーケンス管理
-    ├── EXP_DataRecorder.cs       ← CSV / JSON 保存
-    ├── EXP_EventMarker.cs        ← タイムスタンプ付きイベントログ
-    ├── EXP_UIController.cs       ← 被験者向け UI 制御
-    └── EXP_InputHandler.cs       ← キーボード / ゲームパッド入力
+├── Core/
+│   ├── EXP_ExperimentManager.cs  ← 実験ステートマシン（司令塔）
+│   ├── EXP_TrialSequencer.cs     ← 試行シーケンス管理
+│   ├── EXP_DataRecorder.cs       ← CSV / JSON 保存
+│   ├── EXP_EventMarker.cs        ← タイムスタンプ付きイベントログ
+│   ├── EXP_UIController.cs       ← 被験者向け UI 制御
+│   └── EXP_InputHandler.cs       ← キーボード / ゲームパッド入力
+└── Conditions/
+    ├── EXP_OppositeOffsetCondition.cs  ← 2AFC: OppositeOffset Y 値の知覚比較
+    └── EXP_STMFrequencyCondition.cs    ← 2AFC: STM 周波数の知覚比較
 ```
 
 ---
@@ -68,10 +71,16 @@ public class HapticsCondition : EXP_BaseCondition
 {
     [Header("Haptics")]
     public float intensity = 5000f;
-    public HAP_AUTDHapticsController hapticsController = null!;
+
+    [System.NonSerialized]
+    public HAP_AUTDHapticsController? hapticsController;
 
     public override void Apply(EXP_TrialData trial)
     {
+        // 実行時にシーン内のコントローラーを自動取得
+        hapticsController ??= Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
+        if (hapticsController == null) return;
+
         // 刺激を適用
         hapticsController.focusIntensityPascal = intensity;
         trial.metadata["intensity"] = intensity.ToString("F0");
@@ -161,4 +170,113 @@ experimentManager.OnResponseReceived += trial =>
 
 > [!IMPORTANT]
 > `EXP_BaseCondition` を継承した条件クラスでは `Apply()` メソッドを必ずオーバーライドしてください。
+> 2AFC など複数インターバルが必要な場合は `StimulusCoroutine()` をオーバーライドし、`Apply()` は空実装にしてください。
 > `EvaluateResponse()` は正誤判定が不要な実験では `return null;` のままで構いません。
+
+---
+
+## 実装済み実験条件
+
+### 実験1: OppositeOffset Y 値の知覚重さ比較（2AFC）
+
+`EXP_OppositeOffsetCondition` を使用します。
+
+#### パラダイム
+
+```
+[ITI] → [Interval 1: 刺激A] → [ISI] → [Interval 2: 刺激B] → [応答: どちらが重い？]
+```
+
+- `referenceOffsetY`: 基準刺激の Y オフセット（固定）
+- `comparisonOffsetY`: 比較刺激の Y オフセット（この値を条件間で変化させる）
+- 提示順序はランダムに入れ替え（カウンターバランス）、`metadata["refFirst"]` に記録
+
+#### セットアップ手順
+
+1. `Assets/` 任意の場所で右クリック → **Create → EXP → Conditions → OppositeOffsetCondition**
+2. 比較したい Y 値の数だけアセットを作成（例: -0.04, -0.03, -0.02, ..., 0.02 = 7 個）
+3. 各アセットに `comparisonOffsetY` を設定（単位: メートル）
+4. `EXP_TrialSequencer.conditions` に全アセットを登録
+
+#### 記録されるメタデータ
+
+| キー | 内容 |
+|---|---|
+| `referenceOffsetY` | 基準刺激の Y オフセット [m] |
+| `comparisonOffsetY` | 比較刺激の Y オフセット [m] |
+| `refFirst` | `True` = 第1インターバルが基準刺激 |
+| `interval1Y` / `interval2Y` | 実際の提示順序 |
+
+---
+
+### 実験2: STM 周波数の知覚重さ比較（2AFC）
+
+`EXP_STMFrequencyCondition` を使用します。
+
+#### パラダイム
+
+```
+[ITI] → [Interval 1: 周波数A] → [ISI] → [Interval 2: 周波数B] → [応答: どちらが重い？]
+```
+
+- `referenceFrequency`: 基準刺激の STM 周波数 [Hz]（固定）
+- `comparisonFrequency`: 比較刺激の STM 周波数 [Hz]（この値を条件間で変化させる）
+
+#### セットアップ手順
+
+1. 右クリック → **Create → EXP → Conditions → STMFrequencyCondition**
+2. 比較したい周波数の数だけアセットを作成（例: 40, 60, 80, 100, 120, 160 Hz = 6 個）
+3. 各アセットに `comparisonFrequency` を設定
+4. `EXP_TrialSequencer.conditions` に全アセットを登録
+
+#### 記録されるメタデータ
+
+| キー | 内容 |
+|---|---|
+| `referenceFrequency` | 基準刺激の周波数 [Hz] |
+| `comparisonFrequency` | 比較刺激の周波数 [Hz] |
+| `refFirst` | `True` = 第1インターバルが基準刺激 |
+| `interval1Frequency` / `interval2Frequency` | 実際の提示順序 |
+
+---
+
+### 2AFC 実験の共通設定
+
+`EXP_ExperimentConfig` で以下を設定してください:
+
+| 設定 | 推奨値 | 説明 |
+|---|---|---|
+| `responseKeys` | `[Z, X]` | Z = 第1インターバルが重い、X = 第2インターバルが重い |
+| `stimulusDuration` | `0` | コルーチン側で制御するため 0 に設定 |
+| `responseTimeout` | `5.0` | 刺激終了後の応答制限時間 |
+| `showFeedback` | `false` | 閾値推定では正誤フィードバック不要 |
+| `itiDuration` | `1.0` | 試行間間隔 |
+
+---
+
+## StimulusCoroutine（コルーチン刺激）の仕組み
+
+```
+EXP_ExperimentManager.RunTrial()
+  │
+  ├── condition.StimulusCoroutine() が null でない場合
+  │   └── yield return StimulusCoroutine()    ← 2AFC 用コルーチンが走る
+  │       ├── Interval 1（ハプティクス起動 → 待機 → 停止）
+  │       ├── ISI（無刺激待機）
+  │       └── Interval 2（ハプティクス起動 → 待機 → 停止）
+  │
+  └── null の場合（通常条件）
+      └── condition.Apply()                   ← 単純な同期適用
+```
+
+---
+
+## 変更履歴
+
+| 日付 | 内容 |
+|---|---|
+| 2026-07-23 | フレームワーク初版作成（EXP_ プレフィックス、11ファイル） |
+| 2026-07-23 | CS0465 警告修正: `Finalize()` → `FinalizeSession()` |
+| 2026-07-23 | `EXP_BaseCondition` に `StimulusCoroutine()` 拡張ポイントを追加 |
+| 2026-07-23 | `EXP_OppositeOffsetCondition` 新規追加（2AFC, OppositeOffset Y） |
+| 2026-07-23 | `EXP_STMFrequencyCondition` 新規追加（2AFC, STM 周波数） |
