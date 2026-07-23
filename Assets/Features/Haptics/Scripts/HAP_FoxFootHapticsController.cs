@@ -58,7 +58,7 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
 
     private void Reset()
     {
-        autdController = FindAnyObjectByType<HAP_AUTDController>();
+        autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
         rootTransform = this.transform;
         AutoDetectBones();
     }
@@ -67,7 +67,7 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
     {
         if (autdController == null)
         {
-            autdController = FindAnyObjectByType<HAP_AUTDController>();
+            autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
         }
 
         if (rootTransform == null)

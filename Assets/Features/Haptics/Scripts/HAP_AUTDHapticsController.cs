@@ -1,0 +1,329 @@
+using UnityEngine;
+using System.Collections.Generic;
+using System.Linq;
+using System;
+#if !USE_AUTD3_LEGACY
+using System.Threading.Tasks;
+using AUTD3;
+using AUTD3.Holo;
+#else
+using AUTD3Sharp;
+using AUTD3Sharp.Driver.Datagram;
+using AUTD3Sharp.Gain;
+using AUTD3Sharp.Modulation;
+#endif
+
+#nullable enable
+
+/// <summary>
+/// HCD_Pipeline やオブジェクト接触判定から焦点位置（Foci / STM）をリアルタイム計算し、
+/// HAP_AUTDHardwareController 経由でマルチフォーカス超音波を出力する触覚生成パイプラインコントローラー。
+/// </summary>
+public class HAP_AUTDHapticsController : MonoBehaviour
+{
+    [Header("Hardware Reference")]
+    [Tooltip("物理通信接続および送信を担当する HAP_AUTDHardwareController の参照。未指定時は自動取得します。")]
+    public HAP_AUTDHardwareController hardwareController = null!;
+
+    [Header("Dependencies")]
+    [Tooltip("接触判定を行う HCD_Pipeline の参照。自動モード時に毎フレームここからクラスタ情報を取得します。")]
+    public HCD_Pipeline hcdPipeline = null!;
+
+    [UnityEngine.Serialization.FormerlySerializedAs("foxFootHapticsController")]
+    [Tooltip("オブジェクトのハプティクス制御コンポーネント。アタッチされている場合、物理接触の代わりに特定オブジェクト位置へ照射します。")]
+    public HAP_BaseObjectHapticsController? objectHapticsController;
+
+    [HideInInspector]
+    public bool bypassHaptics = false;
+
+    [Header("Operation Settings")]
+    [Tooltip("Simplified: 1クラスタ1点の単純出力(軽量)。\nPrecision: 楕円やランダムノイズなどリッチな表現を使用します。")]
+    public HapticsGenerationMode generationMode = HapticsGenerationMode.Simplified;
+
+    [Header("Precision Sources")]
+    [Tooltip("接触領域の「重心」に対して基本的な超音波の焦点を生成するソース設定")]
+    public HAP_HapticsCentroidSource centroidSource = new HAP_HapticsCentroidSource();
+    
+    [Tooltip("接触領域の「形状」を主成分分析(PCA)し、楕円状となぞるSTMを生成するソース設定")]
+    public HAP_HapticsEllipseSource ellipseSource = new HAP_HapticsEllipseSource();
+    
+    [Tooltip("接触領域内でランダムに16点をサンプリングし、不規則に飛び回るSTM（ザラザラ感）を生成するソース設定")]
+    public HAP_HapticsRandomSource randomSource = new HAP_HapticsRandomSource();
+
+    [Header("Acoustic Settings")]
+    [Tooltip("ホログラフィアルゴリズム。\nGSPAT: 高速・高品質。\nNaive: 計算は軽いが音圧や精度が落ちます。")]
+    public HoloAlgorithm holoAlgorithm = HoloAlgorithm.GSPAT;
+    
+    [Tooltip("超音波の出力強度 (Pascal)。最大で 10000 程度。大きすぎるとデバイスの保護回路が働くか、クリッピングが発生します。")]
+    public float focusIntensityPascal = 10000f;
+
+    [Header("Coordinate Settings")]
+    [Tooltip("すべての焦点位置に加算されるオフセット。デバイスの原点とUnity上の位置を微調整するのに使います。")]
+    public Vector3 offset = Vector3.zero;
+
+    [Header("Directional Grouping")]
+    [Tooltip("有効にすると、接触点の法線ベクトル（向き）とAUTDデバイスの向きを比較し、最適なデバイスからのみ超音波を照射します。")]
+    public bool enableDirectionalGrouping = false;
+    
+    [Tooltip("デバイスが面の法線方向から何度まで傾いていても担当として許容するか（0〜90度）。0度で真正面のみ。")]
+    [Range(0, 90)]
+    public float directionalAngleThreshold = 45.0f;
+
+    [Header("STM Settings")]
+    [Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
+    public HapticsSTMMode stmMode = HapticsSTMMode.FociSTM;
+
+    [Tooltip("STMの再生周波数 (Hz)。")]
+    public float stmFrequency = 150f;
+
+    [Tooltip("単焦点計算に使用する内部ソルバー（Customアルゴリズム選択時等のフォールバック）。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
+    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
+
+#if USE_AUTD3_LEGACY
+    [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
+    public GainSTMMode gainStmMode = GainSTMMode.PhaseIntensityFull;
+#endif
+
+    [Header("Debug")]
+    [Tooltip("エディタ上でデバイスのサイズと位置を Gizmo (青色の枠) で表示します。")]
+    public bool visualizeDevices = true;
+
+    [Header("Performance Profiling")]
+    [Tooltip("有効にすると、ハプティクスパイプラインの処理時間を計測します。")]
+    public bool enableProfiling = false;
+
+    [Tooltip("有効にすると、Sendを含む全処理をメインスレッドで同期実行します。")]
+    public bool synchronousSend = false;
+
+    [Tooltip("Debug.Log への結果出力を有効にします。")]
+    public bool enableLog = true;
+    
+    [Tooltip("Debug.Log に処理時間を出力する間隔（フレーム数）。")]
+    [Range(1, 600)]
+    public int profilingLogInterval = 60;
+
+    /// <summary>
+    /// パフォーマンスプロファイラー。外部からも参照可能です。
+    /// </summary>
+    [HideInInspector]
+    public HAP_AUTDPerformanceProfiler performanceProfiler = new HAP_AUTDPerformanceProfiler();
+
+    [HideInInspector]
+    public HAP_AUTDDebugDisabler? debugDisabler;
+
+    private bool _isCurrentlyOff = true;
+#if !USE_AUTD3_LEGACY
+    private System.Threading.Tasks.Task? _hapticsSendTask = null;
+#endif
+
+    void Awake()
+    {
+        debugDisabler = GetComponent<HAP_AUTDDebugDisabler>();
+
+        if (hardwareController == null)
+        {
+            hardwareController = GetComponent<HAP_AUTDHardwareController>();
+            if (hardwareController == null)
+            {
+                hardwareController = FindAnyObjectByType<HAP_AUTDHardwareController>();
+                if (hardwareController == null)
+                {
+                    hardwareController = gameObject.AddComponent<HAP_AUTDHardwareController>();
+                }
+            }
+        }
+
+        if (hcdPipeline == null)
+        {
+            hcdPipeline = FindAnyObjectByType<HCD_Pipeline>();
+        }
+    }
+
+    void Update()
+    {
+        if (hardwareController == null || !hardwareController.IsConnected) return;
+
+        performanceProfiler.Enabled = enableProfiling;
+        performanceProfiler.LogEnabled = enableLog;
+        performanceProfiler.LogInterval = profilingLogInterval;
+
+        UpdateHaptics();
+    }
+
+    /// <summary>
+    /// HCD_Pipelineから接触クラスタを取得し、最適なHaptics信号（GSPATなど）を生成・送信します。
+    /// </summary>
+    private void UpdateHaptics()
+    {
+        if (bypassHaptics) return;
+
+        bool useObjectHaptics = objectHapticsController != null && objectHapticsController.enabled;
+        bool hasActiveTargets = false;
+        List<TrackedCluster> activeClusters = new List<TrackedCluster>();
+
+        if (useObjectHaptics)
+        {
+            hasActiveTargets = objectHapticsController!.HasActiveTargets();
+        }
+        else
+        {
+            if (hcdPipeline != null)
+            {
+                var trackedClusters = hcdPipeline.GetTrackedClusters();
+                activeClusters = trackedClusters.Where(c => c.IsAlive && c.Force > 0.01f).ToList();
+                hasActiveTargets = activeClusters.Count > 0;
+            }
+        }
+
+        HoloAlgorithm effectiveAlgorithm = holoAlgorithm;
+        if (effectiveAlgorithm == HoloAlgorithm.Custom)
+        {
+            HoloSolverAlgorithm innerAlg = useObjectHaptics
+                ? objectHapticsController!.CustomInnerAlgorithm
+                : customInnerAlgorithm;
+
+            effectiveAlgorithm = innerAlg == HoloSolverAlgorithm.Naive
+                ? HoloAlgorithm.Naive
+                : HoloAlgorithm.GSPAT;
+        }
+
+        if (hasActiveTargets)
+        {
+            var profiler = performanceProfiler;
+            profiler.BeginTotal();
+
+            try
+            {
+                profiler.BeginFociGenerate();
+                List<HAP_FociGenerator.ClusterFociData> clusterFociList;
+                if (useObjectHaptics)
+                {
+                    clusterFociList = objectHapticsController!.GetHapticsTargets(focusIntensityPascal, offset);
+                }
+                else
+                {
+                    clusterFociList = HAP_FociGenerator.Generate(
+                        activeClusters, 
+                        generationMode, 
+                        centroidSource, 
+                        ellipseSource, 
+                        randomSource, 
+                        focusIntensityPascal, 
+                        offset,
+                        stmMode,
+                        stmFrequency);
+                }
+                profiler.EndFociGenerate();
+
+#if !USE_AUTD3_LEGACY
+                if (hardwareController.Client != null && hardwareController.Geometry != null)
+                {
+                    profiler.BeginDeviceAllocate();
+                    var builder = hardwareController.Client.DatagramBuilder();
+                    HAP_GSPATDeviceAllocator.Allocate(
+                        builder,
+                        clusterFociList,
+                        hardwareController.ConnectedDevices,
+                        hardwareController.Geometry,
+                        enableDirectionalGrouping,
+                        directionalAngleThreshold,
+                        effectiveAlgorithm,
+                        debugDisabler
+                    );
+                    profiler.EndDeviceAllocate();
+
+                    profiler.BeginDatagramBuild();
+                    var frames = builder.Build();
+                    profiler.EndDatagramBuild();
+
+                    profiler.BeginSend();
+                    if (synchronousSend)
+                    {
+                        foreach (var frame in frames)
+                        {
+                            hardwareController.Client.SendCheckedAsync(frame).GetAwaiter().GetResult();
+                        }
+                        profiler.EndSend();
+                    }
+                    else
+                    {
+                        if (_hapticsSendTask == null || _hapticsSendTask.IsCompleted)
+                        {
+                            _hapticsSendTask = System.Threading.Tasks.Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    foreach (var frame in frames)
+                                    {
+                                        await hardwareController.Client.SendCheckedAsync(frame);
+                                    }
+                                }
+                                finally
+                                {
+                                    profiler.EndSend();
+                                }
+                            });
+                        }
+                        else
+                        {
+                            profiler.EndSend();
+                        }
+                    }
+
+                    _isCurrentlyOff = false;
+                }
+#else
+                if (hardwareController.Autd != null)
+                {
+                    profiler.BeginDeviceAllocate();
+                    lock (hardwareController.SendLock)
+                    {
+                        var datagram = HAP_GSPATDeviceAllocator.Allocate(
+                            clusterFociList,
+                            hardwareController.ConnectedDevices,
+                            effectiveAlgorithm,
+                            enableDirectionalGrouping,
+                            directionalAngleThreshold,
+                            focusIntensityPascal,
+                            debugDisabler
+                        );
+                        hardwareController.Send(datagram);
+                    }
+                    profiler.EndDeviceAllocate();
+                    _isCurrentlyOff = false;
+                }
+#endif
+            }
+            finally
+            {
+                profiler.EndTotal();
+            }
+        }
+        else
+        {
+            if (!_isCurrentlyOff)
+            {
+                hardwareController.SetNull();
+                _isCurrentlyOff = true;
+            }
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!visualizeDevices) return;
+
+        var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None);
+        
+#if UNITY_EDITOR
+        var disabler = debugDisabler != null ? debugDisabler : GetComponent<HAP_AUTDDebugDisabler>();
+        HAP_GizmoVisualizer.DrawDevicesAndGroupings(
+            devices, 
+            enableDirectionalGrouping, 
+            directionalAngleThreshold, 
+            hcdPipeline,
+            disabler
+        );
+#endif
+    }
+}

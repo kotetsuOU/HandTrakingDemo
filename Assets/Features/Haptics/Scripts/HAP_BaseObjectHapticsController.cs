@@ -33,8 +33,8 @@ public struct HapticsTargetInfo
 public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
 {
     [Header("Dependencies")]
-    [Tooltip("超音波を制御する HAP_AUTDController の参照。未指定の場合はシーン内から自動取得します。")]
-    public HAP_AUTDController? autdController;
+    [Tooltip("超音波を制御する HAP_AUTDHapticsController の参照。未指定の場合はシーン内から自動取得します。")]
+    public HAP_AUTDHapticsController? autdController;
 
     [Header("Animation State Settings")]
     [Tooltip("有効時、対象が空中に浮いているとき（ジャンプ中など）は触覚をオフにします。")]
