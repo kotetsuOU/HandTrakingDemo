@@ -4,30 +4,33 @@ using System;
 #nullable enable
 
 /// <summary>
-/// 実験で使用する全キーバインディングの設定構造体。
-/// Inspector で自由にカスタムキーを設定・カスタマイズできます。
+/// 全実験パラダイム（2AFC, SingleStimulus, ABX, Adjustment）に対応するキーバインディング構造体。
+/// Inspector 上で自由に設定・カスタマイズできます。
 /// </summary>
 [Serializable]
 public class EXP_KeyBindings
 {
-    [Tooltip("実験開始キー（デフォルト: Space）")]
+    [Header("Common System Keys")]
     public KeyCode startKey = KeyCode.Space;
-
-    [Tooltip("次へ進む / 準備完了キー（デフォルト: Space）")]
     public KeyCode nextKey = KeyCode.Space;
-
-    [Tooltip("実験中断キー（デフォルト: Escape）")]
     public KeyCode abortKey = KeyCode.Escape;
 
-    [Tooltip("第 1 刺激選択キー（デフォルト: Z）")]
+    [Header("2AFC & ABX Keys")]
     public KeyCode choice1Key = KeyCode.Z;
-
-    [Tooltip("第 2 刺激選択キー（デフォルト: X）")]
     public KeyCode choice2Key = KeyCode.X;
+
+    [Header("Single Stimulus (Yes/No) Keys")]
+    public KeyCode yesKey = KeyCode.Z;
+    public KeyCode noKey = KeyCode.X;
+
+    [Header("Adjustment (Method of Adjustment) Keys")]
+    public KeyCode upKey = KeyCode.UpArrow;
+    public KeyCode downKey = KeyCode.DownArrow;
+    public KeyCode confirmKey = KeyCode.Space;
 }
 
 /// <summary>
-/// キーボード・ゲームパッド両対応の参加者入力受付コンポーネント。
+/// 全実験パラダイム対応の参加者入力受付コンポーネント。
 /// </summary>
 public class EXP_InputHandler : MonoBehaviour
 {
@@ -100,8 +103,14 @@ public class EXP_InputHandler : MonoBehaviour
         if (inputDevice != EXP_InputDevice.Keyboard && inputDevice != EXP_InputDevice.Any)
             return;
 
+        // 2AFC / ABX
         if (Input.GetKeyDown(keyBindings.choice1Key)) Respond("Z");
         else if (Input.GetKeyDown(keyBindings.choice2Key)) Respond("X");
+        // Adjustment
+        else if (Input.GetKeyDown(keyBindings.upKey) || Input.GetKeyDown(KeyCode.W)) Respond("Up");
+        else if (Input.GetKeyDown(keyBindings.downKey) || Input.GetKeyDown(KeyCode.S)) Respond("Down");
+        else if (Input.GetKeyDown(keyBindings.confirmKey)) Respond("Space");
+        // System
         else if (Input.GetKeyDown(keyBindings.nextKey)) Respond("Space");
         else if (Input.GetKeyDown(keyBindings.startKey)) Respond("Space");
     }
