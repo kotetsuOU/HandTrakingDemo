@@ -5,6 +5,7 @@ on:
     branches:
       - 3DDisplay
       - AUTD
+      - newAUTD
       - main
     paths:
       - "Docs/Wiki.md"
@@ -23,6 +24,7 @@ on:
       - "Docs/AUTD3_SDK_Transition.md"
       - "Docs/FoxFootHaptics.md"
       - "Docs/HowToUseHaptics.md"
+      - "Docs/Experiments.md"
   workflow_dispatch:
 
 permissions:
@@ -58,6 +60,7 @@ jobs:
           cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
           cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
           cp Docs/HapticsIllusion.md temp-wiki/HapticsIllusion.md
+          cp Docs/Experiments.md temp-wiki/Experiments.md
           
           python3 -c '
           import os, re
