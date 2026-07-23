@@ -13,11 +13,13 @@ Assets/Features/Experiment/Scripts/
 │   ├── EXP_TrialData.cs          ← 1試行のデータ構造
 │   └── EXP_ExperimentSession.cs  ← セッション実行時情報
 ├── Core/
-│   ├── EXP_ExperimentManager.cs  ← 実験ステートマシン（司令塔）
-│   ├── EXP_TrialSequencer.cs     ← 試行シーケンス管理
-│   ├── EXP_DataRecorder.cs       ← CSV / JSON 保存
-│   ├── EXP_EventMarker.cs        ← タイムスタンプ付きイベントログ
-│   └── EXP_InputHandler.cs       ← キーボード / ゲームパッド入力
+│   ├── EXP_ExperimentManager.cs         ← 実験ステート＆コンポーネント統括マネージャー (177行)
+│   ├── EXP_ExperimentFlowController.cs  ← 実験全体フロー制御（教示・練習・本試行・休憩コルーチン） (141行)
+│   ├── EXP_TrialRunner.cs               ← 1試行実行サイクル（ITI・刺激・応答・判定・記録） (105行)
+│   ├── EXP_TrialSequencer.cs            ← 試行シーケンス管理
+│   ├── EXP_DataRecorder.cs              ← CSV / JSON 保存
+│   ├── EXP_EventMarker.cs               ← タイムスタンプ付きイベントログ
+│   └── EXP_InputHandler.cs              ← キーボード / ゲームパッド入力
 ├── UI/
 │   ├── EXP_ControlPanelDrawer.cs    ← GUI描画統括オーケストレーター
 │   ├── EXP_StatusPanelDrawer.cs     ← ステータス・進捗・バッジ描画
