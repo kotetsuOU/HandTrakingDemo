@@ -1,13 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-#if !USE_AUTD3_LEGACY
-using AUTD3;
-using AUTD3.Holo;
-#else
-using AUTD3Sharp;
-#endif
-
 #nullable enable
 
 public enum HapticsTrackMode
@@ -103,8 +96,12 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
 
     /// <summary>
     /// ハプティクス照射用のターゲット座標リスト (ClusterFociData) を生成して返します。
+    /// TargetInfos からアクティブなターゲットを収集し、STMおよび追跡モードに応じた焦点データを HAP_ObjectFociGenerator 経由で組み立てます。
     /// </summary>
-    public abstract List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset);
+    public virtual List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
+    {
+        return HAP_ObjectFociGenerator.Generate(this, defaultIntensityPascal, offset);
+    }
 
     /// <summary>
     /// 単焦点計算に使用する内部ソルバー。

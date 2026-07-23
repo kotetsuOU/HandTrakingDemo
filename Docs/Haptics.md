@@ -37,7 +37,9 @@ Unityシーン内に配置されたこのオブジェクトの位置と回転が
 - `HAP_AUTDController_API.cs`: 手動制御や外部からの操作API群
 
 また、接触データから実際のフォーカス（焦点）を生成する処理や、デバイスへの割り当て処理は以下のクラスが担当します。
-- `HAP_FociGenerator.cs`: 接触クラスタデータから焦点（Centroid/Ellipse/Random）を生成
+- `HAP_FociGenerator.cs`: 手・接触クラスタデータから焦点（Centroid/Ellipse/Random）を生成
+- `HAP_ObjectFociGenerator.cs`: オブジェクト部位（足、尻尾、関節等）のターゲットから焦点およびシーケンシャルSTM（FociSTM / GainSTM）を生成
+- `HAP_BaseObjectHapticsController.cs`: オブジェクト部位のハプティクス制御抽象基底クラス（`HAP_ObjectFociGenerator` へ委譲し、純粋な判定・トランスフォーム管理を担当）
 - `HAP_GSPATDeviceAllocator.cs`: 空間的な指向性や距離、デバイスIDに基づいて、最適なデバイスグループへ焦点を割り当て
 
 ### `HAP_GizmoVisualizer` とデバッグ支援機能
@@ -100,9 +102,9 @@ GSPAT（Gerchberg-Saxton phased array technique）は、目的の振幅 $|p_j| =
 
 ### 3.3 カスタム照射モード (Custom / Fox Foot Haptics など)
 特定のアプリケーション仕様や追従スクリプトに基づき、照射位置や照射サイクルを動的にカスタマイズする拡張アルゴリズムモードです。
-例えば、4足歩行モデルの足ボーンに追従する `HAP_FoxFootHapticsController` と連携し、以下の制御を提供します。
-- **疑似STM巡回（Naiveソルバー）**: 接地している有効な足をフレーム毎（または指定フレーム数）に時計回りに巡回し、常に1点のみに超音波を照射します（単焦点かつ巡回による時間分割）。接地していない足は自動でスキップされます。単一焦点のため、計算負荷が非常に低い `Naive` ソルバーを用いて動作します。
-- **同時マルチフォーカス（GSPATソルバー）**: 接地している有効なすべての足に対して同時に焦点を形成し、超音波を照射します。多焦点のため、干渉を防ぐ `GSPAT` 最適化演算エンジンを走らせます。
+4足歩行モデル (`HAP_FoxFootHapticsController`) や独自の `HAP_BaseObjectHapticsController` と連携し、`HAP_ObjectFociGenerator` 経由で以下の汎用切り替え制御（`stmMode` / `trackMode`）を提供します。
+- **FociSTM (ハードウェア単焦点STM / Naive等)**: 接地している有効なターゲット（足や尻尾など）を周回順序で順次切り替えて超音波を照射します（単焦点かつ巡回による時間分割）。ハードウェア側の高速STM機能を利用し、計算負荷が非常に低い `Naive` ソルバー等を用いて動作します。
+- **GainSTM (CPU多焦点/PatternStm / GSPAT等)**: `TrackMode.Simultaneous` 時は接地足全てに同時マルチフォーカスGSPATを照射し、`TrackMode.Sequential` 時はCPU計算で1点ずつ高速切り替えを行う柔軟なパターンSTMを生成します。多焦点時は干渉を防ぐ `GSPAT` 最適化演算エンジンを走らせます。
 
 ### 3.4 接触強度による動的振幅スケーリング (Dynamic Amplitude Scaling)
 HCD_Pipeline から得られる接触強度（Force: $F \in [0, 1]$ ）を用いて、出力音圧を動的に調整します。基準となる最大出力音圧（`focusIntensityPascal`）を $P_{\mathrm{max}}$ としたとき、ターゲット音圧 $P_{\mathrm{target}}$ は線形にスケーリングされます：
@@ -233,7 +235,9 @@ Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDController_Haptics.cs # HCD_Pipelineからの出力自動生成ロジック (partial)
  ├── HAP_AUTDController_API.cs     # 手動制御・外部操作用API群 (partial)
  ├── HAP_AUTDPerformanceProfiler.cs# ハプティクス全体の処理時間・送信遅延計測プロファイラー
- ├── HAP_FociGenerator.cs          # 接触クラスタからの触覚データ(Focus)生成ロジック
+ ├── HAP_BaseObjectHapticsController.cs# オブジェクト部位ハプティクス制御の抽象基底クラス
+ ├── HAP_FociGenerator.cs          # 手・接触クラスタからの触覚データ(Focus)生成ロジック
+ ├── HAP_ObjectFociGenerator.cs    # オブジェクト部位ターゲットからの焦点・STM生成ロジック
  ├── HAP_GSPATDeviceAllocator.cs   # デバイスとクラスタの指向性・IDに基づく割り当て・データグラム生成
  ├── HAP_GizmoVisualizer.cs        # デバイスグループを描画するユーティリティ (partial)
  ├── HAP_GizmoVisualizer_Surface.cs# 担当面をエディタ上に描画するユーティリティ (partial)
@@ -246,6 +250,8 @@ Assets/Features/Haptics/Scripts/
  ├── HAP_AUTDTransformLoader.cs    # 複数のデバイス配置（トランスフォーム群）をJSONファイルから自動生成するユーティリティ
  ├── HCD_AutdControllerBridge.cs   # (旧互換用) HCD_PipelineとAUTDControllerを繋ぐブリッジ
  └── Editor/
+      ├── HAP_AUTDControllerEditor.cs  # HAP_AUTDController 用カスタムエディタ (GUIレイアウト・表示制御)
+      ├── HAP_FoxFootHapticsControllerEditor.cs
       ├── HAP_AUTDTransformLoaderEditor.cs
       └── HAP_AUTDCalibrationEditor.cs  # キャリブレーション設定のエディタ保持用
 ```

@@ -120,8 +120,17 @@ public partial class HAP_AUTDController : MonoBehaviour
     [Range(0, 90)]
     public float directionalAngleThreshold = 45.0f;
 
+    [Header("STM Settings")]
+    [Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
+    public HapticsSTMMode stmMode = HapticsSTMMode.FociSTM;
+
+    [Tooltip("STMの再生周波数 (Hz)。")]
+    public float stmFrequency = 150f;
+
+    [Tooltip("単焦点計算に使用する内部ソルバー（Customアルゴリズム選択時等のフォールバック）。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
+    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
+
 #if USE_AUTD3_LEGACY
-    [Header("STM Settings (for future extension)")]
     [Tooltip("GainSTM時のモード。通常は PhaseIntensityFull を使用します。")]
     public GainSTMMode gainStmMode = GainSTMMode.PhaseIntensityFull;
 #endif

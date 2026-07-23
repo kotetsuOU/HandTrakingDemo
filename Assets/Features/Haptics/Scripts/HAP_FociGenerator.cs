@@ -37,13 +37,17 @@ public static class HAP_FociGenerator
         HAP_HapticsEllipseSource ellipseSource,
         HAP_HapticsRandomSource randomSource,
         float focusIntensityPascal,
-        Vector3 offset)
+        Vector3 offset,
+        HapticsSTMMode stmMode = HapticsSTMMode.FociSTM,
+        float stmFrequency = 150f)
     {
         var result = new List<ClusterFociData>();
 
         foreach (var c in activeClusters)
         {
             var data = new ClusterFociData(c);
+            data.IsGainSTM = (stmMode == HapticsSTMMode.GainSTM);
+            data.STMFrequency = stmFrequency;
 
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)
@@ -200,13 +204,17 @@ public static class HAP_FociGenerator
         HAP_HapticsEllipseSource ellipseSource,
         HAP_HapticsRandomSource randomSource,
         float focusIntensityPascal,
-        Vector3 offset)
+        Vector3 offset,
+        HapticsSTMMode stmMode = HapticsSTMMode.FociSTM,
+        float stmFrequency = 150f)
     {
         var result = new List<ClusterFociData>();
 
         foreach (var c in activeClusters)
         {
             var data = new ClusterFociData(c);
+            data.IsGainSTM = (stmMode == HapticsSTMMode.GainSTM);
+            data.STMFrequency = stmFrequency;
 
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)

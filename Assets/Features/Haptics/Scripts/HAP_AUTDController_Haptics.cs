@@ -46,23 +46,18 @@ public partial class HAP_AUTDController
         HoloAlgorithm effectiveAlgorithm = holoAlgorithm;
         if (effectiveAlgorithm == HoloAlgorithm.Custom)
         {
-            if (useObjectHaptics)
-            {
-                // オブジェクトハプティクス用の単焦点内部ソルバー（Naive or GSPAT）をコントローラーから取得し、HoloAlgorithmに変換
-                effectiveAlgorithm = objectHapticsController!.CustomInnerAlgorithm == HoloSolverAlgorithm.Naive
-                    ? HoloAlgorithm.Naive
-                    : HoloAlgorithm.GSPAT;
-            }
-            else
-            {
-                // Custom対応クラスが未接続の場合はGSPATにフォールバック
-                effectiveAlgorithm = HoloAlgorithm.GSPAT;
-            }
+            HoloSolverAlgorithm innerAlg = useObjectHaptics
+                ? objectHapticsController!.CustomInnerAlgorithm
+                : customInnerAlgorithm;
+
+            effectiveAlgorithm = innerAlg == HoloSolverAlgorithm.Naive
+                ? HoloAlgorithm.Naive
+                : HoloAlgorithm.GSPAT;
         }
 
         string profilerLabel = useObjectHaptics
             ? $"[{objectHapticsController!.GetType().Name}-{objectHapticsController!.STMMode}({objectHapticsController!.TrackMode})-{effectiveAlgorithm}]"
-            : $"[{effectiveAlgorithm}]";
+            : $"[AUTDController-{stmMode}-{effectiveAlgorithm}]";
 
         if (hasActiveTargets)
         {
@@ -89,7 +84,9 @@ public partial class HAP_AUTDController
                     ellipseSource, 
                     randomSource, 
                     focusIntensityPascal, 
-                    offset);
+                    offset,
+                    stmMode,
+                    stmFrequency);
             }
             profiler.EndFociGenerate();
 

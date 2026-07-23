@@ -40,6 +40,7 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
 
     /// <summary>
     /// 各部位のターゲット情報をリストにして返します（基底クラスのGizmo描画や判定に利用）。
+    /// 時計回り（前左 -> 前右 -> 後右 -> 後左 -> 尻尾）の順で定義し、シーケンシャルSTMの周回順序に合わせます。
     /// </summary>
     public override List<HapticsTargetInfo> TargetInfos
     {
@@ -48,8 +49,8 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
             var list = new List<HapticsTargetInfo>();
             if (frontLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false });
             if (frontRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false });
-            if (backLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false });
             if (backRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false });
+            if (backLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false });
             if (tailBone != null) list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true });
             return list;
         }
@@ -141,116 +142,5 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
             if (found != null) return found;
         }
         return null;
-    }
-
-    /// <summary>
-    /// HAP_AUTDControllerが使用する、現在有効なターゲット（足・尻尾）の座標データ（ClusterFociData）のリストを構築します。
-    /// holoAlgorithm=Custom + customInnerAlgorithm=Naive のときは疑似STM（時計回り単焦点巻回）。
-    /// holoAlgorithm=Custom + customInnerAlgorithm=GSPAT のときは接地足全てに同時マルチフォーカスGSPAT。
-    /// </summary>
-    public override List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
-    {
-        var result = new List<HAP_FociGenerator.ClusterFociData>();
-        
-        bool useCustomCycle = autdController != null 
-            && autdController.holoAlgorithm == HoloAlgorithm.Custom
-            && (stmMode == HapticsSTMMode.FociSTM || (stmMode == HapticsSTMMode.GainSTM && trackMode == HapticsTrackMode.Sequential));
-
-        if (useCustomCycle)
-        {
-            var candidates = new List<(Transform? transform, bool enabled, bool isTail)>
-            {
-                (frontLeftFoot, enableFrontLeft, false),
-                (frontRightFoot, enableFrontRight, false),
-                (backRightFoot, enableBackRight, false),
-                (backLeftFoot, enableBackLeft, false),
-                (tailBone, enableTail, true)
-            };
-
-            var activeCandidates = new List<Transform>();
-            foreach (var c in candidates)
-            {
-                bool isActive = IsTargetActive(c.transform, c.enabled, c.isTail);
-                if (c.transform != null && isActive)
-                {
-                    activeCandidates.Add(c.transform);
-                }
-            }
-
-            if (activeCandidates.Count > 0)
-            {
-                TrackedCluster dummyCluster = new TrackedCluster
-                {
-                    Centroid = activeCandidates[0].position,
-                    Normal = footTargetNormal.normalized,
-                    Force = 1.0f,
-                    IsAlive = true
-                };
-
-                var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
-                fociData.UseSTM = true;
-                fociData.IsGainSTM = (stmMode == HapticsSTMMode.GainSTM);
-                fociData.STMFrequency = sequentialSTMFrequency;
-
-                foreach (var targetFoot in activeCandidates)
-                {
-                    Vector3 pos = targetFoot.position;
-                    fociData.STMFrames.Add(new List<Vector3> { 
-                        new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z) 
-                    });
-                }
-                
-                result.Add(fociData);
-            }
-        }
-        else
-        {
-            ProcessTargetFoci(frontLeftFoot, enableFrontLeft, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(frontRightFoot, enableFrontRight, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(backRightFoot, enableBackRight, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(backLeftFoot, enableBackLeft, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(tailBone, enableTail, true, defaultIntensityPascal, offset, result);
-        }
-
-        return result;
-    }
-
-    private void ProcessTargetFoci(
-        Transform? targetTransform, 
-        bool isEnabled, 
-        bool isTail,
-        float defaultIntensityPascal, 
-        Vector3 offset, 
-        List<HAP_FociGenerator.ClusterFociData> resultList)
-    {
-        if (targetTransform == null) return;
-        bool isActive = IsTargetActive(targetTransform, isEnabled, isTail);
-        if (!isActive) return;
-
-        Vector3 pos = targetTransform.position;
-
-        TrackedCluster dummyCluster = new TrackedCluster
-        {
-            Centroid = pos,
-            Normal = footTargetNormal.normalized,
-            Force = 1.0f,
-            IsAlive = true
-        };
-
-        var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
-
-#if !USE_AUTD3_LEGACY
-        fociData.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
-            new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z),
-            Amplitude.FromPascal(defaultIntensityPascal)
-        ));
-#else
-        fociData.SequentialFoci.Add((
-            new AUTD3Sharp.Utils.Point3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z),
-            defaultIntensityPascal * Pa
-        ));
-#endif
-
-        resultList.Add(fociData);
     }
 }
