@@ -211,18 +211,92 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
     {
         if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return;
 
+        // autdController から Disabler / DirectionalGrouping の情報を取得
+        HAP_AUTDHapticsController? hapticsCtrl = autdController;
+#if UNITY_EDITOR
+        if (hapticsCtrl == null)
+        {
+            hapticsCtrl = UnityEngine.Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
+        }
+#endif
+        HAP_AUTDDebugDisabler? disabler = hapticsCtrl != null
+            ? hapticsCtrl.GetComponent<HAP_AUTDDebugDisabler>()
+            : null;
+        bool useDirectional = hapticsCtrl != null && hapticsCtrl.enableDirectionalGrouping;
+        float angleThreshold = hapticsCtrl != null ? hapticsCtrl.directionalAngleThreshold : 45f;
+
+        Color[] activeColors = new Color[] { Color.cyan, Color.magenta, Color.yellow, Color.green };
         int idx = 0;
-        Color[] colors = new Color[] { Color.cyan, Color.magenta, Color.yellow, Color.green };
 
         foreach (var cfg in focusConfigs)
         {
             if (cfg.targetTransform == null) continue;
 
-            Color c = cfg.isEnabled ? colors[idx % colors.Length] : Color.gray;
-            Gizmos.color = c;
-
             Vector3 centerPos = cfg.targetTransform.position + cfg.targetTransform.TransformDirection(cfg.offsetPosition);
+            var deviceIds = cfg.assignedDeviceGroup != null ? cfg.assignedDeviceGroup.SelectedDeviceIDs : new System.Collections.Generic.List<int>();
 
+            // --- 優先度に沿った照射可否判定 ---
+            // 優先度1: cfg.isEnabled が false → 無効（グレー）
+            Color gizmoColor;
+            string statusLabel;
+
+            if (!cfg.isEnabled)
+            {
+                gizmoColor = Color.gray;
+                statusLabel = "[disabled]";
+            }
+            else
+            {
+                // 優先度2: Disabler で割当デバイスが全滅しているか確認
+                bool allDisabledByDisabler = disabler != null
+                    && deviceIds.Count > 0
+                    && deviceIds.TrueForAll(id => disabler.IsDisabled(id));
+
+                if (allDisabledByDisabler)
+                {
+                    // 全担当デバイスがDisablerで無効 → 赤（照射不可）
+                    gizmoColor = new Color(1f, 0.2f, 0.2f, 1f);
+                    statusLabel = "[all devices disabled]";
+                }
+                else if (useDirectional && deviceIds.Count > 0)
+                {
+                    // 優先度3: DirectionalGrouping 有効時、角度閾値内の候補があるか確認
+                    // Disablerで有効なデバイスのうち、角度条件を満たすものが1つでもあればOK
+                    var sceneDevices = UnityEngine.Object.FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None);
+                    bool anyInRange = false;
+                    foreach (var dev in sceneDevices)
+                    {
+                        if (disabler != null && disabler.IsDisabled(dev.ID)) continue;
+                        if (!deviceIds.Contains(dev.ID)) continue;
+                        float angle = Vector3.Angle(dev.transform.forward, -cfg.targetTransform.forward);
+                        if (angle <= angleThreshold)
+                        {
+                            anyInRange = true;
+                            break;
+                        }
+                    }
+
+                    if (!anyInRange)
+                    {
+                        // 全担当デバイスが角度NG → 橙（DirectionalGroupingで照射不可）
+                        gizmoColor = new Color(1f, 0.6f, 0f, 1f);
+                        statusLabel = "[angle NG]";
+                    }
+                    else
+                    {
+                        gizmoColor = activeColors[idx % activeColors.Length];
+                        statusLabel = "";
+                    }
+                }
+                else
+                {
+                    gizmoColor = activeColors[idx % activeColors.Length];
+                    statusLabel = "";
+                }
+            }
+
+            // --- Gizmo描画 ---
+            Gizmos.color = gizmoColor;
             Gizmos.DrawWireSphere(centerPos, 0.003f);
 
             if (cfg.useSTM && cfg.stmRadius > 0f)
@@ -240,6 +314,16 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
                     prevPoint = nextPoint;
                 }
             }
+
+#if UNITY_EDITOR
+            // 担当デバイスIDとステータスをラベル表示
+            string deviceLabel = deviceIds.Count > 0
+                ? $"AUTD [{string.Join(",", deviceIds)}]"
+                : "AUTD [none]";
+            if (!string.IsNullOrEmpty(statusLabel)) deviceLabel += " " + statusLabel;
+            UnityEditor.Handles.color = gizmoColor;
+            UnityEditor.Handles.Label(centerPos + Vector3.up * 0.015f, deviceLabel);
+#endif
 
             idx++;
         }

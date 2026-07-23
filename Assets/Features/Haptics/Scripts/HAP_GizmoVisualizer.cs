@@ -14,7 +14,8 @@ public static partial class HAP_GizmoVisualizer
         bool enableDirectionalGrouping, 
         float directionalAngleThreshold, 
         HCD_Pipeline? hcdPipeline,
-        HAP_AUTDDebugDisabler? debugDisabler = null)
+        HAP_AUTDDebugDisabler? debugDisabler = null,
+        HAP_HapticsIllusionCustomController? illusionController = null)
     {
         var sortedDevices = devices.OrderBy(d => d.ID).ToArray();
 
@@ -53,12 +54,51 @@ public static partial class HAP_GizmoVisualizer
             {
                 bool isDisabled = debugDisabler != null && debugDisabler.IsDisabled(device.ID);
 
+                // IllusionのGroup指定に含まれているか確認（優先度2）
+                bool isInIllusionGroup = false;
+                System.Collections.Generic.List<string> illusionGroupNames = new System.Collections.Generic.List<string>();
+                if (illusionController != null)
+                {
+                    foreach (var cfg in illusionController.focusConfigs)
+                    {
+                        if (cfg.assignedDeviceGroup != null && cfg.assignedDeviceGroup.SelectedDeviceIDs.Contains(device.ID))
+                        {
+                            isInIllusionGroup = true;
+                            illusionGroupNames.Add(cfg.focusName);
+                        }
+                    }
+                }
+
                 // Gizmoの描画
                 Gizmos.matrix = Matrix4x4.TRS(device.transform.position, device.transform.rotation, Vector3.one);
                 Gizmos.color = isDisabled ? new Color(0.3f, 0.3f, 0.3f, 0.8f) : groupColor;
                 
                 // AUTD3デバイスの簡易描画 (目安として 192mm x 151mm)
                 Gizmos.DrawWireCube(new Vector3(0.096f, 0.075f, 0), new Vector3(0.192f, 0.151f, 0.01f));
+
+                // IllusionのGroup指定に含まれるデバイスは内側に強調枠を追加（優先度2の可視化）
+                if (isInIllusionGroup && !isDisabled)
+                {
+                    // 白い内枠でIllusion Groupの指定を強調
+                    Gizmos.color = new Color(1f, 1f, 1f, 0.9f);
+                    Gizmos.DrawWireCube(new Vector3(0.096f, 0.075f, 0), new Vector3(0.182f, 0.141f, 0.012f));
+                }
+
+#if UNITY_EDITOR
+                // デバイスIDとIllusion Group割当をラベル表示
+                if (isInIllusionGroup)
+                {
+                    Gizmos.matrix = Matrix4x4.identity;
+                    Vector3 worldPos = device.transform.TransformPoint(new Vector3(0.096f, 0.151f + 0.02f, 0));
+                    Color labelColor = isDisabled ? Color.gray : Color.white;
+                    UnityEditor.Handles.color = labelColor;
+                    string label = $"AUTD#{device.ID}: {string.Join(", ", illusionGroupNames)}";
+                    if (isDisabled) label += " [DISABLED]";
+                    UnityEditor.Handles.Label(worldPos, label);
+                    // matrix を元に戻す
+                    Gizmos.matrix = Matrix4x4.TRS(device.transform.position, device.transform.rotation, Vector3.one);
+                }
+#endif
                 
                 // AUTDのマテリアル色を変更（子オブジェクトのRendererに対してMaterialPropertyBlockを適用）
                 var renderers = device.GetComponentsInChildren<Renderer>();
@@ -149,7 +189,7 @@ public static partial class HAP_GizmoVisualizer
 
             if (activeObj != null)
             {
-                DrawVirtualObjectSurfaceMapping(activeObj, deviceGroups, directionalAngleThreshold, debugDisabler);
+                DrawVirtualObjectSurfaceMapping(activeObj, deviceGroups, directionalAngleThreshold, debugDisabler, illusionController);
             }
         }
     }

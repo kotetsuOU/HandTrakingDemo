@@ -386,13 +386,28 @@ public class HAP_AUTDHapticsController : MonoBehaviour
         var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None);
         
 #if UNITY_EDITOR
-        var disabler = debugDisabler != null ? debugDisabler : GetComponent<HAP_AUTDDebugDisabler>();
+        // 実行中/非実行中どちらでも確実に取得できるよう GetComponent を直接使用
+        var disabler = GetComponent<HAP_AUTDDebugDisabler>();
+
+        // ObjectTarget モード時、アクティブな IllusionController があれば渡す
+        HAP_HapticsIllusionCustomController? illusionCtrl = null;
+        if (sourceMode == HapticsSourceMode.ObjectTarget && objectHapticsControllers != null)
+        {
+            objectHapticsControllers.RemoveAll(c => c == null);
+            if (objectHapticsControllers.Count > 0)
+            {
+                int validIdx = Mathf.Clamp(activeObjectControllerIndex, 0, objectHapticsControllers.Count - 1);
+                illusionCtrl = objectHapticsControllers[validIdx] as HAP_HapticsIllusionCustomController;
+            }
+        }
+
         HAP_GizmoVisualizer.DrawDevicesAndGroupings(
             devices, 
             enableDirectionalGrouping, 
             directionalAngleThreshold, 
             hcdPipeline,
-            disabler
+            disabler,
+            illusionCtrl
         );
 #endif
     }
