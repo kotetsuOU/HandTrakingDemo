@@ -67,7 +67,6 @@ public class HAP_AUTDHardwareControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Connection Link Settings
-        EditorGUILayout.LabelField("Connection & Link Settings", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(linkTypeProp);
         if ((AUTDLinkType)linkTypeProp.enumValueIndex == AUTDLinkType.SOEM)
         {
@@ -78,13 +77,11 @@ public class HAP_AUTDHardwareControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Hardware Environment
-        EditorGUILayout.LabelField("Hardware Environment", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(temperatureProp);
         EditorGUILayout.PropertyField(enableFanProp);
         EditorGUILayout.Space();
 
         // Modulation Control
-        EditorGUILayout.LabelField("Modulation Control", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(modulationModeProp);
         EditorGUI.indentLevel++;
         if ((ModulationMode)modulationModeProp.enumValueIndex == ModulationMode.Sine)
@@ -99,7 +96,6 @@ public class HAP_AUTDHardwareControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Silencer Settings
-        EditorGUILayout.LabelField("Silencer Noise Filter", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(silencerModeProp);
         EditorGUI.indentLevel++;
         if ((SilencerMode)silencerModeProp.enumValueIndex == SilencerMode.FixedUpdateRate)

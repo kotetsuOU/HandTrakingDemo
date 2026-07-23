@@ -24,6 +24,7 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     private SerializedProperty stmModeProp = null!;
     private SerializedProperty stmFrequencyProp = null!;
     private SerializedProperty customInnerAlgorithmProp = null!;
+    private SerializedProperty gainStmModeProp = null!;
 
     private SerializedProperty offsetProp = null!;
     private SerializedProperty enableDirectionalGroupingProp = null!;
@@ -52,6 +53,7 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         stmModeProp = serializedObject.FindProperty("stmMode");
         stmFrequencyProp = serializedObject.FindProperty("stmFrequency");
         customInnerAlgorithmProp = serializedObject.FindProperty("customInnerAlgorithm");
+        gainStmModeProp = serializedObject.FindProperty("gainStmMode");
 
         offsetProp = serializedObject.FindProperty("offset");
         enableDirectionalGroupingProp = serializedObject.FindProperty("enableDirectionalGrouping");
@@ -69,7 +71,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         serializedObject.Update();
 
         // Hardware Component Reference
-        EditorGUILayout.LabelField("Hardware Component Link", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(hardwareControllerProp);
         if (hardwareControllerProp.objectReferenceValue == null)
         {
@@ -78,13 +79,11 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Dependencies
-        EditorGUILayout.LabelField("Pipeline Dependencies", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(hcdPipelineProp);
         EditorGUILayout.PropertyField(objectHapticsControllerProp);
         EditorGUILayout.Space();
 
         // Operation Mode
-        EditorGUILayout.LabelField("Haptics Generation Mode", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(generationModeProp);
         if ((HapticsGenerationMode)generationModeProp.enumValueIndex == HapticsGenerationMode.Precision)
         {
@@ -97,19 +96,22 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Acoustic Holography
-        EditorGUILayout.LabelField("Acoustic Holography", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(holoAlgorithmProp);
         EditorGUILayout.PropertyField(focusIntensityPascalProp, new GUIContent("Focus Intensity (Pa)"));
         EditorGUILayout.Space();
 
         // STM Settings
-        EditorGUILayout.LabelField("Spatio-Temporal Modulation (STM)", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(stmModeProp);
         EditorGUI.indentLevel++;
         EditorGUILayout.PropertyField(stmFrequencyProp, new GUIContent("STM Frequency (Hz)"));
 
         HoloAlgorithm holoAlg = (HoloAlgorithm)holoAlgorithmProp.enumValueIndex;
         HapticsSTMMode stmMode = (HapticsSTMMode)stmModeProp.enumValueIndex;
+
+        if (stmMode == HapticsSTMMode.GainSTM && gainStmModeProp != null)
+        {
+            EditorGUILayout.PropertyField(gainStmModeProp, new GUIContent("Gain STM Mode"));
+        }
 
         if (stmMode == HapticsSTMMode.GainSTM || holoAlg == HoloAlgorithm.Custom)
         {
@@ -119,7 +121,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Coordinate & Directional Grouping
-        EditorGUILayout.LabelField("Coordinate & Directional Grouping", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(offsetProp);
         EditorGUILayout.PropertyField(enableDirectionalGroupingProp);
         if (enableDirectionalGroupingProp.boolValue)
@@ -131,7 +132,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         EditorGUILayout.Space();
 
         // Debug & Profiling
-        EditorGUILayout.LabelField("Debug & Performance Profiling", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(visualizeDevicesProp);
         EditorGUILayout.PropertyField(enableProfilingProp);
         if (enableProfilingProp.boolValue)
