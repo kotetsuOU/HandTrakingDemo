@@ -42,18 +42,43 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     [Tooltip("オブジェクトのハプティクス制御コンポーネントのリスト。アタッチされている場合、特定オブジェクト位置へ照射します。")]
     public List<HAP_BaseObjectHapticsController> objectHapticsControllers = new List<HAP_BaseObjectHapticsController>();
 
+    [Tooltip("現在アクティブなコントローラーのインデックス（0以上）。選択されたオブジェクトのみ enabled=true に同期されます。")]
+    public int activeObjectControllerIndex = 0;
+
     /// <summary>
     /// 単一オブジェクトコントローラーとの互換用アクセサ。最初の要素を返します/セットします。
     /// </summary>
     public HAP_BaseObjectHapticsController? objectHapticsController
     {
-        get => objectHapticsControllers.FirstOrDefault(c => c != null);
+        get => objectHapticsControllers.FirstOrDefault(c => c != null && c.enabled);
         set
         {
-            objectHapticsControllers.RemoveAll(c => c == null);
             if (value != null && !objectHapticsControllers.Contains(value))
             {
-                objectHapticsControllers.Insert(0, value);
+                objectHapticsControllers.Add(value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 指定されたインデックスのコントローラーのみを enabled = true にし、他を enabled = false に排他切り替えします。
+    /// </summary>
+    public void SetActiveControllerIndex(int index)
+    {
+        objectHapticsControllers.RemoveAll(c => c == null);
+        if (objectHapticsControllers.Count == 0)
+        {
+            activeObjectControllerIndex = 0;
+            return;
+        }
+
+        activeObjectControllerIndex = Mathf.Clamp(index, 0, objectHapticsControllers.Count - 1);
+
+        for (int i = 0; i < objectHapticsControllers.Count; i++)
+        {
+            if (objectHapticsControllers[i] != null)
+            {
+                objectHapticsControllers[i].enabled = (i == activeObjectControllerIndex);
             }
         }
     }
@@ -189,11 +214,14 @@ public class HAP_AUTDHapticsController : MonoBehaviour
 
         if (sourceMode == HapticsSourceMode.ObjectTarget)
         {
-            foreach (var ctrl in objectHapticsControllers)
+            objectHapticsControllers.RemoveAll(c => c == null);
+            if (objectHapticsControllers.Count > 0)
             {
-                if (ctrl != null && ctrl.enabled && ctrl.HasActiveTargets())
+                int validIdx = Mathf.Clamp(activeObjectControllerIndex, 0, objectHapticsControllers.Count - 1);
+                var activeCtrl = objectHapticsControllers[validIdx];
+                if (activeCtrl != null && activeCtrl.enabled && activeCtrl.HasActiveTargets())
                 {
-                    var foci = ctrl.GetHapticsTargets(focusIntensityPascal, currentOffset);
+                    var foci = activeCtrl.GetHapticsTargets(focusIntensityPascal, currentOffset);
                     clusterFociList.AddRange(foci);
                 }
             }

@@ -32,6 +32,8 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     private SerializedProperty enableLogProp = null!;
     private SerializedProperty profilingLogIntervalProp = null!;
 
+    private SerializedProperty activeObjectControllerIndexProp = null!;
+
     private void OnEnable()
     {
         hardwareControllerProp = serializedObject.FindProperty("hardwareController");
@@ -40,6 +42,7 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         hcdPipelineProp = serializedObject.FindProperty("hcdPipeline");
         hcdFociSettingsProp = serializedObject.FindProperty("hcdFociSettings");
         objectHapticsControllersProp = serializedObject.FindProperty("objectHapticsControllers");
+        activeObjectControllerIndexProp = serializedObject.FindProperty("activeObjectControllerIndex");
 
         holoAlgorithmProp = serializedObject.FindProperty("holoAlgorithm");
         focusIntensityPascalProp = serializedObject.FindProperty("focusIntensityPascal");
@@ -89,6 +92,36 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         else if (sourceMode == HapticsSourceMode.ObjectTarget)
         {
             EditorGUILayout.PropertyField(objectHapticsControllersProp, new GUIContent("Object Target Controllers"), true);
+
+            var controller = (HAP_AUTDHapticsController)target;
+            if (controller.objectHapticsControllers != null && controller.objectHapticsControllers.Count > 0)
+            {
+                var list = controller.objectHapticsControllers;
+                string[] displayOptions = new string[list.Count];
+
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var ctrl = list[i];
+                    if (ctrl != null)
+                    {
+                        displayOptions[i] = ctrl.gameObject.name;
+                    }
+                    else
+                    {
+                        displayOptions[i] = "Unassigned Object";
+                    }
+                }
+
+                int currentIndex = Mathf.Clamp(controller.activeObjectControllerIndex, 0, list.Count - 1);
+                int selectedIndex = EditorGUILayout.Popup("Active Controller Target", currentIndex, displayOptions);
+
+                if (selectedIndex != controller.activeObjectControllerIndex)
+                {
+                    controller.SetActiveControllerIndex(selectedIndex);
+                    EditorUtility.SetDirty(target);
+                }
+            }
+
             EditorGUILayout.PropertyField(hcdPipelineProp, new GUIContent("HCD Pipeline (Optional)"));
         }
         else if (sourceMode == HapticsSourceMode.Manual)

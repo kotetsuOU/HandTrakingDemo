@@ -39,8 +39,10 @@ public static class HAP_GSPATDeviceAllocator
             return GenerateDatagram(clusterData, holoAlgorithm, focusIntensityPascal);
         }
 
+        bool hasExplicitDeviceAssignments = clusterData.Any(c => c.AssignedDeviceIndex >= 0);
+
         // 割り当てなし（全デバイスで全クラスタを共有）
-        if (!enableDirectionalGrouping || connectedDevices.Count == 0)
+        if (!hasExplicitDeviceAssignments && (!enableDirectionalGrouping || connectedDevices.Count == 0))
         {
             // debugDisabler でグループ制御が必要な場合は Group を使う
             if (debugDisabler != null && connectedDevices.Any(d => debugDisabler.IsDisabled(d.ID)))
@@ -66,6 +68,23 @@ public static class HAP_GSPATDeviceAllocator
         // 2. クラスタごとに最適なデバイスを判定して割り当て
         foreach (var cData in clusterData)
         {
+            if (cData.AssignedDeviceIndex >= 0)
+            {
+                // 明示的なデバイスインデックスが指定されている場合
+                for (int i = 0; i < connectedDevices.Count; i++)
+                {
+                    var dev = connectedDevices[i];
+                    if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
+
+                    if (i == cData.AssignedDeviceIndex || dev.ID == cData.AssignedDeviceIndex)
+                    {
+                        deviceAssignments[dev.ID].Add(cData);
+                        break;
+                    }
+                }
+                continue;
+            }
+
             bool isAssigned = false;
             float minAngle = float.MaxValue;
             AUTD3Device? bestDevice = null;
@@ -309,8 +328,10 @@ public static class HAP_GSPATDeviceAllocator
     {
         if (clusterData.Count == 0) return;
 
+        bool hasExplicitDeviceAssignments = clusterData.Any(c => c.AssignedDeviceIndex >= 0);
+
         // 割り当てなし（全デバイスで全クラスタを共有）
-        if (!enableDirectionalGrouping || connectedDevices.Count == 0)
+        if (!hasExplicitDeviceAssignments && (!enableDirectionalGrouping || connectedDevices.Count == 0))
         {
             bool anyDeviceEnabled = false;
             bool[][] maskArray = new bool[geometry.NumDevices][];
@@ -345,6 +366,23 @@ public static class HAP_GSPATDeviceAllocator
         // クラスタごとに最適なデバイスを判定して割り当て
         foreach (var cData in clusterData)
         {
+            if (cData.AssignedDeviceIndex >= 0)
+            {
+                // 明示的なデバイスインデックスが指定されている場合
+                for (int i = 0; i < connectedDevices.Count; i++)
+                {
+                    var dev = connectedDevices[i];
+                    if (debugDisabler != null && debugDisabler.IsDisabled(dev.ID)) continue;
+
+                    if (i == cData.AssignedDeviceIndex || dev.ID == cData.AssignedDeviceIndex)
+                    {
+                        deviceAssignments[dev.ID].Add(cData);
+                        break;
+                    }
+                }
+                continue;
+            }
+
             bool isAssigned = false;
             float minAngle = float.MaxValue;
             AUTD3Device? bestDevice = null;

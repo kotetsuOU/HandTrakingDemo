@@ -78,28 +78,48 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
         AutoDetectBones();
     }
 
-    private void OnEnable()
+    protected virtual void OnEnable()
     {
-        if (autdController != null)
-        {
-            autdController.objectHapticsController = this;
-        }
+        RegisterSelfToController();
     }
 
-    private void OnDisable()
+    protected virtual void OnDisable()
     {
-        if (autdController != null && autdController.objectHapticsController == this)
+        // 他のコントローラーに影響を与えずに安全に非アクティブ化
+    }
+
+    public void RegisterSelfToController()
+    {
+        if (autdController == null)
         {
-            autdController.objectHapticsController = null;
+            autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
+        }
+
+        if (autdController != null)
+        {
+            if (!autdController.objectHapticsControllers.Contains(this))
+            {
+                autdController.objectHapticsControllers.Add(this);
+            }
         }
     }
 
     /// <summary>
     /// Foxの標準的なボーン階層名から、4本の足および尻尾のTransformを自動検出してバインドします。
     /// </summary>
-    public void AutoDetectBones()
+    public virtual void AutoDetectBones(bool forceOverwrite = false)
     {
-        Transform searchRoot = rootTransform != null ? rootTransform : this.transform;
+        Transform searchRoot = rootTransform != null ? rootTransform : this.transform.root;
+        if (searchRoot == null) searchRoot = this.transform;
+
+        if (forceOverwrite)
+        {
+            frontLeftFoot = null;
+            frontRightFoot = null;
+            backLeftFoot = null;
+            backRightFoot = null;
+            tailBone = null;
+        }
 
         // Fox prefabのボーン名: Fox_F_LLegDigit11 / Fox_F_RLegDigit11 / Fox_LLegDigit11 / Fox_RLegDigit11 を対象とする
         if (frontLeftFoot == null)
@@ -131,6 +151,21 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
             backLeftFoot = FindChildRecursive(searchRoot, name => (name.Contains("LLegAnkle") && !name.Contains("F_")) || (name.ToLower().Contains("left") && (name.ToLower().Contains("ankle") && !name.ToLower().Contains("front"))));
         if (backRightFoot == null)
             backRightFoot = FindChildRecursive(searchRoot, name => (name.Contains("RLegAnkle") && !name.Contains("F_")) || (name.ToLower().Contains("right") && (name.ToLower().Contains("ankle") && !name.ToLower().Contains("front"))));
+
+        // それでも見つからない場合、親階層や別ルートの全検索
+        if (frontLeftFoot == null || frontRightFoot == null || backLeftFoot == null || backRightFoot == null || tailBone == null)
+        {
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsSortMode.None);
+            foreach (var t in allTransforms)
+            {
+                string n = t.name;
+                if (frontLeftFoot == null && (n.Contains("F_LLegDigit") || (n.ToLower().Contains("front") && n.ToLower().Contains("left") && n.ToLower().Contains("digit")))) frontLeftFoot = t;
+                if (frontRightFoot == null && (n.Contains("F_RLegDigit") || (n.ToLower().Contains("front") && n.ToLower().Contains("right") && n.ToLower().Contains("digit")))) frontRightFoot = t;
+                if (backLeftFoot == null && (n.Contains("LLegDigit") && !n.Contains("F_"))) backLeftFoot = t;
+                if (backRightFoot == null && (n.Contains("RLegDigit") && !n.Contains("F_"))) backRightFoot = t;
+                if (tailBone == null && (n.Contains("Tail6") || n.Contains("Tail5"))) tailBone = t;
+            }
+        }
     }
 
     private Transform? FindChildRecursive(Transform parent, Func<string, bool> predicate)

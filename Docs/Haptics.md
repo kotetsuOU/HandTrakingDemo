@@ -4,7 +4,7 @@
 >
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 >
-> 📎 **関連ドキュメント**: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | [FoxFootHaptics.md](./FoxFootHaptics.md) | [HowToUseHaptics.md](./HowToUseHaptics.md) | [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
+> 📎 **関連ドキュメント**: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | [FoxFootHaptics.md](./FoxFootHaptics.md) | [HapticsIllusion.md](./HapticsIllusion.md) | [HowToUseHaptics.md](./HowToUseHaptics.md) | [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
 
 本モジュールは、`Collision.md`（接触判定およびクラスタリング）から出力された高精度な接触重心や法線、および接触強度（Force）データを受け取り、実際にハードウェア（AUTD3: Airborne Ultrasound Tactile Display）を駆動して空中超音波による触覚フィードバックを提示します。
 

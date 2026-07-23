@@ -20,6 +20,7 @@ public static class HAP_FociGenerator
         public bool UseSTM;
         public bool IsGainSTM;
         public float STMFrequency = 150f;
+        public int AssignedDeviceIndex = -1;
 
         public ClusterFociData(TrackedCluster cluster)
         {
@@ -187,6 +188,7 @@ public static class HAP_FociGenerator
         public bool UseSTM;
         public bool IsGainSTM;
         public float STMFrequency = 150f;
+        public int AssignedDeviceIndex = -1;
 
         public ClusterFociData(TrackedCluster cluster)
         {

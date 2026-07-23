@@ -1,0 +1,233 @@
+using UnityEngine;
+using System.Collections.Generic;
+
+#if !USE_AUTD3_LEGACY
+using AUTD3;
+using AUTD3.Holo;
+using static AUTD3.Units;
+#else
+using AUTD3Sharp;
+using AUTD3Sharp.Gain.Holo;
+using static AUTD3Sharp.Units;
+#endif
+
+#nullable enable
+
+/// <summary>
+/// 【触覚錯覚・実験用焦点設定】
+/// デバイスインデックスごとに独立した焦点位置・STM設定を管理する構造体。
+/// </summary>
+[System.Serializable]
+public class HapticsIllusionTargetConfig
+{
+    [Tooltip("焦点の識別名（デバッグ用）")]
+    public string focusName = "Illusion Focus Target";
+
+    [Tooltip("焦点照射の目標となる Transform（接点、または接点以外の任意位置）")]
+    public Transform? targetTransform;
+
+    [Tooltip("この焦点を担当する AUTD デバイスのインデックス (0, 1, 2...)")]
+    public int assignedDeviceIndex = 0;
+
+    [Tooltip("焦点位置のローカル/法線方向オフセット (メートル)。\n表面: 0, 内側(めり込み): マイナス, 外側: プラス")]
+    public Vector3 offsetPosition = Vector3.zero;
+
+    [Tooltip("焦点生成の有効/無効")]
+    public bool isEnabled = true;
+
+    [Header("Acoustic / STM Settings")]
+    [Tooltip("時分割焦点回転 (STM) を使用するかどうか。false の場合は定点照射。")]
+    public bool useSTM = true;
+
+    [Tooltip("STM再生周波数 (Hz)。例: 80Hz")]
+    public float stmFrequency = 80f;
+
+    [Tooltip("STM回転軌跡の半径 (メートル)。例: 0.005 (5mm)")]
+    public float stmRadius = 0.005f;
+
+    [Tooltip("STM1周期あたりの分割点数。")]
+    [Range(4, 64)]
+    public int stmPoints = 16;
+
+    [Tooltip("超音波音圧強度 (Pascal)。0 で全系の defaultIntensityPascal を使用。")]
+    public float focusIntensityPascal = 0f;
+}
+
+/// <summary>
+/// 【触覚錯覚・実験用カスタムコントローラー】
+/// GSPAT等の多焦点干渉計算を行わず、複数台のAUTDデバイスそれぞれに独立した単焦点（Focus / FocusSTM）を割り当てるための汎用コントローラー。
+/// HAP_AUTDHapticsController の objectHapticsControllers (objects) リストに追加してシリアライズ使用できます。
+/// </summary>
+public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsController
+{
+    [Header("Illusion Focus Configurations")]
+    [Tooltip("各AUTDデバイスに割り当てる独立焦点のリスト設定")]
+    public List<HapticsIllusionTargetConfig> focusConfigs = new List<HapticsIllusionTargetConfig>
+    {
+        new HapticsIllusionTargetConfig
+        {
+            focusName = "Contact Point Focus (AUTD #0)",
+            assignedDeviceIndex = 0,
+            useSTM = true,
+            stmFrequency = 80f,
+            stmRadius = 0.005f
+        },
+        new HapticsIllusionTargetConfig
+        {
+            focusName = "Non-Contact / Opposite Focus (AUTD #1)",
+            assignedDeviceIndex = 1,
+            useSTM = true,
+            stmFrequency = 80f,
+            stmRadius = 0.005f
+        }
+    };
+
+    public override List<HapticsTargetInfo> TargetInfos
+    {
+        get
+        {
+            var list = new List<HapticsTargetInfo>();
+            foreach (var cfg in focusConfigs)
+            {
+                if (cfg.targetTransform != null)
+                {
+                    list.Add(new HapticsTargetInfo
+                    {
+                        Name = cfg.focusName,
+                        Transform = cfg.targetTransform,
+                        IsEnabled = cfg.isEnabled,
+                        IsTail = true
+                    });
+                }
+            }
+            return list;
+        }
+    }
+
+    public override bool HasActiveTargets()
+    {
+        foreach (var cfg in focusConfigs)
+        {
+            if (cfg.isEnabled && cfg.targetTransform != null && cfg.targetTransform.gameObject.activeInHierarchy)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public override List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
+    {
+        var result = new List<HAP_FociGenerator.ClusterFociData>();
+
+        foreach (var cfg in focusConfigs)
+        {
+            if (!cfg.isEnabled || cfg.targetTransform == null || !cfg.targetTransform.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            float intensity = cfg.focusIntensityPascal > 0 ? cfg.focusIntensityPascal : defaultIntensityPascal;
+            Vector3 centerPos = cfg.targetTransform.position + cfg.targetTransform.TransformDirection(cfg.offsetPosition) + offset;
+
+            TrackedCluster dummyCluster = new TrackedCluster
+            {
+                Centroid = centerPos,
+                Normal = cfg.targetTransform.forward,
+                Force = 1.0f,
+                IsAlive = true
+            };
+
+            var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
+            fociData.AssignedDeviceIndex = cfg.assignedDeviceIndex;
+            fociData.UseSTM = cfg.useSTM;
+            fociData.STMFrequency = cfg.stmFrequency;
+
+            if (cfg.useSTM && cfg.stmRadius > 0f && cfg.stmPoints >= 4)
+            {
+                Vector3 normal = cfg.targetTransform.forward;
+                Vector3 right = cfg.targetTransform.right;
+                Vector3 up = cfg.targetTransform.up;
+
+                for (int i = 0; i < cfg.stmPoints; i++)
+                {
+                    float angle = (2.0f * Mathf.PI * i) / cfg.stmPoints;
+                    Vector3 p = centerPos + (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)) * cfg.stmRadius;
+                    fociData.STMFrames.Add(new List<Vector3> { p });
+                }
+
+#if !USE_AUTD3_LEGACY
+                fociData.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                    centerPos,
+                    Amplitude.FromPascal(intensity)
+                ));
+#else
+                fociData.SequentialFoci.Add((
+                    new AUTD3Sharp.Utils.Point3(centerPos.x, centerPos.y, centerPos.z),
+                    intensity * Pa
+                ));
+#endif
+            }
+            else
+            {
+#if !USE_AUTD3_LEGACY
+                fociData.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
+                    centerPos,
+                    Amplitude.FromPascal(intensity)
+                ));
+#else
+                fociData.SequentialFoci.Add((
+                    new AUTD3Sharp.Utils.Point3(centerPos.x, centerPos.y, centerPos.z),
+                    intensity * Pa
+                ));
+#endif
+            }
+
+            result.Add(fociData);
+        }
+
+        return result;
+    }
+
+    protected override void OnDrawGizmos()
+    {
+        if (!drawGizmos) return;
+
+        int idx = 0;
+        Color[] colors = new Color[] { Color.cyan, Color.magenta, Color.yellow, Color.green };
+
+        foreach (var cfg in focusConfigs)
+        {
+            if (cfg.targetTransform == null) continue;
+
+            Color c = cfg.isEnabled ? colors[idx % colors.Length] : Color.gray;
+            Gizmos.color = c;
+
+            Vector3 centerPos = cfg.targetTransform.position + cfg.targetTransform.TransformDirection(cfg.offsetPosition);
+
+            Gizmos.DrawWireSphere(centerPos, 0.003f);
+
+            if (cfg.useSTM && cfg.stmRadius > 0f)
+            {
+                Vector3 right = cfg.targetTransform.right;
+                Vector3 up = cfg.targetTransform.up;
+                int segments = 24;
+                Vector3 prevPoint = centerPos + right * cfg.stmRadius;
+
+                for (int i = 1; i <= segments; i++)
+                {
+                    float angle = (2.0f * Mathf.PI * i) / segments;
+                    Vector3 nextPoint = centerPos + (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)) * cfg.stmRadius;
+                    Gizmos.DrawLine(prevPoint, nextPoint);
+                    prevPoint = nextPoint;
+                }
+            }
+
+#if UNITY_EDITOR
+            UnityEditor.Handles.Label(centerPos + Vector3.up * 0.015f, 
+                $"[{cfg.focusName}]\nAUTD #{cfg.assignedDeviceIndex} | {(cfg.useSTM ? $"{cfg.stmFrequency}Hz STM" : "Static Focus")}");
+#endif
+            idx++;
+        }
+    }
+}

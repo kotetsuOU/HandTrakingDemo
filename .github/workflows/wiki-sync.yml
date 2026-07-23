@@ -57,6 +57,7 @@ jobs:
           cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
           cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
           cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
+          cp Docs/HapticsIllusion.md temp-wiki/HapticsIllusion.md
           
           python3 -c '
           import os, re
@@ -76,7 +77,8 @@ jobs:
               "AnimationControls.md": "AnimationControls",
               "AUTD3_SDK_Transition.md": "AUTD3_SDK_Transition",
               "FoxFootHaptics.md": "FoxFootHaptics",
-              "HowToUseHaptics.md": "HowToUseHaptics"
+              "HowToUseHaptics.md": "HowToUseHaptics",
+              "HapticsIllusion.md": "HapticsIllusion"
           }
           pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):
