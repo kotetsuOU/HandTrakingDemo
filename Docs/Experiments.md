@@ -11,8 +11,9 @@ Assets/Features/Experiment/Scripts/
 │   ├── EXP_InstructionTextConfig.cs      ← 教示・同意・説明文章アセット (ScriptableObject)
 │   ├── EXP_TrialData.cs                  ← 1試行のデータ構造
 │   └── EXP_ExperimentSession.cs          ← セッション実行時情報
-├── Paradigms/                            ← ★ 実験パラダイムの抽象基底クラス群
+├── Paradigms/                            ← 実験パラダイムの抽象基底クラス群
 │   ├── EXP_BaseCondition.cs              ← 実験条件の全共通最上位基底
+│   ├── EXP_BaseHapticsCondition.cs       ← 触覚制御伴う全条件の共通中間基底 (リセット・バイパス自動管理)
 │   ├── EXP_Base2AFCCondition.cs          ← パラダイム1: 2AFC（二選択強制選択）抽象基底
 │   ├── EXP_BaseSingleStimulusCondition.cs ← パラダイム2: 単一刺激（Detection / Rating）抽象基底
 │   ├── EXP_BaseABXCondition.cs             ← パラダイム3: ABX（3段階同種識別）抽象基底
@@ -81,38 +82,31 @@ Project ウィンドウで右クリック → **Create → EXP → ExperimentCon
 ### Step 2: 実験条件クラスを作成
 
 ```csharp
-// 例: ハプティクス強度を変える条件
-[CreateAssetMenu(menuName = "EXP/Conditions/HapticsCondition")]
-public class HapticsCondition : EXP_BaseCondition
+// 例: ハプティクス周波数を変える条件 (2AFC)
+[CreateAssetMenu(menuName = "EXP/Conditions/STMFrequencyCondition")]
+public class EXP_STMFrequencyCondition : EXP_Base2AFCCondition
 {
-    [Header("Haptics")]
-    public float intensity = 5000f;
+    [Header("Frequency Candidates")]
+    public float referenceFrequency = 80f;
+    public float[] candidateFrequencies = new float[] { 20f, 40f, 60f, 80f, 100f, 120f, 140f, 160f };
 
-    [System.NonSerialized]
-    public HAP_AUTDHapticsController? hapticsController;
+    protected override float GetReferenceValue() => referenceFrequency;
+    protected override float GetFixedComparisonValue() => 120f;
+    protected override float[] GetCandidateValues() => candidateFrequencies;
 
-    public override void Apply(EXP_TrialData trial)
+    protected override void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value)
     {
-        // 実行時にシーン内のコントローラーを自動取得
-        hapticsController ??= Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
-        if (hapticsController == null) return;
-
-        // 刺激を適用
-        hapticsController.focusIntensityPascal = intensity;
-        trial.metadata["intensity"] = intensity.ToString("F0");
+        // 刺激パラメータの適用（基底クラス EXP_BaseHapticsCondition がバイパスON/OFFやOnTrialEndを自動管理）
+        ctrl.stmFrequency = value;
     }
 
-    public override bool? EvaluateResponse(EXP_TrialData trial)
+    protected override void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl)
     {
-        // 正解キーを Z に設定する場合
-        return trial.responseValue == "Z";
+        // 試行終了時の後片付け・デフォルト値復元
+        ctrl.stmFrequency = 80f;
     }
 
-    public override void OnTrialEnd(EXP_TrialData trial)
-    {
-        // 刺激を止める
-        hapticsController.bypassHaptics = true;
-    }
+    protected override string FormatValueForDebug(float value) => $"{value:F0} Hz";
 }
 ```
 
@@ -185,9 +179,18 @@ experimentManager.OnResponseReceived += trial =>
 > インストールしていない場合、キーボード入力のみ使用できます（コンパイルエラーは出ません）。
 
 > [!IMPORTANT]
-> `EXP_BaseCondition` を継承した条件クラスでは `Apply()` メソッドを必ずオーバーライドしてください。
-> 2AFC など複数インターバルが必要な場合は `StimulusCoroutine()` をオーバーライドし、`Apply()` は空実装にしてください。
-> `EvaluateResponse()` は正誤判定が不要な実験では `return null;` のままで構いません。
+> **条件クラスの基底構造 (継承設計)**:
+> 触覚制御を伴う実験条件を作成する場合、全パラダイム基底クラス (`EXP_Base2AFCCondition`, `EXP_BaseABXCondition`, `EXP_BaseSingleStimulusCondition`, `EXP_BaseAdjustmentCondition`) は共通中間基底 **`EXP_BaseHapticsCondition`** を継承しています。
+> これにより、触覚コントローラー (`HAP_HapticsIllusionFoxFootController`) の自動取得・保持、刺激提示時の `SetHapticsBypass(ctrl, false)` (照射ON)、および刺激提示終了時・試行終了時の `StopHaptics(ctrl)` / `OnTrialEnd` での `ResetValueOnTrialEnd()` 実行 ＋ `SetHapticsBypass(ctrl, true)` (無音停止) が自動的に管理されます。
+
+> [!NOTE]
+> **実験中の custom モード背景信号自動制御とフラグの役割分離**:
+> `EXP_ExperimentManager` の `suppressCustomHapticsOnExperiment` (デフォルト ON) により、実験開始 (`StartExperiment`) 時に `HAP_AUTDHapticsController.bypassHaptics` を `true` に変更して背景の custom 触覚信号を自動一時停止し、実験終了・中断時に自動復元します。
+> なお、実験条件クラスによる刺激の ON/OFF 制御は `HAP_BaseObjectHapticsController.experimentStimulusSuppressed` という独立したフラグで行われるため、背景の `bypassHaptics` グローバル設定と競合せず、ISI・応答受付中・教示中などの非刺激フェーズで不要な超音波出力が発生しないよう安全に設計されています。
+
+> [!TIP]
+> **EditorWindow フォーカス時の入力受け取り (`EXP_InputHandler`)**:
+> Unity Editor の `EXP_ExperimentControlWindow` などの IMGUI ウィンドウにフォーカスがある時でも、`EXP_InputHandler` が `OnGUI()` 内で `Event.current` を使ってキーボード入力を確実に拾うように設計されています。
 
 ---
 
@@ -312,19 +315,3 @@ Unity Editor のメニュー **Tools → EXP → Experiment Control Panel** か�
   - パネル表示: 物理数値パラメータおよび正答率表示を非表示（主観評価バイアス防止）
 - **デバッグ表示モード (`isDebugMode = true`)**:
   - パネル最上部の `🐞 デバッグ表示モード (DebugPlay)` にチェックを入れると、動作確認用に被験者画面やパネルに詳細物理数値（`80 Hz` や `-2.0 cm`）および正答率が表示されます。
-
-
----
-
-## 変更履歴
-
-| 日付 | 内容 |
-|---|---|
-| 2026-07-23 | フレームワーク初版作成（EXP_ プレフィックス、11ファイル） |
-| 2026-07-23 | CS0465 警告修正: `Finalize()` → `FinalizeSession()` |
-| 2026-07-23 | `EXP_BaseCondition` に `StimulusCoroutine()` 拡張ポイントを追加 |
-| 2026-07-23 | `EXP_OppositeOffsetCondition` 新規追加（2AFC, OppositeOffset Y） |
-| 2026-07-23 | `EXP_STMFrequencyCondition` 新規追加（2AFC, STM 周波数） |
-| 2026-07-23 | `EXP_InputHandler` に `runInBackground` と `TriggerResponse()` API を追加 |
-| 2026-07-23 | Editor 拡張 `EXP_ExperimentControlWindow.cs`（独立操作パネル）を作成 |
-

@@ -101,6 +101,9 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
 
         yield return RunSingleInterval(ctrl, val2, cueDuration, intervalDuration);
 
+        // 第2刺激終了後、応答受付に入る前にハプティクス出力を停止
+        StopHaptics(ctrl);
+
         // ---- Response Prompt ----
         trial.metadata["currentInterval"] = "応答受付中";
         if (expManager != null)
@@ -160,10 +163,5 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
             yield return new WaitForSeconds(cueSecs);
 
         yield return new WaitForSeconds(durationSecs);
-    }
-
-    protected void StopHaptics(HAP_HapticsIllusionFoxFootController? ctrl)
-    {
-        SetHapticsBypass(ctrl, true);
     }
 }

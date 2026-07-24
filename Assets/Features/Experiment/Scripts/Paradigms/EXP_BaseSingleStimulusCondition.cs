@@ -68,6 +68,9 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseHapticsCondition
 
         yield return new WaitForSeconds(stimulusDuration);
 
+        // 刺激提示終了後、応答受付に入る前にハプティクス出力を停止
+        StopHaptics(ctrl);
+
         // 応答受付メッセージ
         trial.metadata["currentInterval"] = "応答受付中";
         if (expManager != null)

@@ -72,6 +72,19 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     public Color inactiveColor = Color.red;
 
     /// <summary>
+    /// 実験条件クラスによる刺激提示の一時抑制フラグ。
+    /// true の場合、このコントローラーからのハプティクス出力が抑制されます。
+    /// <para>
+    /// <see cref="HAP_AUTDHapticsController.bypassHaptics"/> とは独立して動作します。
+    /// bypassHaptics は SourceMode 切り替え等のグローバル制御用、
+    /// こちらは実験フロー中の刺激 ON/OFF 制御専用です。
+    /// </para>
+    /// </summary>
+    [HideInInspector]
+    [System.NonSerialized]
+    public bool experimentStimulusSuppressed = false;
+
+    /// <summary>
     /// 各コントローラーが持つ照射部位（足、尻尾など）のターゲット一覧を返します。
     /// </summary>
     public abstract List<HapticsTargetInfo> TargetInfos { get; }

@@ -59,26 +59,25 @@ public abstract class EXP_BaseHapticsCondition : EXP_BaseCondition
     // =====================================================
 
     /// <summary>
-    /// 触覚出力のバイパス（ON/OFF）を一元制御します。
+    /// 触覚出力の刺激提示 ON/OFF を制御します。
+    /// <see cref="HAP_BaseObjectHapticsController.experimentStimulusSuppressed"/> を操作し、
+    /// <see cref="HAP_AUTDHapticsController.bypassHaptics"/> には触れません。
     /// </summary>
     /// <param name="ctrl">対象のコントローラー</param>
-    /// <param name="bypass">true = 停止（バイパス）、false = 照射開始</param>
+    /// <param name="bypass">true = 抑制（出力停止）、false = 照射開始</param>
     protected void SetHapticsBypass(HAP_HapticsIllusionFoxFootController? ctrl, bool bypass)
     {
         if (ctrl == null) ctrl = GetController();
         if (ctrl == null) return;
 
-        if (ctrl.autdController != null)
-        {
-            ctrl.autdController.bypassHaptics = bypass;
-        }
-        else
-        {
-            var mainController = Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
-            if (mainController != null)
-                mainController.bypassHaptics = bypass;
-            else
-                ctrl.enabled = !bypass;
-        }
+        ctrl.experimentStimulusSuppressed = bypass;
+    }
+
+    /// <summary>
+    /// 触覚出力を明示的に停止（抑制）します。
+    /// </summary>
+    protected void StopHaptics(HAP_HapticsIllusionFoxFootController? ctrl)
+    {
+        SetHapticsBypass(ctrl, true);
     }
 }

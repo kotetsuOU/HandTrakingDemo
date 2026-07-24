@@ -236,7 +236,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
             {
                 int validIdx = Mathf.Clamp(activeObjectControllerIndex, 0, objectHapticsControllers.Count - 1);
                 var activeCtrl = objectHapticsControllers[validIdx];
-                if (activeCtrl != null && activeCtrl.enabled && activeCtrl.HasActiveTargets())
+                if (activeCtrl != null && activeCtrl.enabled && !activeCtrl.experimentStimulusSuppressed && activeCtrl.HasActiveTargets())
                 {
                     var foci = activeCtrl.GetHapticsTargets(focusIntensityPascal, currentOffset);
                     clusterFociList.AddRange(foci);
