@@ -47,11 +47,11 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
         get
         {
             var list = new List<HapticsTargetInfo>();
-            if (frontLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false });
-            if (frontRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false });
-            if (backRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false });
-            if (backLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false });
-            if (tailBone != null) list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true });
+            if (frontLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (frontRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (backRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (backLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (tailBone != null) list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true, TouchDirection = footTargetTouchDirection });
             return list;
         }
     }

@@ -49,7 +49,7 @@ public static class HAP_ObjectFociGenerator
                 TrackedCluster dummyCluster = new TrackedCluster
                 {
                     Centroid = activeCandidates[0].Transform.position,
-                    Normal = -activeCandidates[0].TouchDirection.normalized,
+                    Normal = activeCandidates[0].TouchDirection.normalized,
                     Force = 1.0f,
                     IsAlive = true
                 };
@@ -81,7 +81,7 @@ public static class HAP_ObjectFociGenerator
                 TrackedCluster dummyCluster = new TrackedCluster
                 {
                     Centroid = pos,
-                    Normal = -info.TouchDirection.normalized,
+                    Normal = info.TouchDirection.normalized,
                     Force = 1.0f,
                     IsAlive = true
                 };

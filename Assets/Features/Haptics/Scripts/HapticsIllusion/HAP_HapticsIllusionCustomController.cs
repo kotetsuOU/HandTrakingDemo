@@ -110,7 +110,8 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
                         Name = cfg.focusName,
                         Transform = cfg.targetTransform,
                         IsEnabled = cfg.isEnabled,
-                        IsTail = true
+                        IsTail = true,
+                        TouchDirection = cfg.targetTransform.forward
                     });
                 }
             }

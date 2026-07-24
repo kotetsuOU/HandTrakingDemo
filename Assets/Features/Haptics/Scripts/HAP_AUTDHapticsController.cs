@@ -301,12 +301,13 @@ public class HAP_AUTDHapticsController : MonoBehaviour
                     var builder = hardwareController.Client.DatagramBuilder();
                     HAP_GSPATDeviceAllocator.Allocate(
                         builder,
+                        hardwareController.Geometry,
                         clusterFociList,
                         hardwareController.ConnectedDevices,
-                        hardwareController.Geometry,
+                        effectiveAlgorithm,
                         enableDirectionalGrouping,
                         directionalAngleThreshold,
-                        effectiveAlgorithm,
+                        focusIntensityPascal,
                         debugDisabler
                     );
                     profiler.EndDeviceAllocate();
