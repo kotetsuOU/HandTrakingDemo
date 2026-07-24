@@ -24,6 +24,8 @@ public struct HapticsTargetInfo
     public Transform Transform;
     public bool IsEnabled;
     public bool IsTail; // 接地判定 (disableWhenInAir) を行わない特殊部位判定
+    public Vector3 Offset; // ターゲット位置オフセット
+    public Vector3 Normal; // 照射法線方向
 }
 
 /// <summary>
@@ -180,7 +182,7 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     {
         if (info.Transform == null) return;
 
-        Vector3 pos = info.Transform.position;
+        Vector3 pos = info.Transform.position + info.Offset;
         bool isEnabled = info.IsEnabled;
         bool active = IsTargetActive(info.Transform, isEnabled, info.IsTail);
         bool isGrounded = true;
