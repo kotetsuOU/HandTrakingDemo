@@ -9,16 +9,8 @@ using System.Collections;
 /// 共通のペア構成モード（<see cref="afcMode"/>）、時間順序カウンターバランス、タイミング制御、
 /// インターバル提示フロー、およびブラインド / デバッグ表示制御を抽象化・提供します。
 /// </summary>
-public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
+public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
 {
-    // =====================================================
-    // Reference
-    // =====================================================
-
-    [HideInInspector]
-    [System.NonSerialized]
-    public HAP_HapticsIllusionFoxFootController? controller;
-
     // =====================================================
     // Common 2AFC Parameters
     // =====================================================
@@ -55,7 +47,6 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
     protected abstract float GetFixedComparisonValue();
     protected abstract float[] GetCandidateValues();
     protected abstract void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value);
-    protected abstract void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl);
     protected abstract string FormatValueForDebug(float value);
 
     // =====================================================
@@ -66,10 +57,8 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
-        if (controller == null)
-            controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
-
-        if (controller == null)
+        var ctrl = GetController();
+        if (ctrl == null)
         {
             Debug.LogWarning($"[{GetType().Name}] HAP_HapticsIllusionFoxFootController が見つかりません（ダミータイマーで動作します）。");
         }
@@ -94,12 +83,12 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         trial.metadata["currentInterval"] = label1;
         expManager?.SetMessage(msg1);
 
-        yield return RunSingleInterval(controller, val1, cueDuration, intervalDuration);
+        yield return RunSingleInterval(ctrl, val1, cueDuration, intervalDuration);
 
         // ---- ISI ----
         trial.metadata["currentInterval"] = "無刺激間隔 (ISI)";
         expManager?.SetMessage("・ ・ ・");
-        StopHaptics(controller);
+        StopHaptics(ctrl);
         if (isiDuration > 0f)
             yield return new WaitForSeconds(isiDuration);
 
@@ -110,7 +99,7 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         trial.metadata["currentInterval"] = label2;
         expManager?.SetMessage(msg2);
 
-        yield return RunSingleInterval(controller, val2, cueDuration, intervalDuration);
+        yield return RunSingleInterval(ctrl, val2, cueDuration, intervalDuration);
 
         // ---- Response Prompt ----
         trial.metadata["currentInterval"] = "応答受付中";
@@ -118,15 +107,6 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
         {
             expManager.SetMessage("どちらが重かったですか？\n【1】第 1 刺激 (Z)   /   【2】第 2 刺激 (X)");
             expManager.SetPhase(EXP_TrialPhase.Response);
-        }
-    }
-
-    public override void OnTrialEnd(EXP_TrialData trial)
-    {
-        if (controller != null)
-        {
-            ResetValueOnTrialEnd(controller);
-            SetHapticsBypass(controller, false);
         }
     }
 
@@ -184,29 +164,6 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseCondition
 
     protected void StopHaptics(HAP_HapticsIllusionFoxFootController? ctrl)
     {
-        if (ctrl != null)
-        {
-            SetHapticsBypass(ctrl, true);
-        }
-    }
-
-    protected static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
-    {
-        if (ctrl.autdController != null)
-        {
-            ctrl.autdController.bypassHaptics = bypass;
-        }
-        else
-        {
-            var mainController = Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
-            if (mainController != null)
-            {
-                mainController.bypassHaptics = bypass;
-            }
-            else
-            {
-                ctrl.enabled = !bypass;
-            }
-        }
+        SetHapticsBypass(ctrl, true);
     }
 }

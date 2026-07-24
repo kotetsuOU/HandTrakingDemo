@@ -213,7 +213,16 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     /// </summary>
     private void UpdateHaptics()
     {
-        if (bypassHaptics || sourceMode == HapticsSourceMode.Manual) return;
+        // バイパス時: ハードウェアがまだ出力中なら一度だけNullを送って停止させる
+        if (bypassHaptics || sourceMode == HapticsSourceMode.Manual)
+        {
+            if (!_isCurrentlyOff && hardwareController != null && hardwareController.IsConnected)
+            {
+                hardwareController.SetNull();
+                _isCurrentlyOff = true;
+            }
+            return;
+        }
 
         Vector3 currentOffset = transformLoader != null ? transformLoader.offset : Vector3.zero;
         bool hasActiveTargets = false;

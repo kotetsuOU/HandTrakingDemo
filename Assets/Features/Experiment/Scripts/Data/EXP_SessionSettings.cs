@@ -5,6 +5,7 @@ using System;
 
 /// <summary>
 /// 被験者情報、セッション構造、および各種タイミング設定をまとめるシリアライズド設定データ。
+/// <see cref="EXP_ExperimentManager"/> の Inspector 上で折りたたんでスッキリ整理できます。
 /// </summary>
 [Serializable]
 public class EXP_SessionSettings

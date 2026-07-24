@@ -8,16 +8,8 @@ using System.Collections;
 /// <see cref="EXP_BaseCondition"/> を継承し、被験者がリアルタイムに入力で物理値を上下調整し、
 /// 主観的等価点 (PSE: Point of Subjective Equality) や閾値を探索・確定するパラダイムの抽象基底を提供します。
 /// </summary>
-public abstract class EXP_BaseAdjustmentCondition : EXP_BaseCondition
+public abstract class EXP_BaseAdjustmentCondition : EXP_BaseHapticsCondition
 {
-    // =====================================================
-    // Reference
-    // =====================================================
-
-    [HideInInspector]
-    [System.NonSerialized]
-    public HAP_HapticsIllusionFoxFootController? controller;
-
     // =====================================================
     // Adjustment Parameters
     // =====================================================
@@ -38,7 +30,6 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseCondition
 
     protected abstract float GetInitialValue();
     protected abstract void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value);
-    protected abstract void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl);
     protected abstract string FormatValueForDebug(float value);
 
     // =====================================================
@@ -49,8 +40,7 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseCondition
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
-        if (controller == null)
-            controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
+        var ctrl = GetController();
 
         float currentValue = GetInitialValue();
         trial.metadata["initialValue"] = currentValue.ToString("F4");
@@ -65,10 +55,10 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseCondition
         bool confirmed = false;
         while (!confirmed)
         {
-            if (controller != null)
+            if (ctrl != null)
             {
-                ApplyValueToController(controller, currentValue);
-                SetHapticsBypass(controller, false);
+                ApplyValueToController(ctrl, currentValue);
+                SetHapticsBypass(ctrl, false);
             }
 
             string debugStr = FormatValueForDebug(currentValue);
@@ -102,20 +92,5 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseCondition
         expManager?.SetMessage("✅ 調整確定");
     }
 
-    public override void OnTrialEnd(EXP_TrialData trial)
-    {
-        if (controller != null)
-        {
-            ResetValueOnTrialEnd(controller);
-            SetHapticsBypass(controller, false);
-        }
-    }
-
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;
-
-    protected static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
-    {
-        if (ctrl.autdController != null) ctrl.autdController.bypassHaptics = bypass;
-        else ctrl.enabled = !bypass;
-    }
 }

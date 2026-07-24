@@ -8,16 +8,8 @@ using System.Collections;
 /// <see cref="EXP_BaseCondition"/> を継承し、基準 A、基準 B、および未知の X（AまたはBと同等）を
 /// 順次提示して「X は A と B のどちらと同じ（近い）か」を識別させるパラダイムの抽象基底を提供します。
 /// </summary>
-public abstract class EXP_BaseABXCondition : EXP_BaseCondition
+public abstract class EXP_BaseABXCondition : EXP_BaseHapticsCondition
 {
-    // =====================================================
-    // Reference
-    // =====================================================
-
-    [HideInInspector]
-    [System.NonSerialized]
-    public HAP_HapticsIllusionFoxFootController? controller;
-
     // =====================================================
     // Timing Settings
     // =====================================================
@@ -38,7 +30,6 @@ public abstract class EXP_BaseABXCondition : EXP_BaseCondition
     protected abstract float GetValueA();
     protected abstract float GetValueB();
     protected abstract void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value);
-    protected abstract void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl);
     protected abstract string FormatValueForDebug(float value);
 
     // =====================================================
@@ -49,8 +40,7 @@ public abstract class EXP_BaseABXCondition : EXP_BaseCondition
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
-        if (controller == null)
-            controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
+        var ctrl = GetController();
 
         float valA = GetValueA();
         float valB = GetValueB();
@@ -86,15 +76,6 @@ public abstract class EXP_BaseABXCondition : EXP_BaseCondition
         }
     }
 
-    public override void OnTrialEnd(EXP_TrialData trial)
-    {
-        if (controller != null)
-        {
-            ResetValueOnTrialEnd(controller);
-            SetHapticsBypass(controller, false);
-        }
-    }
-
     public override bool? EvaluateResponse(EXP_TrialData trial)
     {
         if (string.IsNullOrEmpty(trial.responseValue)) return null;
@@ -112,10 +93,11 @@ public abstract class EXP_BaseABXCondition : EXP_BaseCondition
         trial.metadata["currentInterval"] = label;
         manager?.SetMessage(isDebug ? $"【 {name} 】 ({debugStr})" : $"【 {name} 】");
 
-        if (controller != null)
+        var ctrl = GetController();
+        if (ctrl != null)
         {
-            ApplyValueToController(controller, val);
-            SetHapticsBypass(controller, false);
+            ApplyValueToController(ctrl, val);
+            SetHapticsBypass(ctrl, false);
         }
 
         yield return new WaitForSeconds(intervalDuration);
@@ -125,13 +107,7 @@ public abstract class EXP_BaseABXCondition : EXP_BaseCondition
     {
         trial.metadata["currentInterval"] = "無刺激間隔 (ISI)";
         manager?.SetMessage("・ ・ ・");
-        if (controller != null) SetHapticsBypass(controller, true);
+        SetHapticsBypass(GetController(), true);
         if (isiDuration > 0f) yield return new WaitForSeconds(isiDuration);
-    }
-
-    protected static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
-    {
-        if (ctrl.autdController != null) ctrl.autdController.bypassHaptics = bypass;
-        else ctrl.enabled = !bypass;
     }
 }

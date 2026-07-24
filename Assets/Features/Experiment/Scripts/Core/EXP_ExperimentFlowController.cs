@@ -120,6 +120,7 @@ public static class EXP_ExperimentFlowController
                                       : "【全試行完了】\n\n実験が終了しました。ご協力ありがとうございました。\nデータは正常に保存されました。";
 
         manager.SetMessage(compText);
+        manager.SuppressCustomHaptics(false);  // custom 背景信号を復元
         manager.InvokeExperimentFinished(session);
         Debug.Log($"[EXP_ExperimentManager] 全試行完了 (総試行数: {session.completedTrials})");
     }

@@ -8,16 +8,8 @@ using System.Collections;
 /// <see cref="EXP_BaseCondition"/> を継承し、単一の刺激を提示して検出の有無 (Yes/No) や
 /// マグニチュード評定 (Rating) を行う実験パラダイムの共通ロジックを提供します。
 /// </summary>
-public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
+public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseHapticsCondition
 {
-    // =====================================================
-    // Reference
-    // =====================================================
-
-    [HideInInspector]
-    [System.NonSerialized]
-    public HAP_HapticsIllusionFoxFootController? controller;
-
     // =====================================================
     // Timing Settings
     // =====================================================
@@ -37,7 +29,6 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
 
     protected abstract float GetTargetValue();
     protected abstract void ApplyValueToController(HAP_HapticsIllusionFoxFootController ctrl, float value);
-    protected abstract void ResetValueOnTrialEnd(HAP_HapticsIllusionFoxFootController ctrl);
     protected abstract string FormatValueForDebug(float value);
 
     // =====================================================
@@ -48,8 +39,7 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
-        if (controller == null)
-            controller = Object.FindAnyObjectByType<HAP_HapticsIllusionFoxFootController>();
+        var ctrl = GetController();
 
         float val = GetTargetValue();
 
@@ -67,10 +57,10 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
         expManager?.SetMessage(msg);
 
         // 刺激提示
-        if (controller != null)
+        if (ctrl != null)
         {
-            ApplyValueToController(controller, val);
-            SetHapticsBypass(controller, false);
+            ApplyValueToController(ctrl, val);
+            SetHapticsBypass(ctrl, false);
         }
 
         if (cueDuration > 0f)
@@ -87,30 +77,5 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseCondition
         }
     }
 
-    public override void OnTrialEnd(EXP_TrialData trial)
-    {
-        if (controller != null)
-        {
-            ResetValueOnTrialEnd(controller);
-            SetHapticsBypass(controller, false);
-        }
-    }
-
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;
-
-    protected static void SetHapticsBypass(HAP_HapticsIllusionFoxFootController ctrl, bool bypass)
-    {
-        if (ctrl.autdController != null)
-        {
-            ctrl.autdController.bypassHaptics = bypass;
-        }
-        else
-        {
-            var mainController = Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
-            if (mainController != null)
-                mainController.bypassHaptics = bypass;
-            else
-                ctrl.enabled = !bypass;
-        }
-    }
 }

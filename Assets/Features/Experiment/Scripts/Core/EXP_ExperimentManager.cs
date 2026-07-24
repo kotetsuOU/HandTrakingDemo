@@ -31,6 +31,13 @@ public class EXP_ExperimentManager : MonoBehaviour
     public TMP_Text? messageText;
     public GameObject? fixationCross;
 
+    [Header("Haptics Control (Custom Mode Integration)")]
+    [Tooltip("実験中に背景の custom 信号を一時停止させる HAP_AUTDHapticsController の参照。\n未設定の場合は自動検索します。実験開始時に bypassHaptics=true、終了時に false に戻します。")]
+    public HAP_AUTDHapticsController? hapticsController;
+
+    [Tooltip("true にすると、実験開始時に hapticsController.bypassHaptics を true にして\ncustom 背景信号を停止させます（推奨 ON）。")]
+    public bool suppressCustomHapticsOnExperiment = true;
+
     [Header("Debug Control")]
     public bool debugKeyEnabled = true;
 
@@ -84,7 +91,15 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     void OnEnable()
     {
-        if (inputHandler != null) inputHandler.OnResponse += HandleResponse;
+        if (inputHandler != null)
+        {
+            inputHandler.OnResponse += HandleResponse;
+            Debug.Log($"[EXP_Manager] OnEnable: inputHandler.OnResponse に HandleResponse を登録しました。inputHandler={inputHandler.name}");
+        }
+        else
+        {
+            Debug.LogWarning("[EXP_Manager] OnEnable: inputHandler が null です！Awakeでの初期化が間に合っていない可能性があります。");
+        }
     }
 
     void OnDisable()
@@ -106,6 +121,7 @@ public class EXP_ExperimentManager : MonoBehaviour
     public void StartExperiment()
     {
         if (CurrentState != EXP_ExperimentState.Idle) return;
+        SuppressCustomHaptics(true);
         StartCoroutine(EXP_ExperimentFlowController.RunMainLoop(this));
     }
 
@@ -124,8 +140,32 @@ public class EXP_ExperimentManager : MonoBehaviour
         eventMarker?.Mark("ExperimentAborted");
         ClearAll();
 
+        SuppressCustomHaptics(false);
         TransitionTo(EXP_ExperimentState.Idle);
         OnExperimentAborted?.Invoke();
+    }
+
+    /// <summary>
+    /// custom モードの背景 HAP_AUTDHapticsController 信号を一時停止 / 復元します。
+    /// suppress=true → bypassHaptics=true（信号停止）
+    /// suppress=false → bypassHaptics=false（信号復元）
+    /// </summary>
+    public void SuppressCustomHaptics(bool suppress)
+    {
+        if (!suppressCustomHapticsOnExperiment) return;
+
+        if (hapticsController == null)
+            hapticsController = UnityEngine.Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
+
+        if (hapticsController != null)
+        {
+            hapticsController.bypassHaptics = suppress;
+            Debug.Log($"[EXP_Manager] SuppressCustomHaptics: bypassHaptics={suppress} ({hapticsController.name})");
+        }
+        else
+        {
+            Debug.LogWarning("[EXP_Manager] SuppressCustomHaptics: HAP_AUTDHapticsController が見つかりません。");
+        }
     }
 
     public void SetMessage(string message)
@@ -171,6 +211,7 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     private void HandleResponse(string responseValue)
     {
+        Debug.Log($"[EXP_Manager] HandleResponse 受信: '{responseValue}', CurrentTrial={CurrentTrial?.conditionName ?? "null"}, Phase={CurrentPhase}");
         if (CurrentTrial != null)
         {
             CurrentTrial.responseValue = responseValue;
