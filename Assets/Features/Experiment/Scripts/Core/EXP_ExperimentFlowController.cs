@@ -31,9 +31,9 @@ public static class EXP_ExperimentFlowController
         int plannedTotal = manager.blockCount * manager.trialsPerBlock;
         if (sequencer != null)
         {
-            sequencer.GenerateSequence();
+            sequencer.GenerateSequence(manager.blockCount, manager.trialsPerBlock);
         }
-        session.totalTrials = plannedTotal > 0 ? plannedTotal : (sequencer?.TotalTrials ?? 0);
+        session.totalTrials = sequencer != null && sequencer.TotalTrials > 0 ? sequencer.TotalTrials : plannedTotal;
 
         dataRecorder?.InitializeSession(session);
         eventMarker?.Mark($"ExperimentStart_{manager.participantId}");

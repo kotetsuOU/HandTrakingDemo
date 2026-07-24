@@ -34,6 +34,9 @@ public class EXP_TrialSequencer : MonoBehaviour
     public List<EXP_BaseCondition> conditions = new();
 
     [Header("Sequence Settings")]
+    [Tooltip("試行シーケンスの生成・順序モード（Random: 完全ランダム / ByElementBlock: ブロックごとに要素順次切替 / ByElementRandomBlock: ブロックごとに要素ランダム切替）")]
+    public EXP_SequenceMode sequenceMode = EXP_SequenceMode.Random;
+
     [Tooltip("乱数シード（-1 = 実行ごとに異なるランダムシード）")]
     public int randomSeed = -1;
 
@@ -70,10 +73,12 @@ public class EXP_TrialSequencer : MonoBehaviour
     // =====================================================
 
     /// <summary>
-    /// 全条件 × repetitions 分の試行リストを生成し、完全ランダムにシャッフルします。
+    /// 条件リストおよび sequenceMode に応じた試行リストを生成します。
     /// 既存のシーケンスは破棄されます。
     /// </summary>
-    public void BuildSequence()
+    /// <param name="blockCount">総ブロック数（<=0 の場合は Inspector または repetitions を使用）</param>
+    /// <param name="trialsPerBlock">1ブロックあたりの試行数（<=0 の場合は repetitions を使用）</param>
+    public void BuildSequence(int blockCount = -1, int trialsPerBlock = -1)
     {
         _trialSequence.Clear();
         _currentIndex = 0;
@@ -87,30 +92,78 @@ public class EXP_TrialSequencer : MonoBehaviour
             validConditions.Add(defaultCond);
         }
 
-        // 各条件を repetitions 回追加
-        var rawList = validConditions
-            .SelectMany(c => Enumerable.Repeat(c, c.repetitions))
-            .ToList();
-
-        // Fisher-Yates シャッフル
         var rng = randomSeed < 0
             ? new System.Random()
             : new System.Random(randomSeed);
 
-        for (int i = rawList.Count - 1; i > 0; i--)
+        List<EXP_BaseCondition> generatedSequence = new();
+
+        switch (sequenceMode)
         {
-            int j = rng.Next(i + 1);
-            (rawList[i], rawList[j]) = (rawList[j], rawList[i]);
+            case EXP_SequenceMode.ByElementBlock:
+            case EXP_SequenceMode.ByElementRandomBlock:
+                {
+                    int totalBlocks = blockCount > 0 ? blockCount : 1;
+
+                    // 各ブロックに割り当てる要素（条件）のインデックスリストを作成
+                    List<int> blockElementIndices = new();
+                    for (int b = 0; b < totalBlocks; b++)
+                    {
+                        blockElementIndices.Add(b % validConditions.Count);
+                    }
+
+                    if (sequenceMode == EXP_SequenceMode.ByElementRandomBlock)
+                    {
+                        // ブロック単位の要素割当順序をシャッフル
+                        for (int i = blockElementIndices.Count - 1; i > 0; i--)
+                        {
+                            int j = rng.Next(i + 1);
+                            (blockElementIndices[i], blockElementIndices[j]) = (blockElementIndices[j], blockElementIndices[i]);
+                        }
+                    }
+
+                    for (int b = 0; b < totalBlocks; b++)
+                    {
+                        int elementIdx = blockElementIndices[b];
+                        var cond = validConditions[elementIdx];
+                        int count = trialsPerBlock > 0 ? trialsPerBlock : cond.repetitions;
+
+                        for (int t = 0; t < count; t++)
+                        {
+                            generatedSequence.Add(cond);
+                        }
+                    }
+                }
+                break;
+
+            case EXP_SequenceMode.Random:
+            default:
+                {
+                    // 各条件を repetitions 回追加
+                    var rawList = validConditions
+                        .SelectMany(c => Enumerable.Repeat(c, c.repetitions))
+                        .ToList();
+
+                    // Fisher-Yates シャッフル
+                    for (int i = rawList.Count - 1; i > 0; i--)
+                    {
+                        int j = rng.Next(i + 1);
+                        (rawList[i], rawList[j]) = (rawList[j], rawList[i]);
+                    }
+
+                    generatedSequence = rawList;
+                }
+                break;
         }
 
-        _trialSequence = rawList;
+        _trialSequence = generatedSequence;
 
-        Debug.Log($"[EXP_TrialSequencer] シーケンス生成完了: "
+        Debug.Log($"[EXP_TrialSequencer] シーケンス生成完了 (Mode: {sequenceMode}): "
                 + $"{_trialSequence.Count} 試行 / シード: {(randomSeed < 0 ? "ランダム" : randomSeed.ToString())}");
     }
 
     /// <summary>シーケンスを生成します（BuildSequence のエイリアス）。</summary>
-    public void GenerateSequence() => BuildSequence();
+    public void GenerateSequence(int blockCount = -1, int trialsPerBlock = -1) => BuildSequence(blockCount, trialsPerBlock);
 
     /// <summary>
     /// 次の試行の条件を返し、内部インデックスを 1 進めます。

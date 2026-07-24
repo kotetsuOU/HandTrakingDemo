@@ -99,3 +99,16 @@ public enum EXP_2AFCMode
     /// <summary>固定の基準値 vs 固定の比較値の指定ペア</summary>
     FixedPair
 }
+
+/// <summary>試行シーケンスの生成・順序モード</summary>
+public enum EXP_SequenceMode
+{
+    /// <summary>全条件の repetition 分を完全ランダムにシャッフル（従来のモード）</summary>
+    Random,
+
+    /// <summary>ブロックごとに要素（条件）を順次割当（例: 2要素・3ブロックなら 1 → 2 → 1 の順に各ブロック内で同一要素の試行を行う）</summary>
+    ByElementBlock,
+
+    /// <summary>ブロックごとに要素（条件）をランダム割当（各ブロック内では同一要素の試行を行う）</summary>
+    ByElementRandomBlock
+}
