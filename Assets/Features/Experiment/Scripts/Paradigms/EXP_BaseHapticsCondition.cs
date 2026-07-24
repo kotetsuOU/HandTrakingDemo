@@ -76,7 +76,7 @@ public abstract class EXP_BaseHapticsCondition : EXP_BaseCondition
     /// <summary>
     /// 触覚出力を明示的に停止（抑制）します。
     /// </summary>
-    protected void StopHaptics(HAP_HapticsIllusionFoxFootController? ctrl)
+    protected void StopHaptics(HAP_HapticsIllusionFoxFootController? ctrl = null)
     {
         SetHapticsBypass(ctrl, true);
     }

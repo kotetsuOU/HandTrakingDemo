@@ -146,6 +146,22 @@ public class EXP_ExperimentManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 実験終了後またはリセット時に、状態・試行データ・背景触覚抑制をクリアして Idle 状態へ戻します。
+    /// </summary>
+    public void ResetToIdle()
+    {
+        StopAllCoroutines();
+        if (inputHandler != null) inputHandler.StopListening();
+        ResetResponseReceived();
+        ClearAll();
+        SetCurrentTrial(null);
+        SetCurrentSession(null);
+        SetPhase(EXP_TrialPhase.ITI);
+        SuppressCustomHaptics(false);
+        TransitionTo(EXP_ExperimentState.Idle);
+    }
+
+    /// <summary>
     /// custom モードの背景 HAP_AUTDHapticsController 信号を一時停止 / 復元します。
     /// suppress=true → bypassHaptics=true（信号停止）
     /// suppress=false → bypassHaptics=false（信号復元）
@@ -214,7 +230,9 @@ public class EXP_ExperimentManager : MonoBehaviour
         Debug.Log($"[EXP_Manager] HandleResponse 受信: '{responseValue}', CurrentTrial={CurrentTrial?.conditionName ?? "null"}, Phase={CurrentPhase}");
         if (CurrentTrial != null)
         {
-            CurrentTrial.responseValue = responseValue;
+            var cond = sequencer?.CurrentCondition;
+            string formatted = cond != null ? cond.FormatResponseValue(CurrentTrial, responseValue) : responseValue;
+            CurrentTrial.responseValue = formatted;
             CurrentTrial.responseTime  = (double)Time.realtimeSinceStartup;
             OnResponseReceived?.Invoke(CurrentTrial);
         }

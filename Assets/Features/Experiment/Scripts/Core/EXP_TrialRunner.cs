@@ -24,6 +24,7 @@ public static class EXP_TrialRunner
             blockIndex      = blockIndex,
             isPractice      = isPractice,
             conditionName   = condition.conditionName,
+            paradigmType    = condition.ParadigmType,
             trialStartTime  = (double)Time.realtimeSinceStartup,
         };
 
@@ -66,7 +67,7 @@ public static class EXP_TrialRunner
         manager.eventMarker?.Mark("StimulusOff");
 
         // 応答結果・タイムアウト評価
-        if (!manager.HasReceivedResponse())
+        if (!manager.HasReceivedResponse() && string.IsNullOrEmpty(trial.responseValue))
         {
             trial.responseType = EXP_ResponseType.Timeout;
             trial.responseTime = (double)Time.realtimeSinceStartup;
@@ -75,9 +76,11 @@ public static class EXP_TrialRunner
         }
         else
         {
+            trial.responseValue = condition.FormatResponseValue(trial, trial.responseValue);
             trial.isCorrect = condition.EvaluateResponse(trial);
             if (trial.isCorrect == true) trial.responseType = EXP_ResponseType.Correct;
             else if (trial.isCorrect == false) trial.responseType = EXP_ResponseType.Incorrect;
+            else trial.responseType = EXP_ResponseType.None;
         }
 
         manager.SetFixation(false);
@@ -85,7 +88,22 @@ public static class EXP_TrialRunner
 
         // 記録 & 通知
         manager.dataRecorder?.RecordTrial(trial);
-        manager.CurrentSession?.trialDataList.Add(trial);
+        if (manager.CurrentSession != null)
+        {
+            manager.CurrentSession.trialDataList.Add(trial);
+            if (isPractice)
+            {
+                manager.CurrentSession.completedPracticeTrials++;
+            }
+            else
+            {
+                manager.CurrentSession.completedTrials++;
+                if (trial.isCorrect == true)
+                {
+                    manager.CurrentSession.correctTrials++;
+                }
+            }
+        }
 
         manager.InvokeTrialCompleted(trial);
         manager.eventMarker?.Mark($"TrialEnd_{trialIndex}");

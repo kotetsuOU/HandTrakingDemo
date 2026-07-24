@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 using static EXP_PanelElementDrawers;
 
 #nullable enable
@@ -72,20 +73,33 @@ public static class EXP_StatusPanelDrawer
 
         DrawMessageBox(guideText);
 
-        if (manager.CurrentState == EXP_ExperimentState.Trial && manager.CurrentTrial != null)
-        {
-            string currentInterval = manager.CurrentTrial.metadata.TryGetValue("currentInterval", out var val) ? val : "";
-            if (!string.IsNullOrEmpty(currentInterval))
-            {
-                GUILayout.Space(6);
-                Color badgeBg = currentInterval.Contains("第 1") ? new Color(0.9f, 0.25f, 0.25f)
-                              : currentInterval.Contains("第 2") ? new Color(0.25f, 0.55f, 0.95f)
-                              : currentInterval.Contains("応答") ? new Color(0.12f, 0.78f, 0.32f)
-                              : new Color(0.55f, 0.55f, 0.55f);
+        GUILayout.Space(6);
 
-                DrawBadge($"⚡ 現在の刺激フェーズ: {currentInterval}", badgeBg, 15, 36);
-            }
+        string currentInterval = "";
+        if (manager.CurrentTrial != null && manager.CurrentTrial.metadata.TryGetValue("currentInterval", out var val))
+        {
+            currentInterval = val;
         }
+
+        if (string.IsNullOrEmpty(currentInterval))
+        {
+            currentInterval = manager.CurrentState switch
+            {
+                EXP_ExperimentState.Idle => "待機中 (IDLE)",
+                EXP_ExperimentState.Instruction => "教示表示中 (INSTRUCTION)",
+                EXP_ExperimentState.Break => "ブロック休憩中 (BREAK)",
+                EXP_ExperimentState.Finished => "全試行完了 (FINISHED)",
+                _ => (manager.CurrentPhase == EXP_TrialPhase.ITI ? "試行間待機中 (ITI)" : "待機中")
+            };
+        }
+
+        Color badgeBg = currentInterval.Contains("第 1") ? new Color(0.9f, 0.25f, 0.25f)
+                      : currentInterval.Contains("第 2") ? new Color(0.25f, 0.55f, 0.95f)
+                      : currentInterval.Contains("応答") ? new Color(0.12f, 0.78f, 0.32f)
+                      : currentInterval.Contains("待機") ? new Color(0.35f, 0.4f, 0.48f)
+                      : new Color(0.25f, 0.55f, 0.85f);
+
+        DrawBadge($"⚡ 現在の刺激フェーズ: {currentInterval}", badgeBg, 15, 36);
     }
 
     public static void DrawSessionProgressSection(EXP_ExperimentManager manager)
@@ -93,19 +107,88 @@ public static class EXP_StatusPanelDrawer
         DrawSectionHeader("1. 実験の進捗・セッション概要");
         using (new GUILayout.VerticalScope(GUI.skin.box))
         {
-            int completed = manager.CurrentSession?.completedTrials ?? 0;
-            int total = manager.CurrentSession?.totalTrials ?? (manager.sequencer != null ? manager.sequencer.TotalTrials : 0);
-            float progress = total > 0 ? (float)completed / total : 0f;
+            int practiceTotal = manager.practiceTrialCount;
+            int mainTotal = manager.blockCount * manager.trialsPerBlock;
+            if (mainTotal <= 0 && manager.CurrentSession != null) mainTotal = manager.CurrentSession.totalTrials;
+            int grandTotal = practiceTotal + mainTotal;
 
-            string progressText = $"試行進捗: {completed} / {total} 試行完了 ({progress:P0})";
-            DrawProgressBar(progress, progressText);
+            // 全体および本試行ブロックの区切り縦線 (Divider Line) 比率を計算
+            List<float> grandDividers = new List<float>();
+            if (grandTotal > 0)
+            {
+                if (practiceTotal > 0 && mainTotal > 0)
+                    grandDividers.Add((float)practiceTotal / grandTotal);
+
+                if (manager.blockCount > 1 && manager.trialsPerBlock > 0)
+                {
+                    for (int b = 1; b < manager.blockCount; b++)
+                    {
+                        grandDividers.Add((float)(practiceTotal + b * manager.trialsPerBlock) / grandTotal);
+                    }
+                }
+            }
+
+            List<float> mainDividers = new List<float>();
+            if (mainTotal > 0 && manager.blockCount > 1 && manager.trialsPerBlock > 0)
+            {
+                for (int b = 1; b < manager.blockCount; b++)
+                {
+                    mainDividers.Add((float)(b * manager.trialsPerBlock) / mainTotal);
+                }
+            }
+
+            int completedPractice = manager.CurrentSession?.completedPracticeTrials ?? 0;
+            int completedMain = manager.CurrentSession?.completedTrials ?? 0;
+            int completedGrand = Mathf.Clamp(completedPractice + completedMain, 0, grandTotal);
+            float grandProgress = grandTotal > 0 ? (float)completedGrand / grandTotal : 0f;
+
+            string flowDetails = practiceTotal > 0
+                ? $"🧪 練習: {practiceTotal}回  ｜  🎯 本試行: {mainTotal}回 ({manager.blockCount}ブロック × {manager.trialsPerBlock}試行)"
+                : $"🎯 本試行: {mainTotal}回 ({manager.blockCount}ブロック × {manager.trialsPerBlock}試行)";
+
+            if (manager.blockCount > 1 && manager.breakDuration > 0f)
+                flowDetails += $"  ｜  ☕ 途中休憩あり ({manager.breakDuration:F0}秒)";
+
+            GUILayout.Label($"💡 終了までのトータル応答数: {grandTotal} 回  ({flowDetails})", GetBoldLabelStyle());
+            GUILayout.Space(4);
+
+            if (manager.CurrentState == EXP_ExperimentState.Idle ||
+                manager.CurrentState == EXP_ExperimentState.Instruction ||
+                manager.CurrentState == EXP_ExperimentState.Break ||
+                manager.CurrentState == EXP_ExperimentState.Finished)
+            {
+                string barText = manager.CurrentState switch
+                {
+                    EXP_ExperimentState.Idle => $"未開始 (全 {grandTotal} 試行構成 ｜ 練習 {practiceTotal} 回 ｜ 本試行 {mainTotal} 回)",
+                    EXP_ExperimentState.Instruction => (completedPractice >= practiceTotal && practiceTotal > 0)
+                        ? $"【練習完了】トータル進捗: {completedGrand} / {grandTotal} 試行完了 ({grandProgress:P0})"
+                        : $"教示確認中 (全 {grandTotal} 試行構成 ｜ 練習 {practiceTotal} 回 ｜ 本試行 {mainTotal} 回)",
+                    EXP_ExperimentState.Break => $"☕ 【ブロック休憩中】トータル進捗: {completedGrand} / {grandTotal} 試行完了 ({grandProgress:P0})",
+                    EXP_ExperimentState.Finished => $"🎉 【全試行完了】トータル進捗: {grandTotal} / {grandTotal} 試行完了 (100%)",
+                    _ => $"トータル進捗: {completedGrand} / {grandTotal} 試行完了 ({grandProgress:P0})"
+                };
+
+                DrawSegmentedProgressBar(grandProgress, barText, grandDividers.ToArray());
+            }
+            else if (manager.CurrentState == EXP_ExperimentState.Practice)
+            {
+                float practiceProgress = practiceTotal > 0 ? (float)completedPractice / practiceTotal : 0f;
+                string practiceText = $"🧪 練習試行進捗: {completedPractice} / {practiceTotal} 試行完了 ({practiceProgress:P0})  [全体: {completedGrand}/{grandTotal}]";
+                DrawProgressBar(practiceProgress, practiceText);
+            }
+            else // EXP_ExperimentState.Trial
+            {
+                float mainProgress = mainTotal > 0 ? (float)completedMain / mainTotal : 0f;
+                string progressText = $"🎯 本試行進捗: {completedMain} / {mainTotal} 試行完了 ({mainProgress:P0})  [全体: {completedGrand}/{grandTotal}]";
+                DrawSegmentedProgressBar(mainProgress, progressText, mainDividers.ToArray());
+            }
 
             GUILayout.Space(6);
 
             using (new GUILayout.HorizontalScope())
             {
-                string pId = manager.CurrentSession?.participantId ?? "-";
-                string pName = manager.CurrentSession?.participantName ?? "";
+                string pId = manager.CurrentSession?.participantId ?? (string.IsNullOrEmpty(manager.participantId) ? "-" : manager.participantId);
+                string pName = manager.CurrentSession?.participantName ?? manager.participantName;
                 string displayInfo = string.IsNullOrEmpty(pName) ? $"被験者 ID: {pId}" : $"被験者 ID: {pId} ({pName})";
                 GUILayout.Label(displayInfo, GetBoldLabelStyle());
 
@@ -138,15 +221,13 @@ public static class EXP_StatusPanelDrawer
                 DrawPhaseBadge(manager.CurrentPhase, manager);
             }
 
-            if (!string.IsNullOrEmpty(manager.CurrentMessage))
-            {
-                GUILayout.Space(8);
-                GUILayout.Label("💬 被験者画面に表示中のメッセージ:", GetBoldLabelStyle());
-                using (new GUILayout.VerticalScope(GUI.skin.box))
-                {
-                    GUILayout.Label(manager.CurrentMessage, GetCenterBoldStyle());
-                }
-            }
+            GUILayout.Space(8);
+            GUILayout.Label("💬 被験者画面に表示中のメッセージ:", GetBoldLabelStyle());
+
+            string msg = !string.IsNullOrEmpty(manager.CurrentMessage)
+                ? manager.CurrentMessage
+                : "(画面待機中 / メッセージ提示なし)";
+            DrawFixedMessageBox(msg, MESSAGE_BOX_HEIGHT);
         }
     }
 

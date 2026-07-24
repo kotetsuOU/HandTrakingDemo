@@ -48,7 +48,10 @@ public class EXP_ExperimentSession
     /// <summary>本試行の総試行数</summary>
     public int totalTrials;
 
-    /// <summary>完了した試行数（中断時の部分保存に利用）</summary>
+    /// <summary>完了した練習試行数</summary>
+    public int completedPracticeTrials;
+
+    /// <summary>完了した本試行数（中断時の部分保存に利用）</summary>
     public int completedTrials;
 
     /// <summary>正解試行数</summary>

@@ -38,6 +38,18 @@ public class EXP_TrialData
     /// <summary>割り当てられた実験条件名（EXP_BaseCondition.conditionName）</summary>
     public string conditionName = "";
 
+    /// <summary>実験パラダイム種別（2AFC, ABX, SingleStimulus, Adjustment など）</summary>
+    public string paradigmType = "";
+
+    /// <summary>比較刺激パラメータの詳細サマリー（何と何を比較していたか）</summary>
+    public string comparisonDetail = "";
+
+    /// <summary>第1刺激/基準値等の物理パラメータ値</summary>
+    public double stimulusVal1;
+
+    /// <summary>第2刺激/比較値等の物理パラメータ値</summary>
+    public double stimulusVal2;
+
     // =====================================================
     // Timestamps (Application.realtimeSinceStartup [秒])
     // =====================================================
@@ -66,7 +78,7 @@ public class EXP_TrialData
     /// <summary>参加者の応答結果</summary>
     public EXP_ResponseType responseType = EXP_ResponseType.None;
 
-    /// <summary>参加者の応答値（キーコード名やゲームパッドボタン名など）</summary>
+    /// <summary>参加者の応答値（フォーマット済み選択結果。例: "Interval1", "A", "Yes", 確定値等）</summary>
     public string responseValue = "";
 
     /// <summary>
@@ -92,9 +104,10 @@ public class EXP_TrialData
 
     /// <summary>CSVヘッダー行を返します。</summary>
     public static string GetCSVHeader()
-        => "trialIndex,blockIndex,isPractice,conditionName,"
+        => "blockIndex,trialIndex,isPractice,paradigmType,responseValue,"
+         + "stimulusVal1,stimulusVal2,isCorrect,conditionName,"
          + "trialStartTime,stimulusOnsetTime,responseTime,reactionTime,"
-         + "responseType,responseValue,isCorrect,metadata";
+         + "responseType,comparisonDetail,metadata";
 
     /// <summary>このデータをCSV 1行に変換します。</summary>
     public virtual string ToCSVRow()
@@ -109,17 +122,21 @@ public class EXP_TrialData
         }
 
         return string.Join(",",
-            trialIndex,
             blockIndex,
+            trialIndex,
             isPractice,
+            EscapeCSV(paradigmType),
+            EscapeCSV(responseValue),
+            stimulusVal1.ToString("F4"),
+            stimulusVal2.ToString("F4"),
+            isCorrect?.ToString() ?? "N/A",
             EscapeCSV(conditionName),
             trialStartTime.ToString("F6"),
             stimulusOnsetTime.ToString("F6"),
             responseTime.ToString("F6"),
             reactionTime.ToString("F6"),
             responseType,
-            EscapeCSV(responseValue),
-            isCorrect?.ToString() ?? "N/A",
+            EscapeCSV(comparisonDetail),
             EscapeCSV(metaStr));
     }
 

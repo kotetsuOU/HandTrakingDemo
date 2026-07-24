@@ -35,6 +35,8 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseHapticsCondition
     // Base Implementations
     // =====================================================
 
+    public override string ParadigmType => "SingleStimulus";
+
     public override void Apply(EXP_TrialData trial) { }
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
@@ -43,7 +45,12 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseHapticsCondition
 
         float val = GetTargetValue();
 
-        // メタデータ記録
+        // 共通フィールド & メタデータ記録
+        trial.paradigmType              = ParadigmType;
+        trial.stimulusVal1              = val;
+        trial.stimulusVal2              = 0.0;
+        trial.comparisonDetail          = $"Stimulus: {val:F4}";
+
         trial.metadata["stimulusValue"] = val.ToString("F4");
 
         var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
@@ -78,6 +85,28 @@ public abstract class EXP_BaseSingleStimulusCondition : EXP_BaseHapticsCondition
             expManager.SetMessage("刺激を感じましたか？\n【1】はい (Z)   /   【2】いいえ (X)");
             expManager.SetPhase(EXP_TrialPhase.Response);
         }
+    }
+
+    public override string FormatResponseValue(EXP_TrialData trial, string rawResponse)
+    {
+        trial.metadata["rawKey"] = rawResponse;
+        string upper = rawResponse.ToUpperInvariant();
+        bool isYes = (upper == "CHOICE1" || upper == "Z" || upper == "1" || upper == "YES");
+        bool isNo  = (upper == "CHOICE2" || upper == "X" || upper == "2" || upper == "NO");
+
+        if (isYes)
+        {
+            trial.metadata["selectedResponse"] = "Yes";
+            string valStr = trial.metadata.TryGetValue("stimulusValue", out string? sVal) ? sVal : trial.stimulusVal1.ToString("F4");
+            return valStr;
+        }
+        else if (isNo)
+        {
+            trial.metadata["selectedResponse"] = "No";
+            return "0.0000";
+        }
+
+        return rawResponse;
     }
 
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;

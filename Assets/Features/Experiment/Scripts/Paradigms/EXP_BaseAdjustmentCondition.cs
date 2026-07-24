@@ -36,14 +36,20 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseHapticsCondition
     // Base Implementations
     // =====================================================
 
+    public override string ParadigmType => "Adjustment";
+
     public override void Apply(EXP_TrialData trial) { }
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
     {
         var ctrl = GetController();
 
-        float currentValue = GetInitialValue();
-        trial.metadata["initialValue"] = currentValue.ToString("F4");
+        float initialValue = GetInitialValue();
+        float currentValue = initialValue;
+
+        trial.paradigmType = ParadigmType;
+        trial.stimulusVal1 = initialValue;
+        trial.metadata["initialValue"] = initialValue.ToString("F4");
 
         var expManager = runner as EXP_ExperimentManager ?? runner.GetComponent<EXP_ExperimentManager>() ?? Object.FindAnyObjectByType<EXP_ExperimentManager>();
         bool isDebug = expManager != null && expManager.isDebugMode;
@@ -88,8 +94,20 @@ public abstract class EXP_BaseAdjustmentCondition : EXP_BaseHapticsCondition
         }
 
         // 確定値を最終記録
+        trial.stimulusVal2 = currentValue;
+        trial.comparisonDetail = $"Initial: {initialValue:F4} -> Adjusted: {currentValue:F4}";
+        trial.responseValue = currentValue.ToString("F4");
+
         trial.metadata["finalAdjustedValue"] = currentValue.ToString("F4");
+        trial.metadata["adjustmentDelta"]    = (currentValue - initialValue).ToString("F4");
         expManager?.SetMessage("✅ 調整確定");
+    }
+
+    public override string FormatResponseValue(EXP_TrialData trial, string rawResponse)
+    {
+        if (!string.IsNullOrEmpty(trial.responseValue))
+            return trial.responseValue;
+        return rawResponse;
     }
 
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;

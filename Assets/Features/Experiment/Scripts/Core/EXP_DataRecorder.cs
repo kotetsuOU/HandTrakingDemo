@@ -220,17 +220,21 @@ public class EXP_DataRecorder : MonoBehaviour
             bool isLast = (i == session.trialDataList.Count - 1);
 
             sb.AppendLine("    {");
-            sb.AppendLine($"      \"trialIndex\": {t.trialIndex},");
             sb.AppendLine($"      \"blockIndex\": {t.blockIndex},");
+            sb.AppendLine($"      \"trialIndex\": {t.trialIndex},");
             sb.AppendLine($"      \"isPractice\": {t.isPractice.ToString().ToLower()},");
+            sb.AppendLine($"      \"paradigmType\": \"{Esc(t.paradigmType)}\",");
+            sb.AppendLine($"      \"responseValue\": \"{Esc(t.responseValue)}\",");
+            sb.AppendLine($"      \"stimulusVal1\": {t.stimulusVal1:F4},");
+            sb.AppendLine($"      \"stimulusVal2\": {t.stimulusVal2:F4},");
+            sb.AppendLine($"      \"isCorrect\": {(t.isCorrect.HasValue ? t.isCorrect.Value.ToString().ToLower() : "null")},");
             sb.AppendLine($"      \"conditionName\": \"{Esc(t.conditionName)}\",");
             sb.AppendLine($"      \"trialStartTime\": {t.trialStartTime:F6},");
             sb.AppendLine($"      \"stimulusOnsetTime\": {t.stimulusOnsetTime:F6},");
             sb.AppendLine($"      \"responseTime\": {t.responseTime:F6},");
             sb.AppendLine($"      \"reactionTime\": {t.reactionTime:F6},");
             sb.AppendLine($"      \"responseType\": \"{t.responseType}\",");
-            sb.AppendLine($"      \"responseValue\": \"{Esc(t.responseValue)}\",");
-            sb.AppendLine($"      \"isCorrect\": {(t.isCorrect.HasValue ? t.isCorrect.Value.ToString().ToLower() : "null")},");
+            sb.AppendLine($"      \"comparisonDetail\": \"{Esc(t.comparisonDetail)}\",");
 
             // metadata
             sb.Append("      \"metadata\": {");

@@ -135,16 +135,18 @@ public class EXP_InputHandler : MonoBehaviour
         if (inputDevice != EXP_InputDevice.Keyboard && inputDevice != EXP_InputDevice.Any)
             return;
 
-        // 2AFC / ABX
-        if (Input.GetKeyDown(keyBindings.choice1Key)) { Debug.Log($"[EXP_InputHandler] キー検知: choice1Key={keyBindings.choice1Key}"); Respond("Z"); }
-        else if (Input.GetKeyDown(keyBindings.choice2Key)) { Debug.Log($"[EXP_InputHandler] キー検知: choice2Key={keyBindings.choice2Key}"); Respond("X"); }
+        // 2AFC / ABX / SingleStimulus (Choice 1 vs 2)
+        if (Input.GetKeyDown(keyBindings.choice1Key) || Input.GetKeyDown(keyBindings.yesKey) || Input.GetKeyDown(KeyCode.Z) || Input.GetKeyDown(KeyCode.Alpha1)) 
+            { Debug.Log($"[EXP_InputHandler] キー検知: Choice1"); Respond("Choice1"); }
+        else if (Input.GetKeyDown(keyBindings.choice2Key) || Input.GetKeyDown(keyBindings.noKey) || Input.GetKeyDown(KeyCode.X) || Input.GetKeyDown(KeyCode.Alpha2)) 
+            { Debug.Log($"[EXP_InputHandler] キー検知: Choice2"); Respond("Choice2"); }
         // Adjustment
         else if (Input.GetKeyDown(keyBindings.upKey) || Input.GetKeyDown(KeyCode.W)) { Debug.Log($"[EXP_InputHandler] キー検知: upKey"); Respond("Up"); }
         else if (Input.GetKeyDown(keyBindings.downKey) || Input.GetKeyDown(KeyCode.S)) { Debug.Log($"[EXP_InputHandler] キー検知: downKey"); Respond("Down"); }
-        else if (Input.GetKeyDown(keyBindings.confirmKey)) { Debug.Log($"[EXP_InputHandler] キー検知: confirmKey={keyBindings.confirmKey}"); Respond("Space"); }
+        else if (Input.GetKeyDown(keyBindings.confirmKey) || Input.GetKeyDown(KeyCode.Return)) { Debug.Log($"[EXP_InputHandler] キー検知: confirmKey"); Respond("Confirm"); }
         // System
-        else if (Input.GetKeyDown(keyBindings.nextKey)) { Debug.Log($"[EXP_InputHandler] キー検知: nextKey={keyBindings.nextKey}"); Respond("Space"); }
-        else if (Input.GetKeyDown(keyBindings.startKey)) { Debug.Log($"[EXP_InputHandler] キー検知: startKey={keyBindings.startKey}"); Respond("Space"); }
+        else if (Input.GetKeyDown(keyBindings.nextKey)) { Debug.Log($"[EXP_InputHandler] キー検知: nextKey"); Respond("Next"); }
+        else if (Input.GetKeyDown(keyBindings.startKey)) { Debug.Log($"[EXP_InputHandler] キー検知: startKey"); Respond("Start"); }
     }
 
     /// <summary>
@@ -153,16 +155,16 @@ public class EXP_InputHandler : MonoBehaviour
     /// </summary>
     private string? GetResponseForKeyCode(KeyCode key)
     {
-        // 2AFC / ABX
-        if (key == keyBindings.choice1Key) return "Z";
-        if (key == keyBindings.choice2Key) return "X";
+        // 2AFC / ABX / SingleStimulus
+        if (key == keyBindings.choice1Key || key == keyBindings.yesKey || key == KeyCode.Z || key == KeyCode.Alpha1) return "Choice1";
+        if (key == keyBindings.choice2Key || key == keyBindings.noKey || key == KeyCode.X || key == KeyCode.Alpha2) return "Choice2";
         // Adjustment
         if (key == keyBindings.upKey || key == KeyCode.W) return "Up";
         if (key == keyBindings.downKey || key == KeyCode.S) return "Down";
-        if (key == keyBindings.confirmKey) return "Space";
+        if (key == keyBindings.confirmKey || key == KeyCode.Return) return "Confirm";
         // System
-        if (key == keyBindings.nextKey) return "Space";
-        if (key == keyBindings.startKey) return "Space";
+        if (key == keyBindings.nextKey) return "Next";
+        if (key == keyBindings.startKey) return "Start";
         return null;
     }
 

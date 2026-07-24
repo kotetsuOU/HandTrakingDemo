@@ -15,7 +15,12 @@ public static class EXP_ControlInputPanelDrawer
         {
             if (manager.CurrentTrial == null)
             {
-                GUILayout.Label("現在実行中の試行はありません（待機中）", GetMiniLabelStyle());
+                using (new GUILayout.HorizontalScope())
+                {
+                    GUILayout.Label("現在の条件名: 未設定 (試行開始前)", GetBoldLabelStyle());
+                    GUILayout.FlexibleSpace();
+                    DrawBadge("待機中 (IDLE)", new Color(0.5f, 0.5f, 0.5f), 12, 24);
+                }
                 return;
             }
 
@@ -27,12 +32,12 @@ public static class EXP_ControlInputPanelDrawer
                           manager.CurrentTrial.isPractice ? new Color(0.9f, 0.55f, 0.1f) : new Color(0.2f, 0.6f, 0.9f), 12, 24);
             }
 
-            if (manager.CurrentTrial.metadata.Count > 0)
+            if (manager.isDebugMode && manager.CurrentTrial.metadata.Count > 0)
             {
                 GUILayout.Space(6);
-                if (manager.isDebugMode)
+                using (new GUILayout.VerticalScope(GUI.skin.box))
                 {
-                    GUILayout.Label("詳細パラメータ (デバッグ表示中):", GetBoldLabelStyle());
+                    GUILayout.Label("🐞 詳細パラメータ (デバッグ表示):", GetBoldLabelStyle());
                     foreach (var kv in manager.CurrentTrial.metadata)
                     {
                         using (new GUILayout.HorizontalScope())
@@ -42,7 +47,6 @@ public static class EXP_ControlInputPanelDrawer
                         }
                     }
                 }
-                else DrawMessageBox("🔒 本番ブラインドモード有効中: 物理数値は非表示です。");
             }
         }
     }
@@ -58,17 +62,26 @@ public static class EXP_ControlInputPanelDrawer
             var prevBg = GUI.backgroundColor;
 
             if (GUI.enabled) GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
-            if (GUILayout.Button($"☑ 同意して実験を開始する ({keys.startKey})", GetBigButtonStyle(), GUILayout.Height(44)))
+            if (GUILayout.Button($"▶ 実験を開始する ({keys.startKey})", GetBigButtonStyle(), GUILayout.Height(CONTROL_BUTTON_HEIGHT)))
                 manager.StartExperiment();
 
             GUI.backgroundColor = prevBg;
             GUI.enabled = (manager.CurrentState != EXP_ExperimentState.Idle && manager.CurrentState != EXP_ExperimentState.Finished);
 
             if (GUI.enabled) GUI.backgroundColor = new Color(0.9f, 0.35f, 0.35f);
-            if (GUILayout.Button($"■ 実験を中断する ({keys.abortKey})", GetBigButtonStyle(), GUILayout.Height(44)))
+            if (GUILayout.Button($"■ 実験を中断する ({keys.abortKey})", GetBigButtonStyle(), GUILayout.Height(CONTROL_BUTTON_HEIGHT)))
                 manager.AbortExperiment();
 
             GUI.backgroundColor = prevBg;
+
+            if (manager.CurrentState == EXP_ExperimentState.Finished)
+            {
+                GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f);
+                if (GUILayout.Button("🔄 実験をリセットして初期状態に戻る", GetBigButtonStyle(), GUILayout.Height(CONTROL_BUTTON_HEIGHT)))
+                    manager.ResetToIdle();
+                GUI.backgroundColor = prevBg;
+            }
+
             GUI.enabled = true;
         }
     }
@@ -89,7 +102,7 @@ public static class EXP_ControlInputPanelDrawer
 
                 case EXP_ExperimentState.Instruction:
                 case EXP_ExperimentState.Break:
-                    DrawInstructionPanel(inputHandler, keys);
+                    DrawInstructionPanel(manager, inputHandler, keys);
                     break;
 
                 case EXP_ExperimentState.Practice:
@@ -98,7 +111,7 @@ public static class EXP_ControlInputPanelDrawer
                     break;
 
                 case EXP_ExperimentState.Finished:
-                    DrawBadge("🎉 実験セッション完了: 全試行が終了しました", new Color(0.6f, 0.3f, 0.85f), 13, 28);
+                    DrawFinishedPanel(manager, keys);
                     break;
             }
         }
@@ -108,12 +121,22 @@ public static class EXP_ControlInputPanelDrawer
     // Private Panel Drawers
     // =====================================================
 
-    private static void DrawIdlePanel(EXP_ExperimentManager manager, EXP_KeyBindings keys)
+    private static void DrawPanelHeaderSection(string badgeText, Color badgeColor, System.Action bodyDrawer, float minBodyHeight = 72f)
     {
-        DrawBadge("📝 被験者情報の入力＆同意確認（実験開始前）", new Color(0.2f, 0.6f, 0.9f), 13, 28);
+        DrawBadge(badgeText, badgeColor, 13, 28);
         GUILayout.Space(6);
 
-        using (new GUILayout.VerticalScope(GUI.skin.box))
+        using (new GUILayout.VerticalScope(GUI.skin.box, GUILayout.MinHeight(minBodyHeight)))
+        {
+            bodyDrawer();
+        }
+
+        GUILayout.Space(8);
+    }
+
+    private static void DrawIdlePanel(EXP_ExperimentManager manager, EXP_KeyBindings keys)
+    {
+        DrawPanelHeaderSection("📝 被験者情報の入力（実験開始前）", new Color(0.2f, 0.6f, 0.9f), () =>
         {
             using (new GUILayout.HorizontalScope())
             {
@@ -130,30 +153,59 @@ public static class EXP_ControlInputPanelDrawer
                 GUILayout.Label("グループ / 条件名:", GetBoldLabelStyle(), GUILayout.Width(170));
                 manager.groupLabel = GUILayout.TextField(manager.groupLabel);
             }
-        }
+        });
 
-        GUILayout.Space(8);
         var prevBg = GUI.backgroundColor;
         GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
 
-        if (GUILayout.Button($"☑ 実験手続きに同意し、開始する ({keys.startKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(55)))
+        if (GUILayout.Button($"▶ 実験を開始する ({keys.startKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT)))
         {
             manager.StartExperiment();
         }
         GUI.backgroundColor = prevBg;
     }
 
-    private static void DrawInstructionPanel(EXP_InputHandler? inputHandler, EXP_KeyBindings keys)
+    private static void DrawInstructionPanel(EXP_ExperimentManager manager, EXP_InputHandler? inputHandler, EXP_KeyBindings keys)
     {
-        DrawBadge("● 同意・教示確認中: 内容を確認後「進む」を押してください", new Color(0.1f, 0.78f, 0.3f), 13, 28);
-        GUILayout.Space(8);
+        DrawPanelHeaderSection("● 教示表示中: 内容を確認後「次へ進む」を押してください", new Color(0.1f, 0.78f, 0.3f), () =>
+        {
+            GUILayout.Label("画面の中央に教示・案内メッセージが表示されています。", GetBoldLabelStyle());
+            GUILayout.Label("被験者が内容を確認したことを確認し、下記のボタンを押して次に進んでください。", GetMiniLabelStyle());
+        });
 
         var prevBg = GUI.backgroundColor;
         GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f);
 
-        if (GUILayout.Button($"☑ 内容を確認して進む ({keys.nextKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(58)))
+        if (GUILayout.Button($"▶ 内容を確認して次へ進む ({keys.nextKey} キー / クリック)", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT)))
         {
             inputHandler?.TriggerResponse("Space");
+        }
+        GUI.backgroundColor = prevBg;
+    }
+
+    private static void DrawFinishedPanel(EXP_ExperimentManager manager, EXP_KeyBindings keys)
+    {
+        DrawPanelHeaderSection("🎉 実験セッション完了: 全試行が終了しました", new Color(0.6f, 0.3f, 0.85f), () =>
+        {
+            GUILayout.Label("全試行が終了し、データは正常に保存・確定されました。", GetBoldLabelStyle());
+            GUILayout.Label("別の被験者で実施する場合、またはもう一度実験を行う場合は以下のボタンを押してください。", GetMiniLabelStyle());
+        });
+
+        var prevBg = GUI.backgroundColor;
+        using (new GUILayout.HorizontalScope())
+        {
+            GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f);
+            if (GUILayout.Button("🔄 初期画面 (Idle) に戻ってもう一度実験を行う", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT)))
+            {
+                manager.ResetToIdle();
+            }
+
+            GUI.backgroundColor = new Color(0.35f, 0.85f, 0.35f);
+            if (GUILayout.Button($"▶ 同じ設定・被験者で再スタートする ({keys.startKey})", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT)))
+            {
+                manager.ResetToIdle();
+                manager.StartExperiment();
+            }
         }
         GUI.backgroundColor = prevBg;
     }
@@ -165,17 +217,24 @@ public static class EXP_ControlInputPanelDrawer
 
         if (!isResponse)
         {
-            DrawBadge("🔒 刺激照射中 / 待機中 (入力受付オフ)", new Color(0.5f, 0.5f, 0.5f), 13, 28);
-            GUILayout.Space(6);
-            GUILayout.Label("触覚刺激を照射中、または試行間待機中です。提示終了までお待ちください...", GetMiniLabelStyle());
+            DrawPanelHeaderSection("🔒 刺激照射中 / 待機中 (入力受付オフ)", new Color(0.5f, 0.5f, 0.5f), () =>
+            {
+                GUILayout.Label("触覚刺激を照射中、または試行間待機中です。", GetBoldLabelStyle());
+                GUILayout.Label("提示終了までお待ちください...", GetMiniLabelStyle());
+            });
             return;
         }
 
-        DrawBadge("● 応答受付中: 判別・評定・調整を選択してください", new Color(0.1f, 0.78f, 0.3f), 13, 28);
-        GUILayout.Space(8);
-
         string interval = manager.CurrentTrial?.metadata.TryGetValue("currentInterval", out var val) == true ? val : "";
         bool isAdj = interval.Contains("調整") || (manager.CurrentTrial?.metadata.ContainsKey("currentValue") == true);
+
+        DrawPanelHeaderSection("● 応答受付中: 判別・評定・調整を選択してください", new Color(0.1f, 0.78f, 0.3f), () =>
+        {
+            string condName = manager.CurrentTrial?.conditionName ?? "触覚比較条件";
+            string statusText = string.IsNullOrEmpty(interval) ? condName : $"{condName} ({interval})";
+            GUILayout.Label($"判別条件: {statusText}", GetBoldLabelStyle());
+            GUILayout.Label("下記またはキーボード/ゲームパッドの対応ボタンを押して応答を選択してください。", GetMiniLabelStyle());
+        });
 
         if (isAdj)
         {
@@ -194,12 +253,12 @@ public static class EXP_ControlInputPanelDrawer
 
         using (new GUILayout.HorizontalScope())
         {
-            if (GUILayout.Button($"【 ▲ 値を上げる 】 ({keys.upKey} / W)", GetBigChoiceButtonStyle(), GUILayout.Height(55))) inputHandler?.TriggerResponse("Up");
-            if (GUILayout.Button($"【 ▼ 値を下げる 】 ({keys.downKey} / S)", GetBigChoiceButtonStyle(), GUILayout.Height(55))) inputHandler?.TriggerResponse("Down");
+            if (GUILayout.Button($"【 ▲ 値を上げる 】 ({keys.upKey} / W)", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT))) inputHandler?.TriggerResponse("Up");
+            if (GUILayout.Button($"【 ▼ 値を下げる 】 ({keys.downKey} / S)", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT))) inputHandler?.TriggerResponse("Down");
         }
 
         GUI.backgroundColor = new Color(0.35f, 0.85f, 0.4f);
-        if (GUILayout.Button($"【 🟢 調整値を確定する 】 ({keys.confirmKey} / Enter)", GetBigChoiceButtonStyle(), GUILayout.Height(48)))
+        if (GUILayout.Button($"【 🟢 調整値を確定する 】 ({keys.confirmKey} / Enter)", GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT)))
         {
             inputHandler?.TriggerResponse("Space");
         }
@@ -224,8 +283,8 @@ public static class EXP_ControlInputPanelDrawer
 
         using (new GUILayout.HorizontalScope())
         {
-            if (GUILayout.Button(label1, GetBigChoiceButtonStyle(), GUILayout.Height(62))) inputHandler?.TriggerResponse("Z");
-            if (GUILayout.Button(label2, GetBigChoiceButtonStyle(), GUILayout.Height(62))) inputHandler?.TriggerResponse("X");
+            if (GUILayout.Button(label1, GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT))) inputHandler?.TriggerResponse("Z");
+            if (GUILayout.Button(label2, GetBigChoiceButtonStyle(), GUILayout.Height(BIG_BUTTON_HEIGHT))) inputHandler?.TriggerResponse("X");
         }
         GUI.backgroundColor = prevBg;
     }

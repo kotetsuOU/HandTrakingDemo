@@ -28,11 +28,12 @@ public static class EXP_ExperimentFlowController
         };
         manager.SetCurrentSession(session);
 
+        int plannedTotal = manager.blockCount * manager.trialsPerBlock;
         if (sequencer != null)
         {
             sequencer.GenerateSequence();
-            session.totalTrials = sequencer.TotalTrials;
         }
+        session.totalTrials = plannedTotal > 0 ? plannedTotal : (sequencer?.TotalTrials ?? 0);
 
         dataRecorder?.InitializeSession(session);
         eventMarker?.Mark($"ExperimentStart_{manager.participantId}");
@@ -42,7 +43,7 @@ public static class EXP_ExperimentFlowController
         string consentTitle = txt != null ? txt.consentTitle : "【実験協力・同意のお願い】";
         string consentBody  = txt != null ? txt.consentBody  : "本実験は触覚知覚の測定を目的としています。データは完全匿名化されます。\n同意される場合はボタンを押してください。";
 
-        manager.SetMessage($"{consentTitle}\n\n{consentBody}\n\n【☑ 同意して進む】(Space キー / クリック)");
+        manager.SetMessage($"{consentTitle}\n\n{consentBody}\n\n【▶ 次へ進む】(Space キー / クリック)");
 
         manager.ResetResponseReceived();
         inputHandler?.StartListening();
@@ -72,6 +73,10 @@ public static class EXP_ExperimentFlowController
             eventMarker?.Mark("PracticeStart");
 
             yield return RunPracticeTrials(manager);
+
+            manager.TransitionTo(EXP_ExperimentState.Instruction);
+            manager.SetCurrentTrial(null);
+            manager.SetPhase(EXP_TrialPhase.ITI);
 
             manager.SetMessage("【練習完了】\n次から本試行を開始します。準備ができたらボタンを押してください。");
             manager.ResetResponseReceived();

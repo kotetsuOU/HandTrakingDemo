@@ -53,6 +53,11 @@ public class EXP_TrialSequencer : MonoBehaviour
     /// <summary>現在の試行インデックス（0始まり）</summary>
     public int CurrentIndex => _currentIndex;
 
+    /// <summary>現在の試行で実行中（直前に GetNextCondition で取り出された）の条件</summary>
+    public EXP_BaseCondition? CurrentCondition => (_currentIndex > 0 && _currentIndex <= _trialSequence.Count)
+        ? _trialSequence[_currentIndex - 1]
+        : null;
+
     // =====================================================
     // Private Fields
     // =====================================================

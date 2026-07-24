@@ -39,6 +39,9 @@ public abstract class EXP_BaseCondition : ScriptableObject
     [TextArea(2, 5)]
     public string description = "";
 
+    /// <summary>この条件の実験パラダイム識別名（2AFC, ABX, SingleStimulus, Adjustment など）</summary>
+    public virtual string ParadigmType => "Custom";
+
     // =====================================================
     // Abstract Interface
     // =====================================================
@@ -72,6 +75,15 @@ public abstract class EXP_BaseCondition : ScriptableObject
     /// <param name="trial">応答情報が書き込まれた試行データ</param>
     /// <returns>正誤判定結果（null = 判定なし）</returns>
     public virtual bool? EvaluateResponse(EXP_TrialData trial) => null;
+
+    /// <summary>
+    /// 参加者の入力（"Choice1", "Z", "X" など）を、本条件における意味のある選択表現（"Interval1", "A", "Yes" など）に変換・フォーマットします。
+    /// デフォルトでは rawResponse をそのまま返します。
+    /// </summary>
+    /// <param name="trial">現在の試行データ（metadata 等へ記録も可能）</param>
+    /// <param name="rawResponse">入力ハンドラーからの生応答文字列</param>
+    /// <returns>フォーマット済みの応答結果文字列</returns>
+    public virtual string FormatResponseValue(EXP_TrialData trial, string rawResponse) => rawResponse;
 
     /// <summary>
     /// 2AFC など複数インターバルが必要な刺激提示をコルーチンで実装する場合にオーバーライドします。

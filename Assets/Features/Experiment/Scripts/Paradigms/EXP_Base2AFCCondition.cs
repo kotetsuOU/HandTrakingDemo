@@ -53,6 +53,8 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
     // Base Implementations
     // =====================================================
 
+    public override string ParadigmType => "2AFC";
+
     public override void Apply(EXP_TrialData trial) { }
 
     public override IEnumerator StimulusCoroutine(EXP_TrialData trial, MonoBehaviour runner)
@@ -66,7 +68,14 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
         // ペアの物理値決定
         (float val1, float val2, string refPos) = DeterminePairValues();
 
-        // メタデータ記録
+        // 共通フィールド & メタデータ記録
+        trial.paradigmType                  = ParadigmType;
+        trial.stimulusVal1                  = val1;
+        trial.stimulusVal2                  = val2;
+        string refLabel1 = (refPos == "Interval1") ? "Ref" : (refPos == "Interval2") ? "Cmp" : "Pair1";
+        string refLabel2 = (refPos == "Interval2") ? "Ref" : (refPos == "Interval1") ? "Cmp" : "Pair2";
+        trial.comparisonDetail              = $"Interval1: {val1:F4} ({refLabel1}) vs Interval2: {val2:F4} ({refLabel2})";
+
         trial.metadata["afcMode"]           = afcMode.ToString();
         trial.metadata["interval1Value"]    = val1.ToString("F4");
         trial.metadata["interval2Value"]    = val2.ToString("F4");
@@ -111,6 +120,47 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
             expManager.SetMessage("どちらが重かったですか？\n【1】第 1 刺激 (Z)   /   【2】第 2 刺激 (X)");
             expManager.SetPhase(EXP_TrialPhase.Response);
         }
+    }
+
+    public override string FormatResponseValue(EXP_TrialData trial, string rawResponse)
+    {
+        trial.metadata["rawKey"] = rawResponse;
+        string upper = rawResponse.ToUpperInvariant();
+        bool isInterval1 = (upper == "CHOICE1" || upper == "Z" || upper == "1");
+        bool isInterval2 = (upper == "CHOICE2" || upper == "X" || upper == "2");
+
+        if (isInterval1)
+        {
+            trial.metadata["selectedInterval"] = "Interval1";
+            if (trial.metadata.TryGetValue("referencePosition", out string? refPos))
+            {
+                if (refPos == "Interval1") trial.metadata["selectedStimulus"] = "Reference";
+                else if (refPos == "Interval2") trial.metadata["selectedStimulus"] = "Comparison";
+            }
+            
+            string selectedVal = trial.metadata.TryGetValue("interval1Value", out string? valStr)
+                ? valStr
+                : trial.stimulusVal1.ToString("F4");
+            trial.metadata["selectedValue"] = selectedVal;
+            return selectedVal;
+        }
+        else if (isInterval2)
+        {
+            trial.metadata["selectedInterval"] = "Interval2";
+            if (trial.metadata.TryGetValue("referencePosition", out string? refPos))
+            {
+                if (refPos == "Interval2") trial.metadata["selectedStimulus"] = "Reference";
+                else if (refPos == "Interval1") trial.metadata["selectedStimulus"] = "Comparison";
+            }
+
+            string selectedVal = trial.metadata.TryGetValue("interval2Value", out string? valStr)
+                ? valStr
+                : trial.stimulusVal2.ToString("F4");
+            trial.metadata["selectedValue"] = selectedVal;
+            return selectedVal;
+        }
+
+        return rawResponse;
     }
 
     public override bool? EvaluateResponse(EXP_TrialData trial) => null;

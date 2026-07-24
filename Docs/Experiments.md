@@ -134,6 +134,33 @@ public class EXP_STMFrequencyCondition : EXP_Base2AFCCondition
 | `Trial_P001_20250723_143022.json` | セッション全体の JSON |
 | `Events_A1B2C3D4_20250723_143022.tsv` | タイムスタンプ付きイベントログ |
 
+### CSV / JSON データ列構成と出力順序
+
+`EXP_TrialData` は以下の標準順序でデータを出力します。独立カラムとして直接数値やサマリーを出力するため、Python/R や Excel での集計・解析が容易です。
+
+```csv
+blockIndex,trialIndex,isPractice,paradigmType,responseValue,stimulusVal1,stimulusVal2,isCorrect,conditionName,trialStartTime,stimulusOnsetTime,responseTime,reactionTime,responseType,comparisonDetail,metadata
+```
+
+| カラム名 | 型 | 説明・出力例 |
+|---|---|---|
+| `blockIndex` | `int` | ブロック番号（0始まり） |
+| `trialIndex` | `int` | 試行番号（0始まり） |
+| `isPractice` | `bool` | 練習試行フラグ (`true` / `false`) |
+| `paradigmType` | `string` | パラダイム種別 (`"2AFC"`, `"ABX"`, `"SingleStimulus"`, `"Adjustment"`) |
+| **`responseValue`** | `string` | **選択した実際の刺激物理数値**（例: 2AFC/ABXで選択した方の数値 `1.2500` / Adjustment確定値 `8.5000`） |
+| `stimulusVal1` | `double` | 第1刺激/基準値等の物理パラメータ値 |
+| `stimulusVal2` | `double` | 第2刺激/比較値等の物理パラメータ値 |
+| `isCorrect` | `bool?` | 正誤判定結果 (`True` / `False` / `N/A`) |
+| `conditionName` | `string` | 条件アセットの識別名 (`EXP_BaseCondition.conditionName`) |
+| `trialStartTime` | `double` | 試行開始時刻 [秒] |
+| `stimulusOnsetTime` | `double` | 刺激提示開始時刻 [秒] |
+| `responseTime` | `double` | 参加者の応答完了時刻 [秒] |
+| `reactionTime` | `double` | 反応時間 [秒] (`responseTime - stimulusOnsetTime`) |
+| `responseType` | `enum` | 応答ステータス (`None`, `Correct`, `Incorrect`, `Timeout`) |
+| `comparisonDetail` | `string` | 比較内容サマリー（例: `"Interval1: 1.0000 (Ref) vs Interval2: 1.5000 (Cmp)"`） |
+| `metadata` | `string` | 追加詳細キーバリューペア（`selectedInterval`, `selectedStimulus`, `rawKey` など） |
+
 ---
 
 ## 拡張ポイント
@@ -162,7 +189,7 @@ experimentManager.GetComponent<EXP_EventMarker>().OnEventMarked +=
 ```csharp
 experimentManager.OnResponseReceived += trial =>
 {
-    Debug.Log($"応答: {trial.responseValue}, RT: {trial.reactionTime:F3}s");
+    Debug.Log($"選択物理値: {trial.responseValue}, RT: {trial.reactionTime:F3}s");
 };
 ```
 
