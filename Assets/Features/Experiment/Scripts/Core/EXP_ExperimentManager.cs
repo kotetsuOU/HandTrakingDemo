@@ -89,6 +89,12 @@ public class EXP_ExperimentManager : MonoBehaviour
         inputHandler ??= GetOrAdd<EXP_InputHandler>();
     }
 
+    void Start()
+    {
+        // 実験開始前の初期状態として、背景触覚のバイパスを復元し全オブジェクトコントローラーのトリガーを解放
+        SuppressCustomHaptics(false);
+    }
+
     void OnEnable()
     {
         if (inputHandler != null)
@@ -162,26 +168,42 @@ public class EXP_ExperimentManager : MonoBehaviour
     }
 
     /// <summary>
-    /// custom モードの背景 HAP_AUTDHapticsController 信号を一時停止 / 復元します。
-    /// suppress=true → bypassHaptics=true（信号停止）
-    /// suppress=false → bypassHaptics=false（信号復元）
+    /// custom モードの背景 HAP_AUTDHapticsController 信号および全オブジェクトコントローラーの抑制状態を制御します。
+    /// suppress=true  → bypassHaptics=true（背景信号停止）
+    /// suppress=false → bypassHaptics=false（背景信号復元）および全オブジェクトコントローラーの experimentStimulusSuppressed 解放（トリガー解放）
     /// </summary>
     public void SuppressCustomHaptics(bool suppress)
     {
-        if (!suppressCustomHapticsOnExperiment) return;
-
         if (hapticsController == null)
             hapticsController = UnityEngine.Object.FindAnyObjectByType<HAP_AUTDHapticsController>();
 
-        if (hapticsController != null)
+        if (suppressCustomHapticsOnExperiment && hapticsController != null)
         {
             hapticsController.bypassHaptics = suppress;
             Debug.Log($"[EXP_Manager] SuppressCustomHaptics: bypassHaptics={suppress} ({hapticsController.name})");
         }
-        else
+
+        // 実験非実行中 (suppress=false) の場合は、試行中に設定された各オブジェクトコントローラーの抑制フラグを解除（トリガー解放）
+        if (!suppress)
         {
-            Debug.LogWarning("[EXP_Manager] SuppressCustomHaptics: HAP_AUTDHapticsController が見つかりません。");
+            ReleaseAllObjectHapticsSuppression();
         }
+    }
+
+    /// <summary>
+    /// シーン内のすべての HAP_BaseObjectHapticsController の experimentStimulusSuppressed を false に解除（トリガー解放）します。
+    /// </summary>
+    public void ReleaseAllObjectHapticsSuppression()
+    {
+        var objectControllers = UnityEngine.Object.FindObjectsByType<HAP_BaseObjectHapticsController>(FindObjectsSortMode.None);
+        foreach (var ctrl in objectControllers)
+        {
+            if (ctrl != null)
+            {
+                ctrl.experimentStimulusSuppressed = false;
+            }
+        }
+        Debug.Log("[EXP_Manager] 全 ObjectHapticsController のトリガー（experimentStimulusSuppressed）を解放しました。");
     }
 
     public void SetMessage(string message)
