@@ -92,6 +92,7 @@ graph TD
 | **4** | 🏗️ | [Haptics.md](./Haptics.md) | AUTD3 超音波ハプティクス出力制御 |
 | | 🔬 | └── [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | Native C++ vs Pure C# のアルゴリズム比較 |
 | | 🏗️ | └── [FoxFootHaptics.md](./FoxFootHaptics.md) | キツネ足先・尻尾ハプティクス仕様 + カスタム拡張 |
+| | 🏗️ | └── [FoxBodyHaptics.md](./FoxBodyHaptics.md) | キツネ全身体（頭・耳・四肢・尻尾）ハプティクス仕様 |
 | | 📖 | └── [HowToUseHaptics.md](./HowToUseHaptics.md) | ハプティクスの初回セットアップ〜使い方ガイド |
 | | 🔧 | └── [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md) | AUTD3 SDK 新旧仕様比較と切り替え方法 |
 | **5** | 🏗️ | [Display3D.md](./Display3D.md) | SRDisplay 視線追跡 + ハーフミラー鏡像制御 |

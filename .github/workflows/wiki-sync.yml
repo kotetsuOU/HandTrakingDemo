@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Sync to GitHub Wiki
         env:
@@ -58,6 +58,7 @@ jobs:
           cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
           cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
+          cp Docs/FoxBodyHaptics.md temp-wiki/FoxBodyHaptics.md
           cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
           cp Docs/HapticsIllusion.md temp-wiki/HapticsIllusion.md
           cp Docs/Experiments.md temp-wiki/Experiments.md
@@ -80,6 +81,7 @@ jobs:
               "AnimationControls.md": "AnimationControls",
               "AUTD3_SDK_Transition.md": "AUTD3_SDK_Transition",
               "FoxFootHaptics.md": "FoxFootHaptics",
+              "FoxBodyHaptics.md": "FoxBodyHaptics",
               "HowToUseHaptics.md": "HowToUseHaptics",
               "HapticsIllusion.md": "HapticsIllusion"
           }
