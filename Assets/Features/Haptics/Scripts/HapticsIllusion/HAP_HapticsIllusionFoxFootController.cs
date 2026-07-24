@@ -62,7 +62,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
     [Tooltip("接点側焦点の位置オフセット (ローカルベクトル)。")]
     public Vector3 contactOffset = Vector3.zero;
 
-    [Tooltip("反対側（裏側）焦点の位置オフセット。\n footTargetNormal (デフォルト down) の逆方向(上方向)への押し込み距離や、裏側回り込み検証位置の調整に使用します。")]
+    [Tooltip("反対側（裏側）焦点の位置オフセット。\n footTargetTouchDirection (デフォルト down) の逆方向(上方向)への押し込み距離や、裏側回り込み検証位置の調整に使用します。")]
     public Vector3 oppositeOffset = new Vector3(0f, 0.03f, 0f); // デフォルトで上方/裏側へ3cmオフセット
 
     [Header("STM Settings (Illusion Focus)")]
@@ -94,7 +94,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
             if (!IsTargetActive(info.Transform, info.IsEnabled, info.IsTail)) continue;
 
             Vector3 footPos = info.Transform.position + offset;
-            Vector3 normal = footTargetNormal.normalized; // 例: down
+            Vector3 normal = info.TouchDirection.normalized; // 例: down
 
             // 1. 接点側の焦点データ生成 (contactDeviceGroup 用)
             Vector3 contactPos = footPos + contactOffset;
@@ -112,7 +112,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
                 Vector3 oppositePos = footPos + oppositeOffset;
                 var oppositeFociData = CreateFociDataForGroup(
                     oppositePos,
-                    -normal, // 反対向きの法線
+                    -normal, // 反対向きのベクトル
                     oppositeDeviceGroup.SelectedDeviceIDs,
                     defaultIntensityPascal
                 );
@@ -214,7 +214,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
 
             if (isActive && useSTM && stmRadius > 0f)
             {
-                DrawSTMCircle(contactPos, footTargetNormal.normalized, stmRadius, Color.cyan);
+                DrawSTMCircle(contactPos, footTargetTouchDirection.normalized, stmRadius, Color.cyan);
             }
 
             // 反対側 Gizmo (マゼンタ)
@@ -227,7 +227,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
 
                 if (isActive && useSTM && stmRadius > 0f)
                 {
-                    DrawSTMCircle(oppositePos, -footTargetNormal.normalized, stmRadius, Color.magenta);
+                    DrawSTMCircle(oppositePos, -footTargetTouchDirection.normalized, stmRadius, Color.magenta);
                 }
             }
 

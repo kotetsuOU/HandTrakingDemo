@@ -25,7 +25,7 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
     private SerializedProperty onlyTargetHandContactProp;
     private SerializedProperty handContactThresholdProp;
     
-    private SerializedProperty footTargetNormalProp;
+    private SerializedProperty footTargetTouchDirectionProp;
 
     private SerializedProperty stmModeProp;
     private SerializedProperty sequentialSTMFrequencyProp;
@@ -57,7 +57,7 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         onlyTargetHandContactProp = serializedObject.FindProperty("onlyTargetHandContact");
         handContactThresholdProp = serializedObject.FindProperty("handContactThreshold");
 
-        footTargetNormalProp = serializedObject.FindProperty("footTargetNormal");
+        footTargetTouchDirectionProp = serializedObject.FindProperty("footTargetTouchDirection");
 
         stmModeProp = serializedObject.FindProperty("stmMode");
         sequentialSTMFrequencyProp = serializedObject.FindProperty("sequentialSTMFrequency");
@@ -110,7 +110,7 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
             EditorGUI.indentLevel--;
         }
 
-        EditorGUILayout.PropertyField(footTargetNormalProp);
+        EditorGUILayout.PropertyField(footTargetTouchDirectionProp);
         EditorGUILayout.Space();
 
         EditorGUILayout.PropertyField(stmModeProp);

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using System.Collections.Generic;
 using System;
 
@@ -47,10 +48,11 @@ public class HAP_FoxBodyHapticsController : HAP_BaseObjectHapticsController
     public bool enableBackRight = true;
     public bool enableTail = true;
 
-    [Header("Target Normals (照射向き)")]
-    [Tooltip("頭部および耳ターゲット用の照射法線方向（デフォルト: Vector3.down）。")]
-    public Vector3 headTargetNormal = Vector3.down;
-    // 注: 足・尻尾用の照射法線方向は基底クラスの footTargetNormal (Vector3.down) を使用します。
+    [Header("Target Touch Directions (照射・接触向き)")]
+    [FormerlySerializedAs("headTargetNormal")]
+    [Tooltip("バーチャルオブジェクト（頭部・耳）が接触対象へ触れる/押し当てる向き（デフォルト: Vector3.down）。")]
+    public Vector3 headTargetTouchDirection = Vector3.down;
+    // 注: 足・尻尾用の照射法線方向は基底クラスの footTargetTouchDirection (Vector3.down) を使用します。
 
     /// <summary>
     /// 各部位のターゲット情報をリストにして返します（基底クラスのGizmo描画や判定に利用）。
@@ -64,28 +66,28 @@ public class HAP_FoxBodyHapticsController : HAP_BaseObjectHapticsController
             var list = new List<HapticsTargetInfo>();
 
             if (headBone != null)
-                list.Add(new HapticsTargetInfo { Name = "Head", Transform = headBone, IsEnabled = enableHead, IsTail = true, Offset = Vector3.zero, Normal = headTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Head", Transform = headBone, IsEnabled = enableHead, IsTail = true, Offset = Vector3.zero, TouchDirection = headTargetTouchDirection });
 
             if (leftEarBone != null)
-                list.Add(new HapticsTargetInfo { Name = "Left Ear", Transform = leftEarBone, IsEnabled = enableLeftEar, IsTail = true, Offset = Vector3.zero, Normal = headTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Left Ear", Transform = leftEarBone, IsEnabled = enableLeftEar, IsTail = true, Offset = Vector3.zero, TouchDirection = headTargetTouchDirection });
 
             if (rightEarBone != null)
-                list.Add(new HapticsTargetInfo { Name = "Right Ear", Transform = rightEarBone, IsEnabled = enableRightEar, IsTail = true, Offset = Vector3.zero, Normal = headTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Right Ear", Transform = rightEarBone, IsEnabled = enableRightEar, IsTail = true, Offset = Vector3.zero, TouchDirection = headTargetTouchDirection });
 
             if (frontLeftFoot != null)
-                list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false, Offset = Vector3.zero, Normal = footTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false, Offset = Vector3.zero, TouchDirection = footTargetTouchDirection });
 
             if (frontRightFoot != null)
-                list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false, Offset = Vector3.zero, Normal = footTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false, Offset = Vector3.zero, TouchDirection = footTargetTouchDirection });
 
             if (backRightFoot != null)
-                list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false, Offset = Vector3.zero, Normal = footTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false, Offset = Vector3.zero, TouchDirection = footTargetTouchDirection });
 
             if (backLeftFoot != null)
-                list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false, Offset = Vector3.zero, Normal = footTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false, Offset = Vector3.zero, TouchDirection = footTargetTouchDirection });
 
             if (tailBone != null)
-                list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true, Offset = Vector3.zero, Normal = footTargetNormal });
+                list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true, Offset = Vector3.zero, TouchDirection = footTargetTouchDirection });
 
             return list;
         }

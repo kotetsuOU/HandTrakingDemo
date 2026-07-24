@@ -174,7 +174,7 @@ public class HAP_CustomPropHapticsController : HAP_BaseObjectHapticsController
                 TrackedCluster dummyCluster = new TrackedCluster
                 {
                     Centroid = activeTargets[0].position,
-                    Normal = footTargetNormal.normalized,
+                    Normal = footTargetTouchDirection.normalized,
                     Force = 1.0f,
                     IsAlive = true
                 };
@@ -205,7 +205,7 @@ public class HAP_CustomPropHapticsController : HAP_BaseObjectHapticsController
                     TrackedCluster dummyCluster = new TrackedCluster
                     {
                         Centroid = pos,
-                        Normal = footTargetNormal.normalized,
+                        Normal = footTargetTouchDirection.normalized,
                         Force = 1.0f,
                         IsAlive = true
                     };

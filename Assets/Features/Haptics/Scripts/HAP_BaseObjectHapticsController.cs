@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using System.Collections.Generic;
 
 #nullable enable
@@ -25,7 +26,7 @@ public struct HapticsTargetInfo
     public bool IsEnabled;
     public bool IsTail; // 接地判定 (disableWhenInAir) を行わない特殊部位判定
     public Vector3 Offset; // ターゲット位置オフセット
-    public Vector3 Normal; // 照射法線方向
+    public Vector3 TouchDirection; // 照射・接触向き（メッシュに向かうベクトル）
 }
 
 /// <summary>
@@ -52,8 +53,9 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     [Tooltip("手との接触と判定する距離のしきい値（メートル）。")]
     public float handContactThreshold = 0.1f;
 
-    [Tooltip("どのAUTDデバイスが照射するかを、方向グルーピングで判定する際のクラスタ法線。\n上面から照射するAUTD：Vector3.downを指定（展開面が下向き，ターゲットに向かって上からめがける場合）。\n下面から照射するAUTD：Vector3.upを指定。")]
-    public Vector3 footTargetNormal = Vector3.down;
+    [FormerlySerializedAs("footTargetNormal")]
+    [Tooltip("バーチャルオブジェクト（足・尻尾）が接触対象（地面や手）へ触れる/押し当てる向き（デフォルト: Vector3.down）。\n最適デバイス判定（方向グルーピング）の基準として使用されます。")]
+    public Vector3 footTargetTouchDirection = Vector3.down;
 
     [Header("Custom Mode Settings")]
     [Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]

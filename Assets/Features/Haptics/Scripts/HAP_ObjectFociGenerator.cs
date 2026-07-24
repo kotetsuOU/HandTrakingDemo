@@ -35,12 +35,12 @@ public static class HAP_ObjectFociGenerator
 
         if (useCustomCycle)
         {
-            var activeCandidates = new List<Transform>();
+            var activeCandidates = new List<HapticsTargetInfo>();
             foreach (var info in controller.TargetInfos)
             {
                 if (info.Transform != null && controller.IsTargetActive(info.Transform, info.IsEnabled, info.IsTail))
                 {
-                    activeCandidates.Add(info.Transform);
+                    activeCandidates.Add(info);
                 }
             }
 
@@ -48,8 +48,8 @@ public static class HAP_ObjectFociGenerator
             {
                 TrackedCluster dummyCluster = new TrackedCluster
                 {
-                    Centroid = activeCandidates[0].position,
-                    Normal = controller.footTargetNormal.normalized,
+                    Centroid = activeCandidates[0].Transform.position,
+                    Normal = -activeCandidates[0].TouchDirection.normalized,
                     Force = 1.0f,
                     IsAlive = true
                 };
@@ -59,9 +59,9 @@ public static class HAP_ObjectFociGenerator
                 fociData.IsGainSTM = (controller.stmMode == HapticsSTMMode.GainSTM);
                 fociData.STMFrequency = controller.sequentialSTMFrequency;
 
-                foreach (var target in activeCandidates)
+                foreach (var info in activeCandidates)
                 {
-                    Vector3 pos = target.position;
+                    Vector3 pos = info.Transform.position;
                     fociData.STMFrames.Add(new List<Vector3> { 
                         new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z) 
                     });
@@ -81,7 +81,7 @@ public static class HAP_ObjectFociGenerator
                 TrackedCluster dummyCluster = new TrackedCluster
                 {
                     Centroid = pos,
-                    Normal = controller.footTargetNormal.normalized,
+                    Normal = -info.TouchDirection.normalized,
                     Force = 1.0f,
                     IsAlive = true
                 };

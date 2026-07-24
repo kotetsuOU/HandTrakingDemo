@@ -13,7 +13,7 @@
 `HAP_FoxBodyHapticsController.cs` は、基底抽象クラスである `HAP_BaseObjectHapticsController` を継承し、Foxの全身体部位（頭・両耳・四肢・尻尾）を統合制御するコンポーネントです。
 
 - **`HAP_FoxBodyHapticsController.cs`**:
-  キツネの骨格階層内から指定したパターン名（例: `Fox_Head`, `Fox_LEar1`, `Fox_REar1`, `Fox_F_LLegDigit11`, `Fox_Tail6` 等）に合致する全8箇所のボーン（Transform）を自動検出し、その追跡情報（`TargetInfos`）および各部位の照射法線（`headTargetNormal`, `footTargetNormal`）を基底クラスに提供します。
+  キツネの骨格階層内から指定したパターン名（例: `Fox_Head`, `Fox_LEar1`, `Fox_REar1`, `Fox_F_LLegDigit11`, `Fox_Tail6` 等）に合致する全8箇所のボーン（Transform）を自動検出し、その追跡情報（`TargetInfos`）および各部位の照射・接触向き（`headTargetTouchDirection`, `footTargetTouchDirection`）を基底クラスに提供します。
 
 - **`HAP_FoxBodyHapticsControllerEditor.cs`**:
   インスペクター上の「Auto Detect Bones」ボタンによる一括自動バインドや、部位ごとの有効化トグル、照射向き設定を簡単に管理できるカスタムエディタ機能を提供します。
@@ -35,9 +35,9 @@
 * **`Enable Head / Enable Left Ear / Enable Right Ear`**: 頭部・両耳への照射の有効/無効
 * **`Enable Front Left / Enable Front Right / Enable Back Left / Enable Back Right / Enable Tail`**: 四肢・尻尾への照射の有効/無効
 
-### ③ 照射向き設定 (Target Normals)
-* **`Head/Ear Target Normal`**: 頭部および両耳ターゲットへの超音波照射向きベクトル (デフォルト: `Vector3.down`)
-* **`Foot/Tail Target Normal`**: 四肢および尻尾ターゲットへの超音波照射向きベクトル (デフォルト: `Vector3.down`)
+### ③ 照射向き設定 (Target Touch Directions)
+* **`Head/Ear Target Touch Direction`**: 頭部および両耳ターゲットへの超音波照射向きベクトル (デフォルト: `Vector3.down`)
+* **`Foot/Tail Target Touch Direction`**: 四肢および尻尾ターゲットへの超音波照射向きベクトル (デフォルト: `Vector3.down`)
 
 ### ④ 接地判定設定 (Animation State Settings) ※足パーツのみ適用
 * **`Disable When In Air`**: 空中浮遊中（ルート座標からの高さがしきい値を超えている場合）に足の触覚照射をオフにします。

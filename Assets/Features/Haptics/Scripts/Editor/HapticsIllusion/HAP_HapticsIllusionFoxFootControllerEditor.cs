@@ -25,7 +25,7 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
     private SerializedProperty onlyTargetHandContactProp;
     private SerializedProperty handContactThresholdProp;
     
-    private SerializedProperty footTargetNormalProp;
+    private SerializedProperty footTargetTouchDirectionProp;
 
     // Haptics Illusion Specific Properties
     private SerializedProperty contactDeviceGroupProp;
@@ -64,7 +64,7 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
         onlyTargetHandContactProp = serializedObject.FindProperty("onlyTargetHandContact");
         handContactThresholdProp = serializedObject.FindProperty("handContactThreshold");
 
-        footTargetNormalProp = serializedObject.FindProperty("footTargetNormal");
+        footTargetTouchDirectionProp = serializedObject.FindProperty("footTargetTouchDirection");
 
         // Haptics Illusion Properties
         contactDeviceGroupProp = serializedObject.FindProperty("contactDeviceGroup");
@@ -171,7 +171,7 @@ public class HAP_HapticsIllusionFoxFootControllerEditor : Editor
             EditorGUI.indentLevel--;
         }
 
-        EditorGUILayout.PropertyField(footTargetNormalProp);
+        EditorGUILayout.PropertyField(footTargetTouchDirectionProp);
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();
 

@@ -27,9 +27,9 @@ public class HAP_FoxBodyHapticsControllerEditor : Editor
     private SerializedProperty enableBackRightProp;
     private SerializedProperty enableTailProp;
 
-    // Normals
-    private SerializedProperty headTargetNormalProp;
-    private SerializedProperty footTargetNormalProp;
+    // Touch Directions
+    private SerializedProperty headTargetTouchDirectionProp;
+    private SerializedProperty footTargetTouchDirectionProp;
 
     // Airborne / Contact
     private SerializedProperty disableWhenInAirProp;
@@ -71,8 +71,8 @@ public class HAP_FoxBodyHapticsControllerEditor : Editor
         enableBackRightProp = serializedObject.FindProperty("enableBackRight");
         enableTailProp = serializedObject.FindProperty("enableTail");
 
-        headTargetNormalProp = serializedObject.FindProperty("headTargetNormal");
-        footTargetNormalProp = serializedObject.FindProperty("footTargetNormal");
+        headTargetTouchDirectionProp = serializedObject.FindProperty("headTargetTouchDirection");
+        footTargetTouchDirectionProp = serializedObject.FindProperty("footTargetTouchDirection");
 
         disableWhenInAirProp = serializedObject.FindProperty("disableWhenInAir");
         airborneHeightThresholdProp = serializedObject.FindProperty("airborneHeightThreshold");
@@ -122,8 +122,8 @@ public class HAP_FoxBodyHapticsControllerEditor : Editor
         EditorGUILayout.PropertyField(enableTailProp);
         EditorGUILayout.Space();
 
-        EditorGUILayout.PropertyField(headTargetNormalProp, new GUIContent("Head/Ear Target Normal"));
-        EditorGUILayout.PropertyField(footTargetNormalProp, new GUIContent("Foot/Tail Target Normal"));
+        EditorGUILayout.PropertyField(headTargetTouchDirectionProp, new GUIContent("Head/Ear Target Touch Direction"));
+        EditorGUILayout.PropertyField(footTargetTouchDirectionProp, new GUIContent("Foot/Tail Target Touch Direction"));
         EditorGUILayout.Space();
 
         EditorGUILayout.PropertyField(disableWhenInAirProp);
@@ -150,6 +150,8 @@ public class HAP_FoxBodyHapticsControllerEditor : Editor
         HapticsSTMMode mode = (HapticsSTMMode)stmModeProp.enumValueIndex;
         
         EditorGUI.indentLevel++;
+        
+        EditorGUILayout.PropertyField(sequentialSTMFrequencyProp, new GUIContent("STM Frequency (Hz)"));
         
         if (mode == HapticsSTMMode.GainSTM)
         {
