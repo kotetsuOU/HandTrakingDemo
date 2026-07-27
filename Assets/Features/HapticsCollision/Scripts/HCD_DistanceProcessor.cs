@@ -28,11 +28,27 @@ public class HCD_DistanceProcessor : IHCD_Processor
     [Header("MeshFilter Mode Settings")]
     public MeshFilter[] targetMeshFilters;
 
-    [Header("Collision Parameters")]
-    [Tooltip("これより近いと接触と判定する距離(m)")]
-    public float surfaceDistanceThreshold = 0.02f;
-    [Tooltip("これより深くめり込むと貫通として無視する距離(m)")]
-    public float backfaceDistanceThreshold = 0.05f;
+    [Header("Mesh Surface Parameters")]
+    [Tooltip("【メッシュ表面モード】これより近いと接触と判定する距離(m)")]
+    public float meshSurfaceDistanceThreshold = 0.02f;
+    [Tooltip("【メッシュ表面モード】これより深くめり込むと貫通として無視する距離(m)")]
+    public float meshBackfaceDistanceThreshold = 0.05f;
+
+    [Header("View Direction Parameters")]
+    [Tooltip("【視線方向モード】視線方向の手前判定距離(m)")]
+    public float viewSurfaceDistanceThreshold = 0.02f;
+    [Tooltip("【視線方向モード】視線方向の奥判定距離(m)")]
+    public float viewBackfaceDistanceThreshold = 0.05f;
+
+    /// <summary>
+    /// 現在のモードに対応した表面（手前）接触距離しきい値(m)
+    /// </summary>
+    public float surfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? viewSurfaceDistanceThreshold : meshSurfaceDistanceThreshold;
+
+    /// <summary>
+    /// 現在のモードに対応した裏面（奥）判定距離しきい値(m)
+    /// </summary>
+    public float backfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? viewBackfaceDistanceThreshold : meshBackfaceDistanceThreshold;
 
     public ComputeShader collisionComputeShader;
 
