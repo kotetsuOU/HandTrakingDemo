@@ -170,9 +170,31 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Gizmo描画を行うべき状態（drawGizmos, enabled, activeInHierarchy かつ sourceMode == ObjectTarget）であるかを判定します。
+    /// </summary>
+    protected virtual bool ShouldDrawGizmos()
+    {
+        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return false;
+
+        HAP_AUTDHapticsController? ctrl = autdController;
+#if UNITY_EDITOR
+        if (ctrl == null)
+        {
+            ctrl = FindAnyObjectByType<HAP_AUTDHapticsController>();
+        }
+#endif
+        if (ctrl != null && ctrl.sourceMode != HapticsSourceMode.ObjectTarget)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     protected virtual void OnDrawGizmos()
     {
-        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return;
+        if (!ShouldDrawGizmos()) return;
 
         foreach (var info in TargetInfos)
         {

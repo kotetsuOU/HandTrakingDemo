@@ -198,7 +198,7 @@ public class HAP_HapticsIllusionFoxFootController : HAP_FoxFootHapticsController
 
     protected override void OnDrawGizmos()
     {
-        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return;
+        if (!ShouldDrawGizmos()) return;
 
         foreach (var info in TargetInfos)
         {

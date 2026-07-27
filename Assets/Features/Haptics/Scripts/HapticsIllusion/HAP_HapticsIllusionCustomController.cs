@@ -210,7 +210,7 @@ public class HAP_HapticsIllusionCustomController : HAP_BaseObjectHapticsControll
 
     protected override void OnDrawGizmos()
     {
-        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return;
+        if (!ShouldDrawGizmos()) return;
 
         // autdController から Disabler / DirectionalGrouping の情報を取得
         HAP_AUTDHapticsController? hapticsCtrl = autdController;
