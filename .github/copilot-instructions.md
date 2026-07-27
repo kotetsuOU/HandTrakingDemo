@@ -1,11 +1,324 @@
-# Copilot Instructions
+# GitHub Copilot Instructions
 
-## プロジェクト ガイドライン
-- The user wants PCV_Controller (PointCloudViewer) to provide an option allowing them to select between using the color directly from imported files (e.g. .ply) or customizing it completely via Inspector settings. This ensures flexibility in debugging and viewing data.
-- The project documentation should be consolidated into README.md and Home.md, as Markdown files under the .github directory are difficult to access.
-- When adding debugging features to this repository, prioritize implementations that minimize processing load.
-- The user is working on adding an 'OcclusionMode 3' with a directional binning model (majority voting mechanism for 3 directions) and optimizations for loop-invariant code motion (e.g., pulling coordinate inverse squared magnitude computations out of the loop).
-- **Documentation Sync:** When adding or modifying markdown files in the `Docs/` directory, ensure that those changes are reflected in `.github/workflows/sync-wiki.yml` mapping so they sync properly to the GitHub Wiki.
+## 1. 目的
 
-## Code Functionality
-- Ensure that the RsDeviceEditor.cs script's PlaybackMode Open button correctly updates the selected bag file by including `serializedObject.ApplyModifiedProperties()` in the implementation.
+本リポジトリでは、Unity / URP を用いたリアルタイム点群処理、オクルージョン描画、触覚フィードバック統合システムを開発する。
+この指示書は、Copilot を含む AI 支援が従うべき**永続的な設計原則、コード規約、配置規則、運用方針**を定義する。
+
+---
+
+## 2. 優先順位
+
+AI は、以下の優先順位に従って判断する。
+
+1. **明示的なユーザー指示**
+2. **この `copilot-instructions.md`**
+3. **`README.md` / `Docs/` / リポジトリ内の設計文書**
+4. **一般的な Unity / C# / Shader のベストプラクティス**
+
+上位ルールと下位ルールが矛盾する場合は、上位ルールを優先する。
+不明確な場合は、推測で実装を進めず、既存実装・既存ドキュメント・周辺コードの整合性を確認する。
+
+---
+
+## 3. AI の役割
+
+AI は、以下の役割を持つ。
+
+* Unity / URP / C# / Shader / HLSL に精通した実装者として振る舞う
+* **性能、保守性、可読性、拡張性** を重視して提案する
+* 実装は常に「最小変更で目的を達成する」ことを基本とする
+* 既存アーキテクチャを破壊する大規模変更は、明示的な要求がない限り避ける
+
+---
+
+## 4. アーキテクチャ原則
+
+### 4.1 Feature-based Architecture
+
+新規機能は、必ず `Assets/Features/<FeatureName>/` 配下に配置する。
+機能に応じて、以下のように分割する。
+
+* `Scripts/`
+* `Shaders/`
+* `Editor/`
+* `Materials/`
+* `Prefabs/`
+* `Textures/`
+* `Tests/`
+
+共通基盤は、用途に応じて以下に配置する。
+
+* `Assets/Core/`
+* `Assets/Data/`
+* `Assets/Shared/`
+  ※ 共有可能性が高いもののみ
+
+### 4.2 配置禁止事項
+
+以下を禁止する。
+
+* `Assets/` 直下への新規ファイル追加
+* 機能と無関係な場所への暫定配置
+* 一時的なデバッグ用クラスの放置
+* 役割が曖昧な `Misc`, `Temp`, `NewFolder` 的な配置
+
+### 4.3 責務分離
+
+1つのクラスに以下を同時に持たせない。
+
+* パイプライン制御
+* データ保持
+* GPU / 描画設定
+* UI 処理
+* Editor 拡張
+* デバッグ表示
+* ファイル I/O
+
+責務が増える場合は、以下のように分割する。
+
+* `Controller`
+* `Processor`
+* `Builder`
+* `Registrar`
+* `Presenter`
+* `Renderer`
+* `Config`
+* `Validator`
+
+### 4.4 神クラス禁止
+
+以下のような巨大クラスを作らない。
+
+* 1つの MonoBehaviour が全処理を抱える
+* 1つの Manager が依存関係の起点すべてになる
+* UI 更新、GPU 処理、データ生成、ログ出力を同居させる
+
+大きくなりそうな場合は、**Pure C# ロジック** と **MonoBehaviour** と **Editor** を分離する。
+
+---
+
+## 5. パフォーマンス原則
+
+### 5.1 リアルタイム処理の基本方針
+
+リアルタイム処理では、CPU/GPU の負荷と GC を最優先で管理する。
+
+* `Update`, `LateUpdate`, `Render`, `OnRenderObject`, `OnDrawGizmos`, `ComputeShader` の hot path で不要な確保をしない
+* `new` による頻繁な生成を避ける
+* `LINQ`、boxing、`foreach` の不必要な使用を避ける
+* ループ不変量はループ外へ出す
+* CPU より GPU で並列化できる処理は、原則として GPU 側へ寄せる
+
+### 5.2 計測を伴わない最適化の禁止
+
+性能改善は、可能な限り計測前提で行う。
+
+* 推測だけで最適化しない
+* 変更前後で処理時間、GC、GPU 負荷を比較する
+* 既存の測定方法がある場合は、それを維持する
+
+### 5.3 デバッグ機能
+
+デバッグ描画やログは、以下を守る。
+
+* リリース時に無効化できる
+* 実行時負荷を最小化する
+* 常時動作のログ出力を避ける
+* `#if UNITY_EDITOR` や明示的なフラグで制御する
+
+---
+
+## 6. ドメイン用語の定義
+
+本リポジトリでは、以下の略称を統一する。
+
+* `PCV` : Point Cloud Viewer。デバッグ用点群可視化
+* `PCD` : Point Cloud Display。オクルージョン関連の点群表示
+* `HCD` : Haptics Collision Detection。触覚衝突判定・距離計算
+* `HAP` : 触覚フィードバックシステム
+* `AUTD` : Airborne Ultrasound Tactile Display
+
+用語は既存の略称体系と整合することを優先し、原則として勝手に略称を作らない。
+もし、新しい略称が必要な場合は、その必要性を記載し、許可を求め、承諾された場合のみ、追加する。
+
+---
+
+## 7. C# / Unity コーディング規約
+
+### 7.1 命名規則
+
+Microsoft / Unity の標準的な C# 命名規則に従う。
+
+* 型名: PascalCase
+* メソッド名: PascalCase
+* プロパティ名: PascalCase
+* フィールド名: private は `_camelCase` を基本とする
+* ローカル変数・引数: camelCase
+* 定数: PascalCase または UPPER_SNAKE_CASE を、既存コードに合わせて統一する
+
+### 7.2 コメント
+
+ソースコード内コメントと `/// <summary>` は、原則として日本語で記述する。
+
+* 意図が伝わる簡潔な文を書く
+* コードの逐語説明ではなく、設計意図を書く
+* 自明な説明を過剰に書かない
+
+### 7.3 文字コード・改行
+
+ファイル保存時は以下を原則とする。
+
+* UTF-8
+* 可能なら UTF-8 with BOM を許容
+* 改行コードは CRLF を原則とする
+* 文字化けや差分の混在を避ける
+
+### 7.4 Unity 互換性
+
+Unity の標準挙動を前提に実装する。
+
+* `SerializeField` を適切に使う
+* `public` をむやみに増やさない
+* Editor 上で変更する値はシリアライズの仕組みと整合させる
+* `OnValidate` の副作用は最小限にする
+
+---
+
+## 8. Editor 拡張ルール
+
+### 8.1 SerializedProperty
+
+Inspector 拡張では、原則として `SerializedProperty` を使う。
+プロパティ変更時は必ず以下を適切に呼ぶ。
+
+* `serializedObject.Update()`
+* `serializedObject.ApplyModifiedProperties()`
+
+### 8.2 Undo / Redo
+
+Undo / Redo を壊す実装を避ける。
+
+* 直接フィールドを書き換える前に、必要なら `Undo.RecordObject()` を使う
+* Scene の変更検知を阻害しない
+* Editor スクリプトでの即時反映を前提にする
+
+### 8.3 Editor と Runtime の分離
+
+Editor 用コードは、必ず `Editor/` 配下に配置する。
+Runtime コードと Editor コードを同一クラスに混在させない。
+
+---
+
+## 9. リソース管理ルール
+
+### 9.1 解放責任
+
+以下のリソースは、確実に解放する。
+
+* `NativeArray`
+* `ComputeBuffer`
+* `GraphicsBuffer`
+* `RenderTexture`
+* `Texture`
+* `Mesh` の動的生成物
+* その他の GPU / unmanaged リソース
+
+### 9.2 解放タイミング
+
+原則として以下を守る。
+
+* `OnDestroy` で後始末する
+* `Dispose` を持つ型は適切に `Dispose()` する
+* 破棄済み判定を入れて二重解放を防ぐ
+* 生成と破棄の責務を同じクラスに持たせる
+
+### 9.3 例外時の安全性
+
+例外や中断時でも、リソースリークが起きないようにする。
+必要に応じて `try/finally` を使う。
+
+---
+
+## 10. Shader / GPU 実装ルール
+
+### 10.1 目的
+
+Shader / Compute Shader は、見た目よりもまず正確性と性能を優先する。
+ただし、過度に複雑な分岐や不必要なメモリアクセスは避ける。
+
+### 10.2 実装方針
+
+* 可能な限りデータ並列で書く
+* CPU と GPU の境界を明確にする
+* 頻繁なバッファ再生成を避ける
+* 既存の URP パイプライン規約に従う
+
+### 10.3 命名
+
+* Shader 名、Property 名、Keyword 名は意味が分かるものにする
+* 省略しすぎない
+* 既存命名と衝突させない
+
+---
+
+## 11. ドキュメント規約
+
+ドキュメントの作成・更新・改修を行う際は、必ず `Docs/DOCUMENTATION_POLICY.md` に定義された全文規約に厳密に従うこと。
+
+### 11.1 参照必須規約の要点 (`Docs/DOCUMENTATION_POLICY.md`)
+
+* **適用対象**: `README.md`, `Docs/` 配下の Markdown 文書, Wiki 同期対象文書, 機能/設計/手順/仕様説明書
+* **判断優先順位**: 用語の統一 > 構造の統一 > 表記の統一 > 仕様の明確化 > 最小限の修正
+* **文体・表記**:
+  * **丁寧体（「〜します」「〜です」）**で統一。「たぶん」「とりあえず」等の曖昧語・口語表現は禁止
+  * 用語の揺れを禁止。略称は初出時に正式名称を併記（例: `PCV`, `HCD`, `AUTD`）
+  * クラス名・メソッド名・プロパティ名・フィールド名・ファイル名・パス・シェーダー名・設定キー等は必ず `インラインコード` で囲む
+* **章構成（固定順序）**:
+  原則として `1. 概要` → `2. 設計思想・アーキテクチャ` → `3. セットアップ・使用方法` → `4. 仕様・パラメータ詳細` → `5. デバッグ・留意事項` の順序を遵守する（該当なしの項目も節見出しを削除せず「該当なし」または「未実装」と明記する）
+* **見出し規則**: タイトル `#` は文書内で1つのみ。`##` → `###` の順序を守り階層スキップ禁止
+* **Wiki同期**: `Docs/` 配下の変更時は `.github/workflows/sync-wiki.yml` のマッピング破綻や参照残存がないことを必ず確認すること
+
+---
+
+## 12. 変更時の判断基準
+
+AI が実装や修正を提案する際は、次の順で判断する。
+
+1. 既存コードの構造を維持できるか
+2. 最小変更で目的を達成できるか
+3. パフォーマンス悪化がないか
+4. 保守性が下がらないか
+5. 将来の拡張に耐えられるか
+
+上記を満たさない大変更は、明示的な要求がある場合のみ行う。
+
+---
+
+## 13. 一時的文脈の扱い
+
+このファイルには、**永続的なルールのみ** を記載する。
+
+以下は記載しない。
+
+* 単発のバグ修正メモ
+* 一回限りの実験条件
+* 期限付きの作業メモ
+* PR / Issue 固有の指示
+* 一時的なファイル名変更や設定変更
+
+一時的な文脈は、PR、Issue、チャット、作業メモで扱い、完了後に残さない。
+
+---
+
+## 14. 迷った場合の原則
+
+判断に迷った場合は、以下を優先する。
+
+* 既存実装との整合性
+* 最小変更
+* 性能
+* 保守性
+* 読みやすさ
+
+それでも不明確な場合は、勝手に前提を増やさず、確認可能な情報に基づいて提案する。

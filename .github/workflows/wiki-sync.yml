@@ -23,7 +23,9 @@ on:
       - "Docs/AnimationControls.md"
       - "Docs/AUTD3_SDK_Transition.md"
       - "Docs/FoxFootHaptics.md"
+      - "Docs/FoxBodyHaptics.md"
       - "Docs/HowToUseHaptics.md"
+      - "Docs/HapticsIllusion.md"
       - "Docs/Experiments.md"
   workflow_dispatch:
 
@@ -83,7 +85,8 @@ jobs:
               "FoxFootHaptics.md": "FoxFootHaptics",
               "FoxBodyHaptics.md": "FoxBodyHaptics",
               "HowToUseHaptics.md": "HowToUseHaptics",
-              "HapticsIllusion.md": "HapticsIllusion"
+              "HapticsIllusion.md": "HapticsIllusion",
+              "Experiments.md": "Experiments"
           }
           pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):

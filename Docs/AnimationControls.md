@@ -1,47 +1,80 @@
-# キーボード操作対応表 (Keyboard Controls)
+# キーボード操作対応表 (Keyboard Controls) 仕様書
 
-> 📂 **親ノード**: [Wiki.md (ポータル)](./Wiki.md) | 🏷️ **種類**: 📖 リファレンス
->
+> 📂 **親ノード**: [Wiki.md](./Wiki.md) | 🏷️ **種類**: 📖 リファレンスガイド  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-研究・実験時の撮影やデモを効率化するために、`AnimationController.cs`に以下のショートカットキーがアサインされています。
-このスクリプトはヒエラルキー上のどこか（例えば `Main Camera` や `GameManager`）にアタッチし、インスペクターから操作したい動的オブジェクト（キツネのTransformやAnimator）をセットして使用します。
+本ドキュメントでは、デモや実験撮影時の操作を効率化するために `AnimationController` に実装されているキーボードショートカットおよびオブジェクト操作仕様について解説します。
+
+---
+
+## 1. 概要
+
+`AnimationController` は、キーボード入力に応じてターゲットオブジェクトの表示切り替え、アニメーション停止、撮影、オクルージョンパラメータやカラースイッチなどの主要操作をインゲームで即座に実行するデバッグ・実験制御スクリプトです。
+
+---
+
+## 2. 設計思想・アーキテクチャ
+
+本スクリプトは、ヒエラルキー上の管理オブジェクト（`Main Camera` や `GameManager` 等）にアタッチし、インスペクターから操作対象の `Transform` や `Animator` をバインドして使用します。
+
+### HCD パイプライン連携アーキテクチャ
+インスペクター上の `Auto Update Collision Target` を有効（既定値: `true`）にしておくと、`AnimationController` 側で表示オブジェクトを切り替えた際、自動的に `HCD_Pipeline` の接触判定対象が追従・更新されます。
+
+* **`SkinnedMeshRenderer` を持つオブジェクト**: アニメーション用のメッシュ表面で判定 (`DetectionMode.SkinnedMeshRenderer`)
+* **`MeshFilter` を持つオブジェクト**: 通常の静的メッシュ表面で判定 (`DetectionMode.MeshFilter`)
+* **どちらも持たないオブジェクト**: 中心座標からの距離で判定 (`DetectionMode.TransformOnly`)
+
+---
+
+## 3. セットアップ・使用方法
+
+### 3.1 セットアップ手順
+
+1. シーン内のオブジェクトに `AnimationController` をアタッチします。
+2. `Toggle Objects` リストに切り替えたいオブジェクト群を登録します。
+3. 必要に応じて `Target Animator` や `PR_Controller` の参照をインスペクターでアサインします。
+4. Play モードに入り、下記の操作キーで動作確認を行います。
+
+---
+
+## 4. 仕様・パラメータ詳細
+
+### 4.1 キーボードショートカット一覧
 
 | アクション | キー (Key) | 詳細 |
 |:---|:---|:---|
-| **撮影 (Screenshot)** | `Enter` / `Return` | 「オクルージョンDebugMap」「ピクセルTagマップ」「統合DepthMap」「近傍探索範囲マップ」「近傍点カウント数」「現在のカメラビュー」を同時保存します（保存先: `Assets/HandTrackingData/OcclusionMaps` / `Assets/HandTrackingData/PixelTagMaps` / `Assets/HandTrackingData/DepthMaps/Integrated`） |
-| **表示オブジェクトの順番切り替え** | `Tab` | `toggleObjects` の配列に設定されたオブジェクトを順番に一つずつアクティブにして切り替えます |
-| **アニメーション再生/停止** | `Space` | 対象のAnimatorの `speed` を 0 と 1 でトグルし、一時停止させます（被写体を止めて撮影したい時に便利です） |
-| **手法の一括切り替え (Method)** | `M` | すべての提案手法（①～④）をまとめてON/OFFし、従来と提案の設定を瞬時比較します |
-| **① タグによるスキップ (Tag)** | `1` | `Enable Tag Based Optimization` を切り替えます (冗長な自己遮蔽計算をスキップし効率化)/SICE FES 2026発表内容 |
-| **② 密度計算の補正 (Density)** | `2` | `Enable Type Aware Density` を切り替えます (従来手法のカウント漏れ・過剰を修正) |
-| **③ ソフトフェード (SoftFade)** | `3` | `Enable Soft Occlusion Fade` を切り替えます (エッジのグラデーションスムージング) |
-| **④ 穴埋め補完 (HoleFilling)** | `4` | `Enable Joint Bilateral Hole Filling` を切り替えます (透過ノイズの修復) |
-| **PixelTag Map (Material ID Debug)** | `P` | `Enable Pixel Tag Map` を切り替えます。ON のときデバッグ配色ルールで画面上に常時可視化します |
-| **Occlusion Map** | `O` | `Enable Occlusion Map` を切り替えます。内積計算で得た `occlusionAverage(0~1)` を `Record Occlusion Debug Map` と同じ配色ルールで常時可視化します |
-| **滑らかさ幅の強制設定** | `T` | `Occlusion Fade Width` の実数値を `0.2` (滑らか) と `0.0` (くっきり) で設定します |
-| **カーネル関数の切り替え (Kernel)** | `L` | オクルージョン計算に用いるカーネル関数 (`Bouchiba`, `Exponential`, `Linear`) を順に切り替えます |
-| **ビニング手法の切り替え (Binning)** | `K` | 空間分割時の重みの計算手法 (`Soft`, `Hard`) を切り替えます |
-| **空間分割数の切り替え (Direction)** | `J` | 空間の分割方向数 (`Single`, `Bins3`, `Bins6`, `Bins8`) を順に切り替えます |
-| **カラーモードの切り替え (Color)** | `C` | 点群のカラーモード (`Skin`, `Black`, `Blue`, `Custom`) を順に切り替えます (`RsMaterialController` 内の `ChangeColorMode` を使用) |
-| **ゲーム終了 (Quit)** | `Esc` | エディタ再生、またはビルド後のアプリを終了させます (`QuitGame.cs`の統合) |
-| **視点追従の切り替え (LookAt)** | `F` | キャラクターがカメラ（視点）の方を自動で向く機能のON/OFFを切り替えます |
+| **撮影 (Screenshot)** | `Enter` / `Return` | オクルージョン DebugMap、ピクセル Tagマップ、統合 DepthMap、近傍探索範囲マップ等の多種マップを同時間保存 |
+| **表示オブジェクト切り替え** | `Tab` | `toggleObjects` 配列のオブジェクトを順番にトグル切り替え |
+| **アニメーション再生/停止** | `Space` | Animator の `speed` を `0` と `1` でトグル切り替え |
+| **手法の一括切り替え** | `M` | 全ての提案手法（①～④）をまとめて ON/OFF 切替 |
+| **① タグによるスキップ** | `1` | `Enable Tag Based Optimization` を切り替え |
+| **② 密度計算の補正** | `2` | `Enable Type Aware Density` を切り替え |
+| **③ ソフトフェード** | `3` | `Enable Soft Occlusion Fade` を切り替え |
+| **④ 穴埋め補完** | `4` | `Enable Joint Bilateral Hole Filling` を切り替え |
+| **PixelTag Map** | `P` | `Enable Pixel Tag Map` を切り替え |
+| **Occlusion Map** | `O` | `Enable Occlusion Map` を切り替え |
+| **滑らかさ幅の強制設定** | `T` | `Occlusion Fade Width` の実数値を `0.2` と `0.0` で切り替え |
+| **カーネル関数の切り替え** | `L` | カーネル関数 (`Bouchiba`, `Exponential`, `Linear`) を順次切り替え |
+| **ビニング手法の切り替え** | `K` | 重み計算手法 (`Soft`, `Hard`) を切り替え |
+| **空間分割数の切り替え** | `J` | 空間の分割方向数 (`Single`, `Bins3`, `Bins6`, `Bins8`) を順次切り替え |
+| **カラーモードの切り替え** | `C` | 点群のカラーモード (`Skin`, `Black`, `Blue`, `Custom`) を順次切り替え |
+| **ゲーム終了** | `Esc` | エディタ再生、またはビルド後のアプリを終了 |
+| **視点追従の切り替え** | `F` | キャラクターがカメラ（視点）方向を自動追従する機能の ON/OFF 切替 |
 
-### オブジェクトの移動 (Transform Movement)
-対象オブジェクトのTransformがセットされている場合、以下のキーで3D空間内を自由に移動させることができます（移動速度は `moveSpeed` で調整可能）。
+### 4.2 オブジェクトの Transform 移動操作
 
-* `W` or `↑`: 奥へ移動 (Forward)
-* `S` or `↓`: 手前へ移動 (Backward)
-* `A` or `←`: 左へ移動 (Left)
-* `D` or `→`: 右へ移動 (Right)
-* `E` : 上へ移動 (Up)
-* `Q` : 下へ移動 (Down)
+対象 Transform がセットされている場合、以下のキーで 3D 空間内を自由に移動させることができます（速度は `moveSpeed` で調整）。
 
-### HCD パイプラインとの連携 (Collision Target Auto-Update)
-インスペクター上の `Auto Update Collision Target` を有効（デフォルト: `true`）にしておくと、`AnimationController` 側で表示中のオブジェクトを切り替えた際（またはエディタ上で非プレイ時に設定を変更した際）、自動的に `HCD_Pipeline` の接触判定対象が追従・更新されます。
+* `W` / `↑`: 奥へ移動 (Forward)
+* `S` / `↓`: 手前へ移動 (Backward)
+* `A` / `←`: 左へ移動 (Left)
+* `D` / `→`: 右へ移動 (Right)
+* `E`: 上へ移動 (Up)
+* `Q`: 下へ移動 (Down)
 
-- **`SkinnedMeshRenderer` を持つオブジェクト**: アニメーション用のメッシュ表面で判定 (`DetectionMode.SkinnedMeshRenderer`)
-- **`MeshFilter` を持つオブジェクト**: 通常の球などの静的メッシュ表面で判定 (`DetectionMode.MeshFilter`)
-- **どちらも持たないオブジェクト**: 中心座標からの距離で判定 (`DetectionMode.TransformOnly`)
+---
 
-※ Auto Updateが有効な間は、設定の競合を防ぐため `HCD_Pipeline` 側の対象設定UIはグレーアウトされ編集不可となります。手動で特定の対象を検証したい場合は、`AnimationController` の `Auto Update Collision Target` のチェックを外してください。
+## 5. デバッグ・留意事項
+
+* `Auto Update Collision Target` が有効な間は、競合を防ぐため `HCD_Pipeline` 側の対象設定 UI がグレーアウトされます。
+* 手動で特定ターゲットを固定検証したい場合は、`Auto Update Collision Target` のチェックを解除してください。

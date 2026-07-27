@@ -41,6 +41,8 @@ graph TD
                 AutdNode["🔊 4. AUTD制御<br/>(Haptics.md)"]:::haptic
                 HapticsAlgoNode["└ 🔬 アルゴリズム比較<br/>(HapticsAlgorithmComparison.md)"]:::sub
                 FoxFootNode["└ 🏗️ Fox足先照射<br/>(FoxFootHaptics.md)"]:::sub
+                FoxBodyNode["└ 🏗️ Fox全身体照射<br/>(FoxBodyHaptics.md)"]:::sub
+                IllusionNode["└ 🔬 触覚錯覚実験モジュール<br/>(HapticsIllusion.md)"]:::sub
                 HowToNode["└ 📖 使い方ガイド<br/>(HowToUseHaptics.md)"]:::sub
                 SDKNode["└ 🔧 SDK移行ガイド<br/>(AUTD3_SDK_Transition.md)"]:::sub
             end
@@ -55,6 +57,8 @@ graph TD
             LiftNode["└ リフト追従<br/>(PhysicalResponseLiftController.md)"]:::sub
         end
 
+        ExpNode["🧪 8. 被験者実験<br/>(Experiments.md)"]:::control
+
         %% パイプラインデータフロー
         Calibration -->|"アライメント行列"| PointCloudNode
         PointCloudNode -->|"点群統合データ"| RealTimeProcessing
@@ -64,6 +68,7 @@ graph TD
         %% 独立した制御系
         ControlNode -.->|"カメラ追従・UI操作"| RenderNode
         ControlNode -->|"ターゲット自動連携"| PhysicsGroup
+        ExpNode -.->|"条件自動適用・データ記録"| AutdNode
     end
 ```
 
@@ -78,6 +83,7 @@ graph TD
 | 🔬 | アルゴリズム比較 | 旧実装 vs 新実装の深堀り資料 |
 | 📖 | How-To / リファレンス | 使い方ガイド・操作一覧 |
 | 🔧 | SDK移行ガイド | SDK バージョン切り替え手順 |
+| 🧪 | 実験フレームワーク | 心理物理実験パラダイム・データ収集 |
 
 ### 全ドキュメント一覧
 
@@ -93,12 +99,14 @@ graph TD
 | | 🔬 | └── [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | Native C++ vs Pure C# のアルゴリズム比較 |
 | | 🏗️ | └── [FoxFootHaptics.md](./FoxFootHaptics.md) | キツネ足先・尻尾ハプティクス仕様 + カスタム拡張 |
 | | 🏗️ | └── [FoxBodyHaptics.md](./FoxBodyHaptics.md) | キツネ全身体（頭・耳・四肢・尻尾）ハプティクス仕様 |
+| | 🔬 | └── [HapticsIllusion.md](./HapticsIllusion.md) | 独立多重単焦点による触覚錯覚・保持感検証モジュール |
 | | 📖 | └── [HowToUseHaptics.md](./HowToUseHaptics.md) | ハプティクスの初回セットアップ〜使い方ガイド |
 | | 🔧 | └── [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md) | AUTD3 SDK 新旧仕様比較と切り替え方法 |
 | **5** | 🏗️ | [Display3D.md](./Display3D.md) | SRDisplay 視線追跡 + ハーフミラー鏡像制御 |
 | **6** | 📖 | [AnimationControls.md](./AnimationControls.md) | キーボード操作対応表・デバッグ用ショートカット |
 | **7** | 🏗️ | [PhysicalResponse.md](./PhysicalResponse.md) | Softbody/BonePhysics パラメータ一括制御 |
 | | 🏗️ | └── [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md) | 手の点群でキャラクターをリフト追従 |
+| **8** | 🧪 | [Experiments.md](./Experiments.md) | 被験者実験フレームワーク (2AFC / ABX / 調整法 / データ出力) |
 
 ---
 
@@ -133,11 +141,12 @@ URP RenderGraph 上で点群をスクリーン空間に投影し、仮想オブ�
 ---
 
 ### 🔊 4. 超音波ハプティクス出力
-衝突判定からの接触データを元に、GSPAT 等の音響ホログラフィを適用し AUTD3 ハードウェアを駆動します。完全な C# ネイティブ設計で旧ネイティブパッケージを置き換え、手動API（STM、GainGroup等）も完備しています。
+衝突判定からの接触データを元に、GSPAT 等の音響ホログラフィを適用し AUTD3 ハードウェアを駆動します。完全な C# ネイティブ設計で旧ネイティブパッケージを置き換え、手動API（STM、GainGroup等）や触覚錯覚検証用独立多重焦点モデル（HapticsIllusion）も完備しています。
 
 📎 詳細: [Haptics.md](./Haptics.md) | 📖 使い方: [HowToUseHaptics.md](./HowToUseHaptics.md)
 📎 比較: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | 🔧 SDK: [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
-📎 Fox照射: [FoxFootHaptics.md](./FoxFootHaptics.md)
+📎 Fox足照射: [FoxFootHaptics.md](./FoxFootHaptics.md) | 📎 Fox全身照射: [FoxBodyHaptics.md](./FoxBodyHaptics.md)
+📎 触覚錯覚モジュール: [HapticsIllusion.md](./HapticsIllusion.md)
 
 ---
 
@@ -159,6 +168,13 @@ SDK標準トラッキングを完全活用し、描画空間をディスプレ�
 Midair Haptics の物理応答コンポーネント（Softbody, BonePhysics 等）のパラメータをインスペクターで一括調整します。キャラクターリフト機能により、手の点群でキャラクターを持ち上げるインタラクションも実現しています。
 
 📎 詳細: [PhysicalResponse.md](./PhysicalResponse.md) | [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md)
+
+---
+
+### 🧪 8. 被験者実験フレームワーク
+心理物理学実験（2AFC, ABX, 単一刺激法, 調整法）を統一的に管理・実行するフレームワークです。教示・練習・本試行・休憩の自動進行、キーボード / ゲームパッド応答受付、および物理パラメータ・反応時間の CSV / JSON 自動記録を提供します。
+
+📎 詳細: [Experiments.md](./Experiments.md)
 
 ---
 
