@@ -49,7 +49,6 @@ internal class PCDComputePassBuilder
 
             ctx.HasVirtualDepth = preData.HasVirtualDepth;
             ctx.HasVirtualObjects = preData.HasVirtualObjects;
-            ctx.DepthMapOnlyMode = preData.DepthMapOnlyMode;
             ctx.StaticMeshCounterBuffer = staticMeshCounterBuffer;
 
             // --- バッファの設定 ---
@@ -67,7 +66,7 @@ internal class PCDComputePassBuilder
             ctx.PointCount = preData.ActiveCount;
 
             // --- 仮想深度テクスチャ ---
-            if (preData.HasVirtualDepth || preData.DepthMapOnlyMode)
+            if (preData.HasVirtualDepth)
             {
                 ctx.VirtualDepthTexture = preData.ResourceData.cameraDepthTexture;
             }

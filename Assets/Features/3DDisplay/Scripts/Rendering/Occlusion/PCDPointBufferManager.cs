@@ -34,7 +34,6 @@ public class PCDPointBufferManager
     {
         public Mesh mesh;
         public Transform transform;
-        public PCDProcessingMode mode;
 
         // 計算済みのワールド座標ポイントキャッシュ
         public Point[] cachedPoints;
@@ -154,21 +153,16 @@ public class PCDPointBufferManager
     }
 
     // オクルージョン干渉用の静的メッシュを追加する
-    public void AddStaticMesh(Mesh mesh, Transform transform, PCDProcessingMode mode)
+    public void AddStaticMesh(Mesh mesh, Transform transform)
     {
         if (mesh != null && transform != null)
         {
             var existing = _staticMeshes.Find(p => p.mesh == mesh && p.transform == transform);
             if (existing == null)
             {
-                _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform, mode = mode });
+                _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform });
                 _isDataDirty = true;
                 Debug.Log($"[PCDPointBufferManager] Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
-            }
-            else if (existing.mode != mode)
-            {
-                existing.mode = mode;
-                _isDataDirty = true;
             }
         }
     }
@@ -185,16 +179,10 @@ public class PCDPointBufferManager
         }
     }
 
-    // 登録済みメッシュにDepthMap（深さのレンダリング用）モードのものが存在するか確認する
-    public bool HasDepthMapMeshes()
+    // 登録済み静的メッシュが存在するか確認する
+    public bool HasStaticMeshes()
     {
-        return _staticMeshes.Exists(p => p.mode == PCDProcessingMode.DepthMap);
-    }
-
-    // 登録済みメッシュにPointCloud（点群として扱う）モードのものが存在するか確認する
-    public bool HasPointCloudMeshes()
-    {
-        return _staticMeshes.Exists(p => p.mode == PCDProcessingMode.PointCloud);
+        return _staticMeshes.Count > 0;
     }
 
     // 静的メッシュの頂点と、CPU側の動的点群を一つのPoint構造体配列（キャッシュ）に統合する
@@ -208,13 +196,11 @@ public class PCDPointBufferManager
         }
 
         int totalMeshPointCount = 0;
-        // 点群モードに設定されているすべての静的メッシュの頂点数をカウントする
+        // すべての静的メッシュの頂点数をカウントする
         foreach (var pair in _staticMeshes)
         {
             if (pair.mesh == null || pair.transform == null) continue;
             if (!pair.mesh.isReadable) continue;
-            // PointCloudモードのメッシュのみポイントバッファに追加する
-            if (pair.mode != PCDProcessingMode.PointCloud) continue;
             totalMeshPointCount += pair.mesh.vertexCount;
         }
 
@@ -252,11 +238,10 @@ public class PCDPointBufferManager
             }
         }
 
-        // 2. 静的メッシュ（PointCloudモード）の頂点情報を順番に配列へ格納
+        // 2. 静的メッシュの頂点情報を順番に配列へ格納
         foreach (var pair in _staticMeshes)
         {
             if (pair.mesh == null || !pair.mesh.isReadable || pair.transform == null) continue;
-            if (pair.mode != PCDProcessingMode.PointCloud) continue;
 
             int meshPointCount = pair.mesh.vertexCount;
             if (meshPointCount == 0) continue;

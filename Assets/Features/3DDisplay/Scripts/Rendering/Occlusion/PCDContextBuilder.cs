@@ -26,7 +26,6 @@ internal class PCDContextBuilder
         public ComputeBuffer ActiveBuffer;
         public int ActiveCount;
 
-        public bool DepthMapOnlyMode;
         public bool HasVirtualObjects;
         public bool HasVirtualDepth;
     }
@@ -155,18 +154,10 @@ internal class PCDContextBuilder
         // =========================================================================
         // スキップ判定
         // =========================================================================
-        bool hasDepthMapMeshes = bufferManager.HasDepthMapMeshes();
-        bool hasPointCloudMeshes = bufferManager.HasPointCloudMeshes();
+        bool hasStaticMeshes = bufferManager.HasStaticMeshes();
         bool pointCloudHasData = data.ActiveBuffer != null && data.ActiveCount > 0 && data.ActiveBuffer.IsValid();
 
-        data.DepthMapOnlyMode = hasDepthMapMeshes && !hasPointCloudMeshes && !pointCloudHasData;
-        if (data.DepthMapOnlyMode)
-        {
-            data.ShouldSkip = true;
-            return data;
-        }
-
-        if (!pointCloudHasData && !hasDepthMapMeshes)
+        if (!pointCloudHasData && !hasStaticMeshes)
         {
             data.ShouldSkip = true;
             return data;
@@ -182,7 +173,7 @@ internal class PCDContextBuilder
         data.ScreenHeight = cameraData.cameraTargetDescriptor.height;
 
         data.HasVirtualDepth = data.ResourceData.cameraDepthTexture.IsValid();
-        data.HasVirtualObjects = hasDepthMapMeshes;
+        data.HasVirtualObjects = hasStaticMeshes;
         if (data.HasVirtualDepth && settings.enableVirtualDepthIntegration)
         {
             if (PCDRendererFeature.Instance != null)

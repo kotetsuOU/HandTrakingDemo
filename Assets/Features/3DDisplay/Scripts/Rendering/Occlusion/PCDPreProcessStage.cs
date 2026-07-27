@@ -199,9 +199,6 @@ internal class PCDPreProcessStage : IPCDPipelineStage
 
     private void ExecuteStageProjectPoints(CommandBuffer cmd, ComputeShader cs, PCDPipelineContext ctx)
     {
-        if (ctx.DepthMapOnlyMode)
-            return;
-
         var k = ctx.Kernels;
         var r = ctx.Resources;
         var depthMap = ctx.Settings.recordIntegratedDepthMap ? r.IntegratedDepthMap : r.DepthMap;

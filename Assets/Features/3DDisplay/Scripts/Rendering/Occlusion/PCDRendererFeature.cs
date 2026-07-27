@@ -86,7 +86,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         public Mesh mesh;
         public Transform transform;
-        public PCDProcessingMode mode;
     }
 
     [Header("Required Assets")]
@@ -149,7 +148,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
             var obj = _persistentObjects[i];
             if (obj.mesh != null && obj.transform != null)
             {
-                _scriptablePass.AddStaticMesh(obj.mesh, obj.transform, obj.mode);
+                _scriptablePass.AddStaticMesh(obj.mesh, obj.transform);
             }
             else
             {
@@ -159,23 +158,19 @@ public class PCDRendererFeature : ScriptableRendererFeature
     }
 
     // オクルージョン用の静的メッシュを追加登録する
-    public void AddStaticMesh(Mesh mesh, Transform transform, PCDProcessingMode mode)
+    public void AddStaticMesh(Mesh mesh, Transform transform)
     {
         if (mesh == null || transform == null) return;
 
-        // 既に登録されているか確認し、無い場合は追加、ある場合はモードを更新
+        // 既に登録されているか確認し、無い場合は追加
         var existing = _persistentObjects.Find(x => x.mesh == mesh && x.transform == transform);
         if (existing == null)
         {
-            _persistentObjects.Add(new RegisteredObject { mesh = mesh, transform = transform, mode = mode });
-        }
-        else
-        {
-            existing.mode = mode;
+            _persistentObjects.Add(new RegisteredObject { mesh = mesh, transform = transform });
         }
 
         // 実際の描画パスにもメッシュ情報を渡す
-        _scriptablePass?.AddStaticMesh(mesh, transform, mode);
+        _scriptablePass?.AddStaticMesh(mesh, transform);
     }
 
     // 登録された静的メッシュを削除する
