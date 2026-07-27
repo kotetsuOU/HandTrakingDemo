@@ -5,6 +5,12 @@ using UnityEngine;
 [CustomEditor(typeof(HCD_Pipeline))]
 public class HCD_PipelineEditor : Editor
 {
+    private static bool _showDistanceProcessor = true;
+    private static bool _showClusteringProcessor = true;
+    private static bool _showClusterTracker = true;
+    private static bool _showInternalShaders = false;
+    private static bool _showLockedTargets = false;
+
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
@@ -26,84 +32,180 @@ public class HCD_PipelineEditor : Editor
             }
         }
 
-        SerializedProperty iterator = serializedObject.GetIterator();
-        bool enterChildren = true;
-        while (iterator.NextVisible(enterChildren))
+        // Script Field
+        SerializedProperty scriptProp = serializedObject.FindProperty("m_Script");
+        if (scriptProp != null)
         {
-            enterChildren = false;
+            GUI.enabled = false;
+            EditorGUILayout.PropertyField(scriptProp);
+            GUI.enabled = true;
+        }
 
-            if (iterator.name == "m_Script")
-            {
-                GUI.enabled = false;
-                EditorGUILayout.PropertyField(iterator, true);
-                GUI.enabled = true;
-                continue;
-            }
+        EditorGUILayout.Space();
 
-            if (iterator.name == "distanceProcessor")
+        // --- 1. Distance Processor Settings ---
+        SerializedProperty dpProp = serializedObject.FindProperty("distanceProcessor");
+        if (dpProp != null)
+        {
+            _showDistanceProcessor = EditorGUILayout.BeginFoldoutHeaderGroup(_showDistanceProcessor, "Distance Processor Settings");
+            if (_showDistanceProcessor)
             {
-                EditorGUILayout.PropertyField(iterator, false); // foldout for the object
-                if (iterator.isExpanded)
+                EditorGUI.indentLevel++;
+
+                SerializedProperty detModeProp = dpProp.FindPropertyRelative("detectionMode");
+                SerializedProperty distModeProp = dpProp.FindPropertyRelative("distanceMode");
+
+                int detMode = detModeProp != null ? detModeProp.enumValueIndex : 0;
+                int distMode = distModeProp != null ? distModeProp.enumValueIndex : 0;
+
+                // Detection Mode & Target Settings
+                if (isAutoLinked)
                 {
-                    EditorGUI.indentLevel++;
+                    EditorGUILayout.HelpBox("🔒 AnimationController の Auto Update が有効なため、対象設定は自動管理（ロック）されています。", MessageType.Info);
+                    GUI.enabled = false;
+                    if (detModeProp != null) EditorGUILayout.PropertyField(detModeProp);
+                    GUI.enabled = true;
 
-                    SerializedProperty detModeProp = iterator.FindPropertyRelative("detectionMode");
-                    SerializedProperty distModeProp = iterator.FindPropertyRelative("distanceMode");
-
-                    int detMode = detModeProp != null ? detModeProp.enumValueIndex : 0;
-                    int distMode = distModeProp != null ? distModeProp.enumValueIndex : 0;
-
-                    SerializedProperty dpIterator = iterator.Copy();
-                    SerializedProperty endProp = dpIterator.GetEndProperty();
-                    bool dpEnterChildren = true;
-                    while (dpIterator.NextVisible(dpEnterChildren) && !SerializedProperty.EqualContents(dpIterator, endProp))
+                    _showLockedTargets = EditorGUILayout.Foldout(_showLockedTargets, "自動同期中の対象オブジェクト一覧を表示", true);
+                    if (_showLockedTargets)
                     {
-                        dpEnterChildren = false;
-
-                        string propName = dpIterator.name;
-
-                        // DetectionMode に基づくプロパティ表示制限
-                        if (propName == "targetObject" && detMode != (int)HCD_DistanceProcessor.DetectionMode.TransformOnly) continue;
-                        if (propName == "targetSkinnedMeshes" && detMode != (int)HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer) continue;
-                        if (propName == "targetMeshFilters" && detMode != (int)HCD_DistanceProcessor.DetectionMode.MeshFilter) continue;
-
-                        // DistanceMode に基づくプロパティ表示制限
-                        if (propName == "viewCamera" && distMode != (int)HCD_DistanceProcessor.DistanceMode.ViewDirection) continue;
-                        if ((propName == "meshSurfaceDistanceThreshold" || propName == "meshBackfaceDistanceThreshold") && distMode != (int)HCD_DistanceProcessor.DistanceMode.MeshSurface) continue;
-                        if ((propName == "viewSurfaceDistanceThreshold" || propName == "viewBackfaceDistanceThreshold") && distMode != (int)HCD_DistanceProcessor.DistanceMode.ViewDirection) continue;
-
-                        // 対象設定に関するプロパティの場合はグレーアウト判定
-                        bool isTargetProp = (propName == "detectionMode" || 
-                                             propName == "targetObject" || 
-                                             propName == "targetSkinnedMeshes" ||
-                                             propName == "targetMeshFilters");
-
-                        if (isAutoLinked && isTargetProp)
-                        {
-                            GUI.enabled = false;
-                            EditorGUILayout.PropertyField(dpIterator, true);
-                            GUI.enabled = true;
-                        }
-                        else
-                        {
-                            EditorGUILayout.PropertyField(dpIterator, true);
-                        }
+                        EditorGUI.indentLevel++;
+                        GUI.enabled = false;
+                        DrawTargetProperty(dpProp, detMode);
+                        GUI.enabled = true;
+                        EditorGUI.indentLevel--;
                     }
-                    EditorGUI.indentLevel--;
                 }
+                else
+                {
+                    if (detModeProp != null) EditorGUILayout.PropertyField(detModeProp);
+                    DrawTargetProperty(dpProp, detMode);
+                }
+
+                EditorGUILayout.Space();
+
+                // Distance Mode Settings
+                if (distModeProp != null) EditorGUILayout.PropertyField(distModeProp);
+
+                if (distMode == (int)HCD_DistanceProcessor.DistanceMode.ViewDirection)
+                {
+                    SerializedProperty viewCamProp = dpProp.FindPropertyRelative("viewCamera");
+                    if (viewCamProp != null) EditorGUILayout.PropertyField(viewCamProp);
+
+                    SerializedProperty viewSurfProp = dpProp.FindPropertyRelative("viewSurfaceDistanceThreshold");
+                    SerializedProperty viewBackProp = dpProp.FindPropertyRelative("viewBackfaceDistanceThreshold");
+                    if (viewSurfProp != null) EditorGUILayout.PropertyField(viewSurfProp);
+                    if (viewBackProp != null) EditorGUILayout.PropertyField(viewBackProp);
+                }
+                else
+                {
+                    SerializedProperty meshSurfProp = dpProp.FindPropertyRelative("meshSurfaceDistanceThreshold");
+                    SerializedProperty meshBackProp = dpProp.FindPropertyRelative("meshBackfaceDistanceThreshold");
+                    if (meshSurfProp != null) EditorGUILayout.PropertyField(meshSurfProp);
+                    if (meshBackProp != null) EditorGUILayout.PropertyField(meshBackProp);
+                }
+
+                EditorGUI.indentLevel--;
             }
-            else
-            {
-                EditorGUILayout.PropertyField(iterator, true);
-            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
         }
 
-        if (isAutoLinked)
+        EditorGUILayout.Space();
+
+        // --- 2. Spatial Clustering Processor Settings ---
+        SerializedProperty scpProp = serializedObject.FindProperty("clusteringProcessor");
+        if (scpProp != null)
         {
-            EditorGUILayout.HelpBox("AnimationController の Auto Update が有効なため、DistanceProcessor の対象設定は非プレイ時を含め自動的に上書きされます。", MessageType.Info);
+            _showClusteringProcessor = EditorGUILayout.BeginFoldoutHeaderGroup(_showClusteringProcessor, "Spatial Clustering Settings");
+            if (_showClusteringProcessor)
+            {
+                EditorGUI.indentLevel++;
+                SerializedProperty maxClustersProp = scpProp.FindPropertyRelative("maxClusters");
+                SerializedProperty cellSizeProp = scpProp.FindPropertyRelative("cellSize");
+                SerializedProperty precisionModeProp = scpProp.FindPropertyRelative("precisionMode");
+
+                if (maxClustersProp != null) EditorGUILayout.PropertyField(maxClustersProp);
+                if (cellSizeProp != null) EditorGUILayout.PropertyField(cellSizeProp);
+                if (precisionModeProp != null) EditorGUILayout.PropertyField(precisionModeProp);
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
         }
+
+        EditorGUILayout.Space();
+
+        // --- 3. Cluster Tracker Settings ---
+        SerializedProperty ctProp = serializedObject.FindProperty("clusterTracker");
+        if (ctProp != null)
+        {
+            _showClusterTracker = EditorGUILayout.BeginFoldoutHeaderGroup(_showClusterTracker, "Cluster Tracker Settings");
+            if (_showClusterTracker)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(ctProp, true);
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        EditorGUILayout.Space();
+
+        // --- 4. Debug Settings ---
+        SerializedProperty gizmoProp = serializedObject.FindProperty("showDebugGizmos");
+        if (gizmoProp != null)
+        {
+            EditorGUILayout.PropertyField(gizmoProp);
+        }
+
+        EditorGUILayout.Space();
+
+        // --- 5. Internal Compute Shaders ---
+        SerializedProperty distComputeShaderProp = dpProp != null ? dpProp.FindPropertyRelative("collisionComputeShader") : null;
+        SerializedProperty clusterComputeShaderProp = scpProp != null ? scpProp.FindPropertyRelative("clusteringComputeShader") : null;
+
+        bool missingShader = (distComputeShaderProp != null && distComputeShaderProp.objectReferenceValue == null) ||
+                             (clusterComputeShaderProp != null && clusterComputeShaderProp.objectReferenceValue == null);
+
+        if (missingShader)
+        {
+            _showInternalShaders = true; // シェーダー未割り当て時は自動展開
+        }
+
+        _showInternalShaders = EditorGUILayout.BeginFoldoutHeaderGroup(_showInternalShaders, "Internal Compute Shaders");
+        if (_showInternalShaders)
+        {
+            EditorGUI.indentLevel++;
+            if (missingShader)
+            {
+                EditorGUILayout.HelpBox("⚠️ コンピュートシェーダーが設定されていません。以下のプロパティに適切なシェーダーを割り当ててください。", MessageType.Warning);
+            }
+
+            if (distComputeShaderProp != null) EditorGUILayout.PropertyField(distComputeShaderProp, new GUIContent("Distance Compute Shader"));
+            if (clusterComputeShaderProp != null) EditorGUILayout.PropertyField(clusterComputeShaderProp, new GUIContent("Clustering Compute Shader"));
+            EditorGUI.indentLevel--;
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
 
         serializedObject.ApplyModifiedProperties();
+    }
+
+    private void DrawTargetProperty(SerializedProperty dpProp, int detMode)
+    {
+        if (detMode == (int)HCD_DistanceProcessor.DetectionMode.TransformOnly)
+        {
+            SerializedProperty targetObjProp = dpProp.FindPropertyRelative("targetObject");
+            if (targetObjProp != null) EditorGUILayout.PropertyField(targetObjProp);
+        }
+        else if (detMode == (int)HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer)
+        {
+            SerializedProperty targetSkinnedProp = dpProp.FindPropertyRelative("targetSkinnedMeshes");
+            if (targetSkinnedProp != null) EditorGUILayout.PropertyField(targetSkinnedProp, true);
+        }
+        else if (detMode == (int)HCD_DistanceProcessor.DetectionMode.MeshFilter)
+        {
+            SerializedProperty targetMeshFilterProp = dpProp.FindPropertyRelative("targetMeshFilters");
+            if (targetMeshFilterProp != null) EditorGUILayout.PropertyField(targetMeshFilterProp, true);
+        }
     }
 }
 #endif
