@@ -7,8 +7,17 @@ public class HCD_DistanceProcessor : IHCD_Processor
     public string ProcessorName => "DistanceCalculator";
 
     public enum DetectionMode { TransformOnly, SkinnedMeshRenderer, MeshFilter }
+    public enum DistanceMode { MeshSurface, ViewDirection }
+
     [Header("Mode Settings")]
     public DetectionMode detectionMode;
+
+    [Header("Distance Mode Settings")]
+    [Tooltip("距離判定モード (MeshSurface: メッシュ表面基準の手前奥 / ViewDirection: 視線方向基準の手前奥)")]
+    public DistanceMode distanceMode = DistanceMode.MeshSurface;
+
+    [Tooltip("視線方向モードで基準とするカメラ。null の場合は Camera.main を使用します。")]
+    public Camera viewCamera;
 
     [Header("Transform Mode Settings")]
     public Transform targetObject;
@@ -79,6 +88,13 @@ public class HCD_DistanceProcessor : IHCD_Processor
             _pipeline.SetSharedBuffer(ResultBufferName, _resultBuffer);
         }
 
+        Vector3 cameraPos = Vector3.zero;
+        if (distanceMode == DistanceMode.ViewDirection)
+        {
+            var cam = viewCamera != null ? viewCamera : Camera.main;
+            if (cam != null) cameraPos = cam.transform.position;
+        }
+
         if (detectionMode == DetectionMode.TransformOnly)
         {
             if (targetObject == null) return;
@@ -89,6 +105,8 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.SetVector("TargetPosition", targetObject.position);
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
+            collisionComputeShader.SetInt("DistanceMode", (int)distanceMode);
+            collisionComputeShader.SetVector("CameraPosition", cameraPos);
 
             int threadGroups = Mathf.CeilToInt(pointCount / 256.0f);
             collisionComputeShader.Dispatch(_kernelTransform, threadGroups, 1, 1);
@@ -268,6 +286,8 @@ public class HCD_DistanceProcessor : IHCD_Processor
             
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
+            collisionComputeShader.SetInt("DistanceMode", (int)distanceMode);
+            collisionComputeShader.SetVector("CameraPosition", cameraPos);
 
             int threadGroups = Mathf.CeilToInt(pointCount / 64.0f);
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);

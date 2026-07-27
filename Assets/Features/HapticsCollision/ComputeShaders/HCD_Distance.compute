@@ -22,6 +22,10 @@ float3 TargetPosition;
 float SurfaceDistanceThreshold;
 float BackfaceDistanceThreshold;
 
+// Distance Mode Settings
+int DistanceMode; // 0: MeshSurface, 1: ViewDirection
+float3 CameraPosition;
+
 // Mesh
 StructuredBuffer<float3> MeshVerticesBuffer;
 StructuredBuffer<float3> MeshNormalsBuffer;
@@ -153,27 +157,97 @@ int RayTriangleHit(float3 rayO, float3 rayD, float3 a, float3 b, float3 c)
     return (t > 1e-5) ? 1 : 0;             // t > 0: forward intersection
 }
 
+// Möller-Trumbore ray-triangle intersection returning hit distance t.
+bool RayTriangleHitDist(float3 rayO, float3 rayD, float3 a, float3 b, float3 c, out float tHit)
+{
+    tHit = -1.0;
+    float3 edge1 = b - a;
+    float3 edge2 = c - a;
+    float3 h = cross(rayD, edge2);
+    float det = dot(edge1, h);
+    if (abs(det) < 1e-7) return false;
+    float invDet = 1.0 / det;
+    float3 s = rayO - a;
+    float u = invDet * dot(s, h);
+    if (u < 0.0 || u > 1.0) return false;
+    float3 q = cross(s, edge1);
+    float v = invDet * dot(rayD, q);
+    if (v < 0.0 || u + v > 1.0) return false;
+    float t = invDet * dot(edge2, q);
+    if (t > 1e-5)
+    {
+        tHit = t;
+        return true;
+    }
+    return false;
+}
+
 [numthreads(256, 1, 1)]
 void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= PointsCount) return;
 
     float3 p = PointCloudBuffer[id.x].xyz;
-    float3 diff = p - TargetPosition;
-    float dist = length(diff);
-
     PointCollisionData res;
-    if (dist <= SurfaceDistanceThreshold)
+
+    if (DistanceMode == 1) // ViewDirection
     {
-        res.isColliding = 1;
-        res.hitPoint = TargetPosition;
-        res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+        float3 camPos = CameraPosition;
+        float3 rayToTarget = TargetPosition - camPos;
+        float targetDist = length(rayToTarget);
+        float3 rayD = (targetDist > 0.0001) ? (rayToTarget / targetDist) : float3(0, 0, 1);
+
+        float3 rayToP = p - camPos;
+        float distP = length(rayToP);
+        float projDist = dot(rayToP, rayD);
+        float lateralDist = length(rayToP - rayD * projDist);
+
+        if (lateralDist <= SurfaceDistanceThreshold)
+        {
+            float depthDiff = distP - targetDist;
+            if (depthDiff <= 0.0 && -depthDiff <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1;
+                res.hitPoint = TargetPosition;
+                res.hitNormal = (distP > 0.001) ? normalize(rayToP) : float3(0, 1, 0);
+            }
+            else if (depthDiff > 0.0 && depthDiff <= BackfaceDistanceThreshold)
+            {
+                res.isColliding = 2;
+                res.hitPoint = TargetPosition;
+                res.hitNormal = (distP > 0.001) ? normalize(rayToP) : float3(0, 1, 0);
+            }
+            else
+            {
+                res.isColliding = 0;
+                res.hitPoint = float3(0, 0, 0);
+                res.hitNormal = float3(0, 0, 0);
+            }
+        }
+        else
+        {
+            res.isColliding = 0;
+            res.hitPoint = float3(0, 0, 0);
+            res.hitNormal = float3(0, 0, 0);
+        }
     }
-    else
+    else // MeshSurface (TransformOnly)
     {
-        res.isColliding = 0;
-        res.hitPoint = float3(0, 0, 0);
-        res.hitNormal = float3(0, 0, 0);
+        float3 diff = p - TargetPosition;
+        float dist = length(diff);
+
+        if (dist <= SurfaceDistanceThreshold)
+        {
+            res.isColliding = 1;
+            res.hitPoint = TargetPosition;
+            res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+        }
+        else
+        {
+            res.isColliding = 0;
+            res.hitPoint = float3(0, 0, 0);
+            res.hitNormal = float3(0, 0, 0);
+        }
     }
     
     ResultBuffer[id.x] = res;
@@ -198,6 +272,65 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         return;
     }
 
+    if (DistanceMode == 1) // ViewDirection Mode
+    {
+        float3 camPos = CameraPosition;
+        float3 rayD = p - camPos;
+        float distP = length(rayD);
+        if (distP > 0.0001) rayD /= distP;
+        else rayD = float3(0, 0, 1);
+
+        float minViewDepthDiff = 9999999.0;
+        float bestHitDist = -1.0;
+        float3 bestHitNormal = float3(0, 0, 0);
+
+        for (uint triIdx = 0u; triIdx < MeshTrianglesCount; triIdx++)
+        {
+            int idxA = MeshIndicesBuffer[triIdx * 3u];
+            int idxB = MeshIndicesBuffer[triIdx * 3u + 1u];
+            int idxC = MeshIndicesBuffer[triIdx * 3u + 2u];
+
+            float3 wA = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxA], 1.0)).xyz;
+            float3 wB = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxB], 1.0)).xyz;
+            float3 wC = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxC], 1.0)).xyz;
+
+            float tHit;
+            if (RayTriangleHitDist(camPos, rayD, wA, wB, wC, tHit))
+            {
+                float diff = abs(distP - tHit);
+                if (diff < minViewDepthDiff)
+                {
+                    minViewDepthDiff = diff;
+                    bestHitDist = tHit;
+                    float3 n = normalize(cross(wB - wA, wC - wA));
+                    if (dot(n, rayD) > 0.0) n = -n; // Orient normal towards camera
+                    bestHitNormal = n;
+                }
+            }
+        }
+
+        if (bestHitDist > 0.0)
+        {
+            float depthDiff = distP - bestHitDist; // < 0: in front of mesh surface, > 0: behind mesh surface
+            if (depthDiff <= 0.0 && -depthDiff <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1; // Surface/Front contact along view direction
+                res.hitPoint = camPos + rayD * bestHitDist;
+                res.hitNormal = bestHitNormal;
+            }
+            else if (depthDiff > 0.0 && depthDiff <= BackfaceDistanceThreshold)
+            {
+                res.isColliding = 2; // Inside/Back contact along view direction
+                res.hitPoint = camPos + rayD * bestHitDist;
+                res.hitNormal = bestHitNormal;
+            }
+        }
+
+        ResultBuffer[id.x] = res;
+        return;
+    }
+
+    // DistanceMode == 0 (MeshSurface Mode)
     float minDistSqr = 9999999.0;
     float3 bestClosestP = float3(0,0,0);
     float3 bestNormal = float3(0,0,0);
