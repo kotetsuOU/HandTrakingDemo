@@ -58,6 +58,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
 
     private readonly List<TrackedMeshData> _trackedItems = new List<TrackedMeshData>();
     private bool _isRegistered = false;
+    private Coroutine _registerCoroutine;
 
     private void OnEnable()
     {
@@ -69,11 +70,19 @@ public class PCDMeshRegistrarController : MonoBehaviour
     /// </summary>
     public void RegisterAllMeshes()
     {
-        CollectAndRegisterMeshes();
+        if (_registerCoroutine != null)
+        {
+            StopCoroutine(_registerCoroutine);
+            _registerCoroutine = null;
+        }
 
         if (PCDRendererFeature.Instance == null)
         {
-            StartCoroutine(RegisterWhenReady());
+            _registerCoroutine = StartCoroutine(RegisterWhenReady());
+        }
+        else
+        {
+            CollectAndRegisterMeshes();
         }
     }
 
@@ -84,10 +93,8 @@ public class PCDMeshRegistrarController : MonoBehaviour
             yield return null;
         }
 
-        if (!_isRegistered)
-        {
-            CollectAndRegisterMeshes();
-        }
+        _registerCoroutine = null;
+        CollectAndRegisterMeshes();
     }
 
     private void CollectAndRegisterMeshes()
@@ -152,8 +159,15 @@ public class PCDMeshRegistrarController : MonoBehaviour
         }
 
         // アクティブなメッシュのみ PCDRendererFeature に登録
-        SyncActiveStatesToFeature(forceMarkDirty: true);
-        _isRegistered = true;
+        if (PCDRendererFeature.Instance != null)
+        {
+            SyncActiveStatesToFeature(forceMarkDirty: true);
+            _isRegistered = true;
+        }
+        else
+        {
+            _isRegistered = false;
+        }
     }
 
     private bool MatchesLayer(GameObject go)
@@ -193,23 +207,28 @@ public class PCDMeshRegistrarController : MonoBehaviour
     private void ProcessAndAddMesh(GameObject go, MeshFilter mf, SkinnedMeshRenderer smr)
     {
         Mesh targetMesh = null;
+        Mesh bakedMesh = null;
         Renderer rend = null;
 
-        if (mf != null)
+        if (smr != null)
         {
+            bakedMesh = new Mesh();
+            bakedMesh.name = smr.name + "_Baked";
+            smr.BakeMesh(bakedMesh);
+            targetMesh = bakedMesh;
+            rend = smr;
+        }
+        else if (mf != null)
+        {
+            if (go.GetComponent<SkinnedMeshRenderer>() != null) return;
             targetMesh = mf.sharedMesh;
             rend = mf.GetComponent<Renderer>();
-        }
-        else if (smr != null)
-        {
-            targetMesh = smr.sharedMesh;
-            rend = smr;
         }
 
         if (targetMesh == null) return;
 
         // 重複チェック
-        if (_trackedItems.Exists(x => x.ownerObject == go && x.targetMesh == targetMesh)) return;
+        if (_trackedItems.Exists(x => x.ownerObject == go && (x.targetMesh == targetMesh || (smr != null && x.skinnedMeshRenderer == smr)))) return;
 
         _trackedItems.Add(new TrackedMeshData
         {
@@ -218,7 +237,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
             meshFilter = mf,
             skinnedMeshRenderer = smr,
             targetMesh = targetMesh,
-            bakedMesh = null,
+            bakedMesh = bakedMesh,
             isCurrentlyRegistered = false
         });
     }
@@ -267,6 +286,11 @@ public class PCDMeshRegistrarController : MonoBehaviour
 
     private void OnDisable()
     {
+        if (_registerCoroutine != null)
+        {
+            StopCoroutine(_registerCoroutine);
+            _registerCoroutine = null;
+        }
         UnregisterAllMeshes();
     }
 
@@ -275,13 +299,14 @@ public class PCDMeshRegistrarController : MonoBehaviour
     /// </summary>
     public void UnregisterAllMeshes()
     {
-        if (_isRegistered && PCDRendererFeature.Instance != null)
+        if (PCDRendererFeature.Instance != null)
         {
             foreach (var item in _trackedItems)
             {
-                if (item.isCurrentlyRegistered && item.targetMesh != null && item.ownerObject != null)
+                if (item.isCurrentlyRegistered && item.targetMesh != null)
                 {
-                    PCDRendererFeature.Instance.RemoveStaticMesh(item.targetMesh, item.ownerObject.transform);
+                    Transform t = item.ownerObject != null ? item.ownerObject.transform : null;
+                    PCDRendererFeature.Instance.RemoveStaticMesh(item.targetMesh, t);
                 }
                 if (item.bakedMesh != null)
                 {
@@ -303,28 +328,29 @@ public class PCDMeshRegistrarController : MonoBehaviour
         // 1. アクティブ/非アクティブ状態の変動をチェックしてリアルタイム同期
         SyncActiveStatesToFeature();
 
-        // 2. Dynamic モードが有効な場合、Transform / SkinMesh の変更を検知して更新
-        if (!isDynamic) return;
-
+        // 2. SkinnedMeshRenderer や Dynamic モード時の位置更新を反映
         bool isTransformDirty = false;
 
         foreach (var item in _trackedItems)
         {
             if (!item.isCurrentlyRegistered || item.ownerObject == null) continue;
 
-            Transform t = item.ownerObject.transform;
-            if (t.position != item.lastPosition || t.rotation != item.lastRotation || t.localScale != item.lastScale)
-            {
-                isTransformDirty = true;
-                item.lastPosition = t.position;
-                item.lastRotation = t.rotation;
-                item.lastScale = t.localScale;
-            }
-
             if (item.skinnedMeshRenderer != null && item.bakedMesh != null)
             {
                 item.skinnedMeshRenderer.BakeMesh(item.bakedMesh);
                 isTransformDirty = true;
+            }
+
+            if (isDynamic)
+            {
+                Transform t = item.ownerObject.transform;
+                if (t.position != item.lastPosition || t.rotation != item.lastRotation || t.localScale != item.lastScale)
+                {
+                    isTransformDirty = true;
+                    item.lastPosition = t.position;
+                    item.lastRotation = t.rotation;
+                    item.lastScale = t.localScale;
+                }
             }
         }
 

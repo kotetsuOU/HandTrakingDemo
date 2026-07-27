@@ -170,18 +170,18 @@ public class PCDPointBufferManager
     // 登録されている静的メッシュを削除する
     public void RemoveStaticMesh(Mesh mesh, Transform transform)
     {
-        var pair = _staticMeshes.Find(p => p.mesh == mesh && p.transform == transform);
-        if (pair != null)
+        int removedCount = _staticMeshes.RemoveAll(p => p.mesh == null || p.transform == null || (p.mesh == mesh && p.transform == transform));
+        if (removedCount > 0)
         {
-            _staticMeshes.Remove(pair);
             _isDataDirty = true;
-            Debug.Log($"[PCDPointBufferManager] Static mesh '{mesh.name}' removed from Transform '{transform.name}'.");
+            Debug.Log($"[PCDPointBufferManager] Removed {removedCount} static mesh entry/entries.");
         }
     }
 
     // 登録済み静的メッシュが存在するか確認する
     public bool HasStaticMeshes()
     {
+        _staticMeshes.RemoveAll(p => p.mesh == null || p.transform == null);
         return _staticMeshes.Count > 0;
     }
 
@@ -199,7 +199,7 @@ public class PCDPointBufferManager
         // すべての静的メッシュの頂点数をカウントする
         foreach (var pair in _staticMeshes)
         {
-            if (pair.mesh == null || pair.transform == null) continue;
+            if (pair.mesh == null || pair.transform == null || !pair.transform.gameObject.activeInHierarchy) continue;
             if (!pair.mesh.isReadable) continue;
             totalMeshPointCount += pair.mesh.vertexCount;
         }
@@ -241,14 +241,14 @@ public class PCDPointBufferManager
         // 2. 静的メッシュの頂点情報を順番に配列へ格納
         foreach (var pair in _staticMeshes)
         {
-            if (pair.mesh == null || !pair.mesh.isReadable || pair.transform == null) continue;
+            if (pair.mesh == null || !pair.mesh.isReadable || pair.transform == null || !pair.transform.gameObject.activeInHierarchy) continue;
 
             int meshPointCount = pair.mesh.vertexCount;
             if (meshPointCount == 0) continue;
 
             Matrix4x4 localToWorld = pair.transform.localToWorldMatrix;
 
-            if (pair.cachedPoints == null || pair.cachedPoints.Length != meshPointCount || pair.lastMatrix != localToWorld)
+            if (_isDataDirty || pair.cachedPoints == null || pair.cachedPoints.Length != meshPointCount || pair.lastMatrix != localToWorld)
             {
                 pair.mesh.GetVertices(_tempVertices);
                 pair.mesh.GetColors(_tempColors);

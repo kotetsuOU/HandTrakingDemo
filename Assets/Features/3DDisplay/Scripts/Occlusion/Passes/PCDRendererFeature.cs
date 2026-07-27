@@ -98,7 +98,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
     private bool _useGlobalBufferMode = false;
     public bool IsGlobalBufferMode => _useGlobalBufferMode;
 
-    private static List<RegisteredObject> _persistentObjects = new List<RegisteredObject>();
+    private readonly List<RegisteredObject> _persistentObjects = new List<RegisteredObject>();
 
     public void SetUseGlobalBuffer(bool enable)
     {
@@ -176,7 +176,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // 登録された静的メッシュを削除する
     public void RemoveStaticMesh(Mesh mesh, Transform transform)
     {
-        _persistentObjects.RemoveAll(x => x.mesh == mesh && x.transform == transform);
+        _persistentObjects.RemoveAll(x => x.mesh == null || x.transform == null || (x.mesh == mesh && (transform == null || x.transform == transform)));
         _scriptablePass?.RemoveStaticMesh(mesh, transform);
     }
 
@@ -224,9 +224,10 @@ public class PCDRendererFeature : ScriptableRendererFeature
         for (int i = _persistentObjects.Count - 1; i >= 0; i--)
         {
             var obj = _persistentObjects[i];
-            // オブジェクトが破棄されていたらリストから削除
+            // オブジェクトが破棄されていたらリストおよびパスから削除
             if (obj.mesh == null || obj.transform == null)
             {
+                _scriptablePass?.RemoveStaticMesh(obj.mesh, obj.transform);
                 _persistentObjects.RemoveAt(i);
                 continue;
             }
@@ -237,6 +238,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         base.Dispose(disposing);
         _scriptablePass?.Cleanup();
+        _persistentObjects.Clear();
 
         if (Instance == this)
         {
