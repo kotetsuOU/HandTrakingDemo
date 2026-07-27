@@ -167,7 +167,7 @@ void CalculateGridLevel(uint3 id : SV_DispatchThreadID)
         return;
 
     float density = _DensityMap[id.xy];
-    int level = 0; // 点が存在しない（密度が極めて低い）場合は最大の探索レベル 6 を初期値とする
+    int level = 6; // 点が存在しない（密度が極めて低い）場合は最大の探索レベル 6 を初期値とする
     
     // 1点が存在するときの密度の半分を閾値とする（グリッドサイズ依存の動的閾値）
     float min_density_threshold = 0.5 / float(GRID_SIZE * GRID_SIZE);

@@ -19,7 +19,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
 
     [Tooltip("オクルージョン近傍探索の最小レベル(0〜6)。値を上げるとより広い範囲を常に探索し、隙間を埋めやすくなります。")]
     [Range(0, 6)]
-    public int minSearchLevel = 0;
+    public int minSearchLevel = 6;
 
     [Header("Algorithm Parameters")]
     [Tooltip("指数関数の減衰係数 (Expモード専用)")]

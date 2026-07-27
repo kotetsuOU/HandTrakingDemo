@@ -8,7 +8,7 @@ public class PCDSettingsBridge
         kernelType = PCD_OcclusionKernel.Bouchiba,
         evaluationMode = PCD_OcclusionEvaluationMode.Average,
         minOccludedSectors = 1,
-        minSearchLevel = 0,
+        minSearchLevel = 6,
         exponentAlpha = 0f,
         densityThreshold_e = 0.04f,
         neighborhoodParam_p_prime = 4.8f,

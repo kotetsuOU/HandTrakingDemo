@@ -9,7 +9,7 @@ float ComputeOcclusionValue_SingleDirection(float3 currentPos_h, float currentPo
 {
     if (_KernelType == 4) // DepthOnly (深度比較のみ) カーネル
     {
-        return 0.5;
+        return 0.0;
     }
 
     half sq_y_h = dot((half3) neighborPos_h, (half3) neighborPos_h);
