@@ -18,6 +18,7 @@
 // =============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using RealTimeOcclusion.Logging;
 
 public class PCDPointBufferManager
 {
@@ -67,6 +68,9 @@ public class PCDPointBufferManager
     private List<Color> _tempColors = new List<Color>();
 
     // 各種プロパティへのアクセス
+    public bool EnableLog { get; set; } = false;
+    public bool enableLog { get => EnableLog; set => EnableLog = value; }
+
     public ComputeBuffer PointBuffer => _pointBuffer;
     public int PointCount => _pointCount;
     public ComputeBuffer ExternalPointBuffer => _externalPointBuffer;
@@ -162,7 +166,7 @@ public class PCDPointBufferManager
             {
                 _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform });
                 _isDataDirty = true;
-                Debug.Log($"[PCDPointBufferManager] Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
+                AppLogManager.Log(AppLogCategory.BufferManager, $"[PCDPointBufferManager] Static mesh '{mesh.name}' added from Transform '{transform.name}'.", EnableLog);
             }
         }
     }
@@ -174,7 +178,7 @@ public class PCDPointBufferManager
         if (removedCount > 0)
         {
             _isDataDirty = true;
-            Debug.Log($"[PCDPointBufferManager] Removed {removedCount} static mesh entry/entries.");
+            AppLogManager.Log(AppLogCategory.BufferManager, $"[PCDPointBufferManager] Removed {removedCount} static mesh entry/entries.", EnableLog);
         }
     }
 
@@ -310,7 +314,7 @@ public class PCDPointBufferManager
         _pointBuffer.SetData(_pointsCache, 0, 0, _pointCount);
         if (_pointCount > 0 && _isDataDirty)
         {
-            Debug.Log($"[PCDPointBufferManager] ComputeBuffer updated with {_pointCount} points (Static/Internal).");
+            AppLogManager.Log(AppLogCategory.BufferManager, $"[PCDPointBufferManager] ComputeBuffer updated with {_pointCount} points (Static/Internal).", EnableLog);
         }
         _isDataDirty = false;
     }

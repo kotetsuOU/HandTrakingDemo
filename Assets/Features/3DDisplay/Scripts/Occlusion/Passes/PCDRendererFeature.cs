@@ -59,6 +59,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
         public Color virtualContactColor;
         public bool enablePixelTagMap;
         public bool enableOcclusionMap;
+        public bool enableBufferManagerLog;
         public bool recordOcclusionDebugMap;
         public bool recordPixelTagMap;
         public bool recordIntegratedDepthMap;

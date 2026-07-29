@@ -106,6 +106,10 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     [Tooltip("⑤処理の最適化と検証のためのグリッドサイズ")]
     public PCD_GridSize gridSize = PCD_GridSize.Grid16x16;
 
+    [Header("Log Settings")]
+    [Tooltip("PCDPointBufferManager (点群バッファ更新) のログ出力を有効にする")]
+    public bool enableBufferManagerLog = false;
+
     [Header("Morphology Settings")]
     [Tooltip("モルフォロジーカーネルの半径（1 = 3×3, 2 = 5×5。大きいほど強く重い）")]
     [Range(1, 25)]
@@ -180,6 +184,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             virtualContactColor = this.virtualContactColor,
             enablePixelTagMap = this.enablePixelTagMap,
             enableOcclusionMap = this.enableOcclusionMap,
+            enableBufferManagerLog = this.enableBufferManagerLog,
             recordOcclusionDebugMap = this.recordOcclusionDebugMap,
             recordPixelTagMap = this.recordPixelTagMap,
             recordIntegratedDepthMap = this.recordIntegratedDepthMap,

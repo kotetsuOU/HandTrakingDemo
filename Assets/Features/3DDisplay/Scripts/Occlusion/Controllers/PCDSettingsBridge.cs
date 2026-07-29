@@ -221,6 +221,16 @@ public class PCDSettingsBridge
         }
     }
 
+    public bool enableBufferManagerLog
+    {
+        get => Controller != null ? Controller.enableBufferManagerLog : _fallbackSettings.enableBufferManagerLog;
+        set
+        {
+            if (Controller != null) Controller.enableBufferManagerLog = value;
+            else _fallbackSettings.enableBufferManagerLog = value;
+        }
+    }
+
     public bool recordOcclusionDebugMap
     {
         get => Controller != null ? Controller.recordOcclusionDebugMap : _fallbackSettings.recordOcclusionDebugMap;

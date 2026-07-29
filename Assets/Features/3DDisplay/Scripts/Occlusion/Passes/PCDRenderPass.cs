@@ -121,7 +121,11 @@ public class PCDRenderPass : ScriptableRenderPass
     // パブリック API
     // =========================================================================
 
-    public void UpdateSettings(PCDRendererFeature.PCDRenderSettings settings) => _settings = settings;
+    public void UpdateSettings(PCDRendererFeature.PCDRenderSettings settings)
+    {
+        _settings = settings;
+        _bufferManager.EnableLog = settings.enableBufferManagerLog;
+    }
 
     public void SetDebugFlags(bool enablePixelTagMap, bool enableOcclusionMap)
     {
