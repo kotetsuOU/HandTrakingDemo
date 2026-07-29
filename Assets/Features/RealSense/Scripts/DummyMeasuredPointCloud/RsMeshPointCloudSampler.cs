@@ -46,7 +46,7 @@ namespace RealSense.DummyPointCloud
 
         /// <summary>
         /// 指定された GameObject のリスト配下から Mesh を取得し、
-        /// 物理密度およびカラー設定に従って点群データをサンプリングします。
+        /// 各オブジェクトの最新 Transform (位置・回転・スケール) を反映してワールド座標系でサンプリングします。
         /// </summary>
         public SampledPointCloudData SamplePointCloud(
             List<GameObject> rootObjects,
@@ -120,8 +120,14 @@ namespace RealSense.DummyPointCloud
 
             if (_sharedBakedMesh == null) _sharedBakedMesh = new Mesh();
             _sharedBakedMesh.Clear();
-            skinnedRenderer.BakeMesh(_sharedBakedMesh);
 
+#if UNITY_2017_3_OR_NEWER
+            skinnedRenderer.BakeMesh(_sharedBakedMesh, true);
+#else
+            skinnedRenderer.BakeMesh(_sharedBakedMesh);
+#endif
+
+            // オブジェクトの最新の Transform (位置・回転・スケール) 行列を取得
             Matrix4x4 localToWorld = skinnedRenderer.transform.localToWorldMatrix;
             SampleMeshInternal(_sharedBakedMesh, skinnedRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors);
         }
@@ -136,6 +142,7 @@ namespace RealSense.DummyPointCloud
             List<Vector3> outPositions,
             List<Color> outColors)
         {
+            // 静的メッシュオブジェクトの Transform (位置・回転・スケール) 行列を取得
             Matrix4x4 localToWorld = meshRenderer.transform.localToWorldMatrix;
             SampleMeshInternal(mesh, meshRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors);
         }
@@ -177,6 +184,7 @@ namespace RealSense.DummyPointCloud
             float[] triAreas = new float[triCount];
             float totalWorldAreaSquareMeters = 0f;
 
+            // 各頂点を Transform.localToWorldMatrix でワールド座標に変換して計算
             for (int i = 0; i < triCount; i++)
             {
                 Vector3 p0 = localToWorld.MultiplyPoint3x4(vertices[triangles[i * 3]]);
@@ -191,7 +199,7 @@ namespace RealSense.DummyPointCloud
             if (totalWorldAreaSquareMeters <= 1e-8f) return;
 
             float areaMm2 = totalWorldAreaSquareMeters * 1000000f;
-            float areaCm2 = totalWorldAreaSquareMeters * 10000f;
+            float areaCm2 = totalWorldAreaSquareMeters * 1000f;
 
             int targetTotalPoints = 0;
             switch (densityUnit)
@@ -232,6 +240,7 @@ namespace RealSense.DummyPointCloud
                 int i1 = triangles[i * 3 + 1];
                 int i2 = triangles[i * 3 + 2];
 
+                // ワールド空間における実際の頂点座標 (位置・回転・スケールを完全反映)
                 Vector3 v0 = localToWorld.MultiplyPoint3x4(vertices[i0]);
                 Vector3 v1 = localToWorld.MultiplyPoint3x4(vertices[i1]);
                 Vector3 v2 = localToWorld.MultiplyPoint3x4(vertices[i2]);
@@ -250,6 +259,7 @@ namespace RealSense.DummyPointCloud
                     float v = r2 * sqrtR1;
                     float w = 1f - u - v;
 
+                    // ワールド座標における高精度な点の補間位置
                     Vector3 pos = u * v0 + v * v1 + w * v2;
                     Color col = u * c0 + v * c1 + w * c2;
 

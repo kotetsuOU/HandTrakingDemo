@@ -9,7 +9,7 @@ namespace RealSense.DummyPointCloud
     /// <summary>
     /// Unityの3D Object (MeshFilter / SkinnedMeshRenderer) のリストから
     /// 物理密度や色を指定してダミーの実測点群を生成し、
-    /// RsProcessingPipe の Source (RsFrameProvider) として供給するコンポーネント。
+    /// RsProcessingPipe / RsDummyProcessingPipe の Source (RsFrameProvider) として供給するコンポーネント。
     /// </summary>
     [DisallowMultipleComponent]
     public class RsDummyPointCloudProvider : RsFrameProvider
@@ -55,6 +55,10 @@ namespace RealSense.DummyPointCloud
         [Range(1, 60)]
         public int updateFPS = 30;
 
+        [Header("Debug Log Settings")]
+        [Tooltip("True にすると、ダミー点群生成処理のログをコンソールに出力します")]
+        public bool enableDebugLog = false;
+
         public override event Action<PipelineProfile> OnStart;
         public override event Action OnStop;
         public override event Action<Frame> OnNewSample;
@@ -65,6 +69,14 @@ namespace RealSense.DummyPointCloud
         private MaterialPropertyBlock _materialPropertyBlock;
 
         public SampledPointCloudData LastSampledData { get; private set; }
+
+        private void Log(string message)
+        {
+            if (enableDebugLog)
+            {
+                UnityEngine.Debug.Log($"[RsDummyPointCloudProvider: {gameObject.name}] {message}");
+            }
+        }
 
         private void Awake()
         {
@@ -149,6 +161,8 @@ namespace RealSense.DummyPointCloud
         {
             if (Streaming) return;
 
+            Log("Starting dummy point cloud streaming...");
+
             _softwareDevice = new RsDummySoftwareDevice();
             _softwareDevice.Initialize(depthWidth, depthHeight, updateFPS);
             _softwareDevice.OnFrameAvailable += HandleNewFrame;
@@ -159,11 +173,15 @@ namespace RealSense.DummyPointCloud
             OnStart?.Invoke(ActiveProfile);
 
             _streamingCoroutine = StartCoroutine(StreamingLoop());
+
+            Log($"Streaming started successfully. (CameraPerspective: {useCameraPerspective}, FPS: {updateFPS})");
         }
 
         public void StopStreaming()
         {
             if (!Streaming) return;
+
+            Log("Stopping dummy point cloud streaming...");
 
             if (_streamingCoroutine != null)
             {
@@ -180,6 +198,8 @@ namespace RealSense.DummyPointCloud
 
             Streaming = false;
             OnStop?.Invoke();
+
+            Log("Streaming stopped.");
         }
 
         private IEnumerator StreamingLoop()
@@ -199,6 +219,8 @@ namespace RealSense.DummyPointCloud
                         colorMode,
                         solidColor);
 
+                    Log($"Sampled {LastSampledData.PointCount} points from {targetObjects.Count} target object(s).");
+
                     // 2. SoftwareDevice 経由で RealSense DepthFrame / FrameSet として発行
                     if (_softwareDevice != null && LastSampledData.PointCount > 0)
                     {
@@ -208,6 +230,10 @@ namespace RealSense.DummyPointCloud
                             camXform,
                             useCameraPerspective);
                     }
+                }
+                else
+                {
+                    Log("Target objects list is empty. No points generated.");
                 }
 
                 float waitSec = 1.0f / Mathf.Max(1, updateFPS);

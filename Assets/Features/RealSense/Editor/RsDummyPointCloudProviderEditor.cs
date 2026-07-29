@@ -19,6 +19,7 @@ namespace RealSense.Editor
         private SerializedProperty _depthWidthProp;
         private SerializedProperty _depthHeightProp;
         private SerializedProperty _updateFPSProp;
+        private SerializedProperty _enableDebugLogProp;
 
         private void OnEnable()
         {
@@ -34,6 +35,7 @@ namespace RealSense.Editor
             _depthWidthProp = serializedObject.FindProperty("depthWidth");
             _depthHeightProp = serializedObject.FindProperty("depthHeight");
             _updateFPSProp = serializedObject.FindProperty("updateFPS");
+            _enableDebugLogProp = serializedObject.FindProperty("enableDebugLog");
         }
 
         public override void OnInspectorGUI()
@@ -46,7 +48,7 @@ namespace RealSense.Editor
             EditorGUILayout.HelpBox(
                 "RsDummyPointCloudProvider は Unity 3D Object (MeshFilter / SkinnedMeshRenderer) のリストから" +
                 "指定した物理密度 (例: 1mm^2あたりの点数) と色でダミーの実測点群をリアルタイム生成し、" +
-                "RsProcessingPipe の Source (RsFrameProvider) として供給します。",
+                "RsProcessingPipe / RsDummyProcessingPipe の Source (RsFrameProvider) として供給します。",
                 MessageType.Info);
 
             EditorGUILayout.Space();
@@ -88,6 +90,9 @@ namespace RealSense.Editor
                 EditorGUILayout.PropertyField(_updateFPSProp);
                 EditorGUI.indentLevel--;
             }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.PropertyField(_enableDebugLogProp, new GUIContent("Enable Debug Log", "True にすると、ダミー点群生成やストリーミング処理の動作ログをコンソールに出力します"));
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Runtime Information", EditorStyles.boldLabel);

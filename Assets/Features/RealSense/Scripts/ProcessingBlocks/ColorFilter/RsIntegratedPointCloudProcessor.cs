@@ -83,32 +83,46 @@ public class RsIntegratedPointCloudProcessor : IDisposable
 
     public void Initialize(RsDepthToColorCalibration calibration)
     {
+        if (calibration == null || !calibration.IsValid || calibration.DepthProfile == null)
+        {
+            UnityEngine.Debug.LogWarning("[RsIntegratedPointCloudProcessor] Invalid calibration provided. Skipping initialization.");
+            return;
+        }
+
         var dp = calibration.DepthProfile;
-        var cp = calibration.ColorProfile;
+        var cp = calibration.ColorProfile ?? dp;
         var di = dp.GetIntrinsics();
         var ci = cp.GetIntrinsics();
-        var ex = dp.GetExtrinsicsTo(cp);
+        
+        Extrinsics ex = default;
+        if (calibration.ColorProfile != null)
+        {
+            try { ex = dp.GetExtrinsicsTo(cp); } catch { }
+        }
 
         _dIntrin = new RsIntrinsics { width = dp.Width, height = dp.Height, ppx = di.ppx, ppy = di.ppy, fx = di.fx, fy = di.fy };
         _cIntrin = new RsIntrinsics { width = cp.Width, height = cp.Height, ppx = ci.ppx, ppy = ci.ppy, fx = ci.fx, fy = ci.fy };
         _extrin = new RsExtrinsics
         {
-            r0 = ex.rotation[0],
-            r1 = ex.rotation[1],
-            r2 = ex.rotation[2],
-            r3 = ex.rotation[3],
-            r4 = ex.rotation[4],
-            r5 = ex.rotation[5],
-            r6 = ex.rotation[6],
-            r7 = ex.rotation[7],
-            r8 = ex.rotation[8],
-            t0 = ex.translation[0],
-            t1 = ex.translation[1],
-            t2 = ex.translation[2]
+            r0 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[0] : 1,
+            r1 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[1] : 0,
+            r2 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[2] : 0,
+            r3 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[3] : 0,
+            r4 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[4] : 1,
+            r5 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[5] : 0,
+            r6 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[6] : 0,
+            r7 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[7] : 0,
+            r8 = ex.rotation != null && ex.rotation.Length >= 9 ? ex.rotation[8] : 1,
+            t0 = ex.translation != null && ex.translation.Length >= 3 ? ex.translation[0] : 0,
+            t1 = ex.translation != null && ex.translation.Length >= 3 ? ex.translation[1] : 0,
+            t2 = ex.translation != null && ex.translation.Length >= 3 ? ex.translation[2] : 0
         };
 
-        RsUnityMainThreadDispatcher.Instance.EnqueueAndWait(AllocateResources);
-        _initialized = true;
+        if (RsUnityMainThreadDispatcher.Instance != null)
+        {
+            RsUnityMainThreadDispatcher.Instance.EnqueueAndWait(AllocateResources);
+            _initialized = true;
+        }
     }
 
     private void AllocateResources()
@@ -159,17 +173,16 @@ public class RsIntegratedPointCloudProcessor : IDisposable
             return null;
         }
 
-        int colorBytes = colorFrame.Stride * colorFrame.Height;
-        int depthBytes = depthFrame.Stride * depthFrame.Height;
+        int colorBytes = colorFrame != null ? colorFrame.Stride * colorFrame.Height : 0;
+        int depthBytes = depthFrame != null ? depthFrame.Stride * depthFrame.Height : 0;
 
-        // 非同期スレッドから呼ばれる可能性を考慮し、キャッシュバッファへのコピースレッドを保護する
         lock (_frameLock)
         {
-            // RealSenseのC++側(アンマネージド)メモリからC#のマネージド配列へ高速にコピー
-            Marshal.Copy(colorFrame.Data, _colorDataCache, 0, System.Math.Min(colorBytes, _colorDataCache.Length));
-            Marshal.Copy(depthFrame.Data, _depthDataCache, 0, System.Math.Min(depthBytes, _depthDataCache.Length));
+            if (colorFrame != null)
+                Marshal.Copy(colorFrame.Data, _colorDataCache, 0, System.Math.Min(colorBytes, _colorDataCache.Length));
+            if (depthFrame != null)
+                Marshal.Copy(depthFrame.Data, _depthDataCache, 0, System.Math.Min(depthBytes, _depthDataCache.Length));
 
-            // 現在の閾値パラメータや変換行列などの状態を退避させる
             _pendingParams = new CullingParams
             {
                 width = _dIntrin.width,
@@ -191,21 +204,16 @@ public class RsIntegratedPointCloudProcessor : IDisposable
                 maxCr = parent._maxCr,
                 transformMatrix = parent._transformMatrix,
                 coordinateConversion = (int)parent._coordinateConversion,
-                colorFormat = (colorFrame.Profile.Format == Format.Yuyv) ? 1 : 0
+                colorFormat = (colorFrame != null && colorFrame.Profile.Format == Format.Yuyv) ? 1 : 0
             };
             _hasPendingFrame = true;
         }
 
-        // Textureの更新やComputeShaderのDispatch等、Unityの一部のAPIはメインスレッドでのみ実行可能なため委譲する
         dispatcher.Enqueue(ProcessPendingFrame);
 
         return null;
     }
 
-    /// <summary>
-    /// メインスレッド上で実行され、キャッシュされたカラー・深度データをGPUへ送り、
-    /// 点群生成およびフィルタリングを行うComputeShaderカーネルをディスパッチ(実行)します。
-    /// </summary>
     private void ProcessPendingFrame()
     {
         if (!_hasPendingFrame) return;
@@ -216,13 +224,9 @@ public class RsIntegratedPointCloudProcessor : IDisposable
 
             _bufferIndex = (_bufferIndex + 1) % 2;
 
-            // ComputeBufferにカラーデータを直接転送する
             _inputColorBuffers[_bufferIndex].SetData(_colorDataCache);
-
-            // 深度データをバッファにセット
             _inputDepthBuffers[_bufferIndex].SetData(_depthDataCache);
 
-            // カリング用のパラメータを更新
             _cullingParamsCache[0] = _pendingParams;
             _paramsBuffers[_bufferIndex].SetData(_cullingParamsCache);
 
@@ -231,16 +235,13 @@ public class RsIntegratedPointCloudProcessor : IDisposable
             _shader.SetBuffer(_kernelIndex, "_InputDepthBuffer", _inputDepthBuffers[_bufferIndex]);
             _shader.SetBuffer(_kernelIndex, "_OutputPointCloud", _pointCloudBuffers[_bufferIndex]);
 
-            // 出力用Appendバッファ内の要素数(カウンタ)を0にリセットして初期化する
             _pointCloudBuffers[_bufferIndex].SetCounterValue(0);
 
-            // 深度画像の総ピクセル数に応じたスレッドグループ数を計算してComputeShaderを実行
             int threadGroups = ((_dIntrin.width * _dIntrin.height) + 63) / 64;
             _shader.Dispatch(_kernelIndex, threadGroups, 1, 1);
 
             _lastDispatchedIndex = _bufferIndex;
 
-            // フィルタリングされた点群の数を非同期にCPUへ読み戻すリクエストを発行
             if (ForceReadbackEveryFrame || !_countReadbackPending) RequestAsyncReadback();
         }
     }
@@ -266,41 +267,8 @@ public class RsIntegratedPointCloudProcessor : IDisposable
         }
     }
 
-    private void UpdateParams(RsIntegratedPointCloud p)
-    {
-        _cullingParamsCache[0] = new CullingParams
-        {
-            width = _dIntrin.width,
-            height = _dIntrin.height,
-            mode = (int)p._mode,
-            minDist = p._minDistance,
-            maxDist = p._maxDistance,
-            minHue = p._minHue,
-            maxHue = p._maxHue,
-            minSat = p._minSaturation,
-            maxSat = p._maxSaturation,
-            minVal = p._minValue,
-            maxVal = p._maxValue,
-            minY = p._minY,
-            maxY = p._maxY,
-            minCb = p._minCb,
-            maxCb = p._maxCb,
-            minCr = p._minCr,
-            maxCr = p._maxCr,
-            transformMatrix = p._transformMatrix,
-            coordinateConversion = (int)p._coordinateConversion,
-            colorFormat = _pendingParams.colorFormat
-        };
-        _paramsBuffers[_bufferIndex].SetData(_cullingParamsCache);
-        _shader.SetBuffer(_kernelIndex, "_Params", _paramsBuffers[_bufferIndex]);
-    }
-
-
-
     public void UpdateTransformMatrix(Matrix4x4 matrix)
     {
-        // This will be picked up in the next UpdateParams call during Process
-        // We can also force an update here if needed, but Process is called every frame anyway
     }
 
     private void ReleaseBuffers()

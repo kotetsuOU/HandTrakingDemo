@@ -20,6 +20,7 @@ namespace RealSense.DummyPointCloud
         private ushort[] _depthBuffer;
         private int _frameCounter = 0;
 
+        public VideoStreamProfile DepthProfile => _depthProfile;
         public PipelineProfile ActiveProfile => null;
         public bool IsRunning { get; private set; }
 

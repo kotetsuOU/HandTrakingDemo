@@ -1,12 +1,13 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System;
-using System.Diagnostics;
 using UnityEngine;
 
 public class RsDepthToColorCalibration
 {
     public VideoStreamProfile DepthProfile { get; private set; }
     public VideoStreamProfile ColorProfile { get; private set; }
+    public bool IsValid { get; private set; }
+
     private Intrinsics _depthIntrinsics;
     private Intrinsics _colorIntrinsics;
     private float[] _depthToColorRotation;
@@ -14,24 +15,50 @@ public class RsDepthToColorCalibration
 
     public RsDepthToColorCalibration(PipelineProfile profile)
     {
+        IsValid = false;
+        if (profile == null)
+        {
+            UnityEngine.Debug.LogWarning("[RsDepthToColorCalibration] PipelineProfile is null. Calibration disabled.");
+            return;
+        }
+
         try
         {
-            DepthProfile = profile.GetStream(Intel.RealSense.Stream.Depth).As<VideoStreamProfile>();
-            ColorProfile = profile.GetStream(Intel.RealSense.Stream.Color).As<VideoStreamProfile>();
+            var depthStream = profile.GetStream(Intel.RealSense.Stream.Depth);
+            if (depthStream != null)
+            {
+                DepthProfile = depthStream.As<VideoStreamProfile>();
+                _depthIntrinsics = DepthProfile.GetIntrinsics();
+            }
 
-            _depthIntrinsics = DepthProfile.GetIntrinsics();
-            _colorIntrinsics = ColorProfile.GetIntrinsics();
+            var colorStream = profile.GetStream(Intel.RealSense.Stream.Color);
+            if (colorStream != null)
+            {
+                ColorProfile = colorStream.As<VideoStreamProfile>();
+                _colorIntrinsics = ColorProfile.GetIntrinsics();
+            }
 
-            var extrinsics = DepthProfile.GetExtrinsicsTo(ColorProfile);
-
-            _depthToColorRotation = extrinsics.rotation;
-            _depthToColorTranslation = extrinsics.translation;
-
-            UnityEngine.Debug.Log("[RsDepthToColorCalibration] Calibration initialized successfully");
+            if (DepthProfile != null && ColorProfile != null)
+            {
+                var extrinsics = DepthProfile.GetExtrinsicsTo(ColorProfile);
+                _depthToColorRotation = extrinsics.rotation;
+                _depthToColorTranslation = extrinsics.translation;
+                IsValid = true;
+                UnityEngine.Debug.Log("[RsDepthToColorCalibration] Calibration initialized successfully.");
+            }
+            else if (DepthProfile != null)
+            {
+                // Depth ストリームのみ存在する場合のフォールバック
+                _colorIntrinsics = _depthIntrinsics;
+                _depthToColorRotation = new float[] { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+                _depthToColorTranslation = new float[] { 0, 0, 0 };
+                IsValid = true;
+                UnityEngine.Debug.LogWarning("[RsDepthToColorCalibration] Color stream not found. Fallback to Depth-only calibration.");
+            }
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError($"[RsDepthToColorCalibration] Initialization failed: {e.Message}");
+            UnityEngine.Debug.LogError($"[RsDepthToColorCalibration] Initialization warning/failed: {e.Message}");
         }
     }
 
@@ -40,18 +67,18 @@ public class RsDepthToColorCalibration
         colorX = 0;
         colorY = 0;
 
-        if (depthValue == 0) return false;
+        if (!IsValid || depthValue == 0 || DepthProfile == null) return false;
 
         try
         {
             float[] depthPoint3d = DeprojectPixelToPoint(_depthIntrinsics, depthX, depthY, depthValue);
-
             float[] colorPoint3d = Transform3DPoint(depthPoint3d);
-
             ProjectPointToPixel(_colorIntrinsics, colorPoint3d, out colorX, out colorY);
 
-            return colorX >= 0 && colorX < ColorProfile.Width &&
-                   colorY >= 0 && colorY < ColorProfile.Height;
+            int maxW = ColorProfile != null ? ColorProfile.Width : DepthProfile.Width;
+            int maxH = ColorProfile != null ? ColorProfile.Height : DepthProfile.Height;
+
+            return colorX >= 0 && colorX < maxW && colorY >= 0 && colorY < maxH;
         }
         catch
         {
@@ -61,7 +88,7 @@ public class RsDepthToColorCalibration
 
     private float[] DeprojectPixelToPoint(Intrinsics intrinsics, int depthX, int depthY, ushort depthValue)
     {
-        float depth = depthValue / 1000f;  // �~�����[�g�� �� ���[�g��
+        float depth = depthValue / 1000f;
 
         float x = (depthX - intrinsics.ppx) / intrinsics.fx;
         float y = (depthY - intrinsics.ppy) / intrinsics.fy;
@@ -92,6 +119,9 @@ public class RsDepthToColorCalibration
 
     private float[] Transform3DPoint(float[] point)
     {
+        if (_depthToColorRotation == null || _depthToColorTranslation == null)
+            return point;
+
         float[] rotated = new float[3];
         for (int i = 0; i < 3; i++)
         {
