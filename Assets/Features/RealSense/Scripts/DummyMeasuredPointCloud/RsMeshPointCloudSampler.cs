@@ -29,6 +29,24 @@ namespace RealSense.DummyPointCloud
     public class RsMeshPointCloudSampler
     {
         private Mesh _sharedBakedMesh;
+        private List<Vector3> _positionsCache = new List<Vector3>(100000);
+        private List<Color> _colorsCache = new List<Color>(100000);
+
+        // トランスフォーム変更検出用キャッシュ (静的メッシュの CPU サンプリング 0ms 化)
+        private struct TransformState
+        {
+            public Vector3 position;
+            public Quaternion rotation;
+            public Vector3 scale;
+        }
+
+        private List<TransformState> _lastTransformStates = new List<TransformState>();
+        private SampledPointCloudData _lastSampledResult;
+        private bool _hasCachedResult = false;
+        private PointDensityUnit _lastDensityUnit;
+        private float _lastDensityValue;
+        private PointColorMode _lastColorMode;
+        private Color _lastSolidColor;
 
         public RsMeshPointCloudSampler()
         {
@@ -46,7 +64,7 @@ namespace RealSense.DummyPointCloud
 
         /// <summary>
         /// 指定された GameObject のリスト配下から Mesh を取得し、
-        /// 各オブジェクトの最新 Transform (位置・回転・スケール) を反映してワールド座標系でサンプリングします。
+        /// トランスフォーム（位置・回転・スケール）の変化がない場合は前回のサンプリング結果を再利用 (CPU 0ms) します。
         /// </summary>
         public SampledPointCloudData SamplePointCloud(
             List<GameObject> rootObjects,
@@ -54,14 +72,18 @@ namespace RealSense.DummyPointCloud
             PointDensityUnit densityUnit,
             float densityValue,
             PointColorMode colorMode,
-            Color solidColor)
+            Color solidColor,
+            int maxPointLimit = 150000)
         {
             if (rootObjects == null || rootObjects.Count == 0)
             {
                 return new SampledPointCloudData { Positions = Array.Empty<Vector3>(), Colors = Array.Empty<Color>(), PointCount = 0 };
             }
 
+            // 1. レンダラー一覧の検出とトランスフォーム変更判定
             List<Renderer> allRenderers = new List<Renderer>();
+            bool transformChanged = false;
+            bool isSkinnedMeshPresent = false;
 
             foreach (var rootObj in rootObjects)
             {
@@ -76,35 +98,81 @@ namespace RealSense.DummyPointCloud
                     if (r != null && r.enabled && r.gameObject.activeInHierarchy && !allRenderers.Contains(r))
                     {
                         allRenderers.Add(r);
+                        if (r is SkinnedMeshRenderer) isSkinnedMeshPresent = true;
                     }
                 }
             }
 
-            List<Vector3> allPositions = new List<Vector3>();
-            List<Color> allColors = new List<Color>();
+            if (_hasCachedResult && !isSkinnedMeshPresent &&
+                densityUnit == _lastDensityUnit &&
+                Mathf.Approximately(densityValue, _lastDensityValue) &&
+                colorMode == _lastColorMode &&
+                solidColor == _lastSolidColor &&
+                allRenderers.Count == _lastTransformStates.Count)
+            {
+                for (int i = 0; i < allRenderers.Count; i++)
+                {
+                    Transform t = allRenderers[i].transform;
+                    if (t.position != _lastTransformStates[i].position ||
+                        t.rotation != _lastTransformStates[i].rotation ||
+                        t.lossyScale != _lastTransformStates[i].scale)
+                    {
+                        transformChanged = true;
+                        break;
+                    }
+                }
+
+                // 変化がない場合は超高速キャッシュ（CPU 再計算 0ms）を返す
+                if (!transformChanged)
+                {
+                    return _lastSampledResult;
+                }
+            }
+
+            // 2. トランスフォームやパラメーター変更時のみ再計算
+            _positionsCache.Clear();
+            _colorsCache.Clear();
+            _lastTransformStates.Clear();
 
             foreach (var renderer in allRenderers)
             {
+                _lastTransformStates.Add(new TransformState
+                {
+                    position = renderer.transform.position,
+                    rotation = renderer.transform.rotation,
+                    scale = renderer.transform.lossyScale
+                });
+
                 if (renderer is SkinnedMeshRenderer skinnedRenderer)
                 {
-                    SampleFromSkinnedMesh(skinnedRenderer, densityUnit, densityValue, colorMode, solidColor, allPositions, allColors);
+                    SampleFromSkinnedMesh(skinnedRenderer, densityUnit, densityValue, colorMode, solidColor, _positionsCache, _colorsCache, maxPointLimit);
                 }
                 else if (renderer is MeshRenderer meshRenderer)
                 {
                     var meshFilter = renderer.GetComponent<MeshFilter>();
                     if (meshFilter != null && meshFilter.sharedMesh != null)
                     {
-                        SampleFromStaticMesh(meshFilter.sharedMesh, meshRenderer, densityUnit, densityValue, colorMode, solidColor, allPositions, allColors);
+                        SampleFromStaticMesh(meshFilter.sharedMesh, meshRenderer, densityUnit, densityValue, colorMode, solidColor, _positionsCache, _colorsCache, maxPointLimit);
                     }
                 }
+
+                if (_positionsCache.Count >= maxPointLimit) break;
             }
 
-            return new SampledPointCloudData
+            _lastDensityUnit = densityUnit;
+            _lastDensityValue = densityValue;
+            _lastColorMode = colorMode;
+            _lastSolidColor = solidColor;
+
+            _lastSampledResult = new SampledPointCloudData
             {
-                Positions = allPositions.ToArray(),
-                Colors = allColors.ToArray(),
-                PointCount = allPositions.Count
+                Positions = _positionsCache.ToArray(),
+                Colors = _colorsCache.ToArray(),
+                PointCount = _positionsCache.Count
             };
+            _hasCachedResult = true;
+
+            return _lastSampledResult;
         }
 
         private void SampleFromSkinnedMesh(
@@ -114,7 +182,8 @@ namespace RealSense.DummyPointCloud
             PointColorMode colorMode,
             Color solidColor,
             List<Vector3> outPositions,
-            List<Color> outColors)
+            List<Color> outColors,
+            int maxPointLimit)
         {
             if (skinnedRenderer.sharedMesh == null) return;
 
@@ -127,9 +196,8 @@ namespace RealSense.DummyPointCloud
             skinnedRenderer.BakeMesh(_sharedBakedMesh);
 #endif
 
-            // オブジェクトの最新の Transform (位置・回転・スケール) 行列を取得
             Matrix4x4 localToWorld = skinnedRenderer.transform.localToWorldMatrix;
-            SampleMeshInternal(_sharedBakedMesh, skinnedRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors);
+            SampleMeshInternal(_sharedBakedMesh, skinnedRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors, maxPointLimit);
         }
 
         private void SampleFromStaticMesh(
@@ -140,11 +208,11 @@ namespace RealSense.DummyPointCloud
             PointColorMode colorMode,
             Color solidColor,
             List<Vector3> outPositions,
-            List<Color> outColors)
+            List<Color> outColors,
+            int maxPointLimit)
         {
-            // 静的メッシュオブジェクトの Transform (位置・回転・スケール) 行列を取得
             Matrix4x4 localToWorld = meshRenderer.transform.localToWorldMatrix;
-            SampleMeshInternal(mesh, meshRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors);
+            SampleMeshInternal(mesh, meshRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors, maxPointLimit);
         }
 
         private void SampleMeshInternal(
@@ -156,7 +224,8 @@ namespace RealSense.DummyPointCloud
             PointColorMode colorMode,
             Color solidColor,
             List<Vector3> outPositions,
-            List<Color> outColors)
+            List<Color> outColors,
+            int maxPointLimit)
         {
             Vector3[] vertices = mesh.vertices;
             int[] triangles = mesh.triangles;
@@ -184,7 +253,6 @@ namespace RealSense.DummyPointCloud
             float[] triAreas = new float[triCount];
             float totalWorldAreaSquareMeters = 0f;
 
-            // 各頂点を Transform.localToWorldMatrix でワールド座標に変換して計算
             for (int i = 0; i < triCount; i++)
             {
                 Vector3 p0 = localToWorld.MultiplyPoint3x4(vertices[triangles[i * 3]]);
@@ -199,7 +267,7 @@ namespace RealSense.DummyPointCloud
             if (totalWorldAreaSquareMeters <= 1e-8f) return;
 
             float areaMm2 = totalWorldAreaSquareMeters * 1000000f;
-            float areaCm2 = totalWorldAreaSquareMeters * 1000f;
+            float areaCm2 = totalWorldAreaSquareMeters * 10000f;
 
             int targetTotalPoints = 0;
             switch (densityUnit)
@@ -220,12 +288,13 @@ namespace RealSense.DummyPointCloud
                     break;
             }
 
-            targetTotalPoints = Mathf.Min(targetTotalPoints, 500000);
-
+            targetTotalPoints = Mathf.Min(targetTotalPoints, maxPointLimit);
             System.Random rand = new System.Random(42);
 
             for (int i = 0; i < triCount; i++)
             {
+                if (outPositions.Count >= maxPointLimit) break;
+
                 float areaFrac = triAreas[i] / totalWorldAreaSquareMeters;
                 int pointsForThisTri = Mathf.RoundToInt(targetTotalPoints * areaFrac);
 
@@ -240,7 +309,6 @@ namespace RealSense.DummyPointCloud
                 int i1 = triangles[i * 3 + 1];
                 int i2 = triangles[i * 3 + 2];
 
-                // ワールド空間における実際の頂点座標 (位置・回転・スケールを完全反映)
                 Vector3 v0 = localToWorld.MultiplyPoint3x4(vertices[i0]);
                 Vector3 v1 = localToWorld.MultiplyPoint3x4(vertices[i1]);
                 Vector3 v2 = localToWorld.MultiplyPoint3x4(vertices[i2]);
@@ -251,6 +319,8 @@ namespace RealSense.DummyPointCloud
 
                 for (int p = 0; p < pointsForThisTri; p++)
                 {
+                    if (outPositions.Count >= maxPointLimit) break;
+
                     float r1 = (float)rand.NextDouble();
                     float r2 = (float)rand.NextDouble();
 
@@ -259,7 +329,6 @@ namespace RealSense.DummyPointCloud
                     float v = r2 * sqrtR1;
                     float w = 1f - u - v;
 
-                    // ワールド座標における高精度な点の補間位置
                     Vector3 pos = u * v0 + v * v1 + w * v2;
                     Color col = u * c0 + v * c1 + w * c2;
 

@@ -11,6 +11,7 @@ namespace RealSense.Editor
         private SerializedProperty _includeChildrenProp;
         private SerializedProperty _densityUnitProp;
         private SerializedProperty _densityValueProp;
+        private SerializedProperty _maxPointLimitProp;
         private SerializedProperty _colorModeProp;
         private SerializedProperty _solidColorProp;
         private SerializedProperty _applyColorToMaterialAndRendererProp;
@@ -27,6 +28,7 @@ namespace RealSense.Editor
             _includeChildrenProp = serializedObject.FindProperty("includeChildren");
             _densityUnitProp = serializedObject.FindProperty("densityUnit");
             _densityValueProp = serializedObject.FindProperty("densityValue");
+            _maxPointLimitProp = serializedObject.FindProperty("maxPointLimit");
             _colorModeProp = serializedObject.FindProperty("colorMode");
             _solidColorProp = serializedObject.FindProperty("solidColor");
             _applyColorToMaterialAndRendererProp = serializedObject.FindProperty("applyColorToMaterialAndRenderer");
@@ -47,7 +49,7 @@ namespace RealSense.Editor
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox(
                 "RsDummyPointCloudProvider は Unity 3D Object (MeshFilter / SkinnedMeshRenderer) のリストから" +
-                "指定した物理密度 (例: 1mm^2あたりの点数) と色でダミーの実測点群をリアルタイム生成し、" +
+                "指定した物理密度 (例: 1cm^2あたりの点数) と色でダミーの実測点群をリアルタイム生成し、" +
                 "RsProcessingPipe / RsDummyProcessingPipe の Source (RsFrameProvider) として供給します。",
                 MessageType.Info);
 
@@ -58,6 +60,7 @@ namespace RealSense.Editor
             EditorGUILayout.Space();
             EditorGUILayout.PropertyField(_densityUnitProp);
             EditorGUILayout.PropertyField(_densityValueProp);
+            EditorGUILayout.PropertyField(_maxPointLimitProp, new GUIContent("Max Point Limit", "生成する点数の上限キャップ。過剰な重さを防止します"));
             EditorGUILayout.PropertyField(_colorModeProp);
             if (_colorModeProp.enumValueIndex == (int)PointColorMode.SolidColor)
             {
@@ -92,7 +95,10 @@ namespace RealSense.Editor
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_enableDebugLogProp, new GUIContent("Enable Debug Log", "True にすると、ダミー点群生成やストリーミング処理の動作ログをコンソールに出力します"));
+            if (_enableDebugLogProp != null)
+            {
+                EditorGUILayout.PropertyField(_enableDebugLogProp, new GUIContent("Enable Debug Log", "True にすると、ダミー点群生成やストリーミング処理の動作ログをコンソールに出力します"));
+            }
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Runtime Information", EditorStyles.boldLabel);

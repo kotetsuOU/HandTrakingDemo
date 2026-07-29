@@ -148,22 +148,22 @@ public class RsPointCloudRenderer : MonoBehaviour
     }
 
     /// <summary> フィルタリング後の座標位置が格納されたComputeBufferを取得する </summary>
-    public ComputeBuffer GetFilteredVerticesBuffer() => _initializer?.Compute?.GetFilteredVerticesBuffer();
+    public virtual ComputeBuffer GetFilteredVerticesBuffer() => _initializer?.Compute?.GetFilteredVerticesBuffer();
 
     /// <summary> フィルタリング後の点の数を取得する </summary>
-    public int GetLastFilteredCount() => _initializer?.Compute?.GetLastFilteredCount() ?? 0;
+    public virtual int GetLastFilteredCount() => _initializer?.Compute?.GetLastFilteredCount() ?? 0;
 
     /// <summary> 非同期カウントのリードバックが完了待ちかどうか </summary>
     public bool IsFilteredCountReadbackPending => _initializer?.Compute?.IsFilteredCountReadbackPending ?? false;
 
     /// <summary> オクルージョン処理など他のシェーダーが参照するための元バッファを取得する </summary>
-    public ComputeBuffer GetPCDSourceBuffer()
+    public virtual ComputeBuffer GetPCDSourceBuffer()
     {
         return GetFilteredVerticesBuffer();
     }
 
     /// <summary> オクルージョン処理などで参照する点群の総数を取得する </summary>
-    public int GetPCDSourceCount()
+    public virtual int GetPCDSourceCount()
     {
         return GetLastFilteredCount();
     }

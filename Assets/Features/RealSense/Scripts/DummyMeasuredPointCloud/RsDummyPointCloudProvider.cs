@@ -23,11 +23,15 @@ namespace RealSense.DummyPointCloud
 
         [Header("Physical Point Density & Color")]
         [Tooltip("点群の物理密度の指定単位")]
-        public PointDensityUnit densityUnit = PointDensityUnit.PointsPerMm2;
+        public PointDensityUnit densityUnit = PointDensityUnit.PointsPerCm2;
 
-        [Tooltip("密度の数値（1mm^2あたりの点数、または点間隔mmなど）")]
+        [Tooltip("密度の数値（1cm^2あたりの点数、または点間隔mmなど）")]
         [Range(0.001f, 1000f)]
-        public float densityValue = 1.0f; // デフォルト: 1 mm^2 あたり 1 点
+        public float densityValue = 1.0f;
+
+        [Tooltip("サンプリング点数の最大上限（過剰な重さを防止）")]
+        [Range(1000, 500000)]
+        public int maxPointLimit = 100000;
 
         [Tooltip("点群のカラー指定モード")]
         public PointColorMode colorMode = PointColorMode.SolidColor;
@@ -69,6 +73,11 @@ namespace RealSense.DummyPointCloud
         private MaterialPropertyBlock _materialPropertyBlock;
 
         public SampledPointCloudData LastSampledData { get; private set; }
+        
+        /// <summary>
+        /// データが実際にサンプリング更新された回数（レンダラー側が「動いたら更新」を判断するために使用）
+        /// </summary>
+        public int DataVersion { get; private set; } = 0;
 
         private void Log(string message)
         {
@@ -110,14 +119,10 @@ namespace RealSense.DummyPointCloud
             UpdateMaterialAndRendererColors();
         }
 
-        /// <summary>
-        /// SolidColor モード時に、対象 Target Objects のマテリアルカラーおよび RsPointCloudRenderer の描画色を solidColor に直接変更・同期します。
-        /// </summary>
         public void UpdateMaterialAndRendererColors()
         {
             if (!applyColorToMaterialAndRenderer || colorMode != PointColorMode.SolidColor) return;
 
-            // 1. Target Objects のマテリアルカラーを変更
             if (targetObjects != null)
             {
                 if (_materialPropertyBlock == null) _materialPropertyBlock = new MaterialPropertyBlock();
@@ -142,7 +147,6 @@ namespace RealSense.DummyPointCloud
                 }
             }
 
-            // 2. 紐づく RsPointCloudRenderer の描画色 (pointCloudColor) を変更
 #if UNITY_2023_1_OR_NEWER
             var pcdRenderers = FindObjectsByType<RsPointCloudRenderer>(FindObjectsSortMode.None);
 #else
@@ -210,16 +214,24 @@ namespace RealSense.DummyPointCloud
 
                 if (targetObjects != null && targetObjects.Count > 0)
                 {
-                    // 1. Mesh / SkinnedMesh リストから物理密度・色に応じた点群をサンプリング
+                    var prevData = LastSampledData;
+
+                    // 1. Mesh / SkinnedMesh リストから物理密度・色に応じた点群をサンプリング (動いた時のみ新データ生成)
                     LastSampledData = _sampler.SamplePointCloud(
                         targetObjects,
                         includeChildren,
                         densityUnit,
                         densityValue,
                         colorMode,
-                        solidColor);
+                        solidColor,
+                        maxPointLimit);
 
-                    Log($"Sampled {LastSampledData.PointCount} points from {targetObjects.Count} target object(s).");
+                    // 実際に位置やデータが更新された場合のみ DataVersion を更新
+                    if (prevData.Positions != LastSampledData.Positions || prevData.PointCount != LastSampledData.PointCount)
+                    {
+                        DataVersion++;
+                        Log($"Sampled & Updated DataVersion: {DataVersion} ({LastSampledData.PointCount} points).");
+                    }
 
                     // 2. SoftwareDevice 経由で RealSense DepthFrame / FrameSet として発行
                     if (_softwareDevice != null && LastSampledData.PointCount > 0)
@@ -230,10 +242,6 @@ namespace RealSense.DummyPointCloud
                             camXform,
                             useCameraPerspective);
                     }
-                }
-                else
-                {
-                    Log("Target objects list is empty. No points generated.");
                 }
 
                 float waitSec = 1.0f / Mathf.Max(1, updateFPS);

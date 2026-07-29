@@ -4,9 +4,8 @@ using UnityEngine;
 namespace RealSense.DummyPointCloud
 {
     /// <summary>
-    /// RsDummyPointCloudProvider で生成されたダミーの実測点群を
-    /// 高速な GPU Procedural 描画 (Graphics.DrawProcedural) でシーン上に直接レンダリングする専用レンダラー。
-    /// RsPointCloudRenderer を継承することで、システム内の他の全処理コンポーネントと完全な互換性を保ちます。
+    /// RsDummyPointCloudProvider で生成されたダミーの実測点群を「動いたら更新 (Dirty-based Update)」方式で描画する専用レンダラー。
+    /// ターゲットオブジェクトが移動・変更されたフレームのみ GPU に転送し、静止時は SetData を完全に回避して 0ms 超高速描画します。
     /// </summary>
     [RequireComponent(typeof(MeshRenderer))]
     public class RsDummyPointCloudRenderer : RsPointCloudRenderer
@@ -24,10 +23,14 @@ namespace RealSense.DummyPointCloud
 
         private MeshRenderer _meshRenderer;
         private RsPointCloudVisualization _visualization;
+
         private ComputeBuffer _verticesBuffer;
         private ComputeBuffer _argsBuffer;
         private uint[] _argsData = new uint[4] { 0, 1, 0, 0 };
+
+        private int _appliedDataVersion = -1;
         private int _lastLoggedPointCount = -1;
+        private int _cachedValidPointCount = 0;
 
         private void Log(string message)
         {
@@ -40,6 +43,7 @@ namespace RealSense.DummyPointCloud
         private void OnEnable()
         {
             Log("RsDummyPointCloudRenderer enabled.");
+            RegisterToGlobalManager();
         }
 
         private void Start()
@@ -49,19 +53,30 @@ namespace RealSense.DummyPointCloud
 
             _visualization = new RsPointCloudVisualization(_meshRenderer);
             _argsBuffer = new ComputeBuffer(1, sizeof(uint) * 4, ComputeBufferType.IndirectArguments);
-            Log("Initialized GPU buffers and visualization renderer.");
+
+            Log("Initialized Dirty-based GPU Single-Buffer & visualization renderer.");
+            RegisterToGlobalManager();
         }
 
-        /// <summary>
-        /// MeshRenderer に点群描画用のマテリアルがアタッチされていない場合、自動的に検索・生成して適用します。
-        /// </summary>
+        private void RegisterToGlobalManager()
+        {
+            var manager = RsGlobalPointCloudManager.Instance;
+            if (manager != null && manager.renderers != null)
+            {
+                if (!manager.renderers.Contains(this))
+                {
+                    manager.renderers.Add(this);
+                    Log("Auto-registered RsDummyPointCloudRenderer to RsGlobalPointCloudManager.");
+                }
+            }
+        }
+
         private void EnsureMaterial()
         {
             if (_meshRenderer == null) _meshRenderer = GetComponent<MeshRenderer>();
 
             if (_meshRenderer != null && _meshRenderer.sharedMaterial == null)
             {
-                // 1. プロジェクト内から既存の点群マテリアルを検索
                 Material defaultMat = null;
 
                 var allMats = Resources.FindObjectsOfTypeAll<Material>();
@@ -74,7 +89,6 @@ namespace RealSense.DummyPointCloud
                     }
                 }
 
-                // 2. 見つからない場合は点群対応のデフォルトマテリアルを作成
                 if (defaultMat == null)
                 {
                     Shader pcdShader = Shader.Find("PointCloudViewer/PointCloudViewer") ??
@@ -106,56 +120,62 @@ namespace RealSense.DummyPointCloud
 #else
                 dummyProvider = FindObjectOfType<RsDummyPointCloudProvider>();
 #endif
-                if (dummyProvider == null) return;
             }
 
             EnsureMaterial();
 
-            var sampledData = dummyProvider.LastSampledData;
-            if (sampledData.Positions == null || sampledData.PointCount == 0) return;
-
-            int count = sampledData.PointCount;
-
-            // バッファの確保・自動リサイズ
-            if (_verticesBuffer == null || _verticesBuffer.count < count)
+            // 1. オブジェクトが動いた / データが新しく更新された時 (DataVersion 変化時) のみ GPU バッファを更新
+            if (dummyProvider != null && dummyProvider.DataVersion != _appliedDataVersion)
             {
-                if (_verticesBuffer != null)
+                var sampledData = dummyProvider.LastSampledData;
+                if (sampledData.Positions != null && sampledData.PointCount > 0)
                 {
-                    _verticesBuffer.Release();
+                    int count = sampledData.PointCount;
+                    _cachedValidPointCount = count;
+
+                    // バッファの確保・自動サイズ調整
+                    if (_verticesBuffer == null || _verticesBuffer.count < count)
+                    {
+                        if (_verticesBuffer != null)
+                        {
+                            _verticesBuffer.Release();
+                        }
+                        int newSize = Mathf.NextPowerOfTwo(Mathf.Max(count, 1024));
+                        _verticesBuffer = new ComputeBuffer(newSize, sizeof(float) * 3);
+                        Log($"Reallocated ComputeBuffer to size {newSize} for {count} points.");
+                    }
+
+                    // 動いた瞬間だけ 1 回 GPU へ SetData 転送
+                    _verticesBuffer.SetData(sampledData.Positions, 0, 0, count);
+
+                    // Indirect Draw 引数の更新
+                    _argsData[0] = (uint)count;
+                    _argsBuffer.SetData(_argsData);
+
+                    _appliedDataVersion = dummyProvider.DataVersion;
+                    Log($"Updated GPU buffer for DataVersion {_appliedDataVersion} ({count} points).");
                 }
-                int newSize = Mathf.NextPowerOfTwo(Mathf.Max(count, 1024));
-                _verticesBuffer = new ComputeBuffer(newSize, sizeof(float) * 3);
-                Log($"Reallocated ComputeBuffer to size {newSize} for {count} points.");
             }
 
-            // GPUへの頂点データ転送
-            _verticesBuffer.SetData(sampledData.Positions, 0, 0, count);
-
-            // Indirect Draw 引数の設定
-            _argsData[0] = (uint)count;
-            _argsBuffer.SetData(_argsData);
-
-            // カラー設定の同期
-            Color drawColor = (dummyProvider.colorMode == PointColorMode.SolidColor)
-                ? dummyProvider.solidColor
-                : pointCloudColor;
-
-            if (enableDebugLog && count != _lastLoggedPointCount)
+            // 2. 静止時は一切 SetData も計算も行わず、既存の GPU バッファで 0ms 高速描画のみ実行
+            if (_verticesBuffer != null && _cachedValidPointCount > 0 && _visualization != null)
             {
-                _lastLoggedPointCount = count;
-                Log($"Rendering {count} points on GPU (Color: {drawColor}, Material: {_meshRenderer.sharedMaterial?.name}).");
-            }
+                Color drawColor = (dummyProvider != null && dummyProvider.colorMode == PointColorMode.SolidColor)
+                    ? dummyProvider.solidColor
+                    : pointCloudColor;
 
-            // RealSense 標準の GPU Procedural 描画を実行
-            if (_visualization != null)
-            {
+                if (enableDebugLog && _cachedValidPointCount != _lastLoggedPointCount)
+                {
+                    _lastLoggedPointCount = _cachedValidPointCount;
+                    Log($"Rendering {_cachedValidPointCount} points on GPU (Color: {drawColor}).");
+                }
+
                 _visualization.Draw(_verticesBuffer, _argsBuffer, drawColor, gameObject.layer);
             }
         }
 
         private void OnDrawGizmos()
         {
-            // showGizmos が true の場合のみ Scene ビュー上にデバッグ球を描画
             if (!showGizmos) return;
 
             if (dummyProvider != null && dummyProvider.LastSampledData.Positions != null && dummyProvider.LastSampledData.PointCount > 0)
@@ -172,8 +192,11 @@ namespace RealSense.DummyPointCloud
             }
         }
 
-        public new ComputeBuffer GetFilteredVerticesBuffer() => _verticesBuffer;
-        public new int GetLastFilteredCount() => dummyProvider != null ? dummyProvider.LastSampledData.PointCount : 0;
+        /// <summary> PCD マネージャーやオクルージョン計算等の外部コンポーネントへ点群バッファを提供するオーバーライド </summary>
+        public override ComputeBuffer GetFilteredVerticesBuffer() => _verticesBuffer;
+        public override int GetLastFilteredCount() => _cachedValidPointCount;
+        public override ComputeBuffer GetPCDSourceBuffer() => _verticesBuffer;
+        public override int GetPCDSourceCount() => _cachedValidPointCount;
 
         private void OnDisable()
         {
@@ -182,6 +205,12 @@ namespace RealSense.DummyPointCloud
 
         private void OnDestroy()
         {
+            var manager = RsGlobalPointCloudManager.Instance;
+            if (manager != null && manager.renderers != null)
+            {
+                manager.renderers.Remove(this);
+            }
+
             if (_verticesBuffer != null)
             {
                 _verticesBuffer.Release();
@@ -194,7 +223,7 @@ namespace RealSense.DummyPointCloud
                 _argsBuffer = null;
             }
 
-            Log("GPU resources destroyed.");
+            Log("GPU Single-Buffer resources destroyed.");
         }
     }
 }
