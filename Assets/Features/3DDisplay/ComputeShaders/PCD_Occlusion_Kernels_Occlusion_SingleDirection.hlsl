@@ -5,39 +5,45 @@
 // 単一方向 vs 連続系 vs 離散ヒストグラムのレイヤー構造:
 // [事実] 探索範囲内の不透明度を単一のスカラー値 S に集約します。
 
-float ComputeOcclusionValue_SingleDirection(float3 currentPos_h, float currentPosSq_h, float invCurrentPosSq_h, float3 neighborPos_h)
+float ComputeOcclusionValue_SingleDirection(float3 currentPos, float currentPosSq, float invCurrentPosSq, float3 neighborPos)
 {
     if (_KernelType == 4) // DepthOnly (深度比較のみ) カーネル
     {
         return 0.0;
     }
 
-    half sq_y_h = dot((half3) neighborPos_h, (half3) neighborPos_h);
-    half dotP_h = dot((half3) currentPos_h, (half3) neighborPos_h);
+    float sq_y = dot(neighborPos, neighborPos);
+    float dotP = dot(currentPos, neighborPos);
 
     if (_KernelType == 0) // Bouchiba 内積カーネル
     {
-        half sqLen1_h = sq_y_h - 2.0h * dotP_h + (half) currentPosSq_h;
-        if (sqLen1_h > 0.0001h && sq_y_h > 0.0001h)
+        float sqLen1 = sq_y - 2.0 * dotP + currentPosSq;
+        if (sqLen1 > 0.0001 && sq_y > 0.0001)
         {
-            half d_h = dotP_h - sq_y_h;
-            return max(0.0, 1.0 - (float) (d_h * rsqrt(sqLen1_h * sq_y_h) / 2.5h));
+            float d = dotP - sq_y;
+            // rsqrt(sqLen1 * sq_y) が大きくなりすぎないよう、正規化済み内積 [-1,1] に saturate でクランプ
+            float cosTheta = saturate(d * rsqrt(sqLen1 * sq_y) / 2.5);
+            float val = 1.0 - cosTheta;
+            return val > 0.0 ? max(1e-7, val) : 0.0;
         }
         return 0.0;
     }
     else // Exponential (_KernelType == 1) または Linear (_KernelType == 2) カーネル
     {
-        half d_ortho_sq = sq_y_h - (dotP_h * dotP_h * (half) invCurrentPosSq_h);
+        // 浮動小数点誤差で dotP^2 * invCurrentPosSq が sq_y を超えて負になると
+        // exp(正値) >> 1 となり occlusionValue がオーバーフローするため max(0.0) でクランプ
+        float d_ortho_sq = max(0.0, sq_y - (dotP * dotP * invCurrentPosSq));
 
         // [Fact] 従来のMode 1 (Single Exponential3D) のみ生Expを許容し、
         // それ以外 (Linearカーネルや、方向分割時のExpカーネル) は 0.0 でクリップする仕様を再現する。
+        float val = 1.0 - exp(-_Alpha * d_ortho_sq);
         if (_KernelType == 1)
         {
-            return 1.0 - (float) exp(-(half) _Alpha * d_ortho_sq);
+            return val > 0.0 ? max(1e-7, val) : 0.0;
         }
         else
         {
-            return max(0.0, 1.0 - (float) exp(-(half) _Alpha * d_ortho_sq));
+            return val > 0.0 ? max(1e-7, val) : 0.0;
         }
     }
 }

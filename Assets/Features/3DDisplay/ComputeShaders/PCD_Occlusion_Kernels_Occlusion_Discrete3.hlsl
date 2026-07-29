@@ -13,39 +13,39 @@ void AccumulateDiscrete3Bin(
     float occlusionValue, int dx, int dy,
     inout Discrete3BinResult result)
 {
-    half dx_h = (half)dx;
-    half dy_h = (half)dy;
+    float dx_f = (float)dx;
+    float dy_f = (float)dy;
 
-    half invSqrt3 = 0.57735h;
-    half twoInvSqrt3 = 1.15470h;
+    float invSqrt3 = 0.577350269;
+    float twoInvSqrt3 = 1.154700538;
 
-    half line0 = dx_h + invSqrt3 * dy_h;
-    half line1 = -dx_h + invSqrt3 * dy_h;
+    float line0 = dx_f + invSqrt3 * dy_f;
+    float line1 = -dx_f + invSqrt3 * dy_f;
 
-    half w0 = 0.0h, w1 = 0.0h, w2 = 0.0h;
+    float w0 = 0.0, w1 = 0.0, w2 = 0.0;
 
     // 三角関数不要の代数セクター判定 (Basis Decomposition / Soft Binning)
-    if (dy_h >= 0.0h && line0 >= 0.0h)
+    if (dy_f >= 0.0 && line0 >= 0.0)
     {
         w0 = line0;
-        w1 = twoInvSqrt3 * dy_h;
+        w1 = twoInvSqrt3 * dy_f;
     }
-    else if (line0 < 0.0h && line1 >= 0.0h)
+    else if (line0 < 0.0 && line1 >= 0.0)
     {
         w1 = line1;
         w2 = -line0;
     }
     else
     {
-        w2 = -twoInvSqrt3 * dy_h;
+        w2 = -twoInvSqrt3 * dy_f;
         w0 = -line1;
     }
 
     // スケール不変な正規化
-    half sumW = w0 + w1 + w2 + 1e-5h;
-    half norm_w0 = w0;
-    half norm_w1 = w1;
-    half norm_w2 = w2;
+    float sumW = w0 + w1 + w2 + 1e-5;
+    float norm_w0 = w0;
+    float norm_w1 = w1;
+    float norm_w2 = w2;
 
     // Soft/Hard Binningの切り替え
     if (_BinningMethod == 0)
@@ -58,19 +58,19 @@ void AccumulateDiscrete3Bin(
     else
     {
         // Hard Binning: 最大の重みを持つビンに1.0を割り当て、他は0.0 (Winner-takes-all / 扇形領域判定と同義)
-        half maxW = max(max(w0, w1), w2);
-        norm_w0 = (w0 == maxW) ? 1.0h : 0.0h;
-        norm_w1 = (w1 == maxW && w0 != maxW) ? 1.0h : 0.0h; // 一意にするための排他処理
-        norm_w2 = (w2 == maxW && w0 != maxW && w1 != maxW) ? 1.0h : 0.0h;
+        float maxW = max(max(w0, w1), w2);
+        norm_w0 = (w0 == maxW) ? 1.0 : 0.0;
+        norm_w1 = (w1 == maxW && w0 != maxW) ? 1.0 : 0.0; // 一意にするための排他処理
+        norm_w2 = (w2 == maxW && w0 != maxW && w1 != maxW) ? 1.0 : 0.0;
     }
 
-    result.sum0 += occlusionValue * (float)norm_w0;
-    result.sum1 += occlusionValue * (float)norm_w1;
-    result.sum2 += occlusionValue * (float)norm_w2;
+    result.sum0 += occlusionValue * norm_w0;
+    result.sum1 += occlusionValue * norm_w1;
+    result.sum2 += occlusionValue * norm_w2;
 
-    result.wSum0 += (float)norm_w0;
-    result.wSum1 += (float)norm_w1;
-    result.wSum2 += (float)norm_w2;
+    result.wSum0 += norm_w0;
+    result.wSum1 += norm_w1;
+    result.wSum2 += norm_w2;
 }
 
 #endif
