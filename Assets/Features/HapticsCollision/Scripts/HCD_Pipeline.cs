@@ -118,6 +118,8 @@ public class HCD_Pipeline : MonoBehaviour
 
     private void ProcessReadbackQueue()
     {
+        ReadbackRequest? latestDoneReq = null;
+
         while (_readbackQueue.Count > 0)
         {
             var req = _readbackQueue.Peek();
@@ -131,12 +133,17 @@ public class HCD_Pipeline : MonoBehaviour
 
             if (!req.clusterReq.done || (req.hasPrecision && !req.precisionReq.done))
             {
-                // まだ完了していない場合は待機（キューの先頭でブロック）
+                // 先頭が完了していない場合は待機
                 break;
             }
 
-            // 完了したリクエストを取り出し
-            _readbackQueue.Dequeue();
+            // 完了したリクエストを取り出し（古い分はスキップし、最新のもののみ保持）
+            latestDoneReq = _readbackQueue.Dequeue();
+        }
+
+        if (latestDoneReq.HasValue)
+        {
+            var req = latestDoneReq.Value;
 
             // NativeArray から配列へコピー
             req.clusterReq.GetData<ClusterData>().CopyTo(_clusterResults);
@@ -145,40 +152,15 @@ public class HCD_Pipeline : MonoBehaviour
                 req.precisionReq.GetData<ClusterPrecisionDataRaw>().CopyTo(_precisionResults);
             }
 
-            // GPU 結果（最新の完了分）を使用してフレーム間クラスタ追跡を更新（ContactForceReduction 含む）
+            // 最新の GPU 結果を使用してフレーム間クラスタ追跡を更新
             GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions, out var rawPositions, out var meshPositions, out var minDistances);
-
             clusterTracker.Update(centroids, normals, counts, precisions, rawPositions, meshPositions, minDistances);
 
 #if UNITY_EDITOR
-            if (Time.frameCount % 120 == 0)  // 2秒に1回ログ出力
+            if (Time.frameCount % 120 == 0)
             {
-                // 非ゼロのクラスタを数える（接触点がどれくらいあるか確認用）
-                int nonZeroCount = 0;
-                int maxCount = 0;
-                for (int i = 0; i < _clusterResults.Length; i++)
-                {
-                    if (_clusterResults[i].count > 0)
-                    {
-                        nonZeroCount++;
-                        if (_clusterResults[i].count > maxCount) maxCount = _clusterResults[i].count;
-                    }
-                }
-
-                // Update 後の TrackedClusters の IsAlive 状態を確認
-                int aliveCount = 0;
-                string firstCentroid = "N/A";
-                foreach (var tc in clusterTracker.TrackedClusters)
-                {
-                    if (tc.IsAlive)
-                    {
-                        aliveCount++;
-                        if (aliveCount == 1) firstCentroid = tc.Centroid.ToString("F3");
-                    }
-                }
-
                 Debug.Log($"[HCD_Pipeline] Mode: {clusteringProcessor.aggregationMode} ({clusteringProcessor.positionSource}) | " +
-                          $"Clusters: {centroids.Count} | First Centroid: {firstCentroid}");
+                          $"Active Clusters: {centroids.Count} | Tracked: {clusterTracker.TrackedClusters.Count}");
             }
 #endif
         }
@@ -362,38 +344,63 @@ public class HCD_Pipeline : MonoBehaviour
 
     private void DrawClusterGizmos()
     {
-        var clusters = clusterTracker.TrackedClusters;
+        GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions, out var rawPositions, out var meshPositions, out var minDistances);
 
-        // isColliding == 1 の表面接触クラスタ（マゼンタ）をトラッカー経由で描画
-        foreach (var cluster in clusters)
+        if (centroids == null || centroids.Count == 0) return;
+
+        var trackedClusters = clusterTracker.TrackedClusters;
+
+        for (int i = 0; i < centroids.Count; i++)
         {
-            if (!cluster.IsAlive) continue;
+            Vector3 centroid = centroids[i];
+            Vector3 normal = normals[i];
+            Vector3 rawPos = (i < rawPositions.Count) ? rawPositions[i] : centroid;
+            Vector3 meshPos = (i < meshPositions.Count) ? meshPositions[i] : centroid;
+            float minDist = (i < minDistances.Count) ? minDistances[i] : 0.0f;
+
+            // マッチする TrackedCluster から Age / Force 情報を取得
+            int age = 1;
+            float force = 1.0f;
+            int id = i;
+            if (trackedClusters != null)
+            {
+                foreach (var tc in trackedClusters)
+                {
+                    if (tc.IsAlive && (tc.Centroid - centroid).sqrMagnitude < 0.01f)
+                    {
+                        age = tc.Age;
+                        force = tc.Force;
+                        id = tc.Id;
+                        break;
+                    }
+                }
+            }
 
             // Age が大きいほど安定 → マゼンタ、新生 → 黄色
-            float stability = Mathf.Clamp01(cluster.Age / 10.0f);
+            float stability = Mathf.Clamp01(age / 10.0f);
             Gizmos.color = Color.Lerp(Color.yellow, Color.magenta, stability);
-            Gizmos.DrawWireSphere(cluster.Centroid, 0.02f);
+            Gizmos.DrawWireSphere(centroid, 0.02f);
 
             // 実測点群位置とメッシュ投影位置の差分を線で描画
-            if ((cluster.RawPointPosition - cluster.MeshSurfacePosition).sqrMagnitude > 0.000001f)
+            if ((rawPos - meshPos).sqrMagnitude > 0.000001f)
             {
                 Gizmos.color = Color.yellow;
-                Gizmos.DrawWireSphere(cluster.RawPointPosition, 0.005f);
+                Gizmos.DrawWireSphere(rawPos, 0.005f);
                 Gizmos.color = Color.green;
-                Gizmos.DrawWireSphere(cluster.MeshSurfacePosition, 0.005f);
+                Gizmos.DrawWireSphere(meshPos, 0.005f);
                 Gizmos.color = Color.white;
-                Gizmos.DrawLine(cluster.RawPointPosition, cluster.MeshSurfacePosition);
+                Gizmos.DrawLine(rawPos, meshPos);
             }
 
             // 法線方向を矢印で描画
             Gizmos.color = Color.cyan;
-            Gizmos.DrawRay(cluster.Centroid, cluster.Normal * 0.04f);
+            Gizmos.DrawRay(centroid, normal * 0.04f);
 
 #if UNITY_EDITOR
             // ID・生存フレーム数・Force・最小距離 をラベル表示
             UnityEditor.Handles.Label(
-                cluster.Centroid + Vector3.up * 0.03f,
-                $"ID:{cluster.Id} Age:{cluster.Age} F:{cluster.Force:F2} MinD:{cluster.MinDistance * 1000f:F1}mm");
+                centroid + Vector3.up * 0.03f,
+                $"ID:{id} Age:{age} F:{force:F2} MinD:{minDist * 1000f:F1}mm");
 #endif
         }
     }

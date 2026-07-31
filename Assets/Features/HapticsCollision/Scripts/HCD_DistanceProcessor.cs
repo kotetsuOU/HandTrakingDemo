@@ -181,7 +181,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
                     var smr = targetSkinnedMeshes[i];
                     if (smr == null) continue;
 
-                    smr.BakeMesh(_tempBakedMeshes[i], true);
+                    smr.BakeMesh(_tempBakedMeshes[i], false);
                     
                     CombineInstance ci = new CombineInstance();
                     ci.mesh = _tempBakedMeshes[i];
