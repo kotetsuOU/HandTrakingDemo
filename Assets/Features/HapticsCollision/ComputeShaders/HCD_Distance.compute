@@ -19,6 +19,8 @@ uint PointsCount;
 
 // TransformOnly
 float3 TargetPosition;
+StructuredBuffer<float3> TargetPositionsBuffer;
+uint TargetPositionsCount;
 
 // Distance Thresholds
 float SurfaceDistanceThreshold;
@@ -236,15 +238,45 @@ void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
     }
     else // MeshSurface (TransformOnly)
     {
-        float3 diff = p - TargetPosition;
-        float dist = length(diff);
-
-        if (dist <= SurfaceDistanceThreshold)
+        if (TargetPositionsCount > 0)
         {
-            res.isColliding = 1;
-            res.distance = dist;
-            res.hitPoint = TargetPosition;
-            res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+            float minGlobalDist = 999999.0;
+            int bestIdx = -1;
+            float3 bestDiff = float3(0, 0, 0);
+
+            for (uint tIdx = 0; tIdx < TargetPositionsCount; tIdx++)
+            {
+                float3 targetPos = TargetPositionsBuffer[tIdx];
+                float3 diff = p - targetPos;
+                float dist = length(diff);
+                if (dist < minGlobalDist)
+                {
+                    minGlobalDist = dist;
+                    bestIdx = (int)tIdx;
+                    bestDiff = diff;
+                }
+            }
+
+            if (bestIdx >= 0 && minGlobalDist <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1;
+                res.distance = minGlobalDist;
+                res.hitPoint = TargetPositionsBuffer[bestIdx];
+                res.hitNormal = (minGlobalDist > 0.001) ? normalize(bestDiff) : float3(0, 1, 0);
+            }
+        }
+        else
+        {
+            float3 diff = p - TargetPosition;
+            float dist = length(diff);
+
+            if (dist <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1;
+                res.distance = dist;
+                res.hitPoint = TargetPosition;
+                res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+            }
         }
     }
     

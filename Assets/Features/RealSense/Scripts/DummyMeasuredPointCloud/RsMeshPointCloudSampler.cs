@@ -157,7 +157,7 @@ namespace RealSense.DummyPointCloud
                     {
                         Mesh bakedMesh = new Mesh();
 #if UNITY_2017_3_OR_NEWER
-                        skinnedRenderer.BakeMesh(bakedMesh, true);
+                        skinnedRenderer.BakeMesh(bakedMesh, false);
 #else
                         skinnedRenderer.BakeMesh(bakedMesh);
 #endif
@@ -230,7 +230,7 @@ namespace RealSense.DummyPointCloud
             _sharedBakedMesh.Clear();
 
 #if UNITY_2017_3_OR_NEWER
-            skinnedRenderer.BakeMesh(_sharedBakedMesh, true);
+            skinnedRenderer.BakeMesh(_sharedBakedMesh, false);
 #else
             skinnedRenderer.BakeMesh(_sharedBakedMesh);
 #endif

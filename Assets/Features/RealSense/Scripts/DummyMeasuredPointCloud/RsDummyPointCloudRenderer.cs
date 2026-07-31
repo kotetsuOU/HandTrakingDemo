@@ -150,11 +150,16 @@ namespace RealSense.DummyPointCloud
         {
             if (dummyProvider == null)
             {
+                dummyProvider = GetComponent<RsDummyPointCloudProvider>();
+                if (dummyProvider == null) dummyProvider = GetComponentInParent<RsDummyPointCloudProvider>();
+                if (dummyProvider == null)
+                {
 #if UNITY_2023_1_OR_NEWER
-                dummyProvider = FindFirstObjectByType<RsDummyPointCloudProvider>();
+                    dummyProvider = FindFirstObjectByType<RsDummyPointCloudProvider>();
 #else
-                dummyProvider = FindObjectOfType<RsDummyPointCloudProvider>();
+                    dummyProvider = FindObjectOfType<RsDummyPointCloudProvider>();
 #endif
+                }
             }
 
             EnsureMaterial();

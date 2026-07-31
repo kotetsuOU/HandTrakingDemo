@@ -67,6 +67,7 @@
 * **GPU Voxel Grid 構築**: メッシュの全三角形を並列処理し、ボクセルへ `InterlockedAdd` で登録。
 * **Point-to-Triangle 距離計算**: AABB フィルタ通過後に最短距離を算出。
 * **Möller-Trumbore レイキャスト**: 点から X+ 方向へレイを飛ばし交差回数をカウント（奇数回＝内部、偶数回＝外部）。
+* **TransformOnly マルチターゲット判定 (`TargetPositionsBuffer`)**: 親オブジェクト配下の複数子 Transform 群 (`targetTransforms`) を GPU バッファ化し、点群の各点から全子オブジェクト座標への最短距離探索ループを並列実行。特定の子オブジェクトのみへの限定を防ぎ、配下の全子 Transform に対して個別の接触点を推定・形成します。
 
 #### B. `HCD_SpatialClusteringProcessor` (空間クラスタリング・表面推定)
 * **TactileClustering**: 座標と表面法線を量子化し、ハイブリッドハッシュで空間グループ化。
@@ -77,6 +78,8 @@
     * `NearestPoint`: 最小距離点の重みを極大化し、最も浅い接触点をシャープに推定。
   * **`PositionSource`**: 照射先・基準座標として出力する座標ソースを選択 (`MeshSurface`: メッシュ投影座標 `hitPoint` / `PointCloudRaw`: 点群実測空間座標 `pointPos`)。
   * **`DistanceWeightPower`**: `DistanceWeightedCentroid` モード時の距離減衰累乗数（デフォルト `2.0`）。
+  * **ウェイトクランプ & 固定小数点精度**:
+    GPU 内で $100,000.0$ (10万倍) の固定小数点アキュムレーションを実施し、ウェイトを $\mathrm{clamp}(w_{\mathrm{raw}}, 0.05, 1.0)$ に制御することで、判定境界（2mm等）付近での整数桁落ち（切り捨て誤差）による座標崩れを完全に防ぎます。
 * **Precision Mode**: 共分散行列（Covariance Matrix）の計算および GPU Reservoir Sampling による 16 点のランダムサンプリング (Pass 2)。
 
 #### C. `HCD_ClusterTracker` (フレーム間トラッキング)
@@ -89,7 +92,7 @@
 ## 5. デバッグ・留意事項
 
 ### 5.1 Gizmo 可視化
-`HCD_Pipeline` のインスペクターから Gizmo 描画を有効にすることで、シーンビュー上に以下の情報がリアルタイム可視化されます：
+`HCD_Pipeline` のインスペクターから Gizmo 描画を有効にすることで、GPU で検出された全アクティブクラスタ (`GetActiveClusterInfos`) がシーンビュー上にリアルタイム可視化されます：
 * **クラスタ重心 (WireSphere)**: 生存期間 (Age) に応じて黄色（新生）からマゼンタ（安定）へグラデーション。
 * **実測座標 vs メッシュ表面座標 (黄色/緑色球 + 直線)**: 点群の実測空間位置 (`RawPointPosition`) とメッシュ表面投影位置 (`MeshSurfacePosition`) の乖離を線描画。
 * **法線ベクトル (Cyan Ray)**: 接触パッチの平均表面法線方向。

@@ -61,6 +61,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
     private HCD_Pipeline _pipeline;
     private ComputeBuffer _resultBuffer;
+    private ComputeBuffer _targetPositionsBuffer;
     private int _kernelTransform;
     private int _kernelMesh;
 
@@ -119,12 +120,36 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
         if (detectionMode == DetectionMode.TransformOnly)
         {
-            if (targetObject == null) return;
+            var targetPosList = new System.Collections.Generic.List<Vector3>();
+            if (targetTransforms != null && targetTransforms.Length > 0)
+            {
+                foreach (var t in targetTransforms)
+                {
+                    if (t != null) targetPosList.Add(t.position);
+                }
+            }
+
+            if (targetPosList.Count == 0 && targetObject != null)
+            {
+                targetPosList.Add(targetObject.position);
+            }
+
+            if (targetPosList.Count == 0) return;
+
+            if (_targetPositionsBuffer == null || _targetPositionsBuffer.count != targetPosList.Count)
+            {
+                _targetPositionsBuffer?.Release();
+                _targetPositionsBuffer = new ComputeBuffer(targetPosList.Count, sizeof(float) * 3);
+            }
+
+            _targetPositionsBuffer.SetData(targetPosList.ToArray());
 
             collisionComputeShader.SetBuffer(_kernelTransform, "PointCloudBuffer", pointCloudBuffer);
             collisionComputeShader.SetBuffer(_kernelTransform, "ResultBuffer", _resultBuffer);
+            collisionComputeShader.SetBuffer(_kernelTransform, "TargetPositionsBuffer", _targetPositionsBuffer);
+            collisionComputeShader.SetInt("TargetPositionsCount", targetPosList.Count);
             collisionComputeShader.SetInt("PointsCount", pointCount);
-            collisionComputeShader.SetVector("TargetPosition", targetObject.position);
+            collisionComputeShader.SetVector("TargetPosition", targetPosList[0]);
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
             collisionComputeShader.SetFloat("VisibleSurfaceDistanceThreshold", visibleSurfaceDistanceThreshold);
@@ -331,6 +356,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
     public void Release()
     {
         _resultBuffer?.Release();
+        _targetPositionsBuffer?.Release();
         _meshVerticesBuffer?.Release();
         _meshNormalsBuffer?.Release();
         _meshIndicesBuffer?.Release();
