@@ -7,7 +7,6 @@ public class RsPointCloudVisualization
 
     private static readonly int _VerticesID = Shader.PropertyToID("_Vertices");
     private static readonly int _ColorID = Shader.PropertyToID("_Color");
-    private static readonly int _HalfMirrorMatrixID = Shader.PropertyToID("_HalfMirrorMatrix");
 
     public RsPointCloudVisualization(MeshRenderer renderer)
     {
@@ -15,7 +14,7 @@ public class RsPointCloudVisualization
         _props = new MaterialPropertyBlock();
     }
 
-    public void Draw(ComputeBuffer verticesBuffer, ComputeBuffer argsBuffer, Color pointCloudColor, int layer, Matrix4x4? halfMirrorMatrix = null)
+    public void Draw(ComputeBuffer verticesBuffer, ComputeBuffer argsBuffer, Color pointCloudColor, int layer)
     {
         if (verticesBuffer == null || argsBuffer == null || _renderer == null || _renderer.sharedMaterial == null)
         {
@@ -24,7 +23,6 @@ public class RsPointCloudVisualization
 
         _props.SetBuffer(_VerticesID, verticesBuffer);
         _props.SetColor(_ColorID, pointCloudColor);
-        _props.SetMatrix(_HalfMirrorMatrixID, halfMirrorMatrix ?? Matrix4x4.identity);
 
         Bounds bounds = new Bounds(Vector3.zero, Vector3.one * 50f);
 

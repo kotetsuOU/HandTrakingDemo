@@ -168,6 +168,15 @@ public class RsPointCloudRenderer : MonoBehaviour
         return GetLastFilteredCount();
     }
 
+    /// <summary>
+    /// オクルージョン専用グローバルバッファマージ用のバッファを取得する。
+    /// デフォルトは GetPCDSourceBuffer() と同じ。ダミーレンダラーはX鏡像変換済みバッファをオーバーライドで返す。
+    /// </summary>
+    public virtual ComputeBuffer GetOcclusionSourceBuffer() => GetPCDSourceBuffer();
+
+    /// <summary> GetOcclusionSourceBuffer に対応する点数を返す </summary>
+    public virtual int GetOcclusionSourceCount() => GetPCDSourceCount();
+
     public ComputeBuffer GetRawBuffer() => GetFilteredVerticesBuffer();
     public int GetLastVertexCount() => GetLastFilteredCount();
     public RsComputeStats GetComputeStats() => _initializer?.Compute?.Stats;

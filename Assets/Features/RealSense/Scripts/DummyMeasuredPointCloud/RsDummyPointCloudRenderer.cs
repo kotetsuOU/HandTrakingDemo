@@ -24,7 +24,8 @@ namespace RealSense.DummyPointCloud
         private MeshRenderer _meshRenderer;
         private RsPointCloudVisualization _visualization;
 
-        private ComputeBuffer _verticesBuffer;
+        private ComputeBuffer _verticesBuffer;        // 元のワールド座標（接触判定・描画用）
+        private ComputeBuffer _mirroredVerticesBuffer; // X鏡像変換済み座標（オクルージョン用PCD送信専用）
         private ComputeBuffer _argsBuffer;
         private uint[] _argsData = new uint[4] { 0, 1, 0, 0 };
 
@@ -32,84 +33,51 @@ namespace RealSense.DummyPointCloud
         private int _lastLoggedPointCount = -1;
         private int _cachedValidPointCount = 0;
 
-        private Vector3[] _tempTransformBuffer;
-        private Component _lastAdjuster;
-        private bool _lastHalfMirrorEnabled = false;
-        private Matrix4x4 _lastMirrorMatrix = Matrix4x4.identity;
+        // ハーフミラー用: X鏡像変換後の座標キャッシュ
+        private Vector3[] _mirroredPositionsCache;
+        private MonoBehaviour _cachedCameraAdjusterComponent;
+        private System.Reflection.FieldInfo _isHalfMirrorEnabledField;
+        private System.Reflection.FieldInfo _displayTransformField;
+        private bool _hasLookedForCameraAdjuster = false;
 
-        private static Type s_cameraAdjusterType;
-        private static System.Reflection.FieldInfo s_isHalfMirrorEnabledField;
-        private static System.Reflection.FieldInfo s_displayTransformField;
-        private static bool s_typeSearched = false;
-
-        private Matrix4x4 GetHalfMirrorMatrix(out Component adjusterComp, out bool isHalfMirrorEnabled)
+        private bool CheckHalfMirrorSettings(out Transform displayTransform)
         {
-            adjusterComp = null;
-            isHalfMirrorEnabled = false;
-
-            if (!s_typeSearched)
+            displayTransform = null;
+            if (!_hasLookedForCameraAdjuster || _cachedCameraAdjusterComponent == null)
             {
-                s_typeSearched = true;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                _hasLookedForCameraAdjuster = true;
+#if UNITY_2023_1_OR_NEWER
+                var components = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+#else
+                var components = FindObjectsOfType<MonoBehaviour>();
+#endif
+                foreach (var c in components)
                 {
-                    var t = asm.GetType("CameraAdjuster");
-                    if (t != null && typeof(Component).IsAssignableFrom(t))
+                    if (c != null && c.GetType().Name == "CameraAdjuster")
                     {
-                        s_cameraAdjusterType = t;
-                        s_isHalfMirrorEnabledField = t.GetField("isHalfMirrorEnabled");
-                        s_displayTransformField = t.GetField("displayTransform");
+                        _cachedCameraAdjusterComponent = c;
+                        var type = c.GetType();
+                        _isHalfMirrorEnabledField = type.GetField("isHalfMirrorEnabled");
+                        _displayTransformField = type.GetField("displayTransform");
                         break;
                     }
                 }
             }
 
-            if (s_cameraAdjusterType == null)
+            if (_cachedCameraAdjusterComponent != null && _isHalfMirrorEnabledField != null)
             {
-                return Matrix4x4.identity;
+                bool isEnabled = (bool)_isHalfMirrorEnabledField.GetValue(_cachedCameraAdjusterComponent);
+                if (isEnabled)
+                {
+                    if (_displayTransformField != null)
+                    {
+                        displayTransform = _displayTransformField.GetValue(_cachedCameraAdjusterComponent) as Transform;
+                    }
+                    return true;
+                }
             }
 
-#if UNITY_2023_1_OR_NEWER
-            adjusterComp = UnityEngine.Object.FindFirstObjectByType(s_cameraAdjusterType) as Component;
-#else
-            adjusterComp = UnityEngine.Object.FindObjectOfType(s_cameraAdjusterType) as Component;
-#endif
-
-            if (adjusterComp == null)
-            {
-                return Matrix4x4.identity;
-            }
-
-            isHalfMirrorEnabled = true;
-            if (s_isHalfMirrorEnabledField != null)
-            {
-                var val = s_isHalfMirrorEnabledField.GetValue(adjusterComp);
-                if (val is bool b) isHalfMirrorEnabled = b;
-            }
-
-            if (!isHalfMirrorEnabled)
-            {
-                return Matrix4x4.identity;
-            }
-
-            Transform displayTransform = null;
-            if (s_displayTransformField != null)
-            {
-                displayTransform = s_displayTransformField.GetValue(adjusterComp) as Transform;
-            }
-
-            if (displayTransform != null)
-            {
-                Vector3 center = displayTransform.position;
-                Quaternion rotation = displayTransform.rotation;
-                Matrix4x4 displayTRS = Matrix4x4.TRS(center, rotation, Vector3.one);
-                Matrix4x4 flipX = Matrix4x4.Scale(new Vector3(-1, 1, 1));
-                Matrix4x4 displayInverse = displayTRS.inverse;
-                return displayTRS * flipX * displayInverse;
-            }
-            else
-            {
-                return Matrix4x4.Scale(new Vector3(-1, 1, 1));
-            }
+            return false;
         }
 
         private void Log(string message)
@@ -191,8 +159,6 @@ namespace RealSense.DummyPointCloud
 
             EnsureMaterial();
 
-            Matrix4x4 mirrorMatrix = GetHalfMirrorMatrix(out var currentAdjuster, out bool isHalfMirrorEnabled);
-
             // 1. オブジェクトが動いた / データが新しく更新された時 (DataVersion 変化時) のみ GPU バッファを更新
             if (dummyProvider != null && dummyProvider.DataVersion != _appliedDataVersion)
             {
@@ -202,20 +168,53 @@ namespace RealSense.DummyPointCloud
                     int count = sampledData.PointCount;
                     _cachedValidPointCount = count;
 
-                    // バッファの確保・自動サイズ調整
+                    // _verticesBuffer は常に元のワールド座標（接触判定・描画用）
                     if (_verticesBuffer == null || _verticesBuffer.count < count)
                     {
-                        if (_verticesBuffer != null)
-                        {
-                            _verticesBuffer.Release();
-                        }
+                        if (_verticesBuffer != null) _verticesBuffer.Release();
                         int newSize = Mathf.NextPowerOfTwo(Mathf.Max(count, 1024));
                         _verticesBuffer = new ComputeBuffer(newSize, sizeof(float) * 3);
-                        Log($"Reallocated ComputeBuffer to size {newSize} for {count} points.");
+                        Log($"Reallocated _verticesBuffer to size {newSize} for {count} points.");
                     }
-
-                    // PCD / HCD 用には正統な素のワールド座標バッファを保持
                     _verticesBuffer.SetData(sampledData.Positions, 0, 0, count);
+
+                    // ハーフミラー有効時: _mirroredVerticesBuffer にX鏡像変換済み座標を格納（オクルージョン用PCD送信専用）
+                    bool applyMirror = CheckHalfMirrorSettings(out Transform displayTransform);
+                    if (applyMirror)
+                    {
+                        if (_mirroredVerticesBuffer == null || _mirroredVerticesBuffer.count < count)
+                        {
+                            if (_mirroredVerticesBuffer != null) _mirroredVerticesBuffer.Release();
+                            int newSize = Mathf.NextPowerOfTwo(Mathf.Max(count, 1024));
+                            _mirroredVerticesBuffer = new ComputeBuffer(newSize, sizeof(float) * 3);
+                            Log($"Reallocated _mirroredVerticesBuffer to size {newSize} for {count} points.");
+                        }
+
+                        if (_mirroredPositionsCache == null || _mirroredPositionsCache.Length < count)
+                            _mirroredPositionsCache = new Vector3[Mathf.Max(count, 1024)];
+
+                        // PCDContextBuilder と同一の変換: displayTRS * flipX * displayInverse
+                        Matrix4x4 mirrorMatrix;
+                        if (displayTransform != null)
+                        {
+                            Vector3 center = displayTransform.position;
+                            Quaternion rotation = displayTransform.rotation;
+                            Matrix4x4 displayTRS = Matrix4x4.TRS(center, rotation, Vector3.one);
+                            Matrix4x4 flipX = Matrix4x4.Scale(new Vector3(-1, 1, 1));
+                            mirrorMatrix = displayTRS * flipX * displayTRS.inverse;
+                        }
+                        else
+                        {
+                            mirrorMatrix = Matrix4x4.Scale(new Vector3(-1, 1, 1));
+                        }
+
+                        Vector3[] srcPositions = sampledData.Positions;
+                        for (int i = 0; i < count; i++)
+                            _mirroredPositionsCache[i] = mirrorMatrix.MultiplyPoint3x4(srcPositions[i]);
+
+                        _mirroredVerticesBuffer.SetData(_mirroredPositionsCache, 0, 0, count);
+                        Log($"_mirroredVerticesBuffer updated with HalfMirror X-flip ({count} points).");
+                    }
 
                     // Indirect Draw 引数の更新
                     _argsData[0] = (uint)count;
@@ -226,11 +225,7 @@ namespace RealSense.DummyPointCloud
                 }
             }
 
-            _lastAdjuster = currentAdjuster;
-            _lastHalfMirrorEnabled = isHalfMirrorEnabled;
-            _lastMirrorMatrix = mirrorMatrix;
-
-            // 2. 画面描画時にシェーダー経由で HalfMirror 行列を適用
+            // 2. 静止時は一切 SetData も計算も行わず、既存の GPU バッファで 0ms 高速描画のみ実行
             if (_verticesBuffer != null && _cachedValidPointCount > 0 && _visualization != null)
             {
                 Color drawColor = (dummyProvider != null && dummyProvider.colorMode == PointColorMode.SolidColor)
@@ -240,10 +235,10 @@ namespace RealSense.DummyPointCloud
                 if (enableDebugLog && _cachedValidPointCount != _lastLoggedPointCount)
                 {
                     _lastLoggedPointCount = _cachedValidPointCount;
-                    Log($"Rendering {_cachedValidPointCount} points on GPU (Color: {drawColor}, HalfMirror={isHalfMirrorEnabled}).");
+                    Log($"Rendering {_cachedValidPointCount} points on GPU (Color: {drawColor}).");
                 }
 
-                _visualization.Draw(_verticesBuffer, _argsBuffer, drawColor, gameObject.layer, isHalfMirrorEnabled ? mirrorMatrix : Matrix4x4.identity);
+                _visualization.Draw(_verticesBuffer, _argsBuffer, drawColor, gameObject.layer);
             }
         }
 
@@ -253,7 +248,6 @@ namespace RealSense.DummyPointCloud
 
             if (dummyProvider != null && dummyProvider.LastSampledData.Positions != null && dummyProvider.LastSampledData.PointCount > 0)
             {
-                Matrix4x4 mirrorMatrix = GetHalfMirrorMatrix(out _, out bool isHalfMirrorEnabled);
                 Gizmos.color = dummyProvider.colorMode == PointColorMode.SolidColor ? dummyProvider.solidColor : pointCloudColor;
                 var positions = dummyProvider.LastSampledData.Positions;
                 int count = dummyProvider.LastSampledData.PointCount;
@@ -261,17 +255,20 @@ namespace RealSense.DummyPointCloud
 
                 for (int i = 0; i < count; i += step)
                 {
-                    Vector3 pos = isHalfMirrorEnabled ? mirrorMatrix.MultiplyPoint3x4(positions[i]) : positions[i];
-                    Gizmos.DrawSphere(pos, 0.003f);
+                    Gizmos.DrawSphere(positions[i], 0.003f);
                 }
             }
         }
 
         /// <summary> PCD マネージャーやオクルージョン計算等の外部コンポーネントへ点群バッファを提供するオーバーライド </summary>
-        public override ComputeBuffer GetFilteredVerticesBuffer() => _verticesBuffer;
+        public override ComputeBuffer GetFilteredVerticesBuffer() => _verticesBuffer;  // 元座標（接触判定・描画用）
         public override int GetLastFilteredCount() => _cachedValidPointCount;
+        /// <summary> HCD 接触判定等のグローバルバッファマージ用: 常に元のワールド座標を返す </summary>
         public override ComputeBuffer GetPCDSourceBuffer() => _verticesBuffer;
         public override int GetPCDSourceCount() => _cachedValidPointCount;
+        /// <summary> オクルージョン用グローバルバッファマージ用: ハーフミラー有効時はX鏡像変換済みバッファを返す </summary>
+        public override ComputeBuffer GetOcclusionSourceBuffer() => (_mirroredVerticesBuffer != null && _mirroredVerticesBuffer.IsValid()) ? _mirroredVerticesBuffer : _verticesBuffer;
+        public override int GetOcclusionSourceCount() => _cachedValidPointCount;
 
         private void OnDisable()
         {
@@ -290,6 +287,12 @@ namespace RealSense.DummyPointCloud
             {
                 _verticesBuffer.Release();
                 _verticesBuffer = null;
+            }
+
+            if (_mirroredVerticesBuffer != null)
+            {
+                _mirroredVerticesBuffer.Release();
+                _mirroredVerticesBuffer = null;
             }
 
             if (_argsBuffer != null)

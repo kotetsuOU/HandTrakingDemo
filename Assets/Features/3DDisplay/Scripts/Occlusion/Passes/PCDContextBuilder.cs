@@ -115,8 +115,8 @@ internal class PCDContextBuilder
         // =========================================================================
         if (shouldUseExternal && RsGlobalPointCloudManager.Instance != null)
         {
-            var globalBuffer = RsGlobalPointCloudManager.Instance.GetGlobalBuffer();
-            var globalCount = RsGlobalPointCloudManager.Instance.CurrentTotalCount;
+            var globalBuffer = RsGlobalPointCloudManager.Instance.GetOcclusionGlobalBuffer();
+            var globalCount = RsGlobalPointCloudManager.Instance.OcclusionTotalCount;
             bufferManager.SetExternalBuffer(globalBuffer, globalCount);
         }
         else
@@ -183,7 +183,11 @@ internal class PCDContextBuilder
         }
 
         Matrix4x4 vMatrix = data.Camera.worldToCameraMatrix;
-        var adjuster = data.Camera.GetComponent<CameraAdjuster>();
+#if UNITY_2023_1_OR_NEWER
+        var adjuster = data.Camera.GetComponent<CameraAdjuster>() ?? Object.FindFirstObjectByType<CameraAdjuster>();
+#else
+        var adjuster = data.Camera.GetComponent<CameraAdjuster>() ?? Object.FindObjectOfType<CameraAdjuster>();
+#endif
         if (adjuster != null && adjuster.isHalfMirrorEnabled)
         {
             if (adjuster.displayTransform != null)

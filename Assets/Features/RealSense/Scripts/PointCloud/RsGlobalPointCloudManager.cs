@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -46,10 +46,12 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     [Tooltip("管理対象とする点群レンダラーのリスト。空の場合は子オブジェクトから取得します。")]
     public List<RsPointCloudRenderer> renderers = new List<RsPointCloudRenderer>();
 
-    private ComputeBuffer _globalBuffer;
+    private ComputeBuffer _globalBuffer;    // HCD 接触判定用（元座標）
+    private ComputeBuffer _occlusionBuffer; // オクルージョン用（ダミーはX反転済み）
     private int _kernelMerge;
 
     public int CurrentTotalCount { get; private set; } = 0;
+    public int OcclusionTotalCount { get; private set; } = 0;
 
     public bool IsIntegratedPCAMode => pcaMode == PCAMode.Integrated;
 
@@ -59,6 +61,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     {
         Instance = this;
         _globalBuffer = new ComputeBuffer(maxTotalPoints, STRIDE);
+        _occlusionBuffer = new ComputeBuffer(maxTotalPoints, STRIDE);
         _kernelMerge = mergeComputeShader.FindKernel("MergePoints");
     }
 
@@ -73,12 +76,15 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
         {
             case OutputMode.MergeAll:
                 ProcessMergeAll();
+                ProcessOcclusionMergeAll();
                 break;
             case OutputMode.SingleCamera:
                 ProcessSingleCamera();
+                OcclusionTotalCount = 0;
                 break;
             case OutputMode.None:
                 CurrentTotalCount = 0;
+                OcclusionTotalCount = 0;
                 break;
         }
 
@@ -89,11 +95,19 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 統合されたすべての点群データ（グローバルバッファ）を取得します。
+    /// HCD 接触判定用の統合点群データ（元座標）を取得します。
     /// </summary>
     public ComputeBuffer GetGlobalBuffer()
     {
         return _globalBuffer;
+    }
+
+    /// <summary>
+    /// オクルージョン用の統合点群データ（ダミーはX反転済み）を取得します。
+    /// </summary>
+    public ComputeBuffer GetOcclusionGlobalBuffer()
+    {
+        return _occlusionBuffer;
     }
 
     /// <summary>
@@ -220,5 +234,6 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     {
         // 確保されているグローバルバッファ（ComputeBuffer）を解放します
         _globalBuffer?.Release();
+        _occlusionBuffer?.Release();
     }
 }
