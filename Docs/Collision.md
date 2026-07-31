@@ -68,20 +68,32 @@
 * **Point-to-Triangle 距離計算**: AABB フィルタ通過後に最短距離を算出。
 * **Möller-Trumbore レイキャスト**: 点から X+ 方向へレイを飛ばし交差回数をカウント（奇数回＝内部、偶数回＝外部）。
 
-#### B. `HCD_SpatialClusteringProcessor` (空間クラスタリング)
+#### B. `HCD_SpatialClusteringProcessor` (空間クラスタリング・表面推定)
 * **TactileClustering**: 座標と表面法線を量子化し、ハイブリッドハッシュで空間グループ化。
-* **Precision Mode**: 共分散行列（Covariance Matrix）の計算および GPU Reservoir Sampling による 16 点のランダムサンプリング。
+* **表面推定設定 (Surface Estimation Settings)**:
+  * **`AggregationMode`**: クラスタ重心の集約アルゴリズムを選択 (`precisionMode` の有無にかかわらず Pass 1 で適用)。
+    * `UnweightedCentroid`: 従来の単純平均（平滑さ優先）。
+    * `DistanceWeightedCentroid`: メッシュ表面 0mm に近い点ほど重みを大きく評価し、ノイズに強い真の接触面を推定 ($w = (1 - d/d_{\mathrm{thresh}})^p$)。
+    * `NearestPoint`: 最小距離点の重みを極大化し、最も浅い接触点をシャープに推定。
+  * **`PositionSource`**: 照射先・基準座標として出力する座標ソースを選択 (`MeshSurface`: メッシュ投影座標 `hitPoint` / `PointCloudRaw`: 点群実測空間座標 `pointPos`)。
+  * **`DistanceWeightPower`**: `DistanceWeightedCentroid` モード時の距離減衰累乗数（デフォルト `2.0`）。
+* **Precision Mode**: 共分散行列（Covariance Matrix）の計算および GPU Reservoir Sampling による 16 点のランダムサンプリング (Pass 2)。
 
 #### C. `HCD_ClusterTracker` (フレーム間トラッキング)
 * **最近傍マッチング**: 前フレームの重心との距離比較による ID 固定。
-* **ContactForceReduction**: 接触点数からベース振幅 $F_{\mathrm{raw}}$ を放物/線形計算し、指数移動平均（EMA）でフェード処理。
+* **拡張データ保持**: クラスタごとの `RawPointPosition` (実測位置)、`MeshSurfacePosition` (メッシュ表面位置)、`MinDistance` (最小表面距離) を追跡・提供。
+* **ContactForceReduction**: 接触点数からベース振幅 $F_{\mathrm{raw}}$ を計算し、指数移動平均（EMA）でフェード処理。
 
 ---
 
 ## 5. デバッグ・留意事項
 
 ### 5.1 Gizmo 可視化
-`HCD_Pipeline` のインスペクターから Gizmo 描画を有効にすることで、シーンビュー上にクラスタ重心、法線ベクトル、接触強度がリアルタイム可視化されます。
+`HCD_Pipeline` のインスペクターから Gizmo 描画を有効にすることで、シーンビュー上に以下の情報がリアルタイム可視化されます：
+* **クラスタ重心 (WireSphere)**: 生存期間 (Age) に応じて黄色（新生）からマゼンタ（安定）へグラデーション。
+* **実測座標 vs メッシュ表面座標 (黄色/緑色球 + 直線)**: 点群の実測空間位置 (`RawPointPosition`) とメッシュ表面投影位置 (`MeshSurfacePosition`) の乖離を線描画。
+* **法線ベクトル (Cyan Ray)**: 接触パッチの平均表面法線方向。
+* **情報ラベル**: `ID`, 生存フレーム数 `Age`, 接触強度 `F`, クラスタ内最小表面距離 `MinD: X.Xmm` を表示。
 
 ### 5.2 留意事項
 * `AsyncGPUReadback` により CPU との同期待ちを非同期化しており、1〜2 フレームの読込ラグが存在します。

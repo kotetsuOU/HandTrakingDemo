@@ -49,10 +49,16 @@
 
   $$\|\mathbf{p}_i - \mathbf{p}_j\|^2 \leq d_{\mathrm{thresh}}^2 \implies \mathrm{Union}(i, j)$$
 
-* **C# / GPU 実装 (TactileClustering)**:
-  座標 $\mathbf{p}_i$ をボクセルサイズ $S_{\mathrm{cell}}$ で量子化 $\mathbf{q}_i = \lfloor \mathbf{p}_i / S_{\mathrm{cell}} \rfloor$ し、法線方向 $b_i$ と組み合わせたキー $h = \mathrm{Hash}(\mathbf{q}_i, b_i)$ で並列集約：
+* **C# / GPU 実装 (TactileClustering & 表面推定)**:
+  座標 $\mathbf{p}_i$ をボクセルサイズ $S_{\mathrm{cell}}$ で量子化 $\mathbf{q}_i = \lfloor \mathbf{p}_i / S_{\mathrm{cell}} \rfloor$ し、法線方向 $b_i$ と組み合わせたキー $h = \mathrm{Hash}(\mathbf{q}_i, b_i)$ で並列集約します。
+  
+  単純平均 (Unweighted Centroid) では接触閾値 $d_{\mathrm{thresh}}$ ギリギリの点と 0mm 近傍の点が同等評価され真の面がずれるため、距離加重重み付け (Distance-Weighted Centroid) を導入しました：
 
-  $$\mathbf{C}_h = \frac{1}{N_h} \sum_{k=1}^{N_h} \mathbf{p}_k$$
+  $$w_i = \left( \mathrm{saturate}\left( 1 - \frac{d_i}{d_{\mathrm{thresh}}} \right) \right)^p$$
+
+  $$\mathbf{C}_h = \frac{\sum_{k=1}^{N_h} w_k \mathbf{x}_k}{\sum_{k=1}^{N_h} w_k}$$
+
+  （※ $\mathbf{x}_k$ は `positionSource` の設定に応じてメッシュ表面投影点 $\mathbf{h}_k$ または点群実測位置 $\mathbf{p}_k$ から選択。$p$ は `distanceWeightPower`）
 
 ### 3.2 共分散 (Covariance) 行列
 

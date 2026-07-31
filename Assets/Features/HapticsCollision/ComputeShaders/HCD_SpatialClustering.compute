@@ -130,33 +130,34 @@ void AccumulateClusters(uint3 id : SV_DispatchThreadID)
     {
         float maxThresh = max(0.0001, SurfaceDistanceThreshold);
         float normDist = saturate(col.distance / maxThresh);
-        weight = pow(saturate(1.0 - normDist), max(1.0, DistanceWeightPower));
+        float rawWeight = pow(saturate(1.0 - normDist), max(1.0, DistanceWeightPower));
+        weight = clamp(rawWeight, 0.05, 1.0); // 桁数(100,000)に応じた下限(0.05)・上限(1.0)クランプ
     }
     else if (AggregationMode == 2) // NearestPoint (sharp power weighting)
     {
         float maxThresh = max(0.0001, SurfaceDistanceThreshold);
         float normDist = saturate(col.distance / maxThresh);
-        weight = pow(saturate(1.0 - normDist), 8.0);
+        float rawWeight = pow(saturate(1.0 - normDist), 4.0);
+        weight = clamp(rawWeight, 0.05, 1.0); // 桁数(100,000)に応じた下限(0.05)・上限(1.0)クランプ
     }
 
-    int wInt = (int)(weight * 10000.0);
-    if (wInt < 1) wInt = 1;
+    int wInt = (int)(weight * 100000.0);
 
-    int fx  = (int)(primaryPos.x   * weight * 10000.0);
-    int fy  = (int)(primaryPos.y   * weight * 10000.0);
-    int fz  = (int)(primaryPos.z   * weight * 10000.0);
+    int fx  = (int)(primaryPos.x   * weight * 100000.0);
+    int fy  = (int)(primaryPos.y   * weight * 100000.0);
+    int fz  = (int)(primaryPos.z   * weight * 100000.0);
 
-    int rfx = (int)(col.pointPos.x * weight * 10000.0);
-    int rfy = (int)(col.pointPos.y * weight * 10000.0);
-    int rfz = (int)(col.pointPos.z * weight * 10000.0);
+    int rfx = (int)(col.pointPos.x * weight * 100000.0);
+    int rfy = (int)(col.pointPos.y * weight * 100000.0);
+    int rfz = (int)(col.pointPos.z * weight * 100000.0);
 
-    int mfx = (int)(col.hitPoint.x * weight * 10000.0);
-    int mfy = (int)(col.hitPoint.y * weight * 10000.0);
-    int mfz = (int)(col.hitPoint.z * weight * 10000.0);
+    int mfx = (int)(col.hitPoint.x * weight * 100000.0);
+    int mfy = (int)(col.hitPoint.y * weight * 100000.0);
+    int mfz = (int)(col.hitPoint.z * weight * 100000.0);
 
-    int nx  = (int)(col.hitNormal.x * weight * 10000.0);
-    int ny  = (int)(col.hitNormal.y * weight * 10000.0);
-    int nz  = (int)(col.hitNormal.z * weight * 10000.0);
+    int nx  = (int)(col.hitNormal.x * weight * 100000.0);
+    int ny  = (int)(col.hitNormal.y * weight * 100000.0);
+    int nz  = (int)(col.hitNormal.z * weight * 100000.0);
 
     int dInt = (int)(col.distance * 1000000.0);
 

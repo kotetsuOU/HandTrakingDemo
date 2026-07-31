@@ -177,10 +177,8 @@ public class HCD_Pipeline : MonoBehaviour
                     }
                 }
 
-                Debug.Log($"[HCD_Pipeline] 非ゼロクラスタ={nonZeroCount}/{_clusterResults.Length}, 最大点数={maxCount}, " +
-                          $"アクティブ重心={centroids.Count}, TrackedClusters={clusterTracker.TrackedClusters.Count}, " +
-                          $"IsAlive数={aliveCount}, 最初の重心={firstCentroid}, " +
-                          $"showDebugGizmos={showDebugGizmos}, isPlaying={Application.isPlaying}");
+                Debug.Log($"[HCD_Pipeline] Mode: {clusteringProcessor.aggregationMode} ({clusteringProcessor.positionSource}) | " +
+                          $"Clusters: {centroids.Count} | First Centroid: {firstCentroid}");
             }
 #endif
         }
@@ -218,7 +216,7 @@ public class HCD_Pipeline : MonoBehaviour
             {
                 float invScale = (data.weightSum > 0)
                     ? (1.0f / (float)data.weightSum)
-                    : (1.0f / (data.count * 10000.0f));
+                    : (1.0f / (data.count * 100000.0f));
 
                 centroids.Add(new Vector3(data.posX, data.posY, data.posZ) * invScale);
                 rawPositions.Add(new Vector3(data.rawPosX, data.rawPosY, data.rawPosZ) * invScale);
@@ -365,20 +363,6 @@ public class HCD_Pipeline : MonoBehaviour
     private void DrawClusterGizmos()
     {
         var clusters = clusterTracker.TrackedClusters;
-
-#if UNITY_EDITOR
-        // ── デバッグ: OnDrawGizmos が呼ばれているか、TrackedClusters 状態の確認 ──
-        if (Time.frameCount % 120 == 0)
-        {
-            int alive = 0;
-            foreach (var c in clusters) { if (c.IsAlive) alive++; }
-            Debug.Log($"[HCD_Gizmo] DrawClusterGizmos呼び出し: TrackedClusters={clusters.Count}, IsAlive={alive}");
-        }
-
-        // 常に原点に赤い球を描画 → これが見えなければ OnDrawGizmos 自体が無効
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(Vector3.zero, 0.05f);
-#endif
 
         // isColliding == 1 の表面接触クラスタ（マゼンタ）をトラッカー経由で描画
         foreach (var cluster in clusters)
