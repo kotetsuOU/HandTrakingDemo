@@ -92,10 +92,15 @@ public class HCD_PipelineEditor : Editor
                     SerializedProperty viewCamProp = dpProp.FindPropertyRelative("viewCamera");
                     if (viewCamProp != null) EditorGUILayout.PropertyField(viewCamProp);
 
-                    SerializedProperty viewSurfProp = dpProp.FindPropertyRelative("viewSurfaceDistanceThreshold");
-                    SerializedProperty viewBackProp = dpProp.FindPropertyRelative("viewBackfaceDistanceThreshold");
-                    if (viewSurfProp != null) EditorGUILayout.PropertyField(viewSurfProp);
-                    if (viewBackProp != null) EditorGUILayout.PropertyField(viewBackProp);
+                    SerializedProperty visSurfProp = dpProp.FindPropertyRelative("visibleSurfaceDistanceThreshold");
+                    SerializedProperty visBackProp = dpProp.FindPropertyRelative("visibleBackfaceDistanceThreshold");
+                    SerializedProperty occSurfProp = dpProp.FindPropertyRelative("occludedSurfaceDistanceThreshold");
+                    SerializedProperty occBackProp = dpProp.FindPropertyRelative("occludedBackfaceDistanceThreshold");
+
+                    if (visSurfProp != null) EditorGUILayout.PropertyField(visSurfProp);
+                    if (visBackProp != null) EditorGUILayout.PropertyField(visBackProp);
+                    if (occSurfProp != null) EditorGUILayout.PropertyField(occSurfProp);
+                    if (occBackProp != null) EditorGUILayout.PropertyField(occBackProp);
                 }
                 else
                 {

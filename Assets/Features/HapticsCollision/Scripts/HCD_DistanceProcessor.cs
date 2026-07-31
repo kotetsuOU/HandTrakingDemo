@@ -35,20 +35,24 @@ public class HCD_DistanceProcessor : IHCD_Processor
     public float meshBackfaceDistanceThreshold = 0.05f;
 
     [Header("View Direction Parameters")]
-    [Tooltip("【視線方向モード】視線方向の手前判定距離(m)")]
-    public float viewSurfaceDistanceThreshold = 0.02f;
-    [Tooltip("【視線方向モード】視線方向の奥判定距離(m)")]
-    public float viewBackfaceDistanceThreshold = 0.05f;
+    [Tooltip("【視線方向モード】視線可視（表向き）の手前判定距離(m)")]
+    public float visibleSurfaceDistanceThreshold = 0.02f;
+    [Tooltip("【視線方向モード】視線可視（表向き）の奥判定距離(m)")]
+    public float visibleBackfaceDistanceThreshold = 0.05f;
+    [Tooltip("【視線方向モード】視線非可視（裏向き）の手前判定距離(m)")]
+    public float occludedSurfaceDistanceThreshold = 0.02f;
+    [Tooltip("【視線方向モード】視線非可視（裏向き）の奥判定距離(m)")]
+    public float occludedBackfaceDistanceThreshold = 0.05f;
 
     /// <summary>
     /// 現在のモードに対応した表面（手前）接触距離しきい値(m)
     /// </summary>
-    public float surfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? viewSurfaceDistanceThreshold : meshSurfaceDistanceThreshold;
+    public float surfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleSurfaceDistanceThreshold : meshSurfaceDistanceThreshold;
 
     /// <summary>
     /// 現在のモードに対応した裏面（奥）判定距離しきい値(m)
     /// </summary>
-    public float backfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? viewBackfaceDistanceThreshold : meshBackfaceDistanceThreshold;
+    public float backfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleBackfaceDistanceThreshold : meshBackfaceDistanceThreshold;
 
     public ComputeShader collisionComputeShader;
 
@@ -121,6 +125,10 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.SetVector("TargetPosition", targetObject.position);
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("VisibleSurfaceDistanceThreshold", visibleSurfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("VisibleBackfaceDistanceThreshold", visibleBackfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("OccludedSurfaceDistanceThreshold", occludedSurfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("OccludedBackfaceDistanceThreshold", occludedBackfaceDistanceThreshold);
             collisionComputeShader.SetInt("DistanceMode", (int)distanceMode);
             collisionComputeShader.SetVector("CameraPosition", cameraPos);
 
@@ -302,6 +310,10 @@ public class HCD_DistanceProcessor : IHCD_Processor
             
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("VisibleSurfaceDistanceThreshold", visibleSurfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("VisibleBackfaceDistanceThreshold", visibleBackfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("OccludedSurfaceDistanceThreshold", occludedSurfaceDistanceThreshold);
+            collisionComputeShader.SetFloat("OccludedBackfaceDistanceThreshold", occludedBackfaceDistanceThreshold);
             collisionComputeShader.SetInt("DistanceMode", (int)distanceMode);
             collisionComputeShader.SetVector("CameraPosition", cameraPos);
 

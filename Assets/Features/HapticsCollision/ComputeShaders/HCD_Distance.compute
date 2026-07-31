@@ -22,6 +22,12 @@ float3 TargetPosition;
 float SurfaceDistanceThreshold;
 float BackfaceDistanceThreshold;
 
+// View Direction Thresholds (Visible vs Occluded)
+float VisibleSurfaceDistanceThreshold;
+float VisibleBackfaceDistanceThreshold;
+float OccludedSurfaceDistanceThreshold;
+float OccludedBackfaceDistanceThreshold;
+
 // Distance Mode Settings
 int DistanceMode; // 0: MeshSurface, 1: ViewDirection
 float3 CameraPosition;
@@ -272,72 +278,23 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    if (DistanceMode == 1) // ViewDirection Mode
-    {
-        float3 camPos = CameraPosition;
-        float3 rayD = p - camPos;
-        float distP = length(rayD);
-        if (distP > 0.0001) rayD /= distP;
-        else rayD = float3(0, 0, 1);
-
-        float minViewDepthDiff = 9999999.0;
-        float bestHitDist = -1.0;
-        float3 bestHitNormal = float3(0, 0, 0);
-
-        for (uint triIdx = 0u; triIdx < MeshTrianglesCount; triIdx++)
-        {
-            int idxA = MeshIndicesBuffer[triIdx * 3u];
-            int idxB = MeshIndicesBuffer[triIdx * 3u + 1u];
-            int idxC = MeshIndicesBuffer[triIdx * 3u + 2u];
-
-            float3 wA = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxA], 1.0)).xyz;
-            float3 wB = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxB], 1.0)).xyz;
-            float3 wC = mul(LocalToWorldMatrix, float4(MeshVerticesBuffer[idxC], 1.0)).xyz;
-
-            float tHit;
-            if (RayTriangleHitDist(camPos, rayD, wA, wB, wC, tHit))
-            {
-                float diff = abs(distP - tHit);
-                if (diff < minViewDepthDiff)
-                {
-                    minViewDepthDiff = diff;
-                    bestHitDist = tHit;
-                    float3 n = normalize(cross(wB - wA, wC - wA));
-                    if (dot(n, rayD) > 0.0) n = -n; // Orient normal towards camera
-                    bestHitNormal = n;
-                }
-            }
-        }
-
-        if (bestHitDist > 0.0)
-        {
-            float depthDiff = distP - bestHitDist; // < 0: in front of mesh surface, > 0: behind mesh surface
-            if (depthDiff <= 0.0 && -depthDiff <= SurfaceDistanceThreshold)
-            {
-                res.isColliding = 1; // Surface/Front contact along view direction
-                res.hitPoint = camPos + rayD * bestHitDist;
-                res.hitNormal = bestHitNormal;
-            }
-            else if (depthDiff > 0.0 && depthDiff <= BackfaceDistanceThreshold)
-            {
-                res.isColliding = 2; // Inside/Back contact along view direction
-                res.hitPoint = camPos + rayD * bestHitDist;
-                res.hitNormal = bestHitNormal;
-            }
-        }
-
-        ResultBuffer[id.x] = res;
-        return;
-    }
-
-    // DistanceMode == 0 (MeshSurface Mode)
     float minDistSqr = 9999999.0;
     float3 bestClosestP = float3(0,0,0);
     float3 bestNormal = float3(0,0,0);
     float bestSignedDist = 9999999.0;
 
-    // Determine grid cells for point P
-    float maxThresh = max(SurfaceDistanceThreshold, BackfaceDistanceThreshold);
+    // Determine grid search threshold
+    float maxThresh = SurfaceDistanceThreshold;
+    if (DistanceMode == 1)
+    {
+        maxThresh = max(max(VisibleSurfaceDistanceThreshold, VisibleBackfaceDistanceThreshold),
+                        max(OccludedSurfaceDistanceThreshold, OccludedBackfaceDistanceThreshold));
+    }
+    else
+    {
+        maxThresh = max(SurfaceDistanceThreshold, BackfaceDistanceThreshold);
+    }
+
     float3 pMin = p - float3(maxThresh, maxThresh, maxThresh);
     float3 pMax = p + float3(maxThresh, maxThresh, maxThresh);
 
@@ -389,8 +346,34 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // Surface contact: point is outside the mesh and within SurfaceDistanceThreshold
-    if (minDistSqr < 9999999.0 && bestSignedDist > 0.0 && bestSignedDist <= SurfaceDistanceThreshold)
+    // Active threshold selection according to DistanceMode
+    float activeSurfaceThresh = SurfaceDistanceThreshold;
+    float activeBackfaceThresh = BackfaceDistanceThreshold;
+
+    if (DistanceMode == 1) // ViewDirection Mode (Normal & View Vector Dot Product)
+    {
+        float3 dirToCam = CameraPosition - bestClosestP;
+        float distToCam = length(dirToCam);
+        if (distToCam > 0.0001) dirToCam /= distToCam;
+        else dirToCam = float3(0, 0, 1);
+
+        // Positive dot product means the mesh surface normal faces towards the camera (Visible/Front-facing)
+        float dotProd = dot(bestNormal, dirToCam);
+
+        if (dotProd > 0.0)
+        {
+            activeSurfaceThresh = VisibleSurfaceDistanceThreshold;
+            activeBackfaceThresh = VisibleBackfaceDistanceThreshold;
+        }
+        else
+        {
+            activeSurfaceThresh = OccludedSurfaceDistanceThreshold;
+            activeBackfaceThresh = OccludedBackfaceDistanceThreshold;
+        }
+    }
+
+    // Surface contact: point is outside/near the mesh and within activeSurfaceThresh
+    if (minDistSqr < 9999999.0 && bestSignedDist > 0.0 && bestSignedDist <= activeSurfaceThresh)
     {
         res.isColliding = 1;
         res.hitPoint   = bestClosestP;
@@ -398,9 +381,6 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
     }
 
     // InsideMesh: X+ ray cast (parity test).
-    // Iterates directly over all mesh triangles to avoid indexable temp arrays.
-    // This removes register pressure and eliminates the need for deduplication.
-    // Cost: O(MeshTrianglesCount) per AABB-interior point — acceptable for <4000 triangles.
     if (res.isColliding == 0)
     {
         uint insideHits = 0u;
@@ -417,12 +397,11 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         }
 
         // Odd intersection count → point is inside the mesh
-        // Use bitwise AND instead of modulus to avoid signed-integer division warning.
         if ((insideHits & 1u) == 1u)
         {
-            res.isColliding = 2;
-            if (minDistSqr < 9999999.0)
+            if (minDistSqr < 9999999.0 && (bestSignedDist <= 0.0 ? -bestSignedDist : sqrt(minDistSqr)) <= activeBackfaceThresh)
             {
+                res.isColliding = 2;
                 res.hitPoint  = bestClosestP;
                 res.hitNormal = bestNormal;
             }
