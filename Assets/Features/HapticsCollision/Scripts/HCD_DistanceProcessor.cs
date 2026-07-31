@@ -76,8 +76,9 @@ public class HCD_DistanceProcessor : IHCD_Processor
     private Vector3[] _meshNormals;
     private int[] _meshIndices;
 
-    // Struct size: int(4) + float3(12) + float3(12) = 28 bytes
-    private const int STRIDE = 28;
+    // Struct size: int(4) + float(4) + float3(12) + float3(12) + float3(12) = 44 bytes
+    // ※ StructuredBuffer の float3 は cbuffer と異なりパディングなし（12バイト）
+    private const int STRIDE = 44;
 
     private Mesh[] _tempBakedMeshes;
     private CombineInstance[] _combineInstances;

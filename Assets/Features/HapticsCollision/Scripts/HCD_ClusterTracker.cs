@@ -4,10 +4,6 @@ using UnityEngine;
 /// <summary>
 /// ContactClusterTracking: フレームをまたいでクラスタの同一性を追跡します。
 /// 最近傍マッチングにより、各クラスタに安定した ID と生存期間を付与します。
-///
-/// 計算コスト: O(N * M)  N = 現フレームクラスタ数, M = 追跡中クラスタ数
-/// 実運用では両者とも <= 20 程度（両手 10 指）なので CPU 負荷は無視できます。
-/// 追加メモリ: TrackedCluster × 最大数 × ~40 バイト = 数百バイト程度。
 /// </summary>
 [System.Serializable]
 public class HCD_ClusterTracker
@@ -59,11 +55,7 @@ public class HCD_ClusterTracker
     /// <summary>
     /// 新しいフレームのクラスタ重心リストを受け取り、フレーム間追跡を更新します。
     /// </summary>
-    /// <param name="newCentroids">今フレームの表面接触クラスタ重心リスト</param>
-    /// <param name="newNormals">重心に対応する平均法線リスト（省略時は null）</param>
-    /// <param name="newCounts">各クラスタの接触点数リスト（ContactForceReduction 用、省略時は null）</param>
-    /// <param name="newPrecisions">精密モードの追加データ（共分散・ランダム点）</param>
-    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals, List<int> newCounts = null, List<ClusterPrecision> newPrecisions = null)
+    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals, List<int> newCounts = null, List<ClusterPrecision> newPrecisions = null, List<Vector3> newRawPositions = null, List<Vector3> newMeshPositions = null, List<float> newMinDistances = null)
     {
         int newCount = newCentroids.Count;
         bool[] newMatched = new bool[newCount];
@@ -96,6 +88,19 @@ public class HCD_ClusterTracker
                 cluster.Velocity = Vector3.Lerp(cluster.Velocity, instVelocity, velocitySmoothingFactor);
 
                 cluster.Centroid = newCentroids[bestIdx];
+                if (newRawPositions != null && bestIdx < newRawPositions.Count)
+                    cluster.RawPointPosition = newRawPositions[bestIdx];
+                else
+                    cluster.RawPointPosition = newCentroids[bestIdx];
+
+                if (newMeshPositions != null && bestIdx < newMeshPositions.Count)
+                    cluster.MeshSurfacePosition = newMeshPositions[bestIdx];
+                else
+                    cluster.MeshSurfacePosition = newCentroids[bestIdx];
+
+                if (newMinDistances != null && bestIdx < newMinDistances.Count)
+                    cluster.MinDistance = newMinDistances[bestIdx];
+
                 if (newNormals != null && bestIdx < newNormals.Count)
                     cluster.Normal = newNormals[bestIdx];
 
@@ -104,7 +109,7 @@ public class HCD_ClusterTracker
                 {
                     cluster.ContactCount = newCounts[bestIdx];
                     float rawForce = ComputeRawForce(newCounts[bestIdx]);
-                    // 時間的スムージング: 急激な変化を抑え、安定した振幅制御を実現
+                    // 時間的スムージング
                     cluster.Force = Mathf.Lerp(cluster.Force, rawForce, forceSmoothingFactor);
                 }
 
@@ -135,19 +140,26 @@ public class HCD_ClusterTracker
             if (!newMatched[n])
             {
                 int cnt = (newCounts != null && n < newCounts.Count) ? newCounts[n] : 0;
+                Vector3 rawPos = (newRawPositions != null && n < newRawPositions.Count) ? newRawPositions[n] : newCentroids[n];
+                Vector3 meshPos = (newMeshPositions != null && n < newMeshPositions.Count) ? newMeshPositions[n] : newCentroids[n];
+                float minDist = (newMinDistances != null && n < newMinDistances.Count) ? newMinDistances[n] : 0f;
+
                 _tracked.Add(new TrackedCluster
                 {
-                    Id            = _nextId++,
-                    Centroid      = newCentroids[n],
-                    Normal        = (newNormals != null && n < newNormals.Count)
-                                    ? newNormals[n] : Vector3.up,
-                    ContactCount  = cnt,
-                    Force         = ComputeRawForce(cnt),
-                    Age           = 1,
-                    MissingFrames = 0,
-                    IsAlive       = true,
-                    Velocity      = Vector3.zero,
-                    Precision     = (newPrecisions != null && n < newPrecisions.Count) ? newPrecisions[n] : default
+                    Id                  = _nextId++,
+                    Centroid            = newCentroids[n],
+                    RawPointPosition    = rawPos,
+                    MeshSurfacePosition = meshPos,
+                    MinDistance         = minDist,
+                    Normal              = (newNormals != null && n < newNormals.Count)
+                                          ? newNormals[n] : Vector3.up,
+                    ContactCount        = cnt,
+                    Force               = ComputeRawForce(cnt),
+                    Age                 = 1,
+                    MissingFrames       = 0,
+                    IsAlive             = true,
+                    Velocity            = Vector3.zero,
+                    Precision           = (newPrecisions != null && n < newPrecisions.Count) ? newPrecisions[n] : default
                 });
             }
         }
@@ -158,10 +170,6 @@ public class HCD_ClusterTracker
 
     // ─── ContactForceReduction ──────────────────────────────────────────────
 
-    /// <summary>
-    /// 接触点数を 0.0〜1.0 の振幅値にマッピングします。
-    /// forceMinCount 未満はノイズとみなし 0、forceMaxCount 以上で 1.0（クランプ）。
-    /// </summary>
     private float ComputeRawForce(int contactCount)
     {
         if (contactCount < forceMinCount) return 0f;
@@ -196,8 +204,17 @@ public struct TrackedCluster
     /// <summary>このセッション内でユニークな ID（生成順・一意）</summary>
     public int Id;
 
-    /// <summary>現在の重心座標</summary>
+    /// <summary>現在の中心座標（選択中の PositionSource / AggregationMode に準拠）</summary>
     public Vector3 Centroid;
+
+    /// <summary>点群実測空間座標の集約位置</summary>
+    public Vector3 RawPointPosition;
+
+    /// <summary>メッシュ表面上の投影位置</summary>
+    public Vector3 MeshSurfacePosition;
+
+    /// <summary>クラスタ内の最小表面距離 (m)</summary>
+    public float MinDistance;
 
     /// <summary>接触パッチの平均表面法線（正規化済み）</summary>
     public Vector3 Normal;
@@ -205,8 +222,7 @@ public struct TrackedCluster
     /// <summary>接触点数（クラスタ内の GPU 点数）</summary>
     public int ContactCount;
 
-    /// <summary>接触の強さ（0.0〜1.0）。AUTD3 の振幅制御に直接使用可能。
-    /// ContactForceReduction により接触点数からマッピングされ、時間的スムージングで安定化されています。</summary>
+    /// <summary>接触の強さ（0.0〜1.0）。AUTD3 の振幅制御に直接使用可能。</summary>
     public float Force;
 
     /// <summary>このクラスタが生存し続けているフレーム数</summary>

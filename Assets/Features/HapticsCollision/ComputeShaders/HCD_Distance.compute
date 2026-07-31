@@ -5,9 +5,11 @@
 
 struct PointCollisionData
 {
-    int isColliding; // 0: None, 1: Surface, 2: Inside
-    float3 hitPoint;
-    float3 hitNormal;
+    int isColliding;     // 0: None, 1: Surface, 2: Inside
+    float distance;      // メッシュ表面までの距離 (m)
+    float3 pointPos;     // 点群実測座標
+    float3 hitPoint;     // メッシュ表面の投影点
+    float3 hitNormal;    // メッシュ表面法線
 };
 
 StructuredBuffer<float4> PointCloudBuffer;
@@ -195,6 +197,11 @@ void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
 
     float3 p = PointCloudBuffer[id.x].xyz;
     PointCollisionData res;
+    res.isColliding = 0;
+    res.distance = 0.0;
+    res.pointPos = p;
+    res.hitPoint = float3(0, 0, 0);
+    res.hitNormal = float3(0, 0, 0);
 
     if (DistanceMode == 1) // ViewDirection
     {
@@ -214,27 +221,17 @@ void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
             if (depthDiff <= 0.0 && -depthDiff <= SurfaceDistanceThreshold)
             {
                 res.isColliding = 1;
+                res.distance = abs(depthDiff);
                 res.hitPoint = TargetPosition;
                 res.hitNormal = (distP > 0.001) ? normalize(rayToP) : float3(0, 1, 0);
             }
             else if (depthDiff > 0.0 && depthDiff <= BackfaceDistanceThreshold)
             {
                 res.isColliding = 2;
+                res.distance = abs(depthDiff);
                 res.hitPoint = TargetPosition;
                 res.hitNormal = (distP > 0.001) ? normalize(rayToP) : float3(0, 1, 0);
             }
-            else
-            {
-                res.isColliding = 0;
-                res.hitPoint = float3(0, 0, 0);
-                res.hitNormal = float3(0, 0, 0);
-            }
-        }
-        else
-        {
-            res.isColliding = 0;
-            res.hitPoint = float3(0, 0, 0);
-            res.hitNormal = float3(0, 0, 0);
         }
     }
     else // MeshSurface (TransformOnly)
@@ -245,14 +242,9 @@ void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
         if (dist <= SurfaceDistanceThreshold)
         {
             res.isColliding = 1;
+            res.distance = dist;
             res.hitPoint = TargetPosition;
             res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
-        }
-        else
-        {
-            res.isColliding = 0;
-            res.hitPoint = float3(0, 0, 0);
-            res.hitNormal = float3(0, 0, 0);
         }
     }
     
@@ -267,6 +259,8 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
     float3 p = PointCloudBuffer[id.x].xyz;
     PointCollisionData res;
     res.isColliding = 0;
+    res.distance = 0.0;
+    res.pointPos = p;
     res.hitPoint = float3(0, 0, 0);
     res.hitNormal = float3(0, 0, 0);
 
@@ -372,10 +366,13 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         }
     }
 
+    float calculatedDist = (minDistSqr < 9999999.0) ? sqrt(minDistSqr) : 0.0;
+
     // Surface contact: point is outside/near the mesh and within activeSurfaceThresh
     if (minDistSqr < 9999999.0 && bestSignedDist > 0.0 && bestSignedDist <= activeSurfaceThresh)
     {
         res.isColliding = 1;
+        res.distance   = calculatedDist;
         res.hitPoint   = bestClosestP;
         res.hitNormal  = bestNormal;
     }
@@ -402,6 +399,7 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
             if (minDistSqr < 9999999.0 && (bestSignedDist <= 0.0 ? -bestSignedDist : sqrt(minDistSqr)) <= activeBackfaceThresh)
             {
                 res.isColliding = 2;
+                res.distance  = calculatedDist;
                 res.hitPoint  = bestClosestP;
                 res.hitNormal = bestNormal;
             }

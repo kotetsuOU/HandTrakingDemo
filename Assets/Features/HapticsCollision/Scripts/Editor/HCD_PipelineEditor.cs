@@ -127,10 +127,25 @@ public class HCD_PipelineEditor : Editor
                 EditorGUI.indentLevel++;
                 SerializedProperty maxClustersProp = scpProp.FindPropertyRelative("maxClusters");
                 SerializedProperty cellSizeProp = scpProp.FindPropertyRelative("cellSize");
+                SerializedProperty aggModeProp = scpProp.FindPropertyRelative("aggregationMode");
+                SerializedProperty posSourceProp = scpProp.FindPropertyRelative("positionSource");
+                SerializedProperty distPowerProp = scpProp.FindPropertyRelative("distanceWeightPower");
                 SerializedProperty precisionModeProp = scpProp.FindPropertyRelative("precisionMode");
 
                 if (maxClustersProp != null) EditorGUILayout.PropertyField(maxClustersProp);
                 if (cellSizeProp != null) EditorGUILayout.PropertyField(cellSizeProp);
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("Surface Estimation Settings", EditorStyles.boldLabel);
+                if (aggModeProp != null) EditorGUILayout.PropertyField(aggModeProp);
+                if (posSourceProp != null) EditorGUILayout.PropertyField(posSourceProp);
+
+                if (aggModeProp != null && aggModeProp.enumValueIndex == (int)ClusterAggregationMode.DistanceWeightedCentroid)
+                {
+                    if (distPowerProp != null) EditorGUILayout.PropertyField(distPowerProp);
+                }
+
+                EditorGUILayout.Space(4);
                 if (precisionModeProp != null) EditorGUILayout.PropertyField(precisionModeProp);
                 EditorGUI.indentLevel--;
             }

@@ -124,7 +124,7 @@ public class HCD_Pipeline : MonoBehaviour
 
             if (req.clusterReq.hasError || (req.hasPrecision && req.precisionReq.hasError))
             {
-                // エラー時（バッファ破棄など）はキューから削除
+                Debug.LogWarning("[HCD_Pipeline] AsyncGPUReadback error. クラスタバッファ読み込みエラー。");
                 _readbackQueue.Dequeue();
                 continue;
             }
@@ -146,8 +146,43 @@ public class HCD_Pipeline : MonoBehaviour
             }
 
             // GPU 結果（最新の完了分）を使用してフレーム間クラスタ追跡を更新（ContactForceReduction 含む）
-            GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions);
-            clusterTracker.Update(centroids, normals, counts, precisions);
+            GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions, out var rawPositions, out var meshPositions, out var minDistances);
+
+            clusterTracker.Update(centroids, normals, counts, precisions, rawPositions, meshPositions, minDistances);
+
+#if UNITY_EDITOR
+            if (Time.frameCount % 120 == 0)  // 2秒に1回ログ出力
+            {
+                // 非ゼロのクラスタを数える（接触点がどれくらいあるか確認用）
+                int nonZeroCount = 0;
+                int maxCount = 0;
+                for (int i = 0; i < _clusterResults.Length; i++)
+                {
+                    if (_clusterResults[i].count > 0)
+                    {
+                        nonZeroCount++;
+                        if (_clusterResults[i].count > maxCount) maxCount = _clusterResults[i].count;
+                    }
+                }
+
+                // Update 後の TrackedClusters の IsAlive 状態を確認
+                int aliveCount = 0;
+                string firstCentroid = "N/A";
+                foreach (var tc in clusterTracker.TrackedClusters)
+                {
+                    if (tc.IsAlive)
+                    {
+                        aliveCount++;
+                        if (aliveCount == 1) firstCentroid = tc.Centroid.ToString("F3");
+                    }
+                }
+
+                Debug.Log($"[HCD_Pipeline] 非ゼロクラスタ={nonZeroCount}/{_clusterResults.Length}, 最大点数={maxCount}, " +
+                          $"アクティブ重心={centroids.Count}, TrackedClusters={clusterTracker.TrackedClusters.Count}, " +
+                          $"IsAlive数={aliveCount}, 最初の重心={firstCentroid}, " +
+                          $"showDebugGizmos={showDebugGizmos}, isPlaying={Application.isPlaying}");
+            }
+#endif
         }
     }
 
@@ -156,10 +191,21 @@ public class HCD_Pipeline : MonoBehaviour
     /// </summary>
     public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts, out List<ClusterPrecision> precisions)
     {
-        centroids  = new List<Vector3>();
-        normals    = new List<Vector3>();
-        counts     = new List<int>();
-        precisions = new List<ClusterPrecision>();
+        GetActiveClusterInfos(out centroids, out normals, out counts, out precisions, out _, out _, out _);
+    }
+
+    /// <summary>
+    /// 最新の非同期読み込み結果から表面接触クラスタの重心座標・平均法線・接触点数・精密データ・実測/メッシュ座標・最小距離を取得します。
+    /// </summary>
+    public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts, out List<ClusterPrecision> precisions, out List<Vector3> rawPositions, out List<Vector3> meshPositions, out List<float> minDistances)
+    {
+        centroids     = new List<Vector3>();
+        normals       = new List<Vector3>();
+        counts        = new List<int>();
+        precisions    = new List<ClusterPrecision>();
+        rawPositions  = new List<Vector3>();
+        meshPositions = new List<Vector3>();
+        minDistances  = new List<float>();
 
         if (_clusterResults == null) return;
 
@@ -170,11 +216,20 @@ public class HCD_Pipeline : MonoBehaviour
             var data = _clusterResults[i];
             if (data.count > 0)
             {
-                float invScale = 1.0f / (data.count * 10000.0f);
+                float invScale = (data.weightSum > 0)
+                    ? (1.0f / (float)data.weightSum)
+                    : (1.0f / (data.count * 10000.0f));
+
                 centroids.Add(new Vector3(data.posX, data.posY, data.posZ) * invScale);
+                rawPositions.Add(new Vector3(data.rawPosX, data.rawPosY, data.rawPosZ) * invScale);
+                meshPositions.Add(new Vector3(data.meshPosX, data.meshPosY, data.meshPosZ) * invScale);
+
                 var avgNormal = new Vector3(data.normalX, data.normalY, data.normalZ) * invScale;
                 normals.Add(avgNormal.sqrMagnitude > 0.0001f ? avgNormal.normalized : Vector3.up);
                 counts.Add(data.count);
+
+                float minDist = (data.minDistInt < 2147483640) ? (data.minDistInt / 1000000.0f) : 0.0f;
+                minDistances.Add(minDist);
 
                 if (precisionMode && _precisionResults != null)
                 {
@@ -248,12 +303,20 @@ public class HCD_Pipeline : MonoBehaviour
     private struct ClusterData
     {
         public int count;
+        public int weightSum;
         public int posX;
         public int posY;
         public int posZ;
         public int normalX;
         public int normalY;
         public int normalZ;
+        public int rawPosX;
+        public int rawPosY;
+        public int rawPosZ;
+        public int meshPosX;
+        public int meshPosY;
+        public int meshPosZ;
+        public int minDistInt;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -301,8 +364,24 @@ public class HCD_Pipeline : MonoBehaviour
 
     private void DrawClusterGizmos()
     {
+        var clusters = clusterTracker.TrackedClusters;
+
+#if UNITY_EDITOR
+        // ── デバッグ: OnDrawGizmos が呼ばれているか、TrackedClusters 状態の確認 ──
+        if (Time.frameCount % 120 == 0)
+        {
+            int alive = 0;
+            foreach (var c in clusters) { if (c.IsAlive) alive++; }
+            Debug.Log($"[HCD_Gizmo] DrawClusterGizmos呼び出し: TrackedClusters={clusters.Count}, IsAlive={alive}");
+        }
+
+        // 常に原点に赤い球を描画 → これが見えなければ OnDrawGizmos 自体が無効
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(Vector3.zero, 0.05f);
+#endif
+
         // isColliding == 1 の表面接触クラスタ（マゼンタ）をトラッカー経由で描画
-        foreach (var cluster in clusterTracker.TrackedClusters)
+        foreach (var cluster in clusters)
         {
             if (!cluster.IsAlive) continue;
 
@@ -311,15 +390,26 @@ public class HCD_Pipeline : MonoBehaviour
             Gizmos.color = Color.Lerp(Color.yellow, Color.magenta, stability);
             Gizmos.DrawWireSphere(cluster.Centroid, 0.02f);
 
-            // 法線方向を矢印で描画（TactileClustering の効果確認用）
+            // 実測点群位置とメッシュ投影位置の差分を線で描画
+            if ((cluster.RawPointPosition - cluster.MeshSurfacePosition).sqrMagnitude > 0.000001f)
+            {
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawWireSphere(cluster.RawPointPosition, 0.005f);
+                Gizmos.color = Color.green;
+                Gizmos.DrawWireSphere(cluster.MeshSurfacePosition, 0.005f);
+                Gizmos.color = Color.white;
+                Gizmos.DrawLine(cluster.RawPointPosition, cluster.MeshSurfacePosition);
+            }
+
+            // 法線方向を矢印で描画
             Gizmos.color = Color.cyan;
             Gizmos.DrawRay(cluster.Centroid, cluster.Normal * 0.04f);
 
 #if UNITY_EDITOR
-            // ID・生存フレーム数・Force をラベル表示
+            // ID・生存フレーム数・Force・最小距離 をラベル表示
             UnityEditor.Handles.Label(
                 cluster.Centroid + Vector3.up * 0.03f,
-                $"ID:{cluster.Id} Age:{cluster.Age} F:{cluster.Force:F2}");
+                $"ID:{cluster.Id} Age:{cluster.Age} F:{cluster.Force:F2} MinD:{cluster.MinDistance * 1000f:F1}mm");
 #endif
         }
     }

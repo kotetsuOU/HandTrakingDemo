@@ -1,6 +1,18 @@
 using UnityEngine;
 using System;
-using System.Runtime.InteropServices;
+
+public enum ClusterAggregationMode
+{
+    UnweightedCentroid = 0,       // 従来の単純平均（平滑さ優先）
+    DistanceWeightedCentroid = 1, // 距離加重平均（メッシュ表面 0mm に近い点を強調し本当の面を推定）
+    NearestPoint = 2              // シャープな最小距離点推定
+}
+
+public enum ClusterPositionSource
+{
+    MeshSurface = 0,   // メッシュ表面座標 (hitPoint)
+    PointCloudRaw = 1  // 実測点群空間座標 (pointPos)
+}
 
 [Serializable]
 public class HCD_SpatialClusteringProcessor : IHCD_Processor
@@ -13,6 +25,17 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
 
     [Tooltip("空間を分割する解像度(m)。例: 0.02 の場合、2cm四方のボクセルに入った接触点は同じクラスタ（指など）として重心が合成されます。")]
     public float cellSize = 0.05f;
+
+    [Header("Surface Estimation Settings")]
+    [Tooltip("接触面・重心の集約アルゴリズムを選択します。DistanceWeightedCentroid は本当の面を高精度に推定します。")]
+    public ClusterAggregationMode aggregationMode = ClusterAggregationMode.DistanceWeightedCentroid;
+
+    [Tooltip("照射先・標準位置として出力する座標ソースを選択します。")]
+    public ClusterPositionSource positionSource = ClusterPositionSource.MeshSurface;
+
+    [Tooltip("DistanceWeightedCentroid モードでの距離減衰累乗数（数値が大きいほど 0mm 付近の点が強調されます）")]
+    [Range(1.0f, 8.0f)]
+    public float distanceWeightPower = 2.0f;
     
     [Header("Precision Settings")]
     [Tooltip("有効にするとGPUで第2パスを実行し、接触面の広がり（共分散）やランダム座標を計算します。高度な触覚（なぞる感覚・ザラザラ感）を提示する場合に必要です。")]
@@ -32,8 +55,8 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
     private int _kernelClearCovariance;
     private int _kernelAccumulateCovariance;
 
-    // Struct size: int(4) * 7 = 28 bytes  (count + posX/Y/Z + normalX/Y/Z)
-    private const int STRIDE = 28;
+    // Struct size: int(4) * 15 = 60 bytes
+    private const int STRIDE = 60;
     // Struct size: int(4) * (6 + 16*3) = 216 bytes
     private const int STRIDE_PRECISION = 216;
 
@@ -66,6 +89,10 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
             return;
         }
 
+        float surfaceThresh = (_pipeline != null && _pipeline.distanceProcessor != null)
+            ? _pipeline.distanceProcessor.surfaceDistanceThreshold
+            : 0.01f;
+
         // 1. クラスタバッファをクリア
         int clearGroups = Mathf.CeilToInt(maxClusters / 256.0f);
         clusteringComputeShader.SetBuffer(_kernelClear, "ClusterBuffer", _clusterBuffer);
@@ -86,6 +113,12 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
         clusteringComputeShader.SetInt("PointsCount", pointCount);
         clusteringComputeShader.SetInt("MaxClusters", maxClusters);
         clusteringComputeShader.SetFloat("CellSize", cellSize);
+
+        clusteringComputeShader.SetInt("AggregationMode", (int)aggregationMode);
+        clusteringComputeShader.SetInt("PositionSource", (int)positionSource);
+        clusteringComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceThresh);
+        clusteringComputeShader.SetFloat("DistanceWeightPower", distanceWeightPower);
+
         clusteringComputeShader.Dispatch(_kernelAccumulate, accGroups, 1, 1);
 
         // 3. Precisionモードの場合は共分散とランダムポイントを計算（2パス目）
@@ -96,6 +129,7 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
             clusteringComputeShader.SetBuffer(_kernelAccumulateCovariance, "PrecisionBuffer", _precisionBuffer);
             clusteringComputeShader.SetInt("PointsCount", pointCount);
             clusteringComputeShader.SetFloat("CellSize", cellSize);
+            clusteringComputeShader.SetInt("PositionSource", (int)positionSource);
             clusteringComputeShader.SetInt("RandomSeed", (int)(Time.time * 1000) ^ Time.frameCount);
             clusteringComputeShader.Dispatch(_kernelAccumulateCovariance, accGroups, 1, 1);
         }
