@@ -72,25 +72,24 @@ public class AnimationController : MonoBehaviour
                     if (HCDPipeline != null && HCDPipeline.distanceProcessor != null)
                     {
                         var skinnedMeshes = activeObj.GetComponentsInChildren<SkinnedMeshRenderer>();
+                        var meshFilters = activeObj.GetComponentsInChildren<MeshFilter>();
+
+                        HCDPipeline.distanceProcessor.targetSkinnedMeshes = skinnedMeshes;
+                        HCDPipeline.distanceProcessor.targetMeshFilters = meshFilters;
+
                         if (skinnedMeshes != null && skinnedMeshes.Length > 0)
                         {
                             HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer;
-                            HCDPipeline.distanceProcessor.targetSkinnedMeshes = skinnedMeshes;
+                        }
+                        else if (meshFilters != null && meshFilters.Length > 0)
+                        {
+                            HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.MeshFilter;
                         }
                         else
                         {
-                            var meshFilters = activeObj.GetComponentsInChildren<MeshFilter>();
-                            if (meshFilters != null && meshFilters.Length > 0)
-                            {
-                                HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.MeshFilter;
-                                HCDPipeline.distanceProcessor.targetMeshFilters = meshFilters;
-                            }
-                            else
-                            {
-                                // どちらもない場合はTransformOnlyにフォールバック
-                                HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.TransformOnly;
-                                HCDPipeline.distanceProcessor.targetObject = activeObj.transform;
-                            }
+                            HCDPipeline.distanceProcessor.detectionMode = HCD_DistanceProcessor.DetectionMode.TransformOnly;
+                            HCDPipeline.distanceProcessor.targetObject = activeObj.transform;
+                            HCDPipeline.distanceProcessor.targetTransforms = activeObj.GetComponentsInChildren<Transform>();
                         }
                     }
                 }

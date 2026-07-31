@@ -32,6 +32,86 @@ namespace RealSense.DummyPointCloud
         private int _lastLoggedPointCount = -1;
         private int _cachedValidPointCount = 0;
 
+        private Vector3[] _tempTransformBuffer;
+        private Component _lastAdjuster;
+        private bool _lastHalfMirrorEnabled = false;
+        private Matrix4x4 _lastMirrorMatrix = Matrix4x4.identity;
+
+        private static Type s_cameraAdjusterType;
+        private static System.Reflection.FieldInfo s_isHalfMirrorEnabledField;
+        private static System.Reflection.FieldInfo s_displayTransformField;
+        private static bool s_typeSearched = false;
+
+        private Matrix4x4 GetHalfMirrorMatrix(out Component adjusterComp, out bool isHalfMirrorEnabled)
+        {
+            adjusterComp = null;
+            isHalfMirrorEnabled = false;
+
+            if (!s_typeSearched)
+            {
+                s_typeSearched = true;
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var t = asm.GetType("CameraAdjuster");
+                    if (t != null && typeof(Component).IsAssignableFrom(t))
+                    {
+                        s_cameraAdjusterType = t;
+                        s_isHalfMirrorEnabledField = t.GetField("isHalfMirrorEnabled");
+                        s_displayTransformField = t.GetField("displayTransform");
+                        break;
+                    }
+                }
+            }
+
+            if (s_cameraAdjusterType == null)
+            {
+                return Matrix4x4.identity;
+            }
+
+#if UNITY_2023_1_OR_NEWER
+            adjusterComp = UnityEngine.Object.FindFirstObjectByType(s_cameraAdjusterType) as Component;
+#else
+            adjusterComp = UnityEngine.Object.FindObjectOfType(s_cameraAdjusterType) as Component;
+#endif
+
+            if (adjusterComp == null)
+            {
+                return Matrix4x4.identity;
+            }
+
+            isHalfMirrorEnabled = true;
+            if (s_isHalfMirrorEnabledField != null)
+            {
+                var val = s_isHalfMirrorEnabledField.GetValue(adjusterComp);
+                if (val is bool b) isHalfMirrorEnabled = b;
+            }
+
+            if (!isHalfMirrorEnabled)
+            {
+                return Matrix4x4.identity;
+            }
+
+            Transform displayTransform = null;
+            if (s_displayTransformField != null)
+            {
+                displayTransform = s_displayTransformField.GetValue(adjusterComp) as Transform;
+            }
+
+            if (displayTransform != null)
+            {
+                Vector3 center = displayTransform.position;
+                Quaternion rotation = displayTransform.rotation;
+                Matrix4x4 displayTRS = Matrix4x4.TRS(center, rotation, Vector3.one);
+                Matrix4x4 flipX = Matrix4x4.Scale(new Vector3(-1, 1, 1));
+                Matrix4x4 displayInverse = displayTRS.inverse;
+                return displayTRS * flipX * displayInverse;
+            }
+            else
+            {
+                return Matrix4x4.Scale(new Vector3(-1, 1, 1));
+            }
+        }
+
         private void Log(string message)
         {
             if (enableDebugLog)
@@ -79,31 +159,18 @@ namespace RealSense.DummyPointCloud
             {
                 Material defaultMat = null;
 
-                var allMats = Resources.FindObjectsOfTypeAll<Material>();
-                foreach (var mat in allMats)
+                Shader pcdShader = Shader.Find("Custom/PointCloudSprite") ??
+                                   Shader.Find("HandTracking/PointCloudSprite") ??
+                                   Shader.Find("PointCloudViewer/PointCloudViewer") ??
+                                   Shader.Find("Unlit/Color");
+
+                if (pcdShader != null)
                 {
-                    if (mat != null && (mat.name.Contains("PointCloud") || mat.shader.name.Contains("PointCloud")))
-                    {
-                        defaultMat = mat;
-                        break;
-                    }
+                    defaultMat = new Material(pcdShader) { name = "Generated_PointCloud_Material" };
                 }
-
-                if (defaultMat == null)
+                else
                 {
-                    Shader pcdShader = Shader.Find("PointCloudViewer/PointCloudViewer") ??
-                                       Shader.Find("HandTracking/PointCloudSprite") ??
-                                       Shader.Find("Custom/PointCloud") ??
-                                       Shader.Find("Unlit/Color");
-
-                    if (pcdShader != null)
-                    {
-                        defaultMat = new Material(pcdShader) { name = "Generated_PointCloud_Material" };
-                    }
-                    else
-                    {
-                        defaultMat = new Material(Shader.Find("Hidden/InternalErrorShader"));
-                    }
+                    defaultMat = new Material(Shader.Find("Hidden/InternalErrorShader"));
                 }
 
                 _meshRenderer.sharedMaterial = defaultMat;
@@ -123,6 +190,8 @@ namespace RealSense.DummyPointCloud
             }
 
             EnsureMaterial();
+
+            Matrix4x4 mirrorMatrix = GetHalfMirrorMatrix(out var currentAdjuster, out bool isHalfMirrorEnabled);
 
             // 1. オブジェクトが動いた / データが新しく更新された時 (DataVersion 変化時) のみ GPU バッファを更新
             if (dummyProvider != null && dummyProvider.DataVersion != _appliedDataVersion)
@@ -145,7 +214,7 @@ namespace RealSense.DummyPointCloud
                         Log($"Reallocated ComputeBuffer to size {newSize} for {count} points.");
                     }
 
-                    // 動いた瞬間だけ 1 回 GPU へ SetData 転送
+                    // PCD / HCD 用には正統な素のワールド座標バッファを保持
                     _verticesBuffer.SetData(sampledData.Positions, 0, 0, count);
 
                     // Indirect Draw 引数の更新
@@ -157,7 +226,11 @@ namespace RealSense.DummyPointCloud
                 }
             }
 
-            // 2. 静止時は一切 SetData も計算も行わず、既存の GPU バッファで 0ms 高速描画のみ実行
+            _lastAdjuster = currentAdjuster;
+            _lastHalfMirrorEnabled = isHalfMirrorEnabled;
+            _lastMirrorMatrix = mirrorMatrix;
+
+            // 2. 画面描画時にシェーダー経由で HalfMirror 行列を適用
             if (_verticesBuffer != null && _cachedValidPointCount > 0 && _visualization != null)
             {
                 Color drawColor = (dummyProvider != null && dummyProvider.colorMode == PointColorMode.SolidColor)
@@ -167,10 +240,10 @@ namespace RealSense.DummyPointCloud
                 if (enableDebugLog && _cachedValidPointCount != _lastLoggedPointCount)
                 {
                     _lastLoggedPointCount = _cachedValidPointCount;
-                    Log($"Rendering {_cachedValidPointCount} points on GPU (Color: {drawColor}).");
+                    Log($"Rendering {_cachedValidPointCount} points on GPU (Color: {drawColor}, HalfMirror={isHalfMirrorEnabled}).");
                 }
 
-                _visualization.Draw(_verticesBuffer, _argsBuffer, drawColor, gameObject.layer);
+                _visualization.Draw(_verticesBuffer, _argsBuffer, drawColor, gameObject.layer, isHalfMirrorEnabled ? mirrorMatrix : Matrix4x4.identity);
             }
         }
 
@@ -180,6 +253,7 @@ namespace RealSense.DummyPointCloud
 
             if (dummyProvider != null && dummyProvider.LastSampledData.Positions != null && dummyProvider.LastSampledData.PointCount > 0)
             {
+                Matrix4x4 mirrorMatrix = GetHalfMirrorMatrix(out _, out bool isHalfMirrorEnabled);
                 Gizmos.color = dummyProvider.colorMode == PointColorMode.SolidColor ? dummyProvider.solidColor : pointCloudColor;
                 var positions = dummyProvider.LastSampledData.Positions;
                 int count = dummyProvider.LastSampledData.PointCount;
@@ -187,7 +261,8 @@ namespace RealSense.DummyPointCloud
 
                 for (int i = 0; i < count; i += step)
                 {
-                    Gizmos.DrawSphere(positions[i], 0.003f);
+                    Vector3 pos = isHalfMirrorEnabled ? mirrorMatrix.MultiplyPoint3x4(positions[i]) : positions[i];
+                    Gizmos.DrawSphere(pos, 0.003f);
                 }
             }
         }

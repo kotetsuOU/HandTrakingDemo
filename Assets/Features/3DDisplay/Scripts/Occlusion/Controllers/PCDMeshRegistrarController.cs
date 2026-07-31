@@ -129,7 +129,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
                 var mfArray = root.GetComponentsInChildren<MeshFilter>(true);
                 foreach (var mf in mfArray)
                 {
-                    if (mf != null && MatchesLayer(mf.gameObject))
+                    if (mf != null && MatchesLayer(mf.gameObject, root))
                     {
                         ProcessAndAddMesh(mf.gameObject, mf, null);
                     }
@@ -138,7 +138,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
                 var smrArray = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
                 foreach (var smr in smrArray)
                 {
-                    if (smr != null && MatchesLayer(smr.gameObject))
+                    if (smr != null && MatchesLayer(smr.gameObject, root))
                     {
                         ProcessAndAddMesh(smr.gameObject, null, smr);
                     }
@@ -146,7 +146,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
             }
             else
             {
-                if (MatchesLayer(root))
+                if (MatchesLayer(root, root))
                 {
                     var mf = root.GetComponent<MeshFilter>();
                     var smr = root.GetComponent<SkinnedMeshRenderer>();
@@ -170,31 +170,34 @@ public class PCDMeshRegistrarController : MonoBehaviour
         }
     }
 
-    private bool MatchesLayer(GameObject go)
+    private bool MatchesLayer(GameObject go, GameObject root = null)
     {
         if (go == null) return false;
 
-        int layer = go.layer;
-        int pcdLayerVal = pcdLayerMask.value;
-        int uiLayerVal = uiLayerMask.value;
-
-        // LayerMask 判定
-        bool isPCD = (pcdLayerVal & (1 << layer)) != 0;
-        bool isUI = (uiLayerVal & (1 << layer)) != 0;
-
-        // レイヤー名判定（レイヤー名が "PCD" または "UI" である場合のサポート）
-        string layerName = LayerMask.LayerToName(layer);
-        if (layerName == "PCD") isPCD = true;
-        if (layerName == "UI") isUI = true;
-
-        if (layerSelectionMode == LayerSelectionMode.PCDOnly)
+        Transform current = go.transform;
+        while (current != null)
         {
-            return isPCD && !isUI;
+            int layer = current.gameObject.layer;
+            int pcdLayerVal = pcdLayerMask.value;
+            int uiLayerVal = uiLayerMask.value;
+
+            // LayerMask 判定
+            bool isPCD = (pcdLayerVal & (1 << layer)) != 0;
+            bool isUI = (uiLayerVal & (1 << layer)) != 0;
+
+            // レイヤー名判定（レイヤー名が "PCD" または "UI" である場合のサポート）
+            string layerName = LayerMask.LayerToName(layer);
+            if (layerName == "PCD") isPCD = true;
+            if (layerName == "UI") isUI = true;
+
+            bool isMatch = (layerSelectionMode == LayerSelectionMode.PCDOnly) ? (isPCD && !isUI) : (isPCD || isUI);
+            if (isMatch) return true;
+
+            if (root != null && current == root.transform) break;
+            current = current.parent;
         }
-        else // PCDAndUI
-        {
-            return isPCD || isUI;
-        }
+
+        return false;
     }
 
     private bool IsActiveAndEnabled(TrackedMeshData item)

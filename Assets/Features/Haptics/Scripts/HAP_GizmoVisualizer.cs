@@ -152,13 +152,13 @@ public static partial class HAP_GizmoVisualizer
                 {
                     activeObj = dp.targetObject.gameObject;
                 }
-                else if (dp.detectionMode == HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer && dp.targetSkinnedMeshes != null && dp.targetSkinnedMeshes.Length > 0 && dp.targetSkinnedMeshes[0] != null)
+                else if (dp.targetSkinnedMeshes != null && dp.targetSkinnedMeshes.Length > 0 && dp.targetSkinnedMeshes[0] != null)
                 {
-                    activeObj = dp.targetSkinnedMeshes[0].gameObject;
+                    activeObj = dp.targetSkinnedMeshes[0].transform.root != null ? dp.targetSkinnedMeshes[0].transform.root.gameObject : dp.targetSkinnedMeshes[0].gameObject;
                 }
-                else if (dp.detectionMode == HCD_DistanceProcessor.DetectionMode.MeshFilter && dp.targetMeshFilters != null && dp.targetMeshFilters.Length > 0 && dp.targetMeshFilters[0] != null)
+                else if (dp.targetMeshFilters != null && dp.targetMeshFilters.Length > 0 && dp.targetMeshFilters[0] != null)
                 {
-                    activeObj = dp.targetMeshFilters[0].gameObject;
+                    activeObj = dp.targetMeshFilters[0].transform.root != null ? dp.targetMeshFilters[0].transform.root.gameObject : dp.targetMeshFilters[0].gameObject;
                 }
             }
 

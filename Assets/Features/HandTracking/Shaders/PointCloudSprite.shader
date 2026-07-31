@@ -20,6 +20,7 @@ Shader "Custom/PointCloudSprite"
             StructuredBuffer<float3> _Vertices;
             float _PointSize;
             float4 _Color;
+            float4x4 _HalfMirrorMatrix;
 
             struct v2f
             {
@@ -32,6 +33,7 @@ Shader "Custom/PointCloudSprite"
             {
                 v2f o;
                 float3 worldPos = _Vertices[id];
+                worldPos = mul(_HalfMirrorMatrix, float4(worldPos, 1.0)).xyz;
                 o.pos = mul(UNITY_MATRIX_VP, float4(worldPos, 1.0));
                 o.color = float4(1,1,1,1);
                 o.psize = _PointSize;

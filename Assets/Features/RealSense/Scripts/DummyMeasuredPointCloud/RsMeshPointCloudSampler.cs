@@ -134,6 +134,11 @@ namespace RealSense.DummyPointCloud
             _colorsCache.Clear();
             _lastTransformStates.Clear();
 
+            // 各 Renderer のメッシュとトランスフォーム情報を取得し、表面積を計算
+            List<(Renderer renderer, Mesh mesh, Matrix4x4 localToWorld, float area)> rendererInfoList = new List<(Renderer, Mesh, Matrix4x4, float)>();
+            List<Mesh> tempBakedMeshes = new List<Mesh>();
+            float totalSurfaceArea = 0f;
+
             foreach (var renderer in allRenderers)
             {
                 _lastTransformStates.Add(new TransformState
@@ -143,20 +148,54 @@ namespace RealSense.DummyPointCloud
                     scale = renderer.transform.lossyScale
                 });
 
+                Mesh mesh = null;
+                Matrix4x4 localToWorld = renderer.transform.localToWorldMatrix;
+
                 if (renderer is SkinnedMeshRenderer skinnedRenderer)
                 {
-                    SampleFromSkinnedMesh(skinnedRenderer, densityUnit, densityValue, colorMode, solidColor, _positionsCache, _colorsCache, maxPointLimit);
+                    if (skinnedRenderer.sharedMesh != null)
+                    {
+                        Mesh bakedMesh = new Mesh();
+#if UNITY_2017_3_OR_NEWER
+                        skinnedRenderer.BakeMesh(bakedMesh, true);
+#else
+                        skinnedRenderer.BakeMesh(bakedMesh);
+#endif
+                        mesh = bakedMesh;
+                        tempBakedMeshes.Add(bakedMesh);
+                    }
                 }
                 else if (renderer is MeshRenderer meshRenderer)
                 {
                     var meshFilter = renderer.GetComponent<MeshFilter>();
                     if (meshFilter != null && meshFilter.sharedMesh != null)
                     {
-                        SampleFromStaticMesh(meshFilter.sharedMesh, meshRenderer, densityUnit, densityValue, colorMode, solidColor, _positionsCache, _colorsCache, maxPointLimit);
+                        mesh = meshFilter.sharedMesh;
                     }
                 }
 
+                if (mesh != null)
+                {
+                    float area = CalculateMeshArea(mesh, localToWorld);
+                    rendererInfoList.Add((renderer, mesh, localToWorld, area));
+                    totalSurfaceArea += area;
+                }
+            }
+
+            foreach (var info in rendererInfoList)
+            {
+                float areaRatio = totalSurfaceArea > 0f ? (info.area / totalSurfaceArea) : (1f / rendererInfoList.Count);
+                int rendererMaxLimit = Mathf.Max(1, Mathf.RoundToInt(maxPointLimit * areaRatio));
+                float rendererDensityValue = (densityUnit == PointDensityUnit.TotalPointCount) ? (densityValue * areaRatio) : densityValue;
+
+                SampleMeshInternal(info.mesh, info.renderer, info.localToWorld, densityUnit, rendererDensityValue, colorMode, solidColor, _positionsCache, _colorsCache, rendererMaxLimit);
+
                 if (_positionsCache.Count >= maxPointLimit) break;
+            }
+
+            foreach (var bakedMesh in tempBakedMeshes)
+            {
+                if (bakedMesh != null) UnityEngine.Object.Destroy(bakedMesh);
             }
 
             _lastDensityUnit = densityUnit;
@@ -290,10 +329,11 @@ namespace RealSense.DummyPointCloud
 
             targetTotalPoints = Mathf.Min(targetTotalPoints, maxPointLimit);
             System.Random rand = new System.Random(42);
+            int startCount = outPositions.Count;
 
             for (int i = 0; i < triCount; i++)
             {
-                if (outPositions.Count >= maxPointLimit) break;
+                if (outPositions.Count - startCount >= maxPointLimit) break;
 
                 float areaFrac = triAreas[i] / totalWorldAreaSquareMeters;
                 int pointsForThisTri = Mathf.RoundToInt(targetTotalPoints * areaFrac);
@@ -319,7 +359,7 @@ namespace RealSense.DummyPointCloud
 
                 for (int p = 0; p < pointsForThisTri; p++)
                 {
-                    if (outPositions.Count >= maxPointLimit) break;
+                    if (outPositions.Count - startCount >= maxPointLimit) break;
 
                     float r1 = (float)rand.NextDouble();
                     float r2 = (float)rand.NextDouble();
@@ -336,6 +376,25 @@ namespace RealSense.DummyPointCloud
                     outColors.Add(col);
                 }
             }
+        }
+
+        private float CalculateMeshArea(Mesh mesh, Matrix4x4 localToWorld)
+        {
+            if (mesh == null) return 0f;
+            Vector3[] vertices = mesh.vertices;
+            int[] triangles = mesh.triangles;
+            if (vertices == null || vertices.Length == 0 || triangles == null || triangles.Length == 0) return 0f;
+
+            float totalArea = 0f;
+            int triCount = triangles.Length / 3;
+            for (int i = 0; i < triCount; i++)
+            {
+                Vector3 p0 = localToWorld.MultiplyPoint3x4(vertices[triangles[i * 3]]);
+                Vector3 p1 = localToWorld.MultiplyPoint3x4(vertices[triangles[i * 3 + 1]]);
+                Vector3 p2 = localToWorld.MultiplyPoint3x4(vertices[triangles[i * 3 + 2]]);
+                totalArea += Vector3.Cross(p1 - p0, p2 - p0).magnitude * 0.5f;
+            }
+            return totalArea;
         }
     }
 }

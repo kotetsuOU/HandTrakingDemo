@@ -21,6 +21,7 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
     [Header("Transform Mode Settings")]
     public Transform targetObject;
+    public Transform[] targetTransforms;
 
     [Header("SkinnedMesh Mode Settings")]
     public SkinnedMeshRenderer[] targetSkinnedMeshes;
@@ -143,12 +144,27 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
             if (_bakedMesh == null) _bakedMesh = new Mesh();
 
-            if (detectionMode == DetectionMode.SkinnedMeshRenderer)
+            if (targetSkinnedMeshes != null && targetSkinnedMeshes.Length > 0 && targetSkinnedMeshes[0] != null)
             {
-                if (targetSkinnedMeshes == null || targetSkinnedMeshes.Length == 0) return;
-                
                 targetTransform = targetSkinnedMeshes[0].transform;
+            }
+            else if (targetMeshFilters != null && targetMeshFilters.Length > 0 && targetMeshFilters[0] != null)
+            {
+                targetTransform = targetMeshFilters[0].transform;
+            }
 
+            if (targetTransform == null && targetObject != null)
+            {
+                targetTransform = targetObject;
+            }
+
+            if (targetTransform == null) return;
+
+            var validInstances = new System.Collections.Generic.List<CombineInstance>();
+
+            // 1. SkinnedMeshRenderer の統合
+            if (targetSkinnedMeshes != null && targetSkinnedMeshes.Length > 0)
+            {
                 if (_tempBakedMeshes == null || _tempBakedMeshes.Length != targetSkinnedMeshes.Length)
                 {
                     if (_tempBakedMeshes != null)
@@ -159,11 +175,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
                     for (int i = 0; i < targetSkinnedMeshes.Length; i++) _tempBakedMeshes[i] = new Mesh();
                 }
 
-                if (_combineInstances == null || _combineInstances.Length != targetSkinnedMeshes.Length)
-                {
-                    _combineInstances = new CombineInstance[targetSkinnedMeshes.Length];
-                }
-
                 for (int i = 0; i < targetSkinnedMeshes.Length; i++)
                 {
                     var smr = targetSkinnedMeshes[i];
@@ -171,8 +182,10 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
                     smr.BakeMesh(_tempBakedMeshes[i], true);
                     
-                    _combineInstances[i].mesh = _tempBakedMeshes[i];
-                    _combineInstances[i].transform = targetTransform.worldToLocalMatrix * smr.transform.localToWorldMatrix;
+                    CombineInstance ci = new CombineInstance();
+                    ci.mesh = _tempBakedMeshes[i];
+                    ci.transform = targetTransform.worldToLocalMatrix * smr.transform.localToWorldMatrix;
+                    validInstances.Add(ci);
 
                     if (!boundsInitialized)
                     {
@@ -184,21 +197,11 @@ public class HCD_DistanceProcessor : IHCD_Processor
                         bounds.Encapsulate(smr.bounds);
                     }
                 }
-
-                _bakedMesh.CombineMeshes(_combineInstances, true, true);
-                
-                _meshVertices = _bakedMesh.vertices;
-                _meshNormals = _bakedMesh.normals;
-                _meshIndices = _bakedMesh.triangles;
             }
-            else
+
+            // 2. MeshFilter の統合
+            if (targetMeshFilters != null && targetMeshFilters.Length > 0)
             {
-                if (targetMeshFilters == null || targetMeshFilters.Length == 0) return;
-                
-                targetTransform = targetMeshFilters[0].transform;
-
-                var validInstances = new System.Collections.Generic.List<CombineInstance>();
-
                 for (int i = 0; i < targetMeshFilters.Length; i++)
                 {
                     var mf = targetMeshFilters[i];
@@ -216,26 +219,28 @@ public class HCD_DistanceProcessor : IHCD_Processor
                     validInstances.Add(ci);
 
                     var renderer = mf.GetComponent<MeshRenderer>();
-                    var smrBounds = renderer != null ? renderer.bounds : new Bounds(mf.transform.position, mf.transform.lossyScale);
+                    var mfBounds = renderer != null ? renderer.bounds : new Bounds(mf.transform.position, mf.transform.lossyScale);
 
                     if (!boundsInitialized)
                     {
-                        bounds = smrBounds;
+                        bounds = mfBounds;
                         boundsInitialized = true;
                     }
                     else
                     {
-                        bounds.Encapsulate(smrBounds);
+                        bounds.Encapsulate(mfBounds);
                     }
                 }
-
-                _combineInstances = validInstances.ToArray();
-                _bakedMesh.CombineMeshes(_combineInstances, true, true);
-                
-                _meshVertices = _bakedMesh.vertices;
-                _meshNormals = _bakedMesh.normals;
-                _meshIndices = _bakedMesh.triangles;
             }
+
+            if (validInstances.Count == 0) return;
+
+            _combineInstances = validInstances.ToArray();
+            _bakedMesh.CombineMeshes(_combineInstances, true, true);
+            
+            _meshVertices = _bakedMesh.vertices;
+            _meshNormals = _bakedMesh.normals;
+            _meshIndices = _bakedMesh.triangles;
 
             int trianglesCount = _meshIndices.Length / 3;
 
