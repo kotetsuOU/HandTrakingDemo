@@ -167,7 +167,7 @@ void CalculateGridLevel(uint3 id : SV_DispatchThreadID)
         return;
 
     float density = _DensityMap[id.xy];
-    int level = 6; // 点が存在しない（密度が極めて低い）場合は最大の探索レベル 6 を初期値とする
+    int level = _MinSearchLevel; // 点が存在しない（密度が極めて低い）場合は _MinSearchLevel を初期値・ベースレベルとする
     
     // 1点が存在するときの密度の半分を閾値とする（グリッドサイズ依存の動的閾値）
     float min_density_threshold = 0.5 / float(GRID_SIZE * GRID_SIZE);
@@ -177,7 +177,7 @@ void CalculateGridLevel(uint3 id : SV_DispatchThreadID)
         float L = _NeighborhoodParam_p_prime / sqrt(density);
         level = min(6, (int) floor(log2(L))); // 最大レベル 6 でクランプしてサンプリング境界を保証
     }
-    _GridLevelMap_RW[id.xy] = max(0, level);
+    _GridLevelMap_RW[id.xy] = max(_MinSearchLevel, level);
 }
 
 // 6. Grid Median Filter

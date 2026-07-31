@@ -17,7 +17,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     [Range(1, 8)]
     public int minOccludedSectors = 1;
 
-    [Tooltip("オクルージョン近傍探索の最小レベル(0〜6)。値を上げるとより広い範囲を常に探索し、隙間を埋めやすくなります。")]
+    [Tooltip("オクルージョン近傍探索のベース/最小レベル(0〜6)。OFF時は固定レベルとして使用され、ON時は探索レベルの下限および空領域のデフォルト値として使用されます。")]
     [Range(0, 6)]
     public int minSearchLevel = 6;
 
@@ -32,7 +32,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
     public float neighborhoodParam_p_prime = 4.8f;
 
     [Header("Gradient Correction")]
-    [Tooltip("密度に基づく動的LOD探索を有効にするか。OFFの場合は常にminSearchLevelをベースに探索します。")]
+    [Tooltip("密度に基づく動的LOD探索を有効にするか。OFFの場合は画面全域でminSearchLevelを固定探索レベルとして使用します。")]
     public bool enableDensityBasedLOD = true;
 
     [Tooltip("勾配を用いた補正を有効にする")]
