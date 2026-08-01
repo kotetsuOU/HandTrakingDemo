@@ -1,122 +1,113 @@
 using UnityEngine;
 using System;
-using Core.Logging;
-using Features.HapticsCollision.Debug;
+using Features.HapticsCollision.Processors;
 
 [Serializable]
 public class HCD_DistanceProcessor : IHCD_Processor
-{
-    public string ProcessorName => "DistanceCalculator";
-
-    public enum DetectionMode { TransformOnly, SkinnedMeshRenderer, MeshFilter }
-    public enum DistanceMode { MeshSurface, ViewDirection }
-
-    [Header("Mode Settings")]
-    public DetectionMode detectionMode;
-
-    [Header("Distance Mode Settings")]
-    [Tooltip("距離判定モード (MeshSurface: メッシュ表面基準の手前奥 / ViewDirection: 視線方向基準の手前奥)")]
-    public DistanceMode distanceMode = DistanceMode.MeshSurface;
-
-    [Tooltip("視線方向モードで基準とするカメラ。null の場合は Camera.main を使用します。")]
-    public Camera viewCamera;
-
-    [Header("Transform Mode Settings")]
-    public Transform targetObject;
-    public Transform[] targetTransforms;
-
-    [Header("SkinnedMesh Mode Settings")]
-    public SkinnedMeshRenderer[] targetSkinnedMeshes;
-
-    [Header("MeshFilter Mode Settings")]
-    public MeshFilter[] targetMeshFilters;
-
-    [Header("Mesh Surface Parameters")]
-    [Tooltip("【メッシュ表面モード】これより近いと接触と判定する距離(m)")]
-    public float meshSurfaceDistanceThreshold = 0.02f;
-    [Tooltip("【メッシュ表面モード】これより深くめり込むと貫通として無視する距離(m)")]
-    public float meshBackfaceDistanceThreshold = 0.05f;
-
-    [Header("View Direction Parameters")]
-    [Tooltip("【視線方向モード】視線可視（表向き）の手前判定距離(m)")]
-    public float visibleSurfaceDistanceThreshold = 0.02f;
-    [Tooltip("【視線方向モード】視線可視（表向き）の奥判定距離(m)")]
-    public float visibleBackfaceDistanceThreshold = 0.05f;
-    [Tooltip("【視線方向モード】視線非可視（裏向き）の手前判定距離(m)")]
-    public float occludedSurfaceDistanceThreshold = 0.02f;
-    [Tooltip("【視線方向モード】視線非可視（裏向き）の奥判定距離(m)")]
-    public float occludedBackfaceDistanceThreshold = 0.05f;
-
-    /// <summary>
-    /// 現在のモードに対応した表面（手前）接触距離しきい値(m)
-    /// </summary>
-    public float surfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleSurfaceDistanceThreshold : meshSurfaceDistanceThreshold;
-
-    /// <summary>
-    /// 現在のモードに対応した裏面（奥）判定距離しきい値(m)
-    /// </summary>
-    public float backfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleBackfaceDistanceThreshold : meshBackfaceDistanceThreshold;
-
-    public ComputeShader collisionComputeShader;
-
-    public const string ResultBufferName = "CollisionResultBuffer";
-
-    private HCD_Pipeline _pipeline;
-    private ComputeBuffer _resultBuffer;
-    private ComputeBuffer _targetPositionsBuffer;
-    private int _kernelTransform;
-    private int _kernelMesh;
-
-    private Mesh _bakedMesh;
-    private int _kernelClearGrid;
-    private int _kernelBuildGrid;
-
-    private ComputeBuffer _meshVerticesBuffer;
-    private ComputeBuffer _meshNormalsBuffer;
-    private ComputeBuffer _meshIndicesBuffer;
-    private ComputeBuffer _gridBuffer;
-    private Vector3[] _meshVertices;
-    private Vector3[] _meshNormals;
-    private int[] _meshIndices;
-
-    private const int STRIDE = 44;
-
-    private Mesh[] _tempBakedMeshes;
-    private CombineInstance[] _combineInstances;
-
-    public void Setup(HCD_Pipeline pipeline)
     {
-        _pipeline = pipeline;
-        if (collisionComputeShader != null)
+        public string ProcessorName => "DistanceCalculator";
+
+        public enum DetectionMode { TransformOnly, SkinnedMeshRenderer, MeshFilter }
+        public enum DistanceMode { MeshSurface, ViewDirection }
+
+        [Header("Mode Settings")]
+        public DetectionMode detectionMode;
+
+        [Header("Distance Mode Settings")]
+        [Tooltip("距離判定モード (MeshSurface: メッシュ表面基準の手前奥 / ViewDirection: 視線方向基準の手前奥)")]
+        public DistanceMode distanceMode = DistanceMode.MeshSurface;
+
+        [Tooltip("視線方向モードで基準とするカメラ。null の場合は Camera.main を使用します。")]
+        public Camera viewCamera;
+
+        [Header("Transform Mode Settings")]
+        public Transform targetObject;
+        public Transform[] targetTransforms;
+
+        [Header("SkinnedMesh Mode Settings")]
+        public SkinnedMeshRenderer[] targetSkinnedMeshes;
+
+        [Header("MeshFilter Mode Settings")]
+        public MeshFilter[] targetMeshFilters;
+
+        [Header("Mesh Surface Parameters")]
+        [Tooltip("【メッシュ表面モード】これより近いと接触と判定する距離(m)")]
+        public float meshSurfaceDistanceThreshold = 0.02f;
+        [Tooltip("【メッシュ表面モード】これより深くめり込むと貫通として無視する距離(m)")]
+        public float meshBackfaceDistanceThreshold = 0.05f;
+
+        [Header("View Direction Parameters")]
+        [Tooltip("【視線方向モード】視線可視（表向き）の手前判定距離(m)")]
+        public float visibleSurfaceDistanceThreshold = 0.02f;
+        [Tooltip("【視線方向モード】視線可視（表向き）の奥判定距離(m)")]
+        public float visibleBackfaceDistanceThreshold = 0.05f;
+        [Tooltip("【視線方向モード】視線非可視（裏向き）の手前判定距離(m)")]
+        public float occludedSurfaceDistanceThreshold = 0.02f;
+        [Tooltip("【視線方向モード】視線非可視（裏向き）の奥判定距離(m)")]
+        public float occludedBackfaceDistanceThreshold = 0.05f;
+
+        public float surfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleSurfaceDistanceThreshold : meshSurfaceDistanceThreshold;
+        public float backfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleBackfaceDistanceThreshold : meshBackfaceDistanceThreshold;
+
+        public ComputeShader collisionComputeShader;
+        public const string ResultBufferName = "CollisionResultBuffer";
+
+        private HCD_Pipeline _pipeline;
+        private ComputeBuffer _resultBuffer;
+        private ComputeBuffer _targetPositionsBuffer;
+        private int _kernelTransform;
+        private int _kernelMesh;
+        private int _kernelClearGrid;
+        private int _kernelBuildGrid;
+
+        private readonly HCD_MeshBaker _meshBaker = new HCD_MeshBaker();
+        private readonly HCD_SpatialGridBuilder _gridBuilder = new HCD_SpatialGridBuilder();
+
+        private const int STRIDE = 44;
+
+        public void Setup(HCD_Pipeline pipeline)
         {
-            _kernelTransform = collisionComputeShader.FindKernel("CheckCollisionTransform");
-            _kernelMesh = collisionComputeShader.FindKernel("CheckCollisionMesh");
-            _kernelClearGrid = collisionComputeShader.FindKernel("ClearMeshGrid");
-            _kernelBuildGrid = collisionComputeShader.FindKernel("BuildMeshGrid");
+            _pipeline = pipeline;
+            if (collisionComputeShader != null)
+            {
+                _kernelTransform = collisionComputeShader.FindKernel("CheckCollisionTransform");
+                _kernelMesh = collisionComputeShader.FindKernel("CheckCollisionMesh");
+                _kernelClearGrid = collisionComputeShader.FindKernel("ClearMeshGrid");
+                _kernelBuildGrid = collisionComputeShader.FindKernel("BuildMeshGrid");
+            }
+            
+            _gridBuilder.Setup();
         }
-        
-        _gridBuffer = new ComputeBuffer(512 * 32, sizeof(int));
-    }
 
-    public void Dispatch(ComputeBuffer pointCloudBuffer, int pointCount)
-    {
-        if (collisionComputeShader == null || pointCount == 0) return;
-
-        if (_resultBuffer == null || _resultBuffer.count != pointCount)
+        public void Dispatch(ComputeBuffer pointCloudBuffer, int pointCount)
         {
-            _resultBuffer?.Release();
-            _resultBuffer = new ComputeBuffer(pointCount, STRIDE);
-            _pipeline.SetSharedBuffer(ResultBufferName, _resultBuffer);
+            if (collisionComputeShader == null || pointCount == 0) return;
+
+            if (_resultBuffer == null || _resultBuffer.count != pointCount)
+            {
+                _resultBuffer?.Release();
+                _resultBuffer = new ComputeBuffer(pointCount, STRIDE);
+                _pipeline.SetSharedBuffer(ResultBufferName, _resultBuffer);
+            }
+
+            Vector3 cameraPos = Vector3.zero;
+            if (distanceMode == DistanceMode.ViewDirection)
+            {
+                var cam = viewCamera != null ? viewCamera : Camera.main;
+                if (cam != null) cameraPos = cam.transform.position;
+            }
+
+            if (detectionMode == DetectionMode.TransformOnly)
+            {
+                DispatchTransformMode(pointCloudBuffer, pointCount, cameraPos);
+            }
+            else if (detectionMode == DetectionMode.SkinnedMeshRenderer || detectionMode == DetectionMode.MeshFilter)
+            {
+                DispatchMeshMode(pointCloudBuffer, pointCount, cameraPos);
+            }
         }
 
-        Vector3 cameraPos = Vector3.zero;
-        if (distanceMode == DistanceMode.ViewDirection)
-        {
-            var cam = viewCamera != null ? viewCamera : Camera.main;
-            if (cam != null) cameraPos = cam.transform.position;
-        }
-
-        if (detectionMode == DetectionMode.TransformOnly)
+        private void DispatchTransformMode(ComputeBuffer pointCloudBuffer, int pointCount, Vector3 cameraPos)
         {
             var targetPosList = new System.Collections.Generic.List<Vector3>();
             if (targetTransforms != null && targetTransforms.Length > 0)
@@ -160,175 +151,47 @@ public class HCD_DistanceProcessor : IHCD_Processor
             int threadGroups = Mathf.CeilToInt(pointCount / 256.0f);
             collisionComputeShader.Dispatch(_kernelTransform, threadGroups, 1, 1);
         }
-        else if (detectionMode == DetectionMode.SkinnedMeshRenderer || detectionMode == DetectionMode.MeshFilter)
+
+        private void DispatchMeshMode(ComputeBuffer pointCloudBuffer, int pointCount, Vector3 cameraPos)
         {
-            Transform targetTransform = null;
-            Bounds bounds = default;
-            bool boundsInitialized = false;
-
-            if (_bakedMesh == null) _bakedMesh = new Mesh();
-
-            if (targetSkinnedMeshes != null && targetSkinnedMeshes.Length > 0 && targetSkinnedMeshes[0] != null)
+            if (!_meshBaker.BakeAndCombine(targetSkinnedMeshes, targetMeshFilters, targetObject))
             {
-                targetTransform = targetSkinnedMeshes[0].transform;
+                return;
             }
-            else if (targetMeshFilters != null && targetMeshFilters.Length > 0 && targetMeshFilters[0] != null)
-            {
-                targetTransform = targetMeshFilters[0].transform;
-            }
-
-            if (targetTransform == null && targetObject != null)
-            {
-                targetTransform = targetObject;
-            }
-
-            if (targetTransform == null) return;
-
-            var validInstances = new System.Collections.Generic.List<CombineInstance>();
-
-            if (targetSkinnedMeshes != null && targetSkinnedMeshes.Length > 0)
-            {
-                if (_tempBakedMeshes == null || _tempBakedMeshes.Length != targetSkinnedMeshes.Length)
-                {
-                    if (_tempBakedMeshes != null)
-                    {
-                        foreach (var m in _tempBakedMeshes) if (m != null) UnityEngine.Object.Destroy(m);
-                    }
-                    _tempBakedMeshes = new Mesh[targetSkinnedMeshes.Length];
-                    for (int i = 0; i < targetSkinnedMeshes.Length; i++) _tempBakedMeshes[i] = new Mesh();
-                }
-
-                for (int i = 0; i < targetSkinnedMeshes.Length; i++)
-                {
-                    var smr = targetSkinnedMeshes[i];
-                    if (smr == null) continue;
-
-                    smr.BakeMesh(_tempBakedMeshes[i], false);
-                    
-                    CombineInstance ci = new CombineInstance();
-                    ci.mesh = _tempBakedMeshes[i];
-                    ci.transform = targetTransform.worldToLocalMatrix * smr.transform.localToWorldMatrix;
-                    validInstances.Add(ci);
-
-                    if (!boundsInitialized)
-                    {
-                        bounds = smr.bounds;
-                        boundsInitialized = true;
-                    }
-                    else
-                    {
-                        bounds.Encapsulate(smr.bounds);
-                    }
-                }
-            }
-
-            if (targetMeshFilters != null && targetMeshFilters.Length > 0)
-            {
-                for (int i = 0; i < targetMeshFilters.Length; i++)
-                {
-                    var mf = targetMeshFilters[i];
-                    if (mf == null || mf.sharedMesh == null) continue;
-                    
-                    if (!mf.sharedMesh.isReadable)
-                    {
-                        Debug.LogWarning($"[HCD_DistanceProcessor] Mesh '{mf.sharedMesh.name}' on '{mf.gameObject.name}' is not readable. Please enable 'Read/Write Enabled' in the import settings. Skipping this mesh for haptic collision.");
-                        continue;
-                    }
-
-                    CombineInstance ci = new CombineInstance();
-                    ci.mesh = mf.sharedMesh;
-                    ci.transform = targetTransform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
-                    validInstances.Add(ci);
-
-                    var renderer = mf.GetComponent<MeshRenderer>();
-                    var mfBounds = renderer != null ? renderer.bounds : new Bounds(mf.transform.position, mf.transform.lossyScale);
-
-                    if (!boundsInitialized)
-                    {
-                        bounds = mfBounds;
-                        boundsInitialized = true;
-                    }
-                    else
-                    {
-                        bounds.Encapsulate(mfBounds);
-                    }
-                }
-            }
-
-            if (validInstances.Count == 0) return;
-
-            _combineInstances = validInstances.ToArray();
-            _bakedMesh.CombineMeshes(_combineInstances, true, true);
-            
-            _meshVertices = _bakedMesh.vertices;
-            _meshNormals = _bakedMesh.normals;
-            _meshIndices = _bakedMesh.triangles;
-
-            int trianglesCount = _meshIndices.Length / 3;
-
-            if (_meshVertices == null || _meshVertices.Length == 0 || _meshIndices == null || _meshIndices.Length == 0) return;
-
-            if (_meshVerticesBuffer == null || _meshVerticesBuffer.count != _meshVertices.Length)
-            {
-                _meshVerticesBuffer?.Release();
-                _meshNormalsBuffer?.Release();
-                _meshVerticesBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
-                _meshNormalsBuffer = new ComputeBuffer(_meshVertices.Length, sizeof(float) * 3);
-            }
-
-            if (_meshIndicesBuffer == null || _meshIndicesBuffer.count != _meshIndices.Length)
-            {
-                _meshIndicesBuffer?.Release();
-                _meshIndicesBuffer = new ComputeBuffer(_meshIndices.Length, sizeof(int));
-            }
-
-            _meshVerticesBuffer.SetData(_meshVertices);
-            if (_meshNormals != null && _meshNormals.Length == _meshVertices.Length)
-            {
-                _meshNormalsBuffer.SetData(_meshNormals);
-            }
-            _meshIndicesBuffer.SetData(_meshIndices);
 
             float maxThresh = Mathf.Max(surfaceDistanceThreshold, backfaceDistanceThreshold);
-            float totalPadding = maxThresh + 0.1f;
 
-            Vector3 gridMin = bounds.min - new Vector3(totalPadding, totalPadding, totalPadding);
-            Vector3 gridMax = bounds.max + new Vector3(totalPadding, totalPadding, totalPadding);
-            Vector3 gridSize = gridMax - gridMin;
-            Vector3 cellSize = new Vector3(gridSize.x / 8f, gridSize.y / 8f, gridSize.z / 8f);
-            int[] gridRes = new int[] { 8, 8, 8 };
-
-            collisionComputeShader.SetBuffer(_kernelClearGrid, "GridBuffer", _gridBuffer);
-            collisionComputeShader.Dispatch(_kernelClearGrid, Mathf.CeilToInt(512 / 256.0f), 1, 1);
-
-            collisionComputeShader.SetBuffer(_kernelBuildGrid, "GridBuffer", _gridBuffer);
-            collisionComputeShader.SetBuffer(_kernelBuildGrid, "MeshVerticesBuffer", _meshVerticesBuffer);
-            collisionComputeShader.SetBuffer(_kernelBuildGrid, "MeshIndicesBuffer", _meshIndicesBuffer);
-            collisionComputeShader.SetInt("MeshTrianglesCount", trianglesCount);
-            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetTransform.localToWorldMatrix);
-            collisionComputeShader.SetVector("GridBoundsMin", gridMin);
-            collisionComputeShader.SetVector("GridCellSize", cellSize);
-            collisionComputeShader.SetInts("GridResolution", gridRes);
-
-            collisionComputeShader.Dispatch(_kernelBuildGrid, Mathf.CeilToInt(trianglesCount / 256.0f), 1, 1);
+            _gridBuilder.BuildGrid(
+                collisionComputeShader,
+                _kernelClearGrid,
+                _kernelBuildGrid,
+                _meshBaker.Vertices,
+                _meshBaker.Normals,
+                _meshBaker.Triangles,
+                _meshBaker.MeshBounds,
+                _meshBaker.TargetTransform,
+                maxThresh);
 
             collisionComputeShader.SetBuffer(_kernelMesh, "PointCloudBuffer", pointCloudBuffer);
             collisionComputeShader.SetBuffer(_kernelMesh, "ResultBuffer", _resultBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "MeshVerticesBuffer", _meshVerticesBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "MeshNormalsBuffer", _meshNormalsBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "MeshIndicesBuffer", _meshIndicesBuffer);
-            collisionComputeShader.SetBuffer(_kernelMesh, "GridBuffer", _gridBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "MeshVerticesBuffer", _gridBuilder.MeshVerticesBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "MeshNormalsBuffer", _gridBuilder.MeshNormalsBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "MeshIndicesBuffer", _gridBuilder.MeshIndicesBuffer);
+            collisionComputeShader.SetBuffer(_kernelMesh, "GridBuffer", _gridBuilder.GridBuffer);
 
             collisionComputeShader.SetInt("PointsCount", pointCount);
-            collisionComputeShader.SetInt("MeshTrianglesCount", trianglesCount);
-            collisionComputeShader.SetMatrix("LocalToWorldMatrix", targetTransform.localToWorldMatrix);
+            collisionComputeShader.SetInt("MeshTrianglesCount", _meshBaker.TrianglesCount);
+            collisionComputeShader.SetMatrix("LocalToWorldMatrix", _meshBaker.TargetTransform.localToWorldMatrix);
+
+            float totalPadding = _gridBuilder.TotalPadding;
+            Bounds bounds = _meshBaker.MeshBounds;
 
             collisionComputeShader.SetVector("MeshBoundsMin", bounds.min - new Vector3(totalPadding, totalPadding, totalPadding));
             collisionComputeShader.SetVector("MeshBoundsMax", bounds.max + new Vector3(totalPadding, totalPadding, totalPadding));
             
-            collisionComputeShader.SetVector("GridBoundsMin", gridMin);
-            collisionComputeShader.SetVector("GridCellSize", cellSize);
-            collisionComputeShader.SetInts("GridResolution", gridRes);
+            collisionComputeShader.SetVector("GridBoundsMin", _gridBuilder.GridMin);
+            collisionComputeShader.SetVector("GridCellSize", _gridBuilder.CellSize);
+            collisionComputeShader.SetInts("GridResolution", _gridBuilder.GridResolution);
             
             collisionComputeShader.SetFloat("SurfaceDistanceThreshold", surfaceDistanceThreshold);
             collisionComputeShader.SetFloat("BackfaceDistanceThreshold", backfaceDistanceThreshold);
@@ -343,34 +206,26 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
 
 #if UNITY_EDITOR
-            if (AppLogger.IsEnabled(_pipeline, HCD_LogTriggers.TagDistanceProcessor) && Time.frameCount % 120 == 0)
+            if (Core.Logging.AppLogger.IsEnabled(_pipeline, HCD_Pipeline.TagDistanceProcessor) && Time.frameCount % 120 == 0)
             {
-                AppLogger.Log(_pipeline, HCD_LogTriggers.TagDistanceProcessor,
+                Core.Logging.AppLogger.Log(_pipeline, HCD_Pipeline.TagDistanceProcessor,
                     $"MeshFilter Mode Debug:\n" +
-                    $"  TargetTransform    : {targetTransform?.name} (pos={targetTransform?.position})\n" +
+                    $"  TargetTransform    : {_meshBaker.TargetTransform?.name} (pos={_meshBaker.TargetTransform?.position})\n" +
                     $"  Registered Filters : {targetMeshFilters?.Length ?? 0}\n" +
-                    $"  Combined Instances  : {validInstances.Count}\n" +
-                    $"  Vertices / Triangles: {_meshVertices?.Length ?? 0} / {trianglesCount}\n" +
+                    $"  Combined Instances  : {_meshBaker.ValidInstanceCount}\n" +
+                    $"  Vertices / Triangles: {_meshBaker.Vertices?.Length ?? 0} / {_meshBaker.TrianglesCount}\n" +
                     $"  World Bounds        : min={bounds.min:F3} max={bounds.max:F3} size={bounds.size:F3}\n" +
-                    $"  Grid Cell Size      : {cellSize:F4}  (8x8x8 grid, 31 tris/cell max)\n" +
+                    $"  Grid Cell Size      : {_gridBuilder.CellSize:F4}  (8x8x8 grid, 31 tris/cell max)\n" +
                     $"  Total Padding       : {totalPadding:F4}m  (thresh={maxThresh:F4})");
             }
 #endif
         }
-    }
 
-    public void Release()
-    {
-        _resultBuffer?.Release();
-        _targetPositionsBuffer?.Release();
-        _meshVerticesBuffer?.Release();
-        _meshNormalsBuffer?.Release();
-        _meshIndicesBuffer?.Release();
-        _gridBuffer?.Release();
-        if (_bakedMesh != null) UnityEngine.Object.Destroy(_bakedMesh);
-        if (_tempBakedMeshes != null)
+        public void Release()
         {
-            foreach (var m in _tempBakedMeshes) if (m != null) UnityEngine.Object.Destroy(m);
+            _resultBuffer?.Release();
+            _targetPositionsBuffer?.Release();
+            _meshBaker.Release();
+            _gridBuilder.Release();
         }
     }
-}

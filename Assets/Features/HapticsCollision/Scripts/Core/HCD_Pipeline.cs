@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using System.Runtime.InteropServices;
 using Core.Logging;
+using Features.HapticsCollision.Processors;
 
 /// <summary>
 /// GPU上での点群解析・接触判定（HCD）パイプラインを管理するコアマネージャ。
