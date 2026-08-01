@@ -57,6 +57,10 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
     public ComputeShader collisionComputeShader;
 
+    [Header("Debug")]
+    [Tooltip("True にするとメッシュ結合・グリッド情報をコンソールに出力します（120フレームごと）")]
+    public bool enableDebugLog = false;
+
     public const string ResultBufferName = "CollisionResultBuffer";
 
     private HCD_Pipeline _pipeline;
@@ -350,6 +354,21 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
             int threadGroups = Mathf.CeilToInt(pointCount / 64.0f);
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
+
+#if UNITY_EDITOR
+            if (enableDebugLog && Time.frameCount % 120 == 0)
+            {
+                Debug.Log(
+                    $"[HCD_DistanceProcessor] MeshFilter Mode Debug:\n" +
+                    $"  TargetTransform    : {targetTransform?.name} (pos={targetTransform?.position})\n" +
+                    $"  Registered Filters : {targetMeshFilters?.Length ?? 0}\n" +
+                    $"  Combined Instances  : {validInstances.Count}\n" +
+                    $"  Vertices / Triangles: {_meshVertices?.Length ?? 0} / {trianglesCount}\n" +
+                    $"  World Bounds        : min={bounds.min:F3} max={bounds.max:F3} size={bounds.size:F3}\n" +
+                    $"  Grid Cell Size      : {cellSize:F4}  (8x8x8 grid, 31 tris/cell max)\n" +
+                    $"  Total Padding       : {totalPadding:F4}m  (thresh={maxThresh:F4})");
+            }
+#endif
         }
     }
 

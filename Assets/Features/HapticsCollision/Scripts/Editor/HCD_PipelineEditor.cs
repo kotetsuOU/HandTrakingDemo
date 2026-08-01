@@ -110,6 +110,10 @@ public class HCD_PipelineEditor : Editor
                     if (meshBackProp != null) EditorGUILayout.PropertyField(meshBackProp);
                 }
 
+                EditorGUILayout.Space();
+                SerializedProperty enableDebugLogProp = dpProp.FindPropertyRelative("enableDebugLog");
+                if (enableDebugLogProp != null) EditorGUILayout.PropertyField(enableDebugLogProp);
+
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
@@ -215,6 +219,8 @@ public class HCD_PipelineEditor : Editor
         {
             SerializedProperty targetObjProp = dpProp.FindPropertyRelative("targetObject");
             if (targetObjProp != null) EditorGUILayout.PropertyField(targetObjProp);
+            SerializedProperty targetTransformsProp = dpProp.FindPropertyRelative("targetTransforms");
+            if (targetTransformsProp != null) EditorGUILayout.PropertyField(targetTransformsProp, true);
         }
         else if (detMode == (int)HCD_DistanceProcessor.DetectionMode.SkinnedMeshRenderer)
         {

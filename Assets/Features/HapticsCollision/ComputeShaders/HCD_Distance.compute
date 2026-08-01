@@ -12,7 +12,13 @@ struct PointCollisionData
     float3 hitNormal;    // メッシュ表面法線
 };
 
-StructuredBuffer<float4> PointCloudBuffer;
+struct PointCloudPoint
+{
+    float3 position;  // 12 bytes
+    float3 color;     // 12 bytes
+    uint   originType; //  4 bytes  (total = 28 bytes, matches RsGlobalPointCloudManager.STRIDE)
+};
+StructuredBuffer<PointCloudPoint> PointCloudBuffer;
 RWStructuredBuffer<PointCollisionData> ResultBuffer;
 
 uint PointsCount;
@@ -197,7 +203,7 @@ void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= PointsCount) return;
 
-    float3 p = PointCloudBuffer[id.x].xyz;
+    float3 p = PointCloudBuffer[id.x].position;
     PointCollisionData res;
     res.isColliding = 0;
     res.distance = 0.0;
@@ -288,7 +294,7 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= PointsCount) return;
 
-    float3 p = PointCloudBuffer[id.x].xyz;
+    float3 p = PointCloudBuffer[id.x].position;
     PointCollisionData res;
     res.isColliding = 0;
     res.distance = 0.0;
