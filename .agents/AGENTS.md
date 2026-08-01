@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions
+# RealTimeOcclusion Project Behavioral Guidelines & Rules
 
 ## 1. 目的
 

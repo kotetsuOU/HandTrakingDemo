@@ -12,7 +12,7 @@
 
 本システムは、点群バッファと仮想 3D メッシュとの接触判定・クラスタリング・トラッキングをリアルタイムに実行します。
 
-旧仕様 (`HapCollisionDetectors`) から大幅なリアーキテクチャが行われ、プロセッサをパイプライン状に連結する `HCD_Pipeline` 構造へ進化しました。詳細な数理モデル比較については [CollisionAlgorithmComparison.md](./CollisionAlgorithmComparison.md) を参照してください。
+旧仕様 (`HapCollisionDetectors`) から大幅なリアーキテクチャが行われ、プロセッサをパイプライン状に連結する `HCD_Pipeline` 構造へ進化しました。また、God Class（肥大化クラス）化を防ぐため **`partial` クラスを一切使わず**、単一責任原則に基づき **`Core` / `Processors` / `Debug` / `Editor`** の 4 階層へ完全に役割分離・軽量化されています。
 
 ---
 
@@ -24,75 +24,75 @@
 [リアルタイム統合点群バッファ] (RsGlobalPointCloudManager)
                │ (GPU ComputeBuffer 直接参照)
                ▼
-[HCD_Pipeline] (パイプライン・オーケストレーター)
+[HCD_Pipeline] (コアマネージャー)
                │
                ├─▶ 1. [HCD_DistanceProcessor] 
-               │      (GPU Voxel Grid構築 & Point-to-Triangle 距離判定 + Möller-Trumbore InsideMesh判定)
+               │      ├── [HCD_MeshBaker] (SkinnedMesh/MeshFilter の Bake & Combine & Bounds算出)
+               │      └── [HCD_SpatialGridBuilder] (GPU 8x8x8 Voxel Grid構築 & Dispatch)
                │
                ├─▶ 2. [HCD_SpatialClusteringProcessor]
-               │      (接触した点群を空間ハッシュでクラスタリングし、接触重心・16点ランダムサンプルを計算)
+               │      (接触した点群を空間ハッシュでクラスタリングし、接触重心・共分散・16点ランダムサンプルを計算)
                │
-               ├─▶ 3. [HCD_ClusterTracker] (CPU)
-               │      (前フレームのクラスタと照合し、安定したIDと生存期間(Age)を付与)
+               ├─▶ 3. [HCD_ReadbackHandler] (GPU AsyncReadback キュー監視)
+               │      └── [HCD_ClusterDecoder] (GPU固定小数点数バイナリ構造体の Vector3 デコード)
                │
-               └─▶ 4. [HCD_Pipeline (Gizmo)] または [AUTD3連携クラス]
-                      (安定したクラスタ情報を元に描画や焦点生成を実行)
+               ├─▶ 4. [HCD_ClusterTracker] (CPU)
+               │      (前フレームのクラスタと照合し、安定したIDと生存期間(Age)・Forceを付与)
+               │
+               └─▶ 5. [HCD_DebugVisualizer] & [AppLogManager]
+                      (Scene ビュー描画 & サブログ別トグル制御)
 ```
 
-### 2.2 ファイル・システム構成
+### 2.2 ディレクトリ・ファイル構成
 
-* **`HCD_Pipeline.cs`**: 各プロセッサの実行順序やバッファを管理・仲介するオーケストレーター
-* **`IHCD_Processor.cs`**: 各プロセッサが実装すべき共通インターフェース
-* **`HCD_DistanceProcessor.cs`**: [GPU] ボクセル構築と Point-to-Triangle 最短距離・めり込み判定
-* **`HCD_SpatialClusteringProcessor.cs`**: [GPU] 空間ハッシュによる接触点のグループ化、重心・共分散・16ランダム点の算出
-* **`HCD_ClusterTracker.cs`**: [CPU] フレーム間のクラスタ追跡と ID・寿命管理
-* **`HCD_Distance.compute` / `HCD_SpatialClustering.compute`**: GPU 並列計算コンピュートシェーダー
+```
+Assets/Features/HapticsCollision/Scripts/
+├── Core/                               # 【コア機能】
+│   ├── HCD_Pipeline.cs                 # プロセッサディスパッチ・パイプラインコア（約160行）
+│   ├── HCD_ReadbackHandler.cs          # 非同期 AsyncGPUReadback のキュー管理と完了判定
+│   ├── HCD_ClusterDecoder.cs           # GPUバイナリ構造体 (60B/216B) の Fixed-point デコード
+│   └── HCD_Processor.cs                # IHCD_Processor インターフェース
+├── Processors/                         # 【プロセッサ群】
+│   ├── HCD_DistanceProcessor.cs         # 距離判定オーケストレーター
+│   ├── HCD_MeshBaker.cs                 # メッシュ結合・Bake・頂点データ抽出・Bounds算出
+│   ├── HCD_SpatialGridBuilder.cs       # GPU 8x8x8 空間グリッドの構築・バッファ管理
+│   ├── HCD_SpatialClusteringProcessor.cs# 空間ハッシュクラスタリング計算
+│   └── HCD_ClusterTracker.cs            # フレーム間クラスタ追跡・Force計算
+├── Debug/                              # 【デバッグ・ログ専用機能】
+│   ├── HCD_DebugVisualizer.cs          # Scene ビュー Gizmos & Handles ラベル描画コンポーネント
+│   └── HCD_LogTriggers.cs              # AppLogManager 連動サブトリガー登録ヘルパー
+└── Editor/                             # 【エディタ機能】
+    └── HCD_PipelineEditor.cs           # カスタム Inspector エディタ
+```
 
 ---
 
 ## 3. セットアップ・使用方法
 
 1. シーン上の管理オブジェクトに `HCD_Pipeline` をアタッチします。
-2. **`Detection Target`** に接触判定を行わせたい仮想オブジェクトをセットします。
-3. **`Detection Mode`** を選択します (`SkinnedMeshRenderer`, `MeshFilter`, `TransformOnly`)。
-4. `AnimationController` と連携している場合、ターゲット選択切り替えに連動して自動的に追従・更新されます。
+2. `Awake` 時に `HCD_DebugVisualizer` と `HCD_LogTriggers` が自動アタッチされ、シーンビュー描画とログ制御が準備されます。
+3. **`Detection Target`** に接触判定を行わせたい仮想オブジェクトをセットします。
+4. **`Detection Mode`** を選択します (`SkinnedMeshRenderer`, `MeshFilter`, `TransformOnly`)。
 
 ---
 
-## 4. 仕様・パラメータ詳細
+## 4. ログシステム (`AppLogManager`) との連携
 
-### 4.1 モジュール別アルゴリズム詳細
+HCD モジュールは `AppLogManager` の統合ログ管理に対応しています。`AppLogManager` の Inspector 上で以下の 4 つのサブトリガーを個別 ON/OFF 制御できます：
 
-#### A. `HCD_DistanceProcessor` (距離・接触判定)
-* **GPU Voxel Grid 構築**: メッシュの全三角形を並列処理し、ボクセルへ `InterlockedAdd` で登録。
-* **Point-to-Triangle 距離計算**: AABB フィルタ通過後に最短距離を算出。
-* **Möller-Trumbore レイキャスト**: 点から X+ 方向へレイを飛ばし交差回数をカウント（奇数回＝内部、偶数回＝外部）。
-* **TransformOnly マルチターゲット判定 (`TargetPositionsBuffer`)**: 親オブジェクト配下の複数子 Transform 群 (`targetTransforms`) を GPU バッファ化し、点群の各点から全子オブジェクト座標への最短距離探索ループを並列実行。特定の子オブジェクトのみへの限定を防ぎ、配下の全子 Transform に対して個別の接触点を推定・形成します。
-
-#### B. `HCD_SpatialClusteringProcessor` (空間クラスタリング・表面推定)
-* **TactileClustering**: 座標と表面法線を量子化し、ハイブリッドハッシュで空間グループ化。
-* **表面推定設定 (Surface Estimation Settings)**:
-  * **`AggregationMode`**: クラスタ重心の集約アルゴリズムを選択 (`precisionMode` の有無にかかわらず Pass 1 で適用)。
-    * `UnweightedCentroid`: 従来の単純平均（平滑さ優先）。
-    * `DistanceWeightedCentroid`: メッシュ表面 0mm に近い点ほど重みを大きく評価し、ノイズに強い真の接触面を推定 ($w = (1 - d/d_{\mathrm{thresh}})^p$)。
-    * `NearestPoint`: 最小距離点の重みを極大化し、最も浅い接触点をシャープに推定。
-  * **`PositionSource`**: 照射先・基準座標として出力する座標ソースを選択 (`MeshSurface`: メッシュ投影座標 `hitPoint` / `PointCloudRaw`: 点群実測空間座標 `pointPos`)。
-  * **`DistanceWeightPower`**: `DistanceWeightedCentroid` モード時の距離減衰累乗数（デフォルト `2.0`）。
-  * **ウェイトクランプ & 固定小数点精度**:
-    GPU 内で $100,000.0$ (10万倍) の固定小数点アキュムレーションを実施し、ウェイトを $\mathrm{clamp}(w_{\mathrm{raw}}, 0.05, 1.0)$ に制御することで、判定境界（2mm等）付近での整数桁落ち（切り捨て誤差）による座標崩れを完全に防ぎます。
-* **Precision Mode**: 共分散行列（Covariance Matrix）の計算および GPU Reservoir Sampling による 16 点のランダムサンプリング (Pass 2)。
-
-#### C. `HCD_ClusterTracker` (フレーム間トラッキング)
-* **最近傍マッチング**: 前フレームの重心との距離比較による ID 固定。
-* **拡張データ保持**: クラスタごとの `RawPointPosition` (実測位置)、`MeshSurfacePosition` (メッシュ表面位置)、`MinDistance` (最小表面距離) を追跡・提供。
-* **ContactForceReduction**: 接触点数からベース振幅 $F_{\mathrm{raw}}$ を計算し、指数移動平均（EMA）でフェード処理。
+| サブトリガー表示名 | タグ (`subTag`) | 主な出力内容 |
+| :--- | :--- | :--- |
+| **`[HCD_Pipeline] Summary & Readback`** | `HCD_Pipeline` | アグリゲーションモード、検出クラスタ数、追跡数 |
+| **`[HCD_DistanceProcessor] Mesh & Bounds Debug`** | `HCD_DistanceProcessor` | ターゲットTransform・頂点数・World Bounds・グリッドセルサイズ |
+| **`[HCD_SpatialClusteringProcessor] Clustering Debug`** | `HCD_SpatialClusteringProcessor` | ボクセルCellSize・集約モード・距離減衰冪数・Precisionモード |
+| **`[HCD_ClusterTracker] Cluster Tracking Info`** | `HCD_ClusterTracker` | 生存・追跡中クラスタ数 |
 
 ---
 
 ## 5. デバッグ・留意事項
 
-### 5.1 Gizmo 可視化
-`HCD_Pipeline` のインスペクターから Gizmo 描画を有効にすることで、GPU で検出された全アクティブクラスタ (`GetActiveClusterInfos`) がシーンビュー上にリアルタイム可視化されます：
+### 5.1 `HCD_DebugVisualizer` による Scene ビュー可視化
+`HCD_DebugVisualizer` コンポーネントにより、GPU で検出されたアクティブクラスタ (`GetActiveClusterInfos`) が Scene ビュー上にリアルタイム可視化されます：
 * **クラスタ重心 (WireSphere)**: 生存期間 (Age) に応じて黄色（新生）からマゼンタ（安定）へグラデーション。
 * **実測座標 vs メッシュ表面座標 (黄色/緑色球 + 直線)**: 点群の実測空間位置 (`RawPointPosition`) とメッシュ表面投影位置 (`MeshSurfacePosition`) の乖離を線描画。
 * **法線ベクトル (Cyan Ray)**: 接触パッチの平均表面法線方向。

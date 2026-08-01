@@ -130,6 +130,19 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
             clusteringComputeShader.SetInt("RandomSeed", (int)(Time.time * 1000) ^ Time.frameCount);
             clusteringComputeShader.Dispatch(_kernelAccumulateCovariance, accGroups, 1, 1);
         }
+
+#if UNITY_EDITOR
+        if (AppLogger.IsEnabled(_pipeline, HCD_Pipeline.TagSpatialClusteringProcessor) && Time.frameCount % 120 == 0)
+        {
+            AppLogger.Log(_pipeline, HCD_Pipeline.TagSpatialClusteringProcessor,
+                $"SpatialClustering Debug:\n" +
+                $"  CellSize            : {cellSize:F3}m (MaxClusters={maxClusters})\n" +
+                $"  AggregationMode     : {aggregationMode}\n" +
+                $"  PositionSource      : {positionSource}\n" +
+                $"  DistanceWeightPower : {distanceWeightPower:F2}\n" +
+                $"  PrecisionMode       : {precisionMode}");
+        }
+#endif
     }
 
     public void Release()
