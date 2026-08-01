@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Core.Logging;
+using Features.HapticsCollision.Debug;
 
 /// <summary>
 /// ContactClusterTracking: フレームをまたいでクラスタの同一性を追跡します。
@@ -169,9 +170,9 @@ public class HCD_ClusterTracker
         _tracked.RemoveAll(c => c.MissingFrames > maxMissingFrames);
 
 #if UNITY_EDITOR
-        if (context != null && AppLogger.IsEnabled(context, "HCD_ClusterTracker") && Time.frameCount % 120 == 0)
+        if (context != null && AppLogger.IsEnabled(context, HCD_LogTriggers.TagClusterTracker) && Time.frameCount % 120 == 0)
         {
-            AppLogger.Log(context, "HCD_ClusterTracker", $"Tracked Clusters: {_tracked.Count} (Active: {GetAliveCentroids().Count})");
+            AppLogger.Log(context, HCD_LogTriggers.TagClusterTracker, $"Tracked Clusters: {_tracked.Count} (Active: {GetAliveCentroids().Count})");
         }
 #endif
     }

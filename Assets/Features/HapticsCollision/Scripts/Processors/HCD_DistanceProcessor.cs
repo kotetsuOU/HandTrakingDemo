@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using Core.Logging;
+using Features.HapticsCollision.Debug;
 
 [Serializable]
 public class HCD_DistanceProcessor : IHCD_Processor
@@ -78,8 +79,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
     private Vector3[] _meshNormals;
     private int[] _meshIndices;
 
-    // Struct size: int(4) + float(4) + float3(12) + float3(12) + float3(12) = 44 bytes
-    // ※ StructuredBuffer の float3 は cbuffer と異なりパディングなし（12バイト）
     private const int STRIDE = 44;
 
     private Mesh[] _tempBakedMeshes;
@@ -96,7 +95,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
             _kernelBuildGrid = collisionComputeShader.FindKernel("BuildMeshGrid");
         }
         
-        // Voxel Grid: 8x8x8 = 512 cells, max 31 triangles per cell (32 ints)
         _gridBuffer = new ComputeBuffer(512 * 32, sizeof(int));
     }
 
@@ -104,7 +102,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
     {
         if (collisionComputeShader == null || pointCount == 0) return;
 
-        // 点群数に合わせてバッファをリサイズ
         if (_resultBuffer == null || _resultBuffer.count != pointCount)
         {
             _resultBuffer?.Release();
@@ -189,7 +186,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
             var validInstances = new System.Collections.Generic.List<CombineInstance>();
 
-            // 1. SkinnedMeshRenderer の統合
             if (targetSkinnedMeshes != null && targetSkinnedMeshes.Length > 0)
             {
                 if (_tempBakedMeshes == null || _tempBakedMeshes.Length != targetSkinnedMeshes.Length)
@@ -226,7 +222,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
                 }
             }
 
-            // 2. MeshFilter の統合
             if (targetMeshFilters != null && targetMeshFilters.Length > 0)
             {
                 for (int i = 0; i < targetMeshFilters.Length; i++)
@@ -294,10 +289,8 @@ public class HCD_DistanceProcessor : IHCD_Processor
             }
             _meshIndicesBuffer.SetData(_meshIndices);
 
-            // Setup Grid Parameters
-            // Bounds already obtained above
             float maxThresh = Mathf.Max(surfaceDistanceThreshold, backfaceDistanceThreshold);
-            float totalPadding = maxThresh + 0.1f; // safe margin
+            float totalPadding = maxThresh + 0.1f;
 
             Vector3 gridMin = bounds.min - new Vector3(totalPadding, totalPadding, totalPadding);
             Vector3 gridMax = bounds.max + new Vector3(totalPadding, totalPadding, totalPadding);
@@ -305,11 +298,9 @@ public class HCD_DistanceProcessor : IHCD_Processor
             Vector3 cellSize = new Vector3(gridSize.x / 8f, gridSize.y / 8f, gridSize.z / 8f);
             int[] gridRes = new int[] { 8, 8, 8 };
 
-            // 1. Clear Grid
             collisionComputeShader.SetBuffer(_kernelClearGrid, "GridBuffer", _gridBuffer);
             collisionComputeShader.Dispatch(_kernelClearGrid, Mathf.CeilToInt(512 / 256.0f), 1, 1);
 
-            // 2. Build Grid
             collisionComputeShader.SetBuffer(_kernelBuildGrid, "GridBuffer", _gridBuffer);
             collisionComputeShader.SetBuffer(_kernelBuildGrid, "MeshVerticesBuffer", _meshVerticesBuffer);
             collisionComputeShader.SetBuffer(_kernelBuildGrid, "MeshIndicesBuffer", _meshIndicesBuffer);
@@ -321,7 +312,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
 
             collisionComputeShader.Dispatch(_kernelBuildGrid, Mathf.CeilToInt(trianglesCount / 256.0f), 1, 1);
 
-            // 3. Distance Check
             collisionComputeShader.SetBuffer(_kernelMesh, "PointCloudBuffer", pointCloudBuffer);
             collisionComputeShader.SetBuffer(_kernelMesh, "ResultBuffer", _resultBuffer);
             collisionComputeShader.SetBuffer(_kernelMesh, "MeshVerticesBuffer", _meshVerticesBuffer);
@@ -353,9 +343,9 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
 
 #if UNITY_EDITOR
-            if (AppLogger.IsEnabled(_pipeline, "HCD_DistanceProcessor") && Time.frameCount % 120 == 0)
+            if (AppLogger.IsEnabled(_pipeline, HCD_LogTriggers.TagDistanceProcessor) && Time.frameCount % 120 == 0)
             {
-                AppLogger.Log(_pipeline, "HCD_DistanceProcessor",
+                AppLogger.Log(_pipeline, HCD_LogTriggers.TagDistanceProcessor,
                     $"MeshFilter Mode Debug:\n" +
                     $"  TargetTransform    : {targetTransform?.name} (pos={targetTransform?.position})\n" +
                     $"  Registered Filters : {targetMeshFilters?.Length ?? 0}\n" +

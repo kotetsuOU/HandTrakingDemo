@@ -5,8 +5,8 @@ using System.Runtime.InteropServices;
 using Core.Logging;
 
 /// <summary>
-/// GPU上での点群解析・接触判定（HCD）パイプラインを管理するクラス。
-/// 登録された IHCD_Processor を順番にディスパッチし、ComputeBuffer の共有を管理します。
+/// GPU上での点群解析・接触判定（HCD）パイプラインを管理するコアマネージャ。
+/// 登録された IHCD_Processor を順次ディスパッチし、ComputeBuffer の共有と非同期 GPU Readback を管理します。
 /// </summary>
 public class HCD_Pipeline : MonoBehaviour
 {
@@ -21,15 +21,9 @@ public class HCD_Pipeline : MonoBehaviour
 
     [Tooltip("フレーム間クラスタ追跡の設定")]
     public HCD_ClusterTracker clusterTracker = new HCD_ClusterTracker();
-    
-    [Header("Debug")]
-    [Tooltip("選択時にクラスタの重心をGizmoで描画します")]
-    [SerializeField] private bool showDebugGizmos = true;
-    
-    private List<IHCD_Processor> _processors = new List<IHCD_Processor>();
 
-    // プロセッサ間でデータを共有するためのバッファ辞書
-    private Dictionary<string, ComputeBuffer> _sharedBuffers = new Dictionary<string, ComputeBuffer>();
+    private readonly List<IHCD_Processor> _processors = new List<IHCD_Processor>();
+    private readonly Dictionary<string, ComputeBuffer> _sharedBuffers = new Dictionary<string, ComputeBuffer>();
 
     public ComputeBuffer GetSharedBuffer(string name)
     {
@@ -47,7 +41,7 @@ public class HCD_Pipeline : MonoBehaviour
     private ClusterPrecisionDataRaw[] _precisionResults;
 
     // 非同期読み込みリクエストのキュー
-    private Queue<ReadbackRequest> _readbackQueue = new Queue<ReadbackRequest>();
+    private readonly Queue<ReadbackRequest> _readbackQueue = new Queue<ReadbackRequest>();
 
     private struct ReadbackRequest
     {
@@ -59,6 +53,16 @@ public class HCD_Pipeline : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
+
+        if (GetComponent<Features.HapticsCollision.Debug.HCD_DebugVisualizer>() == null)
+        {
+            gameObject.AddComponent<Features.HapticsCollision.Debug.HCD_DebugVisualizer>();
+        }
+
+        if (GetComponent<Features.HapticsCollision.Debug.HCD_LogTriggers>() == null)
+        {
+            gameObject.AddComponent<Features.HapticsCollision.Debug.HCD_LogTriggers>();
+        }
     }
 
     private void Start()
@@ -134,11 +138,9 @@ public class HCD_Pipeline : MonoBehaviour
 
             if (!req.clusterReq.done || (req.hasPrecision && !req.precisionReq.done))
             {
-                // 先頭が完了していない場合は待機
                 break;
             }
 
-            // 完了したリクエストを取り出し（古い分はスキップし、最新のもののみ保持）
             latestDoneReq = _readbackQueue.Dequeue();
         }
 
@@ -146,14 +148,12 @@ public class HCD_Pipeline : MonoBehaviour
         {
             var req = latestDoneReq.Value;
 
-            // NativeArray から配列へコピー
             req.clusterReq.GetData<ClusterData>().CopyTo(_clusterResults);
             if (req.hasPrecision)
             {
                 req.precisionReq.GetData<ClusterPrecisionDataRaw>().CopyTo(_precisionResults);
             }
 
-            // 最新の GPU 結果を使用してフレーム間クラスタ追跡を更新
             GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions, out var rawPositions, out var meshPositions, out var minDistances);
             clusterTracker.Update(centroids, normals, counts, precisions, rawPositions, meshPositions, minDistances, this);
 
@@ -167,17 +167,11 @@ public class HCD_Pipeline : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 最新の非同期読み込み結果から表面接触クラスタの重心座標・平均法線・接触点数・精密データを取得します。
-    /// </summary>
     public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts, out List<ClusterPrecision> precisions)
     {
         GetActiveClusterInfos(out centroids, out normals, out counts, out precisions, out _, out _, out _);
     }
 
-    /// <summary>
-    /// 最新の非同期読み込み結果から表面接触クラスタの重心座標・平均法線・接触点数・精密データ・実測/メッシュ座標・最小距離を取得します。
-    /// </summary>
     public void GetActiveClusterInfos(out List<Vector3> centroids, out List<Vector3> normals, out List<int> counts, out List<ClusterPrecision> precisions, out List<Vector3> rawPositions, out List<Vector3> meshPositions, out List<float> minDistances)
     {
         centroids     = new List<Vector3>();
@@ -250,20 +244,12 @@ public class HCD_Pipeline : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// GPU から現在の衝突重心（クラスタ）座標を取得します（重心のみの簡易版）。
-    /// </summary>
     public List<Vector3> GetActiveCentroids()
     {
         GetActiveClusterInfos(out var c, out _, out _, out _);
         return c;
     }
 
-    /// <summary>
-    /// フレーム間追跡済みのクラスタ一覧を返します。
-    /// 各クラスタには安定した ID・生存フレーム数・現在の重心が含まれます。
-    /// AUTD3 連携や上位ロジックからはこちらを使用してください。
-    /// </summary>
     public IReadOnlyList<TrackedCluster> GetTrackedClusters() => clusterTracker.TrackedClusters;
 
     private void OnDestroy()
@@ -320,89 +306,5 @@ public class HCD_Pipeline : MonoBehaviour
         public int rp13X, rp13Y, rp13Z;
         public int rp14X, rp14Y, rp14Z;
         public int rp15X, rp15Y, rp15Z;
-    }
-
-    private void OnDrawGizmos()
-    {
-        if (!Application.isPlaying) return;
-        if (!showDebugGizmos) return;
-
-#if UNITY_EDITOR
-        // 選択されている場合は OnDrawGizmosSelected で描画されるため重複を避ける
-        if (UnityEditor.Selection.activeGameObject == gameObject) return;
-#endif
-
-        DrawClusterGizmos();
-    }
-
-    private void OnDrawGizmosSelected()
-    {
-        if (!Application.isPlaying) return;
-
-        // 選択時は showDebugGizmos の値に関わらず必ず描画
-        DrawClusterGizmos();
-    }
-
-    private void DrawClusterGizmos()
-    {
-        GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions, out var rawPositions, out var meshPositions, out var minDistances);
-
-        if (centroids == null || centroids.Count == 0) return;
-
-        var trackedClusters = clusterTracker.TrackedClusters;
-
-        for (int i = 0; i < centroids.Count; i++)
-        {
-            Vector3 centroid = centroids[i];
-            Vector3 normal = normals[i];
-            Vector3 rawPos = (i < rawPositions.Count) ? rawPositions[i] : centroid;
-            Vector3 meshPos = (i < meshPositions.Count) ? meshPositions[i] : centroid;
-            float minDist = (i < minDistances.Count) ? minDistances[i] : 0.0f;
-
-            // マッチする TrackedCluster から Age / Force 情報を取得
-            int age = 1;
-            float force = 1.0f;
-            int id = i;
-            if (trackedClusters != null)
-            {
-                foreach (var tc in trackedClusters)
-                {
-                    if (tc.IsAlive && (tc.Centroid - centroid).sqrMagnitude < 0.01f)
-                    {
-                        age = tc.Age;
-                        force = tc.Force;
-                        id = tc.Id;
-                        break;
-                    }
-                }
-            }
-
-            // Age が大きいほど安定 → マゼンタ、新生 → 黄色
-            float stability = Mathf.Clamp01(age / 10.0f);
-            Gizmos.color = Color.Lerp(Color.yellow, Color.magenta, stability);
-            Gizmos.DrawWireSphere(centroid, 0.02f);
-
-            // 実測点群位置とメッシュ投影位置の差分を線で描画
-            if ((rawPos - meshPos).sqrMagnitude > 0.000001f)
-            {
-                Gizmos.color = Color.yellow;
-                Gizmos.DrawWireSphere(rawPos, 0.005f);
-                Gizmos.color = Color.green;
-                Gizmos.DrawWireSphere(meshPos, 0.005f);
-                Gizmos.color = Color.white;
-                Gizmos.DrawLine(rawPos, meshPos);
-            }
-
-            // 法線方向を矢印で描画
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawRay(centroid, normal * 0.04f);
-
-#if UNITY_EDITOR
-            // ID・生存フレーム数・Force・最小距離 をラベル表示
-            UnityEditor.Handles.Label(
-                centroid + Vector3.up * 0.03f,
-                $"ID:{id} Age:{age} F:{force:F2} MinD:{minDist * 1000f:F1}mm");
-#endif
-        }
     }
 }

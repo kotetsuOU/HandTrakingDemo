@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using Core.Logging;
+using Features.HapticsCollision.Debug;
 
 public enum ClusterAggregationMode
 {
@@ -56,9 +57,7 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
     private int _kernelClearCovariance;
     private int _kernelAccumulateCovariance;
 
-    // Struct size: int(4) * 15 = 60 bytes
     private const int STRIDE = 60;
-    // Struct size: int(4) * (6 + 16*3) = 216 bytes
     private const int STRIDE_PRECISION = 216;
 
     public void Setup(HCD_Pipeline pipeline)
@@ -86,7 +85,7 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
         var collisionBuffer = _pipeline.GetSharedBuffer(HCD_DistanceProcessor.ResultBufferName);
         if (collisionBuffer == null)
         {
-            AppLogger.LogWarning(_pipeline, "HCD_SpatialClusteringProcessor", "CollisionBuffer が見つかりません。HCD_DistanceProcessor が先に実行されているか確認してください。");
+            AppLogger.LogWarning(_pipeline, HCD_LogTriggers.TagSpatialClusteringProcessor, "CollisionBuffer が見つかりません。HCD_DistanceProcessor が先に実行されているか確認してください。");
             return;
         }
 
@@ -94,7 +93,6 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
             ? _pipeline.distanceProcessor.surfaceDistanceThreshold
             : 0.01f;
 
-        // 1. クラスタバッファをクリア
         int clearGroups = Mathf.CeilToInt(maxClusters / 256.0f);
         clusteringComputeShader.SetBuffer(_kernelClear, "ClusterBuffer", _clusterBuffer);
         clusteringComputeShader.SetInt("MaxClusters", maxClusters);
@@ -107,7 +105,6 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
             clusteringComputeShader.Dispatch(_kernelClearCovariance, clearGroups, 1, 1);
         }
 
-        // 2. 接触している点群をボクセルにアキュミュレート（集約）
         int accGroups = Mathf.CeilToInt(pointCount / 256.0f);
         clusteringComputeShader.SetBuffer(_kernelAccumulate, "CollisionBuffer", collisionBuffer);
         clusteringComputeShader.SetBuffer(_kernelAccumulate, "ClusterBuffer", _clusterBuffer);
@@ -122,7 +119,6 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
 
         clusteringComputeShader.Dispatch(_kernelAccumulate, accGroups, 1, 1);
 
-        // 3. Precisionモードの場合は共分散とランダムポイントを計算（2パス目）
         if (precisionMode)
         {
             clusteringComputeShader.SetBuffer(_kernelAccumulateCovariance, "CollisionBuffer", collisionBuffer);

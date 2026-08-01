@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace Core.Logging
@@ -50,6 +51,10 @@ namespace Core.Logging
                 return;
             }
             Instance = this;
+            if (transform.parent != null)
+            {
+                transform.SetParent(null);
+            }
             DontDestroyOnLoad(gameObject);
 
             BuildLookup();
@@ -166,7 +171,7 @@ namespace Core.Logging
         }
 
         /// <summary>
-        /// シーン内のログ出力可能コンポーネントを自動検出し、カテゴリ別にグループ分けして登録
+        /// シーン内のアクティブかつ AppLogger 対応コンポーネント（[AppLoggable] 属性または IAppLoggable 実装）のみを自動検出し登録
         /// </summary>
         public void ScanSceneComponents()
         {
@@ -191,38 +196,44 @@ namespace Core.Logging
                 }
             }
 
-            MonoBehaviour[] allComponents = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            // 非アクティブなオブジェクトおよび非アクティブなコンポーネントは除外 (FindObjectsInactive.Exclude)
+            MonoBehaviour[] allComponents = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             foreach (var comp in allComponents)
             {
                 if (comp == null || comp == this) continue;
+                if (!comp.gameObject.activeInHierarchy || !comp.enabled) continue;
+
+                var loggableAttr = comp.GetType().GetCustomAttribute<AppLoggableAttribute>(true);
+                bool isLoggableInterface = comp is IAppLoggable;
+
+                // AppLogger を include / 対応していないコンポーネントは取得しない
+                if (loggableAttr == null && !isLoggableInterface)
+                {
+                    continue;
+                }
 
                 string typeName = comp.GetType().Name;
-                string catName = ResolveCategoryName(typeName);
+                string catName = !string.IsNullOrEmpty(loggableAttr?.CategoryName)
+                    ? loggableAttr.CategoryName
+                    : (ResolveCategoryName(typeName) ?? "Other Loggables");
 
-                if (catName != null)
+                LogCategoryGroup group = GetOrCreateGroup(catName);
+
+                if (comp is IAppLoggable loggableComp)
                 {
-                    LogCategoryGroup group = GetOrCreateGroup(catName);
-
-                    // HCD_Pipeline 特有のサブトリガー自動登録
-                    if (comp.GetType().Name == "HCD_Pipeline")
+                    loggableComp.RegisterLogTriggers(group, existingLabels);
+                    existingTargets.Add(comp);
+                }
+                else if (!existingTargets.Contains(comp))
+                {
+                    group.entries.Add(new LogInstanceEntry
                     {
-                        AddSubTriggerIfNotExists(group, comp, "[HCD_Pipeline] Summary & Readback", "HCD_Pipeline", existingLabels);
-                        AddSubTriggerIfNotExists(group, comp, "[HCD_DistanceProcessor] Mesh & Bounds Debug", "HCD_DistanceProcessor", existingLabels);
-                        AddSubTriggerIfNotExists(group, comp, "[HCD_SpatialClusteringProcessor] Clustering Debug", "HCD_SpatialClusteringProcessor", existingLabels);
-                        AddSubTriggerIfNotExists(group, comp, "[HCD_ClusterTracker] Cluster Tracking Info", "HCD_ClusterTracker", existingLabels);
-                        existingTargets.Add(comp);
-                    }
-                    else if (!existingTargets.Contains(comp))
-                    {
-                        group.entries.Add(new LogInstanceEntry
-                        {
-                            label = $"[{typeName}] {comp.gameObject.name}",
-                            tag = typeName,
-                            target = comp,
-                            enabled = false
-                        });
-                        existingTargets.Add(comp);
-                    }
+                        label = $"[{typeName}] {comp.gameObject.name}",
+                        tag = typeName,
+                        target = comp,
+                        enabled = false
+                    });
+                    existingTargets.Add(comp);
                 }
             }
 
@@ -230,21 +241,6 @@ namespace Core.Logging
             categoryGroups.RemoveAll(g => g.entries == null || g.entries.Count == 0);
 
             BuildLookup();
-        }
-
-        private void AddSubTriggerIfNotExists(LogCategoryGroup group, MonoBehaviour comp, string label, string tag, HashSet<string> existingLabels)
-        {
-            if (!existingLabels.Contains(label))
-            {
-                group.entries.Add(new LogInstanceEntry
-                {
-                    label = label,
-                    tag = tag,
-                    target = comp,
-                    enabled = false
-                });
-                existingLabels.Add(label);
-            }
         }
 
         private string ResolveCategoryName(string typeName)

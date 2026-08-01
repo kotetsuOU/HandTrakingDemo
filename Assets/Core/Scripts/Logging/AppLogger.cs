@@ -1,7 +1,31 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace Core.Logging
 {
+    /// <summary>
+    /// AppLoggerログ管理対象コンポーネントであることを明示する属性
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class, Inherited = true)]
+    public class AppLoggableAttribute : Attribute
+    {
+        public string CategoryName { get; }
+        public AppLoggableAttribute(string categoryName = null)
+        {
+            CategoryName = categoryName;
+        }
+    }
+
+    /// <summary>
+    /// コンポーネントが自前で複数のサブログトリガーをAppLogManagerへ登録するためのインターフェース
+    /// </summary>
+    public interface IAppLoggable
+    {
+        void RegisterLogTriggers(LogCategoryGroup group, HashSet<string> existingLabels);
+    }
+
     /// <summary>
     /// アプリケーション全体のモジュール別統一ログ制御API。
     /// 対象コンポーネントの Inspector を一切汚さずに、AppLogManager から一括＆個別制御が可能です。
