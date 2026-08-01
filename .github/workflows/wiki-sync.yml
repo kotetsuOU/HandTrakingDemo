@@ -27,6 +27,7 @@ on:
       - "Docs/HowToUseHaptics.md"
       - "Docs/HapticsIllusion.md"
       - "Docs/Experiments.md"
+      - "Docs/Logging.md"
   workflow_dispatch:
 
 permissions:
@@ -64,6 +65,7 @@ jobs:
           cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
           cp Docs/HapticsIllusion.md temp-wiki/HapticsIllusion.md
           cp Docs/Experiments.md temp-wiki/Experiments.md
+          cp Docs/Logging.md temp-wiki/Logging.md
           
           python3 -c '
           import os, re
@@ -86,7 +88,8 @@ jobs:
               "FoxBodyHaptics.md": "FoxBodyHaptics",
               "HowToUseHaptics.md": "HowToUseHaptics",
               "HapticsIllusion.md": "HapticsIllusion",
-              "Experiments.md": "Experiments"
+              "Experiments.md": "Experiments",
+              "Logging.md": "Logging"
           }
           pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):

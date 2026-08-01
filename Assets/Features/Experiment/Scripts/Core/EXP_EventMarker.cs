@@ -30,9 +30,6 @@ public class EXP_EventMarker : MonoBehaviour
     [Tooltip("イベントログを TSV ファイルに保存するか")]
     public bool saveToFile = true;
 
-    [Tooltip("Debug.Log にも出力するか")]
-    public bool logToConsole = true;
-
     // =====================================================
     // Events
     // =====================================================
@@ -92,8 +89,7 @@ public class EXP_EventMarker : MonoBehaviour
         _events.Add((t, label));
         OnEventMarked?.Invoke(label, t);
 
-        if (logToConsole)
-            AppLogger.Log(this, EXP_LogTriggers.TagEventMarker, $"{t:F4}s  {label}");
+        AppLogger.Log(this, EXP_LogTriggers.TagEventMarker, $"{t:F4}s  {label}");
 
         if (saveToFile && !string.IsNullOrEmpty(FilePath))
             AppendToFile(t, label);
@@ -107,8 +103,7 @@ public class EXP_EventMarker : MonoBehaviour
         _events.Add((timestamp, label));
         OnEventMarked?.Invoke(label, timestamp);
 
-        if (logToConsole)
-            AppLogger.Log(this, EXP_LogTriggers.TagEventMarker, $"{timestamp:F4}s  {label}");
+        AppLogger.Log(this, EXP_LogTriggers.TagEventMarker, $"{timestamp:F4}s  {label}");
 
         if (saveToFile && !string.IsNullOrEmpty(FilePath))
             AppendToFile(timestamp, label);
