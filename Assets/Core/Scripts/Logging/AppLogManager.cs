@@ -151,7 +151,7 @@ namespace Core.Logging
                 return entry.enabled;
             }
 
-            return false; // 未登録の場合は非表示
+            return true; // 未登録コンポーネントはデフォルト表示 (ON)
         }
 
         /// <summary>
@@ -167,7 +167,7 @@ namespace Core.Logging
                 return enabled;
             }
 
-            return false;
+            return true; // 未登録タグはデフォルト表示 (ON)
         }
 
         /// <summary>
@@ -231,7 +231,7 @@ namespace Core.Logging
                         label = $"[{typeName}] {comp.gameObject.name}",
                         tag = typeName,
                         target = comp,
-                        enabled = false
+                        enabled = true
                     });
                     existingTargets.Add(comp);
                 }

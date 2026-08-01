@@ -37,7 +37,7 @@ namespace Features.HapticsCollision.Debug
                     label = label,
                     tag = tag,
                     target = targetObj,
-                    enabled = false
+                    enabled = true
                 });
                 existingLabels.Add(label);
             }

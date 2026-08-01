@@ -8,8 +8,37 @@ using Core.Logging;
 /// GPU上での点群解析・接触判定（HCD）パイプラインを管理するコアマネージャ。
 /// 登録された IHCD_Processor を順次ディスパッチし、ComputeBuffer の共有と非同期 GPU Readback を管理します。
 /// </summary>
-public class HCD_Pipeline : MonoBehaviour
+[AppLoggable("HCD (Haptic Collision)")]
+public class HCD_Pipeline : MonoBehaviour, IAppLoggable
 {
+    public const string TagPipeline = "HCD_Pipeline";
+    public const string TagDistanceProcessor = "HCD_DistanceProcessor";
+    public const string TagSpatialClusteringProcessor = "HCD_SpatialClusteringProcessor";
+    public const string TagClusterTracker = "HCD_ClusterTracker";
+
+    public void RegisterLogTriggers(LogCategoryGroup group, HashSet<string> existingLabels)
+    {
+        AddSubTriggerIfNotExists(group, "[HCD_Pipeline] Summary & Readback", TagPipeline, existingLabels);
+        AddSubTriggerIfNotExists(group, "[HCD_DistanceProcessor] Mesh & Bounds Debug", TagDistanceProcessor, existingLabels);
+        AddSubTriggerIfNotExists(group, "[HCD_SpatialClusteringProcessor] Clustering Debug", TagSpatialClusteringProcessor, existingLabels);
+        AddSubTriggerIfNotExists(group, "[HCD_ClusterTracker] Cluster Tracking Info", TagClusterTracker, existingLabels);
+    }
+
+    private void AddSubTriggerIfNotExists(LogCategoryGroup group, string label, string tag, HashSet<string> existingLabels)
+    {
+        if (!existingLabels.Contains(label))
+        {
+            group.entries.Add(new LogInstanceEntry
+            {
+                label = label,
+                tag = tag,
+                target = this,
+                enabled = true
+            });
+            existingLabels.Add(label);
+        }
+    }
+
     public static HCD_Pipeline Instance { get; private set; }
 
     [Header("Processors (Settings)")]
