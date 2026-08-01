@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using Core.Logging;
 
 [Serializable]
 public class HCD_DistanceProcessor : IHCD_Processor
@@ -56,10 +57,6 @@ public class HCD_DistanceProcessor : IHCD_Processor
     public float backfaceDistanceThreshold => distanceMode == DistanceMode.ViewDirection ? visibleBackfaceDistanceThreshold : meshBackfaceDistanceThreshold;
 
     public ComputeShader collisionComputeShader;
-
-    [Header("Debug")]
-    [Tooltip("True にするとメッシュ結合・グリッド情報をコンソールに出力します（120フレームごと）")]
-    public bool enableDebugLog = false;
 
     public const string ResultBufferName = "CollisionResultBuffer";
 
@@ -356,10 +353,10 @@ public class HCD_DistanceProcessor : IHCD_Processor
             collisionComputeShader.Dispatch(_kernelMesh, threadGroups, 1, 1);
 
 #if UNITY_EDITOR
-            if (enableDebugLog && Time.frameCount % 120 == 0)
+            if (AppLogger.IsEnabled(_pipeline, "HCD_DistanceProcessor") && Time.frameCount % 120 == 0)
             {
-                Debug.Log(
-                    $"[HCD_DistanceProcessor] MeshFilter Mode Debug:\n" +
+                AppLogger.Log(_pipeline, "HCD_DistanceProcessor",
+                    $"MeshFilter Mode Debug:\n" +
                     $"  TargetTransform    : {targetTransform?.name} (pos={targetTransform?.position})\n" +
                     $"  Registered Filters : {targetMeshFilters?.Length ?? 0}\n" +
                     $"  Combined Instances  : {validInstances.Count}\n" +

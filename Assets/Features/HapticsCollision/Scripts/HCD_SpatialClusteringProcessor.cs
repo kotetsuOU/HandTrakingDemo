@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using Core.Logging;
 
 public enum ClusterAggregationMode
 {
@@ -85,7 +86,7 @@ public class HCD_SpatialClusteringProcessor : IHCD_Processor
         var collisionBuffer = _pipeline.GetSharedBuffer(HCD_DistanceProcessor.ResultBufferName);
         if (collisionBuffer == null)
         {
-            Debug.LogWarning("[HCD_SpatialClusteringProcessor] CollisionBuffer が見つかりません。HCD_DistanceProcessor が先に実行されているか確認してください。");
+            AppLogger.LogWarning(_pipeline, "HCD_SpatialClusteringProcessor", "CollisionBuffer が見つかりません。HCD_DistanceProcessor が先に実行されているか確認してください。");
             return;
         }
 

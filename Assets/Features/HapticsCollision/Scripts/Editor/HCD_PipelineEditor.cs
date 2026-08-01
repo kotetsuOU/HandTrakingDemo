@@ -110,10 +110,6 @@ public class HCD_PipelineEditor : Editor
                     if (meshBackProp != null) EditorGUILayout.PropertyField(meshBackProp);
                 }
 
-                EditorGUILayout.Space();
-                SerializedProperty enableDebugLogProp = dpProp.FindPropertyRelative("enableDebugLog");
-                if (enableDebugLogProp != null) EditorGUILayout.PropertyField(enableDebugLogProp);
-
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
@@ -140,7 +136,6 @@ public class HCD_PipelineEditor : Editor
                 if (cellSizeProp != null) EditorGUILayout.PropertyField(cellSizeProp);
 
                 EditorGUILayout.Space(4);
-                EditorGUILayout.LabelField("Surface Estimation Settings", EditorStyles.boldLabel);
                 if (aggModeProp != null) EditorGUILayout.PropertyField(aggModeProp);
                 if (posSourceProp != null) EditorGUILayout.PropertyField(posSourceProp);
 

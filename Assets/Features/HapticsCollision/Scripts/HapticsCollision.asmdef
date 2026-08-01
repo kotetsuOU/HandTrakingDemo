@@ -2,7 +2,8 @@
     "name": "HapticsCollision",
     "rootNamespace": "",
     "references": [
-        "RealSense"
+        "RealSense",
+        "Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

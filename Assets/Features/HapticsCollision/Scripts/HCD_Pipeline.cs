@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.Runtime.InteropServices;
+using Core.Logging;
 
 /// <summary>
 /// GPU上での点群解析・接触判定（HCD）パイプラインを管理するクラス。
@@ -73,7 +74,7 @@ public class HCD_Pipeline : MonoBehaviour
         foreach (var processor in _processors)
         {
             processor.Setup(this);
-            Debug.Log($"[HCD_Pipeline] Processor loaded: {processor.ProcessorName}");
+            AppLogger.Log(this, "HCD_Pipeline", $"Processor loaded: {processor.ProcessorName}");
         }
     }
 
@@ -126,7 +127,7 @@ public class HCD_Pipeline : MonoBehaviour
 
             if (req.clusterReq.hasError || (req.hasPrecision && req.precisionReq.hasError))
             {
-                Debug.LogWarning("[HCD_Pipeline] AsyncGPUReadback error. クラスタバッファ読み込みエラー。");
+                AppLogger.LogWarning(this, "HCD_Pipeline", "AsyncGPUReadback error. クラスタバッファ読み込みエラー。");
                 _readbackQueue.Dequeue();
                 continue;
             }
@@ -154,12 +155,12 @@ public class HCD_Pipeline : MonoBehaviour
 
             // 最新の GPU 結果を使用してフレーム間クラスタ追跡を更新
             GetActiveClusterInfos(out var centroids, out var normals, out var counts, out var precisions, out var rawPositions, out var meshPositions, out var minDistances);
-            clusterTracker.Update(centroids, normals, counts, precisions, rawPositions, meshPositions, minDistances);
+            clusterTracker.Update(centroids, normals, counts, precisions, rawPositions, meshPositions, minDistances, this);
 
 #if UNITY_EDITOR
-            if (Time.frameCount % 120 == 0)
+            if (AppLogger.IsEnabled(this, "HCD_Pipeline") && Time.frameCount % 120 == 0)
             {
-                Debug.Log($"[HCD_Pipeline] Mode: {clusteringProcessor.aggregationMode} ({clusteringProcessor.positionSource}) | " +
+                AppLogger.Log(this, "HCD_Pipeline", $"Mode: {clusteringProcessor.aggregationMode} ({clusteringProcessor.positionSource}) | " +
                           $"Active Clusters: {centroids.Count} | Tracked: {clusterTracker.TrackedClusters.Count}");
             }
 #endif

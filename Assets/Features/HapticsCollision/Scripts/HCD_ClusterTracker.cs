@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Core.Logging;
 
 /// <summary>
 /// ContactClusterTracking: フレームをまたいでクラスタの同一性を追跡します。
@@ -55,7 +56,7 @@ public class HCD_ClusterTracker
     /// <summary>
     /// 新しいフレームのクラスタ重心リストを受け取り、フレーム間追跡を更新します。
     /// </summary>
-    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals, List<int> newCounts = null, List<ClusterPrecision> newPrecisions = null, List<Vector3> newRawPositions = null, List<Vector3> newMeshPositions = null, List<float> newMinDistances = null)
+    public void Update(List<Vector3> newCentroids, List<Vector3> newNormals = null, List<int> newCounts = null, List<ClusterPrecision> newPrecisions = null, List<Vector3> newRawPositions = null, List<Vector3> newMeshPositions = null, List<float> newMinDistances = null, UnityEngine.Object context = null)
     {
         int newCount = newCentroids.Count;
         bool[] newMatched = new bool[newCount];
@@ -166,6 +167,13 @@ public class HCD_ClusterTracker
 
         // ── Step 3: 長すぎる欠損クラスタを除去 ─────────────────────────────
         _tracked.RemoveAll(c => c.MissingFrames > maxMissingFrames);
+
+#if UNITY_EDITOR
+        if (context != null && AppLogger.IsEnabled(context, "HCD_ClusterTracker") && Time.frameCount % 120 == 0)
+        {
+            AppLogger.Log(context, "HCD_ClusterTracker", $"Tracked Clusters: {_tracked.Count} (Active: {GetAliveCentroids().Count})");
+        }
+#endif
     }
 
     // ─── ContactForceReduction ──────────────────────────────────────────────
