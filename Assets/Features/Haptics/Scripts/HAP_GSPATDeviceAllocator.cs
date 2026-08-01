@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Core.Logging;
+using Features.Haptics.Debug;
 using AUTD3Sharp;
 using AUTD3Sharp.Gain;
 using AUTD3Sharp.Gain.Holo;
@@ -207,7 +209,7 @@ public static class HAP_GSPATDeviceAllocator
             int idx = dev.Idx();
             if (idx < 0 || idx >= maxIdx)
             {
-                UnityEngine.Debug.LogError($"[BuildGroup] idx={idx} is OUT OF RANGE [0,{maxIdx}). Skipping device.");
+                AppLogger.LogError(null, HAP_LogTriggers.TagController, $"[BuildGroup] idx={idx} is OUT OF RANGE [0,{maxIdx}). Skipping device.");
                 return null;
             }
             return (object)idx;
@@ -334,7 +336,7 @@ public static class HAP_GSPATDeviceAllocator
                 bool hasNaN = float.IsNaN(p3.X) || float.IsNaN(p3.Y) || float.IsNaN(p3.Z) || float.IsNaN(ampPa);
                 bool hasInf = float.IsInfinity(p3.X) || float.IsInfinity(p3.Y) || float.IsInfinity(p3.Z);
                 if (hasNaN || hasInf)
-                    UnityEngine.Debug.LogError($"[HAP] INVALID foci[{fi}]: pos=({p3.X},{p3.Y},{p3.Z}) amp={ampPa}Pa NaN={hasNaN} Inf={hasInf}");
+                    AppLogger.LogError(null, HAP_LogTriggers.TagController, $"INVALID foci[{fi}]: pos=({p3.X},{p3.Y},{p3.Z}) amp={ampPa}Pa NaN={hasNaN} Inf={hasInf}");
             }
 
             if (holoAlgorithm == HoloAlgorithm.GSPAT)

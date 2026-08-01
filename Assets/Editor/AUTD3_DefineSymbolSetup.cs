@@ -12,6 +12,8 @@ using UnityEditor.Build;
 using UnityEngine;
 using System.IO;
 using System.Linq;
+using Core.Logging;
+using Features.Haptics.Debug;
 
 [InitializeOnLoad]
 public static class AUTD3_DefineSymbolSetup
@@ -29,7 +31,7 @@ public static class AUTD3_DefineSymbolSetup
         string manifestPath = Path.Combine(Application.dataPath, "..", "Packages", "manifest.json");
         if (!File.Exists(manifestPath))
         {
-            Debug.LogWarning("[AUTD3_DefineSymbolSetup] manifest.json not found.");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagSDKSetup, "[AUTD3_DefineSymbolSetup] manifest.json not found.");
             return;
         }
 
@@ -49,17 +51,17 @@ public static class AUTD3_DefineSymbolSetup
         {
             symbols.Add(LegacySymbol);
             PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
-            Debug.Log($"[AUTD3_DefineSymbolSetup] Added '{LegacySymbol}' for {targetGroup}. Legacy SDK detected.");
+            AppLogger.Log(null, HAP_LogTriggers.TagSDKSetup, $"[AUTD3_DefineSymbolSetup] Added '{LegacySymbol}' for {targetGroup}. Legacy SDK detected.");
         }
         else if (!isLegacy && hasSymbol)
         {
             symbols.Remove(LegacySymbol);
             PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
-            Debug.Log($"[AUTD3_DefineSymbolSetup] Removed '{LegacySymbol}' for {targetGroup}. New SDK detected.");
+            AppLogger.Log(null, HAP_LogTriggers.TagSDKSetup, $"[AUTD3_DefineSymbolSetup] Removed '{LegacySymbol}' for {targetGroup}. New SDK detected.");
         }
         else
         {
-            Debug.Log($"[AUTD3_DefineSymbolSetup] No change needed. isLegacy={isLegacy}, hasSymbol={hasSymbol}");
+            AppLogger.Log(null, HAP_LogTriggers.TagSDKSetup, $"[AUTD3_DefineSymbolSetup] No change needed. isLegacy={isLegacy}, hasSymbol={hasSymbol}");
         }
     }
 }

@@ -1,5 +1,7 @@
 using UnityEngine;
 using System;
+using Core.Logging;
+using Features.Haptics.Debug;
 #if !USE_AUTD3_LEGACY
 using AUTD3;
 using static AUTD3.Units;
@@ -96,7 +98,7 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to apply modulation: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to apply modulation: {ex.Message}");
         }
     }
 #else
@@ -122,7 +124,7 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to apply modulation: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to apply modulation: {ex.Message}");
         }
     }
 #endif
@@ -161,7 +163,7 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to apply silencer: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to apply silencer: {ex.Message}");
         }
     }
 #else
@@ -190,7 +192,7 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to apply silencer: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to apply silencer: {ex.Message}");
         }
     }
 #endif
@@ -215,7 +217,7 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to apply fan state: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to apply fan state: {ex.Message}");
         }
     }
 #else
@@ -230,13 +232,12 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to apply fan state: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to apply fan state: {ex.Message}");
         }
     }
+#endif
 
-    /// <summary>
-    /// 環境温度（摂氏）を適用します。
-    /// </summary>
+#if USE_AUTD3_LEGACY
     public void ApplyTemperature(float temperature)
     {
         if (_linkService.Autd == null) return;
@@ -248,7 +249,7 @@ public class HAP_AUTDModulationService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDModulationService] Failed to set temperature: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagModulationService, $"Failed to set temperature: {ex.Message}");
         }
     }
 #endif

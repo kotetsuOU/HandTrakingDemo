@@ -3,6 +3,8 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using Core.Logging;
+using Features.Haptics.Debug;
 using static AUTD3Sharp.Units;
 
 #nullable enable
@@ -157,14 +159,14 @@ public class HAP_AUTDCalibration : MonoBehaviour
         
         if (truePositionTarget == null)
         {
-            Debug.LogWarning("[Calibration] truePositionTarget is not set. Cannot apply difference.");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagCalibration, "truePositionTarget is not set. Cannot apply difference.");
             return;
         }
 
         Vector3 diff = focusPos - truePositionTarget.position;
         transformLoader.offset += diff;
         
-        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {transformLoader.offset}");
+        AppLogger.Log(this, HAP_LogTriggers.TagCalibration, $"Applied offset by difference: {diff}. New Offset: {transformLoader.offset}");
     }
 
     /// <summary>
@@ -177,14 +179,14 @@ public class HAP_AUTDCalibration : MonoBehaviour
         Vector3 currentOffset = transformLoader.offset;
         if (currentOffset == Vector3.zero)
         {
-            Debug.Log("[Calibration] Offset is already zero. Nothing to bake.");
+            AppLogger.Log(this, HAP_LogTriggers.TagCalibration, "Offset is already zero. Nothing to bake.");
             return;
         }
 
         var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None).OrderBy(d => d.ID).ToArray();
         if (devices.Length == 0)
         {
-            Debug.LogWarning("[Calibration] No AUTD3Device found in the scene to bake to.");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagCalibration, "No AUTD3Device found in the scene to bake to.");
             return;
         }
 
@@ -199,7 +201,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
         }
 
         transformLoader.offset = Vector3.zero;
-        Debug.Log($"[Calibration] Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
+        AppLogger.Log(this, HAP_LogTriggers.TagCalibration, $"Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
     }
 }
 
@@ -208,6 +210,8 @@ public class HAP_AUTDCalibration : MonoBehaviour
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using Core.Logging;
+using Features.Haptics.Debug;
 using AUTD3;
 using AUTD3.Holo;
 using static AUTD3.Units;
@@ -355,14 +359,14 @@ public class HAP_AUTDCalibration : MonoBehaviour
         
         if (truePositionTarget == null)
         {
-            Debug.LogWarning("[Calibration] truePositionTarget is not set. Cannot apply difference.");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagCalibration, "truePositionTarget is not set. Cannot apply difference.");
             return;
         }
 
         Vector3 diff = focusPos - truePositionTarget.position;
         transformLoader.offset += diff;
         
-        Debug.Log($"[Calibration] Applied offset by difference: {diff}. New Offset: {transformLoader.offset}");
+        AppLogger.Log(this, HAP_LogTriggers.TagCalibration, $"Applied offset by difference: {diff}. New Offset: {transformLoader.offset}");
     }
 
     /// <summary>
@@ -375,14 +379,14 @@ public class HAP_AUTDCalibration : MonoBehaviour
         Vector3 currentOffset = transformLoader.offset;
         if (currentOffset == Vector3.zero)
         {
-            Debug.Log("[Calibration] Offset is already zero. Nothing to bake.");
+            AppLogger.Log(this, HAP_LogTriggers.TagCalibration, "Offset is already zero. Nothing to bake.");
             return;
         }
 
         var devices = FindObjectsByType<AUTD3Device>(FindObjectsSortMode.None).OrderBy(d => d.ID).ToArray();
         if (devices.Length == 0)
         {
-            Debug.LogWarning("[Calibration] No AUTD3Device found in the scene to bake to.");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagCalibration, "No AUTD3Device found in the scene to bake to.");
             return;
         }
 
@@ -397,7 +401,7 @@ public class HAP_AUTDCalibration : MonoBehaviour
         }
 
         transformLoader.offset = Vector3.zero;
-        Debug.Log($"[Calibration] Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
+        AppLogger.Log(this, HAP_LogTriggers.TagCalibration, $"Baked offset {currentOffset} to {bakedCount} selected devices. (Device positions moved by {-currentOffset}). Offset reset to zero.");
     }
 }
 

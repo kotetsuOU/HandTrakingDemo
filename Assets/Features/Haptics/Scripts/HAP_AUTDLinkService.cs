@@ -2,6 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using Core.Logging;
+using Features.Haptics.Debug;
 #if !USE_AUTD3_LEGACY
 using System.Threading.Tasks;
 using AUTD3;
@@ -65,7 +67,7 @@ public class HAP_AUTDLinkService
         var devices = ConnectedDevices.Select(obj => new AUTD3Sharp.AUTD3(pos: obj.transform.position, rot: obj.transform.rotation)).ToList();
 #endif
 
-        Debug.Log($"[HAP_AUTDLinkService] Attempting to connect to AUTD3. Found {devices.Count} AUTD3Device components.");
+        AppLogger.Log(null, HAP_LogTriggers.TagLinkService, $"Attempting to connect to AUTD3. Found {devices.Count} AUTD3Device components.");
 
         try
         {
@@ -80,22 +82,22 @@ public class HAP_AUTDLinkService
 #else
                     _autd = Controller.OpenWithOption(devices, new AUTD3Sharp.Link.TwinCAT(), option);
 #endif
-                    Debug.Log("[HAP_AUTDLinkService] Successfully connected via TwinCAT.");
+                    AppLogger.Log(null, HAP_LogTriggers.TagLinkService, "Successfully connected via TwinCAT.");
                     break;
 
 #if USE_AUTD3_LEGACY
                 case AUTDLinkType.SOEM:
-                    Debug.LogWarning("[HAP_AUTDLinkService] SOEM link requires SOEM package.");
+                    AppLogger.LogWarning(null, HAP_LogTriggers.TagLinkService, "SOEM link requires SOEM package.");
                     break;
 #endif
 
                 case AUTDLinkType.Simulator:
 #if !USE_AUTD3_LEGACY
-                    Debug.LogWarning("[HAP_AUTDLinkService] Simulator link is not available in v31.");
+                    AppLogger.LogWarning(null, HAP_LogTriggers.TagLinkService, "Simulator link is not available in v31.");
 #else
                     var simLink = new AUTD3Sharp.Link.Remote(new System.Net.IPEndPoint(System.Net.IPAddress.Parse("127.0.0.1"), 8080), new AUTD3Sharp.Link.RemoteOption());
                     _autd = Controller.OpenWithOption(devices, simLink, option);
-                    Debug.Log("[HAP_AUTDLinkService] Successfully connected via Simulator.");
+                    AppLogger.Log(null, HAP_LogTriggers.TagLinkService, "Successfully connected via Simulator.");
 #endif
                     break;
             }
@@ -103,13 +105,12 @@ public class HAP_AUTDLinkService
             if (IsConnected)
             {
                 SendNull();
-                Debug.Log("[HAP_AUTDLinkService] Initialization complete.");
+                AppLogger.Log(null, HAP_LogTriggers.TagLinkService, "Initialization complete.");
             }
         }
         catch (Exception ex)
         {
-            Debug.LogError(ex);
-            Debug.LogError("[HAP_AUTDLinkService] Failed to connect to AUTD3.");
+            AppLogger.LogError(null, HAP_LogTriggers.TagLinkService, $"Failed to connect to AUTD3: {ex.Message}");
         }
     }
 
@@ -135,7 +136,7 @@ public class HAP_AUTDLinkService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDLinkService] Failed to send Null: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagLinkService, $"Failed to send Null: {ex.Message}");
         }
     }
 #else
@@ -151,7 +152,7 @@ public class HAP_AUTDLinkService
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[HAP_AUTDLinkService] Failed to send Null: {ex.Message}");
+            AppLogger.LogWarning(null, HAP_LogTriggers.TagLinkService, $"Failed to send Null: {ex.Message}");
         }
     }
 #endif
@@ -168,7 +169,7 @@ public class HAP_AUTDLinkService
             await _client.CloseAsync();
             _client.Dispose();
             _client = null;
-            Debug.Log("[HAP_AUTDLinkService] AUTD3 connection closed.");
+            AppLogger.Log(null, HAP_LogTriggers.TagLinkService, "AUTD3 connection closed.");
         }
         if (_geometry != null)
         {
@@ -185,7 +186,7 @@ public class HAP_AUTDLinkService
             _autd.Close();
             _autd.Dispose();
             _autd = null;
-            Debug.Log("[HAP_AUTDLinkService] AUTD3 connection closed.");
+            AppLogger.Log(null, HAP_LogTriggers.TagLinkService, "AUTD3 connection closed.");
         }
     }
 #endif

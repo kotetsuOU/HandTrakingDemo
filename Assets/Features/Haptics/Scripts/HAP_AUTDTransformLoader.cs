@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using Core.Logging;
+using Features.Haptics.Debug;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -74,7 +76,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
         {
             if (deviceById.ContainsKey(dev.ID))
             {
-                Debug.LogWarning($"[HAP_AUTDTransformLoader] Duplicate AUTD3Device ID {dev.ID} found. Skipping duplicate.");
+                AppLogger.LogWarning(this, HAP_LogTriggers.TagTransformLoader, $"Duplicate AUTD3Device ID {dev.ID} found. Skipping duplicate.");
                 continue;
             }
             deviceById[dev.ID] = dev;
@@ -97,7 +99,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
 #if UNITY_EDITOR
         AssetDatabase.Refresh();
 #endif
-        Debug.Log($"[HAP_AUTDTransformLoader] Saved {config.snapshots.Count} AUTD transform snapshots to {fullPath}.");
+        AppLogger.Log(this, HAP_LogTriggers.TagTransformLoader, $"Saved {config.snapshots.Count} AUTD transform snapshots to {fullPath}.");
     }
 
     /// <summary>
@@ -109,7 +111,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
         string fullPath = Path.Combine(AppPaths.HapticsConfigDir, configFileName);
         if (!File.Exists(fullPath))
         {
-            Debug.LogWarning($"[HAP_AUTDTransformLoader] Config JSON file not found at {fullPath}");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagTransformLoader, $"Config JSON file not found at {fullPath}");
             return;
         }
 
@@ -118,7 +120,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
         
         if (config == null || config.snapshots == null)
         {
-            Debug.LogWarning("[HAP_AUTDTransformLoader] Failed to parse JSON config.");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagTransformLoader, "Failed to parse JSON config.");
             return;
         }
 
@@ -153,7 +155,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
             }
         }
 
-        Debug.Log($"[HAP_AUTDTransformLoader] Loaded {snapshotById.Count} AUTD transform snapshots.");
+        AppLogger.Log(this, HAP_LogTriggers.TagTransformLoader, $"Loaded {snapshotById.Count} AUTD transform snapshots.");
     }
 
     /// <summary>
@@ -164,7 +166,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
         if (prefabCount < 0) return;
         if (devicePrefab == null)
         {
-            Debug.LogWarning("[HAP_AUTDTransformLoader] Device Prefab is missing!");
+            AppLogger.LogWarning(this, HAP_LogTriggers.TagTransformLoader, "Device Prefab is missing!");
             return;
         }
 
@@ -181,7 +183,7 @@ public class HAP_AUTDTransformLoader : MonoBehaviour
             }
         }
 
-        Debug.Log($"[HAP_AUTDTransformLoader] Generated {generatedCount} AUTD prefab(s).");
+        AppLogger.Log(this, HAP_LogTriggers.TagTransformLoader, $"Generated {generatedCount} AUTD prefab(s).");
     }
 
     private AUTD3Device CreateDevice(int id, bool recordUndo)

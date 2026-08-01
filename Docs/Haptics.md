@@ -83,7 +83,9 @@ $$\theta = \arccos(-\mathbf{d} \cdot \mathbf{n}) \times \frac{180}{\pi} \le \the
 * `SetFocusStm(positions, frequency, amplitude)`: 単焦点 STM
 * `SetMultiFocusStm(...)` / `SetGainStm(...)`: 高度パターン STM
 
-### 5.2 デバッグ可視化 & プロファイリング
+### 5.2 デバッグ可視化・プロファイリング & 統制ログ管理
+
 * `HAP_GizmoVisualizer`: デバイスグループと面照射状況の描画
 * `HAP_AUTDDebugDisabler`: デバイス ID ベースの個別無効化
 * `HAP_AUTDPerformanceProfiler`: GSPAT 計算時間および送信遅延のプロファイリング
+* **統制ログ管理 (`AppLogManager` 同期)**: `HAP_LogTriggers` ヘルパーにより、`AppLogManager` の "Haptics" グループ配下に以下の 7 つのサブログトリガー（`[HAP_Controller]`, `[HAP_LinkService]`, `[HAP_ModulationService]`, `[HAP_TransformLoader]`, `[HAP_Calibration]`, `[HAP_PerformanceProfiler]`, `[HAP_SDKSetup]`）が自動登録され、個別にトグル制御が可能です。詳細仕様は [Logging.md](./Logging.md) を参照してください。

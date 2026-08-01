@@ -2,6 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using Core.Logging;
+using Features.Haptics.Debug;
 #if !USE_AUTD3_LEGACY
 using System.Threading.Tasks;
 using AUTD3;
@@ -19,8 +21,15 @@ using AUTD3Sharp.Modulation;
 /// HCD_Pipeline やオブジェクト接触判定から焦点位置（Foci / STM）をリアルタイム計算し、
 /// HAP_AUTDHardwareController 経由でマルチフォーカス超音波を出力する触覚生成パイプラインコントローラー。
 /// </summary>
-public class HAP_AUTDHapticsController : MonoBehaviour
+[AppLoggable("Haptics")]
+public class HAP_AUTDHapticsController : MonoBehaviour, IAppLoggable
 {
+    public void RegisterLogTriggers(LogCategoryGroup group, HashSet<string> existingLabels)
+    {
+        var triggers = GetComponent<HAP_LogTriggers>() ?? gameObject.AddComponent<HAP_LogTriggers>();
+        triggers.RegisterLogTriggers(group, existingLabels);
+    }
+
     [Header("Hardware Reference")]
     [Tooltip("物理通信接続および送信を担当する HAP_AUTDHardwareController の参照。未指定時は自動取得します。")]
     public HAP_AUTDHardwareController hardwareController = null!;
@@ -132,9 +141,6 @@ public class HAP_AUTDHapticsController : MonoBehaviour
     [Tooltip("有効にすると、Sendを含む全処理をメインスレッドで同期実行します。")]
     public bool synchronousSend = false;
 
-    [Tooltip("Debug.Log への結果出力を有効にします。")]
-    public bool enableLog = true;
-    
     [Tooltip("Debug.Log に処理時間を出力する間隔（フレーム数）。")]
     [Range(1, 600)]
     public int profilingLogInterval = 60;
@@ -155,6 +161,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
 
     void Awake()
     {
+        if (GetComponent<HAP_LogTriggers>() == null) gameObject.AddComponent<HAP_LogTriggers>();
         debugDisabler = GetComponent<HAP_AUTDDebugDisabler>();
 
         if (hardwareController == null)
@@ -202,7 +209,7 @@ public class HAP_AUTDHapticsController : MonoBehaviour
         if (hardwareController == null || !hardwareController.IsConnected) return;
 
         performanceProfiler.Enabled = enableProfiling;
-        performanceProfiler.LogEnabled = enableLog;
+        performanceProfiler.LogEnabled = AppLogger.IsEnabled(this, HAP_LogTriggers.TagPerformanceProfiler);
         performanceProfiler.LogInterval = profilingLogInterval;
 
         UpdateHaptics();

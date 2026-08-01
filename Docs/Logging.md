@@ -32,7 +32,8 @@ Assets/Core/Scripts/Logging/
 ├── AppLogManager.cs   # シーン内の全ログトリガーを一元管理する MonoBehaviour マネージャー
 └── (各 Feature 配下)
     ├── HCD_LogTriggers.cs # HCD モジュール用 AppLogManager 連動トリガー登録ヘルパー
-    └── EXP_LogTriggers.cs # Experiment モジュール用 AppLogManager 連動トリガー登録ヘルパー
+    ├── EXP_LogTriggers.cs # Experiment モジュール用 AppLogManager 連動トリガー登録ヘルパー
+    └── HAP_LogTriggers.cs # Haptics モジュール用 AppLogManager 連動トリガー登録ヘルパー
 ```
 
 ### 2.2 クラス関係図
@@ -43,14 +44,17 @@ graph TD
     
     LogTriggersHCD["HCD_LogTriggers<br/>[AppLoggable / IAppLoggable]"] -->|"RegisterLogTriggers()"| AppLogManager
     LogTriggersEXP["EXP_LogTriggers<br/>[AppLoggable / IAppLoggable]"] -->|"RegisterLogTriggers()"| AppLogManager
+    LogTriggersHAP["HAP_LogTriggers<br/>[AppLoggable / IAppLoggable]"] -->|"RegisterLogTriggers()"| AppLogManager
 
     Processors["HCD Processors / Core"] -->|"AppLogger.Log(context, tag, msg)"| AppLogger
     EXPModules["Experiment Modules / Core"] -->|"AppLogger.Log(context, tag, msg)"| AppLogger
+    HAPModules["Haptics Modules / Core"] -->|"AppLogger.Log(context, tag, msg)"| AppLogger
 
     style AppLogManager fill:#1E8449,color:#fff
     style AppLogger fill:#1A5276,color:#fff
     style LogTriggersHCD fill:#7D6608,color:#fff
     style LogTriggersEXP fill:#7D6608,color:#fff
+    style LogTriggersHAP fill:#7D6608,color:#fff
 ```
 
 ### 2.3 `[AppLoggable]` 属性と `IAppLoggable` の適用ルール

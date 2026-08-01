@@ -29,7 +29,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
     private SerializedProperty visualizeDevicesProp = null!;
     private SerializedProperty enableProfilingProp = null!;
     private SerializedProperty synchronousSendProp = null!;
-    private SerializedProperty enableLogProp = null!;
     private SerializedProperty profilingLogIntervalProp = null!;
 
     private SerializedProperty activeObjectControllerIndexProp = null!;
@@ -57,7 +56,6 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         visualizeDevicesProp = serializedObject.FindProperty("visualizeDevices");
         enableProfilingProp = serializedObject.FindProperty("enableProfiling");
         synchronousSendProp = serializedObject.FindProperty("synchronousSend");
-        enableLogProp = serializedObject.FindProperty("enableLog");
         profilingLogIntervalProp = serializedObject.FindProperty("profilingLogInterval");
     }
 
@@ -174,11 +172,7 @@ public class HAP_AUTDHapticsControllerEditor : Editor
         {
             EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(synchronousSendProp);
-            EditorGUILayout.PropertyField(enableLogProp);
-            if (enableLogProp.boolValue)
-            {
-                EditorGUILayout.PropertyField(profilingLogIntervalProp);
-            }
+            EditorGUILayout.PropertyField(profilingLogIntervalProp);
             EditorGUI.indentLevel--;
         }
 
