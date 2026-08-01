@@ -4,7 +4,26 @@ using UnityEngine.Rendering.Universal;
 
 public class PCDRendererFeature : ScriptableRendererFeature
 {
-    public static PCDRendererFeature Instance { get; private set; }
+    private static PCDRendererFeature _instance;
+    public static PCDRendererFeature Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                var features = Resources.FindObjectsOfTypeAll<PCDRendererFeature>();
+                if (features != null && features.Length > 0)
+                {
+                    _instance = features[0];
+                }
+            }
+            return _instance;
+        }
+        internal set
+        {
+            _instance = value;
+        }
+    }
 
     public enum PCD_OcclusionKernel
     {
@@ -123,6 +142,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
     public override void Create()
     {
         Instance = this;
+        _useGlobalBufferMode = false;
 
         if (settings == null)
         {
@@ -190,6 +210,8 @@ public class PCDRendererFeature : ScriptableRendererFeature
     // t[??ARenderGraph?pXGL[
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
+        Instance = this;
+
         // Sceneビューなど解像度の異なるカメラが混ざることで、RTHandleが毎フレーム破棄・再構築されるのを防ぐため、Game/VRのみ許可する
         if (renderingData.cameraData.cameraType != CameraType.Game && renderingData.cameraData.cameraType != CameraType.VR)
         {
@@ -240,6 +262,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
         base.Dispose(disposing);
         _scriptablePass?.Cleanup();
         _persistentObjects.Clear();
+        _useGlobalBufferMode = false;
 
         if (Instance == this)
         {

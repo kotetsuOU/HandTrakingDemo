@@ -49,6 +49,7 @@ public class PCV_Controller : MonoBehaviour
     {
         if (!UnityEngine.Application.isPlaying) return;
         pointCloudRenderer.UpdatePointSize(settings.pointSize);
+        ApplyRenderingSourceSettings();
         StartCoroutine(RebuildPointCloudAfterFrame());
     }
 
@@ -62,6 +63,11 @@ public class PCV_Controller : MonoBehaviour
     private void Update()
     {
         if (!UnityEngine.Application.isPlaying) return;
+
+        if (pcdRendererFeature == null)
+        {
+            ApplyRenderingSourceSettings();
+        }
 
         bool sourceChanged = settings.HasRenderingSourceChanged();
 

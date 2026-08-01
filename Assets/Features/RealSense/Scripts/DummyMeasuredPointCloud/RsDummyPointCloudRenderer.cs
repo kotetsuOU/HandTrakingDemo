@@ -146,7 +146,7 @@ namespace RealSense.DummyPointCloud
             }
         }
 
-        private void LateUpdate()
+        public void EnsureBufferUpdated()
         {
             if (dummyProvider == null)
             {
@@ -223,12 +223,21 @@ namespace RealSense.DummyPointCloud
 
                     // Indirect Draw 引数の更新
                     _argsData[0] = (uint)count;
+                    if (_argsBuffer == null || !_argsBuffer.IsValid())
+                    {
+                        _argsBuffer = new ComputeBuffer(1, sizeof(uint) * 4, ComputeBufferType.IndirectArguments);
+                    }
                     _argsBuffer.SetData(_argsData);
 
                     _appliedDataVersion = dummyProvider.DataVersion;
                     Log($"Updated GPU buffer for DataVersion {_appliedDataVersion} ({count} points).");
                 }
             }
+        }
+
+        private void LateUpdate()
+        {
+            EnsureBufferUpdated();
 
             // 2. 静止時は一切 SetData も計算も行わず、既存の GPU バッファで 0ms 高速描画のみ実行
             if (_verticesBuffer != null && _cachedValidPointCount > 0 && _visualization != null)
@@ -266,14 +275,14 @@ namespace RealSense.DummyPointCloud
         }
 
         /// <summary> PCD マネージャーやオクルージョン計算等の外部コンポーネントへ点群バッファを提供するオーバーライド </summary>
-        public override ComputeBuffer GetFilteredVerticesBuffer() => _verticesBuffer;  // 元座標（接触判定・描画用）
-        public override int GetLastFilteredCount() => _cachedValidPointCount;
+        public override ComputeBuffer GetFilteredVerticesBuffer() { EnsureBufferUpdated(); return _verticesBuffer; }
+        public override int GetLastFilteredCount() { EnsureBufferUpdated(); return _cachedValidPointCount; }
         /// <summary> HCD 接触判定等のグローバルバッファマージ用: 常に元のワールド座標を返す </summary>
-        public override ComputeBuffer GetPCDSourceBuffer() => _verticesBuffer;
-        public override int GetPCDSourceCount() => _cachedValidPointCount;
+        public override ComputeBuffer GetPCDSourceBuffer() { EnsureBufferUpdated(); return _verticesBuffer; }
+        public override int GetPCDSourceCount() { EnsureBufferUpdated(); return _cachedValidPointCount; }
         /// <summary> オクルージョン用グローバルバッファマージ用: ハーフミラー有効時はX鏡像変換済みバッファを返す </summary>
-        public override ComputeBuffer GetOcclusionSourceBuffer() => (_mirroredVerticesBuffer != null && _mirroredVerticesBuffer.IsValid()) ? _mirroredVerticesBuffer : _verticesBuffer;
-        public override int GetOcclusionSourceCount() => _cachedValidPointCount;
+        public override ComputeBuffer GetOcclusionSourceBuffer() { EnsureBufferUpdated(); return (_mirroredVerticesBuffer != null && _mirroredVerticesBuffer.IsValid()) ? _mirroredVerticesBuffer : _verticesBuffer; }
+        public override int GetOcclusionSourceCount() { EnsureBufferUpdated(); return _cachedValidPointCount; }
 
         private void OnDisable()
         {
