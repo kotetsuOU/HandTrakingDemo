@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -62,7 +64,7 @@ public abstract class EXP_Base2AFCCondition : EXP_BaseHapticsCondition
         var ctrl = GetController();
         if (ctrl == null)
         {
-            Debug.LogWarning($"[{GetType().Name}] HAP_HapticsIllusionFoxFootController が見つかりません（ダミータイマーで動作します）。");
+            AppLogger.LogWarning(runner, EXP_LogTriggers.TagFlowController, $"[{GetType().Name}] HAP_HapticsIllusionFoxFootController が見つかりません（ダミータイマーで動作します）。");
         }
 
         // ペアの物理値決定

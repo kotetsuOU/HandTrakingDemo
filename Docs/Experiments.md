@@ -57,6 +57,8 @@ Assets/Features/Experiment/Scripts/
 ├── Conditions/                         # 具体的実験条件アセット (ScriptableObject)
 │   ├── EXP_OppositeOffsetCondition.cs # 2AFC: OppositeOffset Y 値の知覚比較
 │   └── EXP_STMFrequencyCondition.cs   # 2AFC: STM 周波数の知覚比較
+├── Debug/
+│   └── EXP_LogTriggers.cs             # AppLogManager 連動ログトリガー登録ヘルパー
 └── Editor/
     └── EXP_ExperimentControlWindow.cs # Editor 用コントロールウィンドウ
 ```
@@ -219,3 +221,16 @@ blockIndex,trialIndex,isPractice,paradigmType,responseValue,stimulusVal1,stimulu
 * **TextMeshPro の必須依存**: `EXP_UIController` は `TMP_Text` を参照しています。シーン内に TextMeshPro パッケージがインポートされている必要があります。
 * **条件クラスの継承設計**: 触覚制御を伴う実験条件を作成する場合は `EXP_BaseHapticsCondition` を継承してください。試行開始・終了時の `SetHapticsBypass` および刺激停止処理が自動化されます。
 * **EditorWindow**: Menu **Tools → EXP → Experiment Control Panel** から独立操作パネルを開くことができます。
+
+### 5.4 統制ログシステム (`AppLogManager`) との同期
+
+`Experiment` モジュールの全デバッグログは `AppLogger` 経由に統一されており、`EXP_LogTriggers` ヘルパーを介して `AppLogManager` の "Experiment" グループ配下に以下の 6 つの機能別サブトリガーが自動登録されます。
+
+* `[EXP_Manager]` (ステート＆フロー遷移ログ)
+* `[EXP_FlowController]` (メインループ・全試行完了ログ)
+* `[EXP_TrialSequencer]` (シーケンス生成・条件警告ログ)
+* `[EXP_InputHandler]` (キー入力・レスポンス応答ログ)
+* `[EXP_EventMarker]` (タイムスタンプイベント記録ログ)
+* `[EXP_DataRecorder]` (CSV / JSON 保存結果ログ)
+
+`AppLogManager` インスペクター上でこれらのサブトリガーを個別に ON/OFF トグル制御できます。詳細なアーキテクチャおよび共通仕様については [Logging.md](./Logging.md) を参照してください。

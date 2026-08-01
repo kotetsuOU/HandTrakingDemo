@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -87,7 +89,7 @@ public class EXP_DataRecorder : MonoBehaviour
         CSVFilePath  = Path.Combine(ResolvedDirectory, baseName + ".csv");
         JSONFilePath = Path.Combine(ResolvedDirectory, baseName + ".json");
 
-        Debug.Log($"[EXP_DataRecorder] 初期化完了。保存先: {ResolvedDirectory}");
+        AppLogger.Log(this, EXP_LogTriggers.TagDataRecorder, $"初期化完了。保存先: {ResolvedDirectory}");
     }
 
     /// <summary>
@@ -121,7 +123,7 @@ public class EXP_DataRecorder : MonoBehaviour
             WriteJSON(session);
         }
 
-        Debug.Log($"[EXP_DataRecorder] 保存完了: {_recordedTrials.Count} 試行");
+        AppLogger.Log(this, EXP_LogTriggers.TagDataRecorder, $"保存完了: {_recordedTrials.Count} 試行");
     }
 
     /// <summary>
@@ -154,7 +156,7 @@ public class EXP_DataRecorder : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"[EXP_DataRecorder] CSV 書き込みエラー: {e.Message}");
+            AppLogger.LogError(this, EXP_LogTriggers.TagDataRecorder, $"CSV 書き込みエラー: {e.Message}");
         }
     }
 
@@ -172,7 +174,7 @@ public class EXP_DataRecorder : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"[EXP_DataRecorder] CSV 一括書き込みエラー: {e.Message}");
+            AppLogger.LogError(this, EXP_LogTriggers.TagDataRecorder, $"CSV 一括書き込みエラー: {e.Message}");
         }
     }
 
@@ -191,7 +193,7 @@ public class EXP_DataRecorder : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"[EXP_DataRecorder] JSON 書き込みエラー: {e.Message}");
+            AppLogger.LogError(this, EXP_LogTriggers.TagDataRecorder, $"JSON 書き込みエラー: {e.Message}");
         }
     }
 

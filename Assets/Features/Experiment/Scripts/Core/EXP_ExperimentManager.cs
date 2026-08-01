@@ -1,7 +1,10 @@
 using UnityEngine;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -9,8 +12,14 @@ using TMPro;
 /// 被験者実験のメインステートマネージャー（統括窓口）。
 /// 実験設定（<see cref="EXP_SessionSettings"/>）、コンポーネント保持、ステート状態管理、および外部 API を統括します。
 /// </summary>
-public class EXP_ExperimentManager : MonoBehaviour
+[AppLoggable("Experiment")]
+public class EXP_ExperimentManager : MonoBehaviour, IAppLoggable
 {
+    public void RegisterLogTriggers(LogCategoryGroup group, HashSet<string> existingLabels)
+    {
+        var triggers = GetOrAdd<EXP_LogTriggers>();
+        triggers.RegisterLogTriggers(group, existingLabels);
+    }
     // =====================================================
     // Inspector Settings
     // =====================================================
@@ -83,6 +92,7 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     void Awake()
     {
+        GetOrAdd<EXP_LogTriggers>();
         sequencer    ??= GetOrAdd<EXP_TrialSequencer>();
         dataRecorder ??= GetOrAdd<EXP_DataRecorder>();
         eventMarker  ??= GetOrAdd<EXP_EventMarker>();
@@ -100,11 +110,11 @@ public class EXP_ExperimentManager : MonoBehaviour
         if (inputHandler != null)
         {
             inputHandler.OnResponse += HandleResponse;
-            Debug.Log($"[EXP_Manager] OnEnable: inputHandler.OnResponse に HandleResponse を登録しました。inputHandler={inputHandler.name}");
+            AppLogger.Log(this, EXP_LogTriggers.TagManager, $"OnEnable: inputHandler.OnResponse に HandleResponse を登録しました。inputHandler={inputHandler.name}");
         }
         else
         {
-            Debug.LogWarning("[EXP_Manager] OnEnable: inputHandler が null です！Awakeでの初期化が間に合っていない可能性があります。");
+            AppLogger.LogWarning(this, EXP_LogTriggers.TagManager, "OnEnable: inputHandler が null です！Awakeでの初期化が間に合っていない可能性があります。");
         }
     }
 
@@ -180,7 +190,7 @@ public class EXP_ExperimentManager : MonoBehaviour
         if (suppressCustomHapticsOnExperiment && hapticsController != null)
         {
             hapticsController.bypassHaptics = suppress;
-            Debug.Log($"[EXP_Manager] SuppressCustomHaptics: bypassHaptics={suppress} ({hapticsController.name})");
+            AppLogger.Log(this, EXP_LogTriggers.TagManager, $"SuppressCustomHaptics: bypassHaptics={suppress} ({hapticsController.name})");
         }
 
         // 実験非実行中 (suppress=false) の場合は、試行中に設定された各オブジェクトコントローラーの抑制フラグを解除（トリガー解放）
@@ -203,7 +213,7 @@ public class EXP_ExperimentManager : MonoBehaviour
                 ctrl.experimentStimulusSuppressed = false;
             }
         }
-        Debug.Log("[EXP_Manager] 全 ObjectHapticsController のトリガー（experimentStimulusSuppressed）を解放しました。");
+        AppLogger.Log(this, EXP_LogTriggers.TagManager, "全 ObjectHapticsController のトリガー（experimentStimulusSuppressed）を解放しました。");
     }
 
     public void SetMessage(string message)
@@ -249,7 +259,7 @@ public class EXP_ExperimentManager : MonoBehaviour
 
     private void HandleResponse(string responseValue)
     {
-        Debug.Log($"[EXP_Manager] HandleResponse 受信: '{responseValue}', CurrentTrial={CurrentTrial?.conditionName ?? "null"}, Phase={CurrentPhase}");
+        AppLogger.Log(this, EXP_LogTriggers.TagManager, $"HandleResponse 受信: '{responseValue}', CurrentTrial={CurrentTrial?.conditionName ?? "null"}, Phase={CurrentPhase}");
         if (CurrentTrial != null)
         {
             var cond = sequencer?.CurrentCondition;

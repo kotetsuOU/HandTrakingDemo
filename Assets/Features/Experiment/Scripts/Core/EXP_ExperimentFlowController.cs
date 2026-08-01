@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -127,7 +129,7 @@ public static class EXP_ExperimentFlowController
         manager.SetMessage(compText);
         manager.SuppressCustomHaptics(false);  // custom 背景信号を復元
         manager.InvokeExperimentFinished(session);
-        Debug.Log($"[EXP_ExperimentManager] 全試行完了 (総試行数: {session.completedTrials})");
+        AppLogger.Log(manager, EXP_LogTriggers.TagFlowController, $"全試行完了 (総試行数: {session.completedTrials})");
     }
 
     private static IEnumerator RunPracticeTrials(EXP_ExperimentManager manager)

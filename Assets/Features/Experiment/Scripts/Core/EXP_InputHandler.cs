@@ -1,5 +1,7 @@
 using UnityEngine;
 using System;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -98,7 +100,7 @@ public class EXP_InputHandler : MonoBehaviour
         if (response != null)
         {
             e.Use();
-            Debug.Log($"[EXP_InputHandler] OnGUI キー検知: {e.keyCode} → '{response}'");
+            AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, $"OnGUI キー検知: {e.keyCode} → '{response}'");
             Respond(response);
         }
     }
@@ -111,12 +113,12 @@ public class EXP_InputHandler : MonoBehaviour
     { 
         HasResponded = false; 
         IsListening = true; 
-        Debug.Log($"[EXP_InputHandler] StartListening 開始。inputDevice={inputDevice}, blockAfterFirstResponse={blockAfterFirstResponse}");
+        AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, $"StartListening 開始。inputDevice={inputDevice}, blockAfterFirstResponse={blockAfterFirstResponse}");
     }
     public void StopListening()  
     { 
         IsListening = false; 
-        Debug.Log("[EXP_InputHandler] StopListening");
+        AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "StopListening");
     }
     public void ResetResponse()  { HasResponded = false; }
 
@@ -137,16 +139,16 @@ public class EXP_InputHandler : MonoBehaviour
 
         // 2AFC / ABX / SingleStimulus (Choice 1 vs 2)
         if (Input.GetKeyDown(keyBindings.choice1Key) || Input.GetKeyDown(keyBindings.yesKey) || Input.GetKeyDown(KeyCode.Z) || Input.GetKeyDown(KeyCode.Alpha1)) 
-            { Debug.Log($"[EXP_InputHandler] キー検知: Choice1"); Respond("Choice1"); }
+            { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: Choice1"); Respond("Choice1"); }
         else if (Input.GetKeyDown(keyBindings.choice2Key) || Input.GetKeyDown(keyBindings.noKey) || Input.GetKeyDown(KeyCode.X) || Input.GetKeyDown(KeyCode.Alpha2)) 
-            { Debug.Log($"[EXP_InputHandler] キー検知: Choice2"); Respond("Choice2"); }
+            { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: Choice2"); Respond("Choice2"); }
         // Adjustment
-        else if (Input.GetKeyDown(keyBindings.upKey) || Input.GetKeyDown(KeyCode.W)) { Debug.Log($"[EXP_InputHandler] キー検知: upKey"); Respond("Up"); }
-        else if (Input.GetKeyDown(keyBindings.downKey) || Input.GetKeyDown(KeyCode.S)) { Debug.Log($"[EXP_InputHandler] キー検知: downKey"); Respond("Down"); }
-        else if (Input.GetKeyDown(keyBindings.confirmKey) || Input.GetKeyDown(KeyCode.Return)) { Debug.Log($"[EXP_InputHandler] キー検知: confirmKey"); Respond("Confirm"); }
+        else if (Input.GetKeyDown(keyBindings.upKey) || Input.GetKeyDown(KeyCode.W)) { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: upKey"); Respond("Up"); }
+        else if (Input.GetKeyDown(keyBindings.downKey) || Input.GetKeyDown(KeyCode.S)) { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: downKey"); Respond("Down"); }
+        else if (Input.GetKeyDown(keyBindings.confirmKey) || Input.GetKeyDown(KeyCode.Return)) { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: confirmKey"); Respond("Confirm"); }
         // System
-        else if (Input.GetKeyDown(keyBindings.nextKey)) { Debug.Log($"[EXP_InputHandler] キー検知: nextKey"); Respond("Next"); }
-        else if (Input.GetKeyDown(keyBindings.startKey)) { Debug.Log($"[EXP_InputHandler] キー検知: startKey"); Respond("Start"); }
+        else if (Input.GetKeyDown(keyBindings.nextKey)) { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: nextKey"); Respond("Next"); }
+        else if (Input.GetKeyDown(keyBindings.startKey)) { AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, "キー検知: startKey"); Respond("Start"); }
     }
 
     /// <summary>
@@ -170,7 +172,7 @@ public class EXP_InputHandler : MonoBehaviour
 
     private void Respond(string responseValue)
     {
-        Debug.Log($"[EXP_InputHandler] Respond('{responseValue}') 発火。IsListening={IsListening}, HasResponded={HasResponded}, OnResponseリスナー数={OnResponse?.GetInvocationList()?.Length ?? 0}");
+        AppLogger.Log(this, EXP_LogTriggers.TagInputHandler, $"Respond('{responseValue}') 発火。IsListening={IsListening}, HasResponded={HasResponded}, OnResponseリスナー数={OnResponse?.GetInvocationList()?.Length ?? 0}");
         HasResponded = true;
         OnResponse?.Invoke(responseValue);
     }

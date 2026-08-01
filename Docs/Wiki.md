@@ -107,15 +107,16 @@ graph TD
 | **7** | 🏗️ | [PhysicalResponse.md](./PhysicalResponse.md) | Softbody/BonePhysics パラメータ一括制御 |
 | | 🏗️ | └── [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md) | 手の点群でキャラクターをリフト追従 |
 | **8** | 🧪 | [Experiments.md](./Experiments.md) | 被験者実験フレームワーク (2AFC / ABX / 調整法 / データ出力) |
+| **9** | 🏗️ | [Logging.md](./Logging.md) | 統制ログ管理システム (AppLogManager & AppLogger) |
 
 ---
 
 ## 3. 各サブシステム概要
 
 ### ⚙️ 0. 基盤・初期化
-複数 RealSense カメラの位置合わせ（キャリブレーション）と、JSON ベースのアライメント設定の保存・復元を管理します。PCV デバッグビューアにより、点群データの即座のプレビューと GPU/CPU 描画ソースの切り替えが可能です。
+複数 RealSense カメラの位置合わせ（キャリブレーション）と、JSON ベースのアライメント設定の保存・復元を管理します。PCV デバッグビューアにより、点群データの即座のプレビューと GPU/CPU 描画ソースの切り替えが可能です。また、統制ログ管理システム (`AppLogManager` & `AppLogger`) により全モジュールのログトグルを一元制御します。
 
-📎 詳細: [Initialization.md](./Initialization.md) / [DebugPCV.md](./DebugPCV.md)
+📎 詳細: [Initialization.md](./Initialization.md) / [DebugPCV.md](./DebugPCV.md) / [Logging.md](./Logging.md)
 
 ---
 

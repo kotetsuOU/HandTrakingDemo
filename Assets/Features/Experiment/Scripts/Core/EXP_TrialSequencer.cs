@@ -1,6 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -86,7 +88,7 @@ public class EXP_TrialSequencer : MonoBehaviour
         var validConditions = conditions.Where(c => c != null).ToList();
         if (validConditions.Count == 0)
         {
-            Debug.LogWarning("[EXP_TrialSequencer] 登録された条件アセットがありません。デフォルトの 2AFC STMFrequencyCondition を動的適用します。");
+            AppLogger.LogWarning(this, EXP_LogTriggers.TagTrialSequencer, "登録された条件アセットがありません。デフォルトの 2AFC STMFrequencyCondition を動的適用します。");
             var defaultCond = ScriptableObject.CreateInstance<EXP_STMFrequencyCondition>();
             defaultCond.conditionName = "Default_2AFC_STMFrequency";
             validConditions.Add(defaultCond);
@@ -158,7 +160,7 @@ public class EXP_TrialSequencer : MonoBehaviour
 
         _trialSequence = generatedSequence;
 
-        Debug.Log($"[EXP_TrialSequencer] シーケンス生成完了 (Mode: {sequenceMode}): "
+        AppLogger.Log(this, EXP_LogTriggers.TagTrialSequencer, $"シーケンス生成完了 (Mode: {sequenceMode}): "
                 + $"{_trialSequence.Count} 試行 / シード: {(randomSeed < 0 ? "ランダム" : randomSeed.ToString())}");
     }
 
@@ -173,7 +175,7 @@ public class EXP_TrialSequencer : MonoBehaviour
     {
         if (IsFinished)
         {
-            Debug.LogWarning("[EXP_TrialSequencer] シーケンスが終了しています。");
+            AppLogger.LogWarning(this, EXP_LogTriggers.TagTrialSequencer, "シーケンスが終了しています。");
             return null;
         }
         return _trialSequence[_currentIndex++];

@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Core.Logging;
+using Features.Experiment.Debug;
 
 #nullable enable
 
@@ -91,7 +93,7 @@ public class EXP_EventMarker : MonoBehaviour
         OnEventMarked?.Invoke(label, t);
 
         if (logToConsole)
-            Debug.Log($"[EXP_EventMarker] {t:F4}s  {label}");
+            AppLogger.Log(this, EXP_LogTriggers.TagEventMarker, $"{t:F4}s  {label}");
 
         if (saveToFile && !string.IsNullOrEmpty(FilePath))
             AppendToFile(t, label);
@@ -106,7 +108,7 @@ public class EXP_EventMarker : MonoBehaviour
         OnEventMarked?.Invoke(label, timestamp);
 
         if (logToConsole)
-            Debug.Log($"[EXP_EventMarker] {timestamp:F4}s  {label}");
+            AppLogger.Log(this, EXP_LogTriggers.TagEventMarker, $"{timestamp:F4}s  {label}");
 
         if (saveToFile && !string.IsNullOrEmpty(FilePath))
             AppendToFile(timestamp, label);
@@ -135,7 +137,7 @@ public class EXP_EventMarker : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError($"[EXP_EventMarker] ファイル書き込みエラー: {e.Message}");
+            AppLogger.LogError(this, EXP_LogTriggers.TagEventMarker, $"ファイル書き込みエラー: {e.Message}");
         }
     }
 }
