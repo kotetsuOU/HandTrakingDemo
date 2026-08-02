@@ -1,101 +1,108 @@
-# ハプティクスシステムの使い方ガイド (How to Use Haptics)
+# 触覚機能セットアップ・使用手順ガイド Specifications
 
-> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 📖 How-Toガイド  
+> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 📖 使用手順ガイド  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本ドキュメントは、ハプティクス（空中超音波触覚提示）システムを初めて使う方のためのセットアップガイドです。AUTD3 ハードウェアの接続から、衝突判定の設定、ハプティクス出力の確認までの一連の手順を解説します。
+本ドキュメントでは、本システムで空中超音波触覚ディスプレイ (AUTD3) を導入・接続し、触覚フィードバックを提示するための環境構築手順、Inspector パラメータアサイン、および実装手順について解説します。
 
 ---
 
 ## 1. 概要
 
-本システムは、点群センサーデータからの接触判定 (`HCD_Pipeline`) と連動し、AUTD3 ハードウェアを用いた空中超音波触覚フィードバックを提示します。
+本ガイドは、開発者や実験担当者が実機 AUTD3 ディバイスまたは AUTD3 エミュレーター（シミュレーター）環境において、短時間で触覚システムを立ち上げるためのステップ・バイ・ステップのマニュアルです。
 
 ---
 
 ## 2. 設計思想・アーキテクチャ
 
-システム構成および内部アルゴリズムについては以下の設計書を参照してください。
+### 2.1 関連コンポーネント構成
 
-* **全体アーキテクチャ**: [Haptics.md](./Haptics.md)
-* **衝突判定パイプライン**: [Collision.md](./Collision.md)
-* **SDK 移行仕様**: [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
+```text
+Assets/Features/Haptics/
+├── Scripts/
+│   ├── Core/
+│   │   ├── HAP_Pipeline.cs            # 触覚統括コンポーネント
+│   │   ├── HAP_DeviceController.cs    # 接続・送信クライアント
+│   │   └── HAP_GeometryBuilder.cs     # トランスデューサジオメトリ構築
+│   └── Debug/
+│       └── HAP_GizmoVisualizer.cs     # 焦点視覚化コンポーネント
+```
+
+### 2.2 システム接続相関図
+
+```mermaid
+graph TD
+    Unity["Unity App (HAP_Pipeline)"] --> |UDP / Ethernet| AUTD["AUTD3 Server / Hardware"]
+    Unity --> |Local Port| Sim["AUTD3 Simulator"]
+
+    style Unity fill:#4a90d9,color:#fff
+    style AUTD fill:#50e3c2,color:#000
+    style Sim fill:#f5a623,color:#fff
+```
 
 ---
 
 ## 3. セットアップ・使用方法
 
-### 3.1 事前準備と SDK 切り替え
+### 3.1 クイックスタート手順
 
-1. 必要なハードウェア（AUTD3 デバイス、TwinCAT / SOEM 対応 PC、RealSense カメラ）を準備します。
-2. ルートディレクトリのスクリプトで SDK バージョンを合わせます。
+#### Step 1: AUTD3 物理アレイ接続 / シミュレーター起動
 
-```powershell
-# 現在のSDK環境を確認
-powershell -ExecutionPolicy Bypass -File .\switch-sdk.ps1
+1. **実機接続**: LAN ケーブルで AUTD3 コントローラーと PC を接続します。
+2. **エミュレーター動作**: 実機がない場合は AUTD3 Simulator アプリケーションを同一 PC 上で起動します。
 
-# 旧SDK (AUTD3Sharp) 環境に切り替え
-powershell -ExecutionPolicy Bypass -File .\switch-sdk.ps1 legacy
+#### Step 2: シーンオブジェクトの配置
 
-# 新SDK (autd3-sdk v0.3) 環境に切り替え
-powershell -ExecutionPolicy Bypass -File .\switch-sdk.ps1 new
+1. シーン内の管理オブジェクトに `HAP_DeviceController` および `HAP_Pipeline` をアタッチします。
+2. `HAP_Pipeline` の `deviceController` フィールドに同オブジェクトをアサインします。
+
+#### Step 3: Inspector パラメータの設定
+
+| 設定項目 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `serverIP` | `string` | `"127.0.0.1"` | AUTD3 サーバーの IP アドレス |
+| `useEmulator` | `bool` | `true` | エミュレーターへの接続を使用するか |
+| `gainIntensity` | `float` | `1.0f` | 音圧ゲイン強度 (0.0 〜 1.0) |
+| `modulationFrequency` | `float` | `200.0f` | 触覚変調周波数 (Hz) |
+
+#### Step 4: 実装例・C# コード呼び出し
+
+```csharp
+using UnityEngine;
+
+public class HapticsExample : MonoBehaviour
+{
+    public HAP_Pipeline hapticsPipeline;
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.H))
+        {
+            // 手動で Focus 提示位置を指定
+            hapticsPipeline.TriggerFocus(new Vector3(0, 0.2f, 0.5f), 1.0f);
+        }
+    }
+}
 ```
-
-### 3.2 AUTD3 デバイスのセットアップ
-
-1. シーン内に `AUTD3Device` コンポーネントをアタッチした GameObject を配置し、物理トランスフォームに合わせます。
-2. `HAP_AUTDHardwareController` の **Link Type** (`TwinCAT` / `SOEM` / `Simulator`) を選択します。
-3. `HAP_AUTDCalibration` で個別の動作テストおよびアライメント補正を行います。
-
-### 3.3 衝突判定の設定 (`HCD_Pipeline`)
-
-1. シーン内の `HCD_Pipeline` に **Detection Target**（例: Fox）をセットします。
-2. `Detection Mode` を選択します (`SkinnedMeshRenderer`, `MeshFilter`, `TransformOnly`)。
-3. `AnimationController` の `Auto Update Collision Target` を有効にし自動追従させます。
-
-### 3.4 オブジェクトハプティクス（足先・部位照射）
-
-1. キャラクターに `HAP_FoxFootHapticsController` や `HAP_FoxBodyHapticsController` をアタッチします。
-2. `HAP_AUTDHapticsController` の **Source Mode** を `ObjectTarget` に設定します。
-3. 詳細な設定手順は [FoxFootHaptics.md](./FoxFootHaptics.md) または [FoxBodyHaptics.md](./FoxBodyHaptics.md) を参照してください。
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-### 4.1 動作モードと主要パラメータ
+### 4.1 通信仕様・ネットワークポート
 
-| モード (`sourceMode`) | 用途 | 説明 |
-|:---|:---|:---|
-| **`AutoHCD`** | 通常使用 (推奨) | 衝突判定の結果に基づいて自動で超音波を出力 |
-| **`ObjectTarget`** | 部位指定 | 登録コントローラーのターゲット座標へ直接照射 |
-| **`Manual`** | カスタム制御 | 外部 API で明示的に出力を制御 |
-
-| パラメータ | 説明 | 推奨値 |
-|:---|:---|:---|
-| `Default Intensity (Pa)` | 出力音圧 | 2000〜5000 |
-| `Sine Frequency (Hz)` | 変調周波数 | 200 |
-| `Contact Force Reduction` | 接触面積に応じた振幅制御 | ON |
+* **デフォルト接続ポート**: UDP Port `8080` / `8081`
+* **タイムアウト設定**: 通信切断時は 3000ms で自動再接続を試行。
 
 ---
 
 ## 5. デバッグ・留意事項
 
-### 5.1 トラブルシューティング
+### 5.1 留意事項
 
-| 症状 | 原因 | 対処法 |
-|:---|:---|:---|
-| 超音波が出力されない | デバイス未接続 / Link Mode 不一致 | TwinCAT / SOEM の接続状態を確認 |
-| 触覚が弱い・感じない | 焦点位置がデバイスから離れすぎ | `HAP_GizmoVisualizer` で焦点位置を確認 |
-| 衝突判定が反応しない | Detection Target 未設定 | `HCD_Pipeline` の設定を確認 |
-| Gizmo が表示されない | Scene ビューの Gizmos が OFF | Scene ビュー上部の Gizmos ボタンを ON に |
-| 接触 Gizmo は出るが出力されない | Source Mode 不一致 | `sourceMode` 設定を確認 |
+* Windows ファイアウォールにより UDP 通信がブロックされる場合があります。初回起動時は通信を許可してください。
+* SDK の切替手順については [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md) を参照してください。
 
-### 5.2 関連ドキュメントリンク
-* [Haptics.md](./Haptics.md)
-* [Collision.md](./Collision.md)
-* [FoxFootHaptics.md](./FoxFootHaptics.md)
-* [FoxBodyHaptics.md](./FoxBodyHaptics.md)
-* [HapticsIllusion.md](./HapticsIllusion.md)
-* [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md)
-* [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+動作ログには `[Haptics]` タグが適用されます。詳細については [Logging.md](./Logging.md) を参照してください。

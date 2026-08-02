@@ -3,61 +3,82 @@
 > 📂 **親ノード**: [Wiki.md](./Wiki.md) | 🏷️ **種類**: 🏗️ システム設計書  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本ドキュメントでは、RealSense カメラから取得した点群データの初期化処理、および複数カメラ間のアライメント（位置合わせ）を行うキャリブレーションシステムについて解説します。
+本ドキュメントでは、RealSense カメラから取得した点群データの初期化処理、描画マテリアルの自動適用、および複数カメラ間のアライメント（位置合わせ姿勢補正）を行う「初期化とアライメント・キャリブレーションシステム」の設計思想、モジュール構成、使用手順、パラメータ詳細およびデバッグ方法について解説します。
 
 ---
 
 ## 1. 概要
 
-本システムは、複数台の RealSense カメラから取得される点群データの統合、描画用マテリアルの適用、およびキャリブレーション情報の保存・復元を一貫して管理します。
+本システムは、複数台の RealSense カメラからリアルタイムに取得される点群データの統合アライメント処理、カラーモード制御、およびキャリブレーション情報 (`ChildTransforms.json`) の保存・復元を一貫管理する仕組みです。
+
+### 主な特徴
+
+* **マルチカメラアライメント機能**: 各 RealSense カメラの `Transform` 姿勢パラメータを JSON ファイルとして即座にセーブ／ロード保存可能です。
+* **ガイドボックス表示機能**: Scene ビュー上に位置合わせ基準となるワイヤーフレーム（ガイドボックス）を可視化表示し、直感的なキャリブレーションをサポートします。
+* **Undo / Redo 対応**: Unity エディタの Undo システムに完全対応し、アライメント設定ロード時の誤操作を安全にキャンセルできます。
+* **動的マテリアル・カラーモード連動**: `RsMaterialController` により、全カメラの点群カラーモード (`Skin`, `Black`, `Blue`, `Custom`) をリアルタイム一括制御します。
 
 ---
 
 ## 2. 設計思想・アーキテクチャ
 
-### 2.1 構成コンポーネントとデータフロー
+### 2.1 生成ファイル・ディレクトリ構成
+
+```text
+Assets/Features/PointCloud/
+├── Settings/
+│   └── Config/RealSense/
+│       └── ChildTransforms.json        # 位置合わせキャリブレーションJSONファイル
+└── Scripts/
+    ├── Core/
+    │   └── RsGlobalPointCloudManager.cs # 子カメラレンダラーの統合・管理ハブ
+    ├── Filter/
+    │   └── RsTransformController.cs    # アライメント位置合わせ・JSON入出力制御
+    └── Material/
+        └── RsMaterialController.cs     # 点群マテリアル・カラーモード制御
+```
+
+### 2.2 クラス相関図
 
 ```mermaid
 graph TD
-    classDef manager fill:#27AE60,stroke:#1E8449,stroke-width:2px,color:#FFFFFF;
-    classDef controller fill:#2980B9,stroke:#1A5276,stroke-width:2px,color:#FFFFFF;
-    classDef file fill:#E67E22,stroke:#D35400,stroke-width:2px,color:#FFFFFF;
+    Manager["RsGlobalPointCloudManager<br/>(点群統合ハブ)"] --> |GetChildRenderers| MaterialCtrl["RsMaterialController<br/>(マテリアル制御)"]
+    Manager --> |GetChildRenderers| TransformCtrl["RsTransformController<br/>(アライメント制御)"]
+    TransformCtrl --> |Save / Load| JsonFile["ChildTransforms.json<br/>(設定ファイル)"]
 
-    Manager["📦 RsGlobalPointCloudManager<br/>(点群データの管理・統合ハブ)"]:::manager
-    MaterialCtrl["🎨 RsMaterialController<br/>(マテリアル・カラー制御)"]:::controller
-    TransformCtrl["⚙️ RsTransformController<br/>(アライメント・JSONセーブロード)"]:::controller
-    JsonFile["📄 ChildTransforms.json<br/>(位置姿勢設定ファイル)"]:::file
-
-    Manager -->|"GetChildRenderers()"| MaterialCtrl
-    Manager -->|"GetChildRenderers()"| TransformCtrl
-    TransformCtrl -->|"Save/Load"| JsonFile
+    style Manager fill:#4a90d9,color:#fff
+    style TransformCtrl fill:#f5a623,color:#fff
+    style JsonFile fill:#50e3c2,color:#000
 ```
+
+### 2.3 キャリブレーション保存・復元シーケンス
 
 ```mermaid
 sequenceDiagram
-    actor Developer as 開発者/エディター
+    autonumber
+    actor Developer as 開発者 / エディター
     participant TC as RsTransformController
     participant GM as RsGlobalPointCloudManager
-    participant Disk as Config/RealSense/*.json
+    participant Disk as Config/RealSense/ChildTransforms.json
 
     rect rgb(230, 245, 230)
-    note right of Developer: 保存フロー (Save)
-    Developer->>TC: Save Transforms to JSON ボタン押下
-    TC->>GM: GetChildRenderers() で全子カメラ取得
-    GM-->>TC: レンダラー(Transform)リスト返却
-    TC->>TC: 各Transform情報を ChildTransformData に変換
-    TC->>Disk: JSONシリアライズしてファイル書き込み
+    Note over Developer, Disk: 保存フロー (Save)
+    Developer->>TC: "Save Transforms to JSON" ボタン押下
+    TC->>GM: GetChildRenderers() で全カメラ取得
+    GM-->>TC: レンダラー (Transform) リスト返却
+    TC->>TC: ChildTransformData 構造体リストへシリアライズ
+    TC->>Disk: JSON ファイルへの保存書き込み
     end
 
     rect rgb(230, 240, 255)
-    note right of Developer: 読み込みフロー (Load)
-    Developer->>TC: Load Transforms from JSON ボタン押下
-    TC->>Disk: JSONファイルの存在確認・デシリアライズ
+    Note over Developer, Disk: 復元フロー (Load)
+    Developer->>TC: "Load Transforms from JSON" ボタン押下
+    TC->>Disk: JSON ファイルデシリアライズ読み込み
     Disk-->>TC: 座標データリスト返却
-    TC->>GM: GetChildRenderers() で現在のシーン上のカメラ取得
+    TC->>GM: GetChildRenderers() で現在のシーン内カメラ取得
     GM-->>TC: 現在のカメラリスト返却
-    TC->>TC: 名前の一致するオブジェクトに Transform を適用
-    TC->>Developer: Undo登録 & SceneView再描画通知
+    TC->>TC: Transform 姿勢を適用 (Undo.RecordObject 登録)
+    TC->>Developer: SceneView 再描画通知
     end
 ```
 
@@ -65,28 +86,29 @@ sequenceDiagram
 
 ## 3. セットアップ・使用方法
 
-### 3.1 アライメント・キャリブレーション手順
+### 3.1 クイックスタート手順
 
-1. **キャリブレーション・ガイドの配置**:
-   `RsTransformController` の Inspector で **Show Calibration Guide** にチェックを入れ、緑色のワイヤーフレームボックスをアライメント基準物に合わせます。
-2. **各カメラの位置合わせ**:
-   各 `RsPointCloudRenderer` の `Transform` を微調整し、点群がガイドボックスと一致するように調整します。
-3. **設定の保存 (Save)**:
-   `RsTransformController` の **「Save Transforms to JSON」** ボタンをクリックし、`Assets/Settings/Config/RealSense/ChildTransforms.json` に設定をエクスポートします。
-4. **設定の復元 (Load)**:
-   **「Load Transforms from JSON」** ボタンで保存設定をロード復元します（Unity の Ctrl + Z Undo に対応）。
+#### Step 1: キャリブレーションガイドの表示
+
+1. シーン内の管理 GameObject に `RsTransformController` をアタッチします。
+2. Inspector 上で **Show Calibration Guide** にチェックを入れ、緑色のワイヤーフレームボックスをアライメント基準物理構造物に合わせます。
+
+#### Step 2: 各カメラの位置合わせ調整
+
+各 `RsPointCloudRenderer` の `Transform` (Position / Rotation) を微調整し、取得される点群がガイドボックスと幾何学的に一致するようにアライメントを行います。
+
+#### Step 3: キャリブレーション情報の保存と復元
+
+1. **保存**: **「Save Transforms to JSON」** ボタンを押下し、`Assets/Settings/Config/RealSense/ChildTransforms.json` に設定を出力します。
+2. **復元**: **「Load Transforms from JSON」** ボタンを押下すると、Undo 履歴付きでアライメント設定がロード復元されます。
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-### 4.1 主要コンポーネント
+### 4.1 パラメータ・データフォーマット仕様
 
-* `RsGlobalPointCloudManager`: 管理対象となる全 `RsPointCloudRenderer` の参照リストを一元管理し、イテレータ (`GetChildRenderers()`) 経由で提供。
-* `RsMaterialController`: 動的にレンダラーリストを取得し、カラーモード (`Skin`, `Black`, `Blue`, `Custom`) を制御。
-* `RsTransformController`: アライメントガイドの表示、スロット別保存・復元、JSON ファイル管理。
-
-### 4.2 JSON データ構造 (`ChildTransforms.json`)
+* `ChildTransforms.json` データ構造:
 
 ```json
 {
@@ -105,5 +127,15 @@ sequenceDiagram
 
 ## 5. デバッグ・留意事項
 
-### 5.1 3Dディスプレイ (`SRDManager`) の位置調整
-ハーフミラーを利用した立体視を行う場合、RealSense カメラのアライメントに加えて `SRDManager` の Gizmo（ディスプレイ面枠）を現実のハーフミラー内に反射して見える虚像位置・傾きに正しく一致させる必要があります。詳細は [Display3D.md](./Display3D.md) を参照してください。
+### 5.1 留意事項
+
+* **3D ディスプレイ (`SRDManager`) との位置合わせ**: ハーフミラーを利用した立体視環境では、 RealSense カメラのアライメントに加えて `SRDManager` の Gizmo（ディスプレイ面枠）を現実のハーフミラーに映る虚像位置・傾きに正しく一致させる必要があります。詳細は [Display3D.md](./Display3D.md) を参照してください。
+
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+動作ログには `[Initialization]` プレフィックスが付与されます。
+
+* `[Initialization] RsTransformController: ChildTransforms.json への保存完了`
+* `[Initialization] RsTransformController: ChildTransforms.json からの復元完了 (Undo 登録済み)`
+
+詳細については [Logging.md](./Logging.md) を参照してください。

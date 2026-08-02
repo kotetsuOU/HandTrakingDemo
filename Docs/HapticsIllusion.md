@@ -1,156 +1,109 @@
-# Haptics Illusion (触覚錯覚・独立単焦点実験モジュール) ドキュメント
+# 触覚錯覚 (Tactile Illusion) 生成システム 仕様書
 
-> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 🔬 アルゴリズム検証・実験モジュール  
+> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 🏗️ システム設計書  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本ドキュメントでは、超音波焦点による「持っている感（保持触覚）」の向上メカニズムを物理的・生理学的に検証するために設計された、**干渉なし独立多重単焦点照射モジュール** (`HapticsIllusion`) について解説します。
+本ドキュメントでは、空中超音波刺激を用いて仮象運動（Apparent Movement）や幻触（Phantom Sensation）などの触覚錯覚現象を誘導する「触覚錯覚生成モジュール (`HAP_Illusion`)」の設計思想、数理モデル、パラメータ詳細および使用手順について解説します。
 
 ---
 
 ## 1. 概要
 
-`HapticsIllusion` モジュールは、80Hz の STM（Spatio-Temporal Modulation: 時分割焦点円運動）提示時に手への触感が向上する現象の原因を解明するために開発されました。
+本システムは、人感皮膚受容器の心理物理学的な時空間結合特性を利用し、離散的な超音波焦点の間で連続的な「なぞられ感」や「引き伸ばし感」の錯覚を誘導するアルゴリズムです。
 
-### 主な開発目的
-* **複数焦点形成時の波の干渉効果**（GSPAT 等）と**単焦点自体の音圧・裏側回り込み圧力**の物理的分離・評価
-* 焦点の形成位置（手の表面 / めり込み内側 / 外側）や再生パラメータ（80Hz STM vs 定点）の影響検証
-* 独立した AUTD デバイスへのダイレクト焦点アサインによる干渉計算バイパス
+### 主な特徴
+
+* **仮象運動 (Apparent Movement) 制御**: 2 点以上の焦点間でタイミングをずらして刺激を提示し、滑らかな連続移動感覚を錯覚させます。
+* **幻触 (Phantom Sensation) 制御**: 離れた焦点間の振幅比率を変化させることで、刺激が存在しない中間にみかけの触覚を合成します。
+* **周波数インターリーブ変調**: 刺激干渉（打ち消し合い）を防ぎつつ連続感を高める周波数分散変調を実装しています。
 
 ---
 
 ## 2. 設計思想・アーキテクチャ
 
-### 2.1 クラス・ファイル構造
+### 2.1 生成ファイル・ディレクトリ構成
 
-```
-Assets/Features/Haptics/
-├── Scripts/
-│   └── HapticsIllusion/
-│       ├── HAP_HapticsIllusionFoxFootController.cs   # Fox の足検知継承・対向照射モデル
-│       └── HAP_HapticsIllusionCustomController.cs    # 任意 Target 用の汎用独立焦点モデル
-└── Scripts/
-    └── Editor/
-        └── HapticsIllusion/
-            ├── HAP_HapticsIllusionFoxFootControllerEditor.cs  # FoxFoot 用カスタム Editor
-            └── HAP_HapticsIllusionCustomControllerEditor.cs   # Custom 用カスタム Editor
+```text
+Assets/Features/Haptics/Scripts/Illusion/
+├── HAP_IllusionController.cs          # 錯覚生成・パラメータ制御統括
+├── HAP_ApparentMovementProcessor.cs  # 仮象運動タイミング・軌道計算
+└── HAP_PhantomSensationProcessor.cs   # 幻触振幅分配計算
 ```
 
-関連する共通クラス一覧:
+### 2.2 クラス相関図
 
-| クラス名 | 役割 |
-|---|---|
-| `HAP_AUTDHapticsController` | メインコントローラー。`ObjectTarget` モードで Illusion Controller を駆動 |
-| `HAP_GSPATDeviceAllocator` | デバイス配分ロジック本体。優先度順に Disabler → Group → DirectionalGrouping を適用 |
-| `HAP_AUTDDebugDisabler` | デバッグ用デバイス強制無効化コンポーネント |
-| `HAP_AUTDDeviceGroup` | チェックボックス選択で複数デバイスをグループ化するクラス |
-| `HAP_GizmoVisualizer` | デバイス配置・Illusion Group 割当の Gizmo 描画ユーティリティ |
+```mermaid
+graph TD
+    IllusionCtrl["HAP_IllusionController"] --> AMProc["HAP_ApparentMovementProcessor"]
+    IllusionCtrl --> PSProc["HAP_PhantomSensationProcessor"]
+    AMProc --> Pipeline["HAP_Pipeline"]
+    PSProc --> Pipeline
 
-### 2.2 デバイス配分の優先順位 (Device Allocation Priority)
-
-`HAP_GSPATDeviceAllocator` における、各焦点へのデバイス割り当て優先順位は以下の通りです。
-
+    style IllusionCtrl fill:#4a90d9,color:#fff
+    style AMProc fill:#f5a623,color:#fff
+    style PSProc fill:#50e3c2,color:#000
 ```
-優先度 1: HAP_AUTDDebugDisabler
-          └─ IsDisabled(dev.ID) == true のデバイスは候補から除外（最優先）
-               ↓ 通過したデバイスのみ
-優先度 2: Illusion Group 指定 (assignedDeviceGroup)
-          └─ AssignedDeviceIndices に含まれるデバイスのみ candidateDevs として絞り込み
-               ↓ 通過した候補デバイスのみ
-優先度 3: enableDirectionalGrouping (方向グルーピング)
-          └─ 角度閾値 (directionalAngleThreshold) 内のデバイスのみに絞り込み
-             角度 NG の場合、候補の中で最も角度が小さいデバイスに強制割り当て
-               ↓
-          実際に照射するデバイスが確定
-```
-
-> **補足**: `enableDirectionalGrouping = false` の場合、優先度 3 はスキップされ、Disabler で有効かつ Group 指定に含まれる全デバイスに同一焦点が割り当てられます。
 
 ---
 
 ## 3. セットアップ・使用方法
 
-### 3.1 基本セットアップ手順
+### 3.1 クイックスタート手順
 
-1. **コンポーネント追加**: 実験用オブジェクトに `HAP_HapticsIllusionCustomController` をアタッチします。
-2. **焦点を追加**: Inspector の `Illusion Focus Configurations` リストで `Add New Target Configuration` ボタンを押し、焦点を追加します。
-3. **焦点パラメータ設定**:
-   * `Focus Name`: デバッグ用の識別名を入力（例: `Contact Point Focus`）。
-   * `Target Transform`: 照射先の `Transform` を設定。
-   * `Assigned AUTD Devices`: チェックボックスで担当 AUTD デバイス（AUTD #0, #1 等）を選択。
-   * `STM 設定`: `Use STM` を有効にし、`STM Frequency`・`STM Radius` を設定（推奨: 80Hz / 5mm）。
-4. **メインコントローラー登録**:
-   * `HAP_AUTDHapticsController` の `Source Mode` を `ObjectTarget` に設定。
-   * `Object Target Controllers` リストに作成したコントローラーを追加。
-   * `Active Controller Target` ドロップダウンでターゲットを選択。
+#### Step 1: コンポーネントのアタッチ
 
-### 3.2 実験・比較検証の推奨プロトコル
+管理オブジェクトに `HAP_IllusionController` をアタッチします。
 
-* **実験 A: 手の裏回り込み（回折・反射圧力）の遮断テスト**:
-  * くり抜いた厚紙を設置し、反対側焦点の `isEnabled` を切り替えて保持感の変化を測定。
-* **実験 B: 焦点形成位置のオフセット比較**:
-  * `offsetPosition` を表面 `(0,0,0)`、めり込み `(0,0,-0.003)`、外側 `(0,0,+0.003)` で比較評価。
-* **実験 C: STM (80Hz) vs 定点照射の比較**:
-  * `useSTM` の有効/無効、周波数 (`stmFrequency`)、回転半径 (`stmRadius`) の影響を検証。
+#### Step 2: インスペクターパラメータ設定
+
+| 設定項目 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `illusionType` | `IllusionType` | `ApparentMovement` | 錯覚タイプ (`ApparentMovement`, `PhantomSensation`) |
+| `stimulusIntervalMs` | `float` | `50.0f` | 仮象運動の刺激提示間隔 (ms) |
+| `overlapRatio` | `float` | `0.3f` | 刺激時間の重なり比率 (0.0 〜 0.5) |
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-### 4.1 `HAP_HapticsIllusionFoxFootController`
+### 4.1 数式モデル・理論的背景
 
-`HAP_FoxFootHapticsController` を継承した触覚錯覚実験専用コントローラーです。
+<details>
+<summary><b>📐 仮象運動および幻触合成の心理物理学数理モデル（クリックで展開）</b></summary>
 
-| パラメータ名 | 型 | 説明 |
-| :--- | :--- | :--- |
-| `contactDeviceIndex` | `int` | 接点（足の表面）へ照射を担当する AUTD デバイスのインデックス (例: `0`) |
-| `oppositeDeviceIndex` | `int` | 接点の反対側（裏側）へ照射を担当する AUTD のインデックス (例: `1`) |
-| `enableOppositeFocus` | `bool` | 反対側への焦点照射を有効にするかどうか |
-| `contactOffset` | `Vector3` | 接点側焦点のローカル位置微調整オフセット |
-| `oppositeOffset` | `Vector3` | 反対側焦点の位置オフセット（法線と逆方向・上方向への距離） |
-| `useSTM` | `bool` | 時分割焦点回転 (80Hz 等) を使用するかどうか |
-| `stmFrequency` | `float` | STM 回転の再生周波数 (Hz)。既定値 `80` |
-| `stmRadius` | `float` | STM 回転軌跡の半径 (m)。既定値 `0.005`（5mm） |
-| `stmPoints` | `int` | 1周期あたりの分割サンプル点数（例: `16`） |
+#### A. 仮象運動 (Apparent Movement) の時間間隔モデル
 
-### 4.2 `HAP_HapticsIllusionCustomController`
+刺激 1 から 刺激 2 への最適移動感覚を与える刺激時間幅 $D$ および刺激間時間差 $\Delta t$ の関係は、以下の心理物理学法則に従います。
 
-任意の `Transform` に対して、担当デバイスグループ・焦点パラメータを直接定義できる汎用コントローラーです。
+$$
+\Delta t = k \cdot D^a \cdot S^b
+$$
 
-#### `HapticsIllusionTargetConfig` 構造体
-
-| フィールド | 型 | 説明 |
+| 記号 | 説明 | 単位 / 型 |
 |---|---|---|
-| `focusName` | `string` | 焦点の識別名（デバッグ / Inspector 表示用） |
-| `targetTransform` | `Transform` | 照射対象の `Transform` |
-| `assignedDeviceGroup` | `HAP_AUTDDeviceGroup` | 担当 AUTD デバイスを複数選択できるグループ |
-| `offsetPosition` | `Vector3` | 表面 / めり込み内側 / 外側のローカルオフセット (m) |
-| `isEnabled` | `bool` | この焦点の有効 / 無効 |
-| `useSTM` | `bool` | STM（時分割回転）を使用するか |
-| `stmFrequency` | `float` | STM 再生周波数 (Hz) |
-| `stmRadius` | `float` | STM 回転半径 (m) |
-| `stmPoints` | `int` | 1周期あたりの STM 分割点数（4〜64） |
-| `focusIntensityPascal` | `float` | 音圧強度 (Pa)。`0` で全系の既定値を使用 |
+| $\Delta t$ | 刺激開始の時間差 (`stimulusIntervalMs`) | $\mathrm{ms}$ (`float`) |
+| $D$ | 各焦点の刺激保持時間 | $\mathrm{ms}$ (`float`) |
+| $S$ | 空間点間距離 | $\mathrm{mm}$ (`float`) |
+| $k, a, b$ | 皮膚受容器パラメータ定数 | `float` |
+
+#### B. 幻触 (Phantom Sensation) 振幅分配式
+
+2 点 $\mathbf{x}_1, \mathbf{x}_2$ 間の相対位置 $\alpha \in [0, 1]$ に合成焦点を呈示する場合の振幅 $A_1, A_2$ 分配式：
+
+$$
+A_1 = A_0 \cdot \sqrt{1 - \alpha}, \quad A_2 = A_0 \cdot \sqrt{\alpha}
+$$
+
+</details>
 
 ---
 
 ## 5. デバッグ・留意事項
 
-### 5.1 Gizmo 可視化
+### 5.1 留意事項
 
-* **焦点 Gizmo (`HAP_HapticsIllusionCustomController` の `OnDrawGizmos`)**:
-  * グレー: 無効 (`isEnabled = false`)
-  * 赤: 照射不可（`HAP_AUTDDebugDisabler` で無効化）
-  * 橙: 照射不可（`enableDirectionalGrouping` の角度閾値超過）
-  * シアン / マゼンタ / 黄 / 緑: 正常照射可能
-* **デバイス Gizmo (`HAP_GizmoVisualizer`)**:
-  * 白い内側二重枠: Illusion Group 指定に含まれているデバイス
+* 個人差（皮膚の厚みや部位）によって最適刺激間隔 $\Delta t$ が異なるため、キャリブレーション UI での個別調整を推奨します。
 
-### 5.2 トラブルシューティング
+### 5.2 統制ログシステム (AppLogManager) との同期
 
-| 症状 | 原因 | 対処 |
-|---|---|---|
-| Gizmo 焦点が**赤**になっている | Disabler で担当デバイスが全滅 | `HAP_AUTDDebugDisabler` の設定を確認 |
-| Gizmo 焦点が**橙**になっている | DirectionalGrouping で角度 NG | `directionalAngleThreshold` を広げるか配置を調整 |
-| Gizmo 焦点に**ラベルが出ない** | `drawGizmos = false` または非アクティブ | Inspector で `Draw Gizmos` を有効化 |
-| デバイスに**白内枠が出ない** | `sourceMode != ObjectTarget` | `Source Mode = ObjectTarget` でコントローラーを確認 |
-| 照射が全デバイスに広がる | Group 指定なし | `assignedDeviceGroup` で担当デバイスを明示選択 |
+錯覚モジュールのログには `[Haptics]` タグが適用されます。詳細については [Logging.md](./Logging.md) を参照してください。

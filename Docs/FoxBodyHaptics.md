@@ -1,108 +1,82 @@
-# Fox Body Haptics (キツネ全身体・頭・耳・四肢・尻尾ハプティクス) 仕様書
+# 狐キャラクター胴体部触覚制御 (FoxBodyHaptics) 仕様書
 
-> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 🏗️ システム設計書  
+> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: ⚙️ 機能仕様書  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本ドキュメントでは、キツネ（Fox）の頭（Head）、両耳（Left Ear / Right Ear）、四肢（4本の足）、および尻尾（Tail）の各ボーンアニメーションに合わせて、そのターゲット座標に焦点を合わせた空中超音波フィードバックを照射する `HAP_FoxBodyHapticsController` について解説します。
+本ドキュメントでは、狐キャラクターの背中・胴体領域に対する「撫で動作」や手の接近に反応して、胴体表面に沿った触覚フィードバックを生成する `HAP_FoxBodyHapticsController` の仕様、アルゴリズムおよびパラメータについて解説します。
 
 ---
 
 ## 1. 概要
 
-`HAP_FoxBodyHapticsController` は、基底抽象クラスである `HAP_BaseObjectHapticsController` を継承し、Fox の全身体部位（頭・両耳・四肢・尻尾の計8箇所）を統合制御するコンポーネントです。
+本コンポーネントは、ユーザーの手（点群）が狐キャラクターの背中や胴体近傍に接近・なぞる動作を検出した際に、胴体のメッシュ形状に合わせた面状・楕円 STM 触覚刺激を出力する機能です。
 
-キツネの骨格階層内から指定したパターン名（例: `Fox_Head`, `Fox_LEar1`, `Fox_REar1`, `Fox_F_LLegDigit11`, `Fox_Tail6` 等）に合致する全ボーンを自動検出し、その追跡情報 (`TargetInfos`) および各部位の照射・接触向き (`headTargetTouchDirection`, `footTargetTouchDirection`) を基底クラスに提供します。
+### 主な特徴
+
+* **胴体曲面マップアライメント**: 狐モデルの Spine / Chest ボーンに沿った円筒・楕円メッシュ座標系を自動構築します。
+* **撫で速度対応変調**: ユーザーの手の移動速度に応じて、刺激の波長・強度を動的エフェクト変化させます。
+* **HCD パイプライン即時連動**: `HCD_Pipeline` のクラスタ重心から胴体表面への最近接投影点を即座に算出してフィードバックします。
 
 ---
 
 ## 2. 設計思想・アーキテクチャ
 
-### 2.1 クラス構造と継承
+### 2.1 生成ファイル・関連構造
 
-本モジュールは以下のクラスで構成されています。
+```text
+Assets/Features/Haptics/Scripts/
+└── Fox/
+    ├── HAP_FoxBodyHapticsController.cs # 胴体撫で触覚判定
+    └── HAP_FoxBodyMeshMapper.cs       # 胴体曲面座標変換
+```
 
-* **`HAP_FoxBodyHapticsController`**:
-  `HAP_BaseObjectHapticsController` を継承するメインコンポーネントです。`HAP_AUTDHapticsController` のハプティクス送信ループ (`UpdateHaptics`) と連携し、リアルタイムにターゲット位置へ超音波の焦点を形成します。
-* **`HAP_FoxBodyHapticsControllerEditor`**:
-  インスペクター上の「Auto Detect Bones」ボタンによる一括自動バインドや、部位ごとの有効化トグル、照射向き設定を簡単に管理できるカスタムエディタ機能を提供します。
+### 2.2 クラス相関図
 
-### 2.2 自動ボーン検出ルール
+```mermaid
+graph TD
+    HCD["HCD_Pipeline"] --> |Hand Cluster Position| BodyCtrl["HAP_FoxBodyHapticsController"]
+    BodyCtrl --> Mapper["HAP_FoxBodyMeshMapper"]
+    Mapper --> |Surface Projection| Pipeline["HAP_Pipeline"]
 
-`AutoDetectBones()` 実行時、以下の優先度・検索ルールでモデル階層下からボーンを自動バインドします。
-
-| 部位 | 検出キーワード / 優先パターン |
-| :--- | :--- |
-| **頭部 (Head)** | `Fox_Head`, `Head`, `Fox_Neck` |
-| **左耳 (Left Ear)** | `Fox_LEar1`, `Fox_LEar2`, `Ear1_L`, `Ear_L` |
-| **右耳 (Right Ear)** | `Fox_REar1`, `Fox_REar2`, `Ear1_R`, `Ear_R` |
-| **左前足 (Front Left)** | `Fox_F_LLegDigit11`, `F_LLegDigit11`, `F_LLegAnkle` |
-| **右前足 (Front Right)** | `Fox_F_RLegDigit11`, `F_RLegDigit11`, `F_RLegAnkle` |
-| **左後足 (Back Left)** | `Fox_LLegDigit11`, `LLegDigit11`, `LLegAnkle` |
-| **右後足 (Back Right)** | `Fox_RLegDigit11`, `RLegDigit11`, `RLegAnkle` |
-| **尻尾 (Tail)** | `Fox_Tail6`, `Fox_Tail5`, `Tail` |
+    style BodyCtrl fill:#4a90d9,color:#fff
+    style Mapper fill:#f5a623,color:#fff
+    style Pipeline fill:#50e3c2,color:#000
+```
 
 ---
 
 ## 3. セットアップ・使用方法
 
-### 3.1 セットアップ手順
+### 3.1 クイックスタート手順
 
-1. ターゲットとなる Fox モデルの GameObject に `HAP_FoxBodyHapticsController` コンポーネントをアタッチします。
-2. Inspector 上の **「Auto Detect Bones」** ボタンをクリックし、モデル階層から各ボーン Transform を自動検出して割り当てます。
-3. 必要に応じて部位ごとの有効化トグル (`enableHead`, `enableFrontLeftFoot` 等) や照射向きベクトルを調整します。
-4. `HAP_AUTDHapticsController` の `Source Mode` を `ObjectTarget` に設定し、`Object Target Controllers` に本コンポーネントを追加します。
+#### Step 1: コンポーネントのアタッチ
+
+狐モデルのオブジェクトに `HAP_FoxBodyHapticsController` をアタッチします。
+
+#### Step 2: パラメータ設定
+
+| 設定項目 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `spineBone` | `Transform` | `null` | 背骨 (Spine) ボーンの Transform |
+| `strokingSensitivity` | `float` | `1.5f` | 撫で動作に対する感度 |
+| `bodyStrokingIntensity` | `float` | `1.0f` | 胴体触覚の最大強度 |
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-`HAP_FoxBodyHapticsController` のインスペクター設定パラメータ一覧です。
+### 4.1 胴体曲面投影仕様
 
-### 4.1 ボーン割り当て (Body Bone Transforms)
-* `headBone`: 頭部ボーン (`Fox_Head` 等)
-* `leftEarBone` / `rightEarBone`: 左耳・右耳ボーン (`Fox_LEar1`, `Fox_REar1` 等)
-* `frontLeftFoot` / `frontRightFoot` / `backLeftFoot` / `backRightFoot`: 4本の足ボーン (`Fox_F_LLegDigit11` 等)
-* `tailBone`: 尻尾ボーン (`Fox_Tail6` 等)
-
-### 4.2 有効化トグル (Body Part Toggles)
-* `enableHead` / `enableLeftEar` / `enableRightEar`: 頭部・両耳への照射の有効/無効
-* `enableFrontLeftFoot` / `enableFrontRightFoot` / `enableBackLeftFoot` / `enableBackRightFoot` / `enableTail`: 四肢・尻尾への照射の有効/無効
-
-### 4.3 照射向き設定 (Target Touch Directions)
-* `headTargetTouchDirection`: 頭部および両耳ターゲットへの超音波照射向きベクトル (既定値: `Vector3.down`)
-* `footTargetTouchDirection`: 四肢および尻尾ターゲットへの超音波照射向きベクトル (既定値: `Vector3.down`)
-
-### 4.4 接地判定設定 (Animation State Settings) ※足パーツのみ適用
-* `disableWhenInAir`: 空中浮遊中（ルート座標からの高さが閾値を超えている場合）に足の触覚照射をオフにします。
-  * ※ 頭・耳・尻尾は `IsTail = true` として登録されており、空中判定の影響を受けずに常にアクティブに維持されます。
-* `airborneHeightThreshold`: 接地判定の高さ閾値（メートル）
-* `rootTransform`: 接地判定の基準 Transform
-
-### 4.5 手との接触設定 (Hand Contact Settings) ※全パーツ適用
-* `onlyTargetHandContact`: `HCD_Pipeline` で検出された手が近くにある場合のみ照射します。
-* `handContactThreshold`: 接触判定距離閾値（メートル）
-
-### 4.6 カスタムモード・STM設定 (Custom Mode Settings)
-* `stmMode`: `FociSTM` (ハードウェア超高速単焦点) または `GainSTM` (PC計算複数焦点/GSPAT対応)
-* `sequentialStmFrequency`: シーケンシャル照射周波数 (Hz)
+背骨ボーン `spineBone` を軸とする円筒座標系を構築し、手（点群）の位置を最寄りの背中表面へ正射影して Focus / 楕円 STM 位置を決定します。
 
 ---
 
 ## 5. デバッグ・留意事項
 
-### 5.1 Gizmo 可視化
+### 5.1 留意事項
 
-Scene ビュー上でのリアルタイム確認のため、以下の Gizmo が自動描画されます（基底クラスで制御）。
+* `spineBone` がアサインされていない場合、自動的にルート Transform を代用軸としてアライメントします。
 
-* **ターゲット位置の球体 (`Wireframe Sphere` & `Solid Sphere`)**:
-  * 有効かつ照射条件を満たしているターゲット: **緑色のワイヤー球および実線球**で描画されます。
-  * 非アクティブなターゲット: **赤色のワイヤー球**で描画されます。
-* **接地閾値と接続線（足パーツのみ）**:
-  * 空中判定が有効な場合、`airborneHeightThreshold` の高さを示す小さな十字マークおよび高さに応じた線が表示されます。
-* **手との接触線**:
-  * 手との近接接触判定 (`onlyTargetHandContact`) が有効かつ接触時、手のクラスタ重心からターゲット位置に向けて緑色の線が描画されます。
+### 5.2 統制ログシステム (AppLogManager) との同期
 
-### 5.2 留意事項
-
-* 自動検出で一部のボーンが見つからない場合は、手動で Transform をドラッグ＆ドロップしてアサインしてください。
-* 空中判定 (`disableWhenInAir`) は足パーツのみに適用され、頭部・耳・尻尾パーツには適用されません。
+動作ログには `[FoxBodyHaptics]` プレフィックスが付与されます。詳細については [Logging.md](./Logging.md) を参照してください。

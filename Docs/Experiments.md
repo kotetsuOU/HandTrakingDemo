@@ -12,6 +12,7 @@
 本フレームワークは、視覚・触覚相互作用や触覚錯覚（保持触覚等）の心理物理実験を厳密かつ再現性高く実施するために構築されました。
 
 ### 主な特徴
+
 * **多種心理物理パラダイム対応**: 2AFC（二選択強制選択）、ABX（3段階同種識別）、SingleStimulus（検出 / 評価）、Adjustment（調整法 / PSE探索）をサポート。
 * **自動進行と倫理手続き対応**: 未開始・同意（Informed Consent）・説明（Instruction）・練習・本試行・休憩のフェーズ管理。
 * **物理数値と結果の一貫出力**: 試行データ（CSV / JSON）およびイベントログ（TSV）の自動追記保存。
@@ -23,7 +24,7 @@
 
 ### 2.1 生成ファイル・ディレクトリ構成
 
-```
+```text
 Assets/Features/Experiment/Scripts/
 ├── Enums/
 │   └── EXP_Enums.cs                     # 列挙型定義
@@ -87,7 +88,7 @@ graph TD
 
 ### 2.3 StimulusCoroutine（コルーチン刺激提示）の仕組み
 
-```
+```text
 EXP_ExperimentManager.RunTrial()
   │
   ├── condition.StimulusCoroutine() が null でない場合
@@ -107,6 +108,7 @@ EXP_ExperimentManager.RunTrial()
 ### 3.1 クイックスタート手順
 
 #### Step 1: `ExperimentConfig` アセットの作成
+
 Project ウィンドウで右クリック → **Create → EXP → ExperimentConfig** を選択します。
 
 | 設定項目 | 説明 |
@@ -117,7 +119,10 @@ Project ウィンドウで右クリック → **Create → EXP → ExperimentCon
 | `gamepadButtons` | ゲームパッドボタン名（例: `buttonSouth`） |
 | `dataFormat` | `Both`（CSV + JSON 両方保存） |
 
-#### Step 2: 実験条件クラスの実装（例）
+#### Step 2: 実験条件クラスの実装
+
+<details>
+<summary><b>📜 実験条件スクリプト（EXP_STMFrequencyCondition）の実装例（クリックで展開）</b></summary>
 
 ```csharp
 [CreateAssetMenu(menuName = "EXP/Conditions/STMFrequencyCondition")]
@@ -145,7 +150,10 @@ public class EXP_STMFrequencyCondition : EXP_Base2AFCCondition
 }
 ```
 
+</details>
+
 #### Step 3: シーンへの配置と実行
+
 1. シーン上に空の GameObject を作成し、名前を `ExperimentManager` とします。
 2. `EXP_ExperimentManager` をアタッチ（必要なコンポーネントが自動追加されます）。
 3. `config` に Step 1 の ScriptableObject をアサインし、`EXP_TrialSequencer` の `conditions` に条件アセットを追加します。
@@ -191,15 +199,69 @@ blockIndex,trialIndex,isPractice,paradigmType,responseValue,stimulusVal1,stimulu
 | `comparisonDetail` | `string` | 比較内容サマリー |
 | `metadata` | `string` | 追加詳細キーバリューペア |
 
-### 4.2 実装済み実験条件（2AFC）
+<details>
+<summary><b>📊 出力データ（CSV / JSON）の具体サンプル例（クリックで展開）</b></summary>
 
-2AFC 条件 (`EXP_STMFrequencyCondition` / `EXP_OppositeOffsetCondition`) では、Inspector の `afcMode` で以下の構成モードを選択できます。
+#### CSV 追記サンプル例 (`Trial_P001_20260802_120000.csv`)
+```csv
+blockIndex,trialIndex,isPractice,paradigmType,responseValue,stimulusVal1,stimulusVal2,isCorrect,conditionName,trialStartTime,stimulusOnsetTime,responseTime,reactionTime,responseType,comparisonDetail,metadata
+0,0,false,2AFC,120.0000,80.0,120.0,True,EXP_STMFrequencyCondition,12.450,13.200,14.850,1.650,Correct,Ref:80.0Hz vs Comp:120.0Hz,afcMode=ReferenceVsComparison
+0,1,false,2AFC,80.0000,80.0,40.0,False,EXP_STMFrequencyCondition,15.100,15.850,17.100,1.250,Incorrect,Ref:80.0Hz vs Comp:40.0Hz,afcMode=ReferenceVsComparison
+```
 
-| 構成モード (`afcMode`) | 説明 | 用途 |
+#### 構造化 JSON サンプル例 (`Trial_P001_20260802_120000.json`)
+```json
+{
+  "sessionId": "A1B2C3D4",
+  "participantId": "P001",
+  "startTime": "2026-08-02T12:00:00Z",
+  "trials": [
+    {
+      "blockIndex": 0,
+      "trialIndex": 0,
+      "isPractice": false,
+      "paradigmType": "2AFC",
+      "responseValue": "120.0000",
+      "stimulusVal1": 80.0,
+      "stimulusVal2": 120.0,
+      "isCorrect": true,
+      "reactionTime": 1.650
+    }
+  ]
+}
+```
+
+</details>
+
+### 4.2 心理物理測定と数式モデル (理論的背景)
+
+<details>
+<summary><b>📐 心理物理サイコメトリック関数と PSE / JND 算出モデル（クリックで展開）</b></summary>
+
+#### 1. 2AFC 心理物理サイコメトリック関数 (Psychometric Function)
+
+2AFC 課題において、基準刺激強度 $S_{\text{ref}}$ に対する比較刺激強度 $x$ において「比較刺激の方が大きい/強く感じた」と応答する確率 $P(x)$ は、以下の累積正規分布（シグモイドモデル）でモデル化されます。
+
+$$
+P(x) = \Phi\left( \frac{x - \mu}{\sigma} \right) = \frac{1}{\sqrt{2\pi}\sigma} \int_{-\infty}^{x} \exp\left( -\frac{(t - \mu)^2}{2\sigma^2} \right) dt
+$$
+
+| 記号 | 定義・心理物理学的意味 | 単位 / 型 |
 |---|---|---|
-| `RandomPair` (推奨) | 候補リストから重複しない2つの刺激をランダム選出 | 一対比較法・知覚マップ |
-| `ReferenceVsComparison` | 固定の基準刺激 vs ランダム選出された比較刺激 | 弁別閾 (JND)・PSE 測定 |
-| `FixedPair` | 指定した固定基準値 vs 指定比較値の単一ペア | 特定ペアの検証 |
+| $x$ | 比較刺激の物理パラメータ値（周波数、オフセット量等） | 物理単位 (`double`) |
+| $\mu$ | **主観的等価点 (PSE: Point of Subjective Equality)**: 応答確率が 50% ($P(x)=0.5$) となる刺激強度 | 物理単位 (`double`) |
+| $\sigma$ | **知覚感度（標準偏差）**: 曲線傾きの鋭さを表す尺度パラメータ | 物理単位 (`double`) |
+| $\text{JND}$ | **弁別閾 (JND: Just Noticeable Difference)**: $\text{JND} = x_{0.75} - x_{0.50} \approx 0.6745 \cdot \sigma$ | 物理単位 (`double`) |
+
+#### 2. 調整法 (Adjustment) における PSE 算出
+
+調整法では、試行数 $N$ 回の個々の調整結果 $x_i$ の算術平均および標準偏差から、直接 PSE と知覚誤差を導出します。
+
+$$
+\text{PSE} = \bar{x} = \frac{1}{N} \sum_{i=1}^{N} x_i, \quad \text{Constant Error (CE)} = \text{PSE} - S_{\text{ref}}
+$$
+
+</details>
 
 ---
 
@@ -211,16 +273,13 @@ blockIndex,trialIndex,isPractice,paradigmType,responseValue,stimulusVal1,stimulu
 
 ### 5.2 本番ブラインドモードとデバッグ表示
 
-* **本番モード (`isDebugMode = false`, 既定値)**:
-  * 被験者画面には `【 第 1 刺激 】` / `【 第 2 刺激 】` とのみ表示し、物理数値や正答率を隠蔽して主観評価バイアスを防ぎます。
-* **デバッグ表示モード (`isDebugMode = true`)**:
-  * コントロールパネルの `🐞 デバッグ表示モード` にチェックを入れると、動作確認用に詳細物理数値（`80 Hz` や `-2.0 cm`）および正答率が表示されます。
+* **本番モード (`isDebugMode = false`, 既定値)**: 被験者画面には `【 第 1 刺激 】` / `【 第 2 刺激 】` とのみ表示し、物理数値や正答率を隠蔽して主観評価バイアスを防ぎます。
+* **デバッグ表示モード (`isDebugMode = true`)**: コントロールパネルの `🐞 デバッグ表示モード` にチェックを入れると、動作確認用に詳細物理数値（`80 Hz` や `-2.0 cm`）および正答率が表示されます。
 
 ### 5.3 留意事項
 
 * **TextMeshPro の必須依存**: `EXP_UIController` は `TMP_Text` を参照しています。シーン内に TextMeshPro パッケージがインポートされている必要があります。
 * **条件クラスの継承設計**: 触覚制御を伴う実験条件を作成する場合は `EXP_BaseHapticsCondition` を継承してください。試行開始・終了時の `SetHapticsBypass` および刺激停止処理が自動化されます。
-* **EditorWindow**: Menu **Tools → EXP → Experiment Control Panel** から独立操作パネルを開くことができます。
 
 ### 5.4 統制ログシステム (`AppLogManager`) との同期
 
@@ -233,4 +292,4 @@ blockIndex,trialIndex,isPractice,paradigmType,responseValue,stimulusVal1,stimulu
 * `[EXP_EventMarker]` (タイムスタンプイベント記録ログ)
 * `[EXP_DataRecorder]` (CSV / JSON 保存結果ログ)
 
-`AppLogManager` インスペクター上でこれらのサブトリガーを個別に ON/OFF トグル制御できます。詳細なアーキテクチャおよび共通仕様については [Logging.md](./Logging.md) を参照してください。
+詳細な共通ログ仕様については [Logging.md](./Logging.md) を参照してください。

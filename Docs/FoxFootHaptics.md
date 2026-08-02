@@ -1,113 +1,86 @@
-# Fox & Object Haptics (キツネ足先およびオブジェクト追従ハプティクス) 仕様書
+# 狐キャラクター足部触覚制御 (FoxFootHaptics) 仕様書
 
-> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 🏗️ システム設計書  
+> 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: ⚙️ 機能仕様書  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本ドキュメントでは、キツネ (Fox) の足先・尻尾や動的オブジェクトの特定ボーンアニメーションに合わせて超音波フィードバックを照射する `HAP_FoxFootHapticsController` およびカスタムオブジェクトハプティクスについて解説します。
+本ドキュメントでは、歩行・走調アニメーションを行う狐キャラクターの 4 足部（前後左右の足ボーン）と地面・点群との接触をリアルタイムに検出し、足音・着地に連動した触覚フィードバックを提示する `HAP_FoxFootHapticsController` の仕様、動作フローおよびパラメータについて解説します。
 
 ---
 
 ## 1. 概要
 
-`HAP_FoxFootHapticsController` は、基底抽象クラス `HAP_BaseObjectHapticsController` を継承し、4 足歩行キャラクターの足先および尻尾ボーンの位置に連動した焦点照射を行うコンポーネントです。
+本コンポーネントは、アニメーション中または移動中の狐キャラクター（Fox）の足部ボーン位置をトラッキングし、着地瞬間や接地状態に応じた触覚刺激を空中超音波アレイ経由でリアルタイム提示する機能です。
+
+### 主な特徴
+
+* **4足ボーン自動検出機能**: ルート Transform を与えることで、`frontLeftFoot`, `frontRightFoot`, `backLeftFoot`, `backRightFoot` および `tailBone` を自動検索・再検出します。
+* **着地インパルス刺激**: 足の上下運動・速度変化を検知し、着地瞬間にパルス状の強い触覚刺激を生成します。
+* **`AnimationController` 自動バインド連動**: ターゲットオブジェクト切り替え (`Tab` キー) 時に `AnimationController` から自動的に参照が更新されます。
 
 ---
 
 ## 2. 設計思想・アーキテクチャ
 
-### 2.1 クラス構造と継承
+### 2.1 生成ファイル・関連構造
 
-* **`HAP_BaseObjectHapticsController`**:
-  すべての基本設定（STM 設定、手との接触判定、Gizmos 描画設定）と共通ロジックを保持。
-* **`HAP_FoxFootHapticsController`**:
-  Fox の足・尻尾ボーン (`Fox_F_LLegDigit11` 等) を自動検出し、`TargetInfos` を基底クラスに提供。
+```text
+Assets/Features/Haptics/Scripts/
+└── Fox/
+    ├── HAP_FoxFootHapticsController.cs # 足部触覚判定・自動ボーン検出
+    └── HAP_FoxFootVisualizer.cs       # 4足接地状態の Scene ビュー Gizmos 描画
+```
 
-### 2.2 照射モードの分類 (STM Mode)
+### 2.2 クラス相関図
 
-1. **FociSTM (ハードウェア計算・単焦点)**:
-   FPGA 側で単焦点を高周波巡回させる超軽量モード。`Track Mode = Sequential` / `Algorithm = Naive` 扱い。
-2. **GainSTM (PC計算・複数焦点対応)**:
-   PC 側で焦点・位相を計算。`Sequential` (1点ずつ巡回) または `Simultaneous` (同時マルチフォーカス) を選択可能。
+```mermaid
+graph TD
+    AC["AnimationController"] --> |AutoDetectBones| FootCtrl["HAP_FoxFootHapticsController"]
+    FootCtrl --> |Ground Check| Feet["4 Feet Transforms"]
+    FootCtrl --> |Trigger Pulse| HAP["HAP_Pipeline"]
+
+    style AC fill:#4a90d9,color:#fff
+    style FootCtrl fill:#f5a623,color:#fff
+    style HAP fill:#50e3c2,color:#000
+```
 
 ---
 
 ## 3. セットアップ・使用方法
 
-### 3.1 セットアップ手順
+### 3.1 クイックスタート手順
 
-1. Fox モデルの GameObject に `HAP_FoxFootHapticsController` をアタッチします。
-2. `HAP_AUTDHapticsController` の `Source Mode` を `ObjectTarget` に、`Holo Algorithm` を `Custom` に設定します。
-3. `Object Target Controllers` リストに作成したコントローラーを追加します。
+#### Step 1: シーンへのアタッチ
 
-### 3.2 新しいカスタムオブジェクトハプティクスの作成方法
+狐モデルを管理する GameObject に `HAP_FoxFootHapticsController` をアタッチします。
 
-新しい動的オブジェクト（鳥、小道具等）に対してハプティクスを実装する手順です。
+#### Step 2: パラメータ設定
 
-1. `HAP_BaseObjectHapticsController` を継承するクラスを作成。
-2. 追跡ターゲットのリストを `TargetInfos` プロパティとして返却。
-3. 照射座標データ生成処理 `GetHapticsTargets` を実装。
-
-```csharp
-public class HAP_CustomPropHapticsController : HAP_BaseObjectHapticsController
-{
-    public List<Transform> targets = new List<Transform>();
-    public bool isEnabled = true;
-
-    public override List<HapticsTargetInfo> TargetInfos
-    {
-        get
-        {
-            var list = new List<HapticsTargetInfo>();
-            foreach (var target in targets)
-            {
-                if (target != null)
-                {
-                    list.Add(new HapticsTargetInfo
-                    {
-                        Name = target.name,
-                        Transform = target,
-                        IsEnabled = isEnabled,
-                        IsTail = true
-                    });
-                }
-            }
-            return list;
-        }
-    }
-
-    public override List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
-    {
-        // ターゲット座標の Foci / STM データ構築ロジックを実装
-        return new List<HAP_FociGenerator.ClusterFociData>();
-    }
-}
-```
+| 設定項目 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `rootTransform` | `Transform` | `null` | 狐モデルのルート Transform |
+| `groundThreshold` | `float` | `0.02f` | 接地とみなす Y 軸閾値 (m) |
+| `footPulseIntensity` | `float` | `1.0f` | 着地時の触覚パルス強度 |
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-### 4.1 インスペクター設定パラメータ (`HAP_FoxFootHapticsController`)
+### 4.1 4 足ボーン自動検索仕様 (`AutoDetectBones`)
 
-* **ボーン割り当て & トグル**: `frontLeftFoot`, `frontRightFoot`, `backLeftFoot`, `backRightFoot`, `tailBone`
-* **接地判定設定 (Animation State Settings)**:
-  * `disableWhenInAir`: 浮遊中に足への照射をオフ。
-  * `airborneHeightThreshold`: 接地判定高さ閾値 (m)。
-  * `rootTransform`: 基準 Transform。
-* **手との接触設定 (Hand Contact Settings)**:
-  * `onlyTargetHandContact`: `HCD_Pipeline` で手検出時のみ照射。
-  * `handContactThreshold`: 接触判定距離閾値 (m)。
-* **カスタムモード設定**: `stmMode`, `sequentialStmFrequency`, `trackMode`, `customInnerAlgorithm`
+`rootTransform` の下位階層から名前に `foot`, `paw`, `leg`, `tail` を含む Transform を正規表現検索し、自動的に各足部フィールドへバインドします。
 
 ---
 
 ## 5. デバッグ・留意事項
 
-### 5.1 Gizmo 可視化
-* 緑色ワイヤー/実線球: 有効かつ照射中のターゲット
-* 赤色ワイヤー球: 非アクティブターゲット
-* 接地接続線: 接地内は緑色、閾値超えは赤/緑で色分け
-* 手接触線: 近接接触時に緑色の線を描画
+### 5.1 留意事項
 
-### 5.2 留意事項
-* `IsTargetActive` メソッドにより空中判定・手接触判定が全コンポーネントで自動適用されます。
+* 手動で特定の足ボーンを固定指定したい場合は、Inspector 上で手動アサインし `autoDetect` フラグを解除します。
+
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+動作ログには `[FoxFootHaptics]` プレフィックスが付与されます。
+
+* `[FoxFootHaptics] AutoDetectBones: 4足ボーンの自動アサイン完了`
+
+詳細については [Logging.md](./Logging.md) を参照してください。

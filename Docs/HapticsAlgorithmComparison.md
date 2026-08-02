@@ -1,56 +1,111 @@
-# ハプティクスアルゴリズム比較: Native C++ vs Pure C#
+# 触覚提示アルゴリズム比較仕様書
 
 > 📂 **親ノード**: [Haptics.md](./Haptics.md) | 🏷️ **種類**: 🔬 アルゴリズム比較  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本ドキュメントでは、元の `com.shinolab.midair-haptics-unity-core` パッケージに実装されていたハプティクス（超音波提示）生成アルゴリズムと、本プロジェクト向けに完全 C# で再設計された `HAP_AUTDController` および `HAP_HapticsSources` のアルゴリズムの違い、およびその設計思想について解説します。
+本ドキュメントでは、本システムに実装されている各種空中超音波触覚提示アルゴリズム（Focus Point / 円形 STM / 楕円 STM / ランダム STM）の提示特性、音圧エネルギー分布、受容器刺激効果および選択指針について比較・解説します。
 
 ---
 
-## 1. 概要と全体アーキテクチャの変更点
+## 1. 概要
 
-### 元パッケージ (Native C++)
-* **動作**: `HapticsCentroidSource` や `HapticsEllipseSource` などのロジックがネイティブ C++ 側に隠蔽されており、Unity 側からは設定を流し込むだけのブラックボックスでした。また、STM (Spatio-Temporal Modulation) の生成やサンプリング処理が、複数の C++ スレッド上で複雑に並行動作していました。
-* **課題**: Unity エディター上で「どのような STM 波形が出力されているか」をデバッグ・可視化することが困難でした。また、ネイティブプラグインのクラシャが Unity 全体を巻き込んで落ちるリスクがありました。
+本ドキュメントは、点提示 (Focus) と時空間変調 (STM: Spatio-Temporal Modulation) の各種軌道アルゴリズムにおける物理音圧分布、主観的触覚強度、計算負荷および適用シーンの比較仕様を定義したテクニカルガイドです。
 
-### 本システム (Pure C# / AUTD3Sharp)
-* **動作**: すべての触覚形状生成アルゴリズム（Ellipse の PCA 計算、Random のサンプリング、STM フレームの合成）を、公式の C# ラッパーである `AUTD3Sharp` 上に構築された Pure C# スクリプトに移植・公開しました。
-* **設計思想**: **「Unity エンジニアが触覚デザインを直接カスタマイズ・デバッグできること」** と **「Unity メインスレッドの安定動作」** を最優先としました。複雑なネイティブスレッドを廃止し、Unity のライフサイクル (`Update`) に完全に同期する軽量な設計へと変更しています。
+### 主な特徴
+
+* **提示モードの動的切替**: 点提示から面状・輪郭状触覚提示へのリアルタイム切り替えをサポートします。
+* **皮膚感覚受容器の最適刺激**: パチニ体 (FA-II) の感度ピーク (200Hz) に合わせた軌道高速周回アルゴリズムを採用しています。
+* **エネルギー分散制御**: 点提示によるピンポイント刺激と、楕円・ランダム STM による広領域な「触れている感」を比較・選択可能です。
 
 ---
 
 ## 2. 設計思想・アルゴリズムの比較
 
-### 🔴 割愛・削除した点 (Omitted)
-1. **CPUでの重いランダムポイント生成**: メインスレッドのスパイクを防ぐため、GPU コンピュートシェーダー (`Reservoir Sampling`) に完全移行。
-2. **ブラックボックス化されたネイティブマルチスレッド (`HoloNativeBackend`)**: 全データを GPU 側で完了させ C# で同期的処理を行う設計に変更。
-3. **GainStm および Virtual Aperture 機能**: 不要な高負荷演算を削ぎ落とし、軽量な `Sequential` と `FociStm` に絞り込み。
+### 2.1 関連モジュール構造
 
-### 🟡 C#へ移植・再構築した点 (Ported & Modified)
-1. **Ellipse Source の形状計算 (PCA)**: C# 側で GPU から受け取った「共分散行列 (Covariance Matrix)」をもとに固有値問題を解く実装に変更。
-2. **Sequential モードと FociStm モードの C# 実装**: 複数接触時も $O(1)$ の極小計算量でハプティクスを提示できるよう最適化。
-3. **速度ベースのダイナミックスケーリング (Velocity Scaling)**: 速度 (m/s) に応じて STM の周期や音圧振幅を動的調整。
-4. **Modulation（変調）の競合解決 (`Frame Policy Override`)**: `ModulationOverride` クラスとして整理し自動適用。
+```text
+Assets/Features/Haptics/Scripts/
+├── Core/
+│   ├── HAP_Pipeline.cs                # アルゴリズム分岐・軌道計算ディスパッチ
+│   └── HAP_DeviceController.cs        # STM パケット構築・送信
+```
 
-### 🟢 追加した点 (Added)
-1. **完全な Gizmo 可視化**: 焦点ポイント、楕円軌跡、16 点ランダムサンプル等の Scene ビュー可視化。
+### 2.2 提示アルゴリズム相関図
+
+```mermaid
+graph TD
+    Pipeline["HAP_Pipeline"] --> Mode{"stmMode"}
+    Mode --> |Focus| F["Focus (単一焦点)"]
+    Mode --> |Circle| C["Circle STM (正円軌道)"]
+    Mode --> |Ellipse| E["Ellipse STM (共分散楕円)"]
+    Mode --> |Random| R["Random STM (Reservoir 16点)"]
+
+    F --> Dev["HAP_DeviceController"]
+    C --> Dev
+    E --> Dev
+    R --> Dev
+
+    style Pipeline fill:#4a90d9,color:#fff
+    style Mode fill:#f5a623,color:#fff
+```
 
 ---
 
-## 3. 数理モデル・要約
+## 3. セットアップ・使用方法
 
-元のネイティブパッケージはブラックボックスであり、計算の最適化や Unity らしい調整が困難でした。
-
-本システムでは、複雑な点群処理やサンプリングを **GPU 側（[Collision.md](./Collision.md) 参照）に完全にオフロード** することで CPU の余力を確保しました。そして空いた CPU (C#) 側には、`Sequential` 出力モードや速度ベースの変調、優先度解決といった **「より表現力豊かで、ゲームエンジンに適したリアルタイム触覚デザインロジック」** を追加実装しています。
+1. `HAP_Pipeline` の Inspector から `stmMode` パラメータを変更します。
+2. 詳細なセットアップ手順は [HowToUseHaptics.md](./HowToUseHaptics.md) を参照してください。
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-具体的な実装スクリプトおよび操作方法については [Haptics.md](./Haptics.md) および [HowToUseHaptics.md](./HowToUseHaptics.md) を参照してください。
+### 4.1 パラメータ・アルゴリズム特徴比較
+
+| モード名 | 音圧集中度 | 提示面積 | 主な感覚効果 | 推奨用途 |
+|---|---|---|---|---|
+| **Focus** | 極めて高い | 点 (約 5mm) | 明確な針突刺し感・ピンポイント接触 | ボタン押し・細点接触 |
+| **Circle** | 中程度 | 円状線 | リング状の輪郭感 | 円形オブジェクト接触 |
+| **Ellipse** | クラスタ追従 | 楕円面 | 接触パッチにフィットする自然な圧迫感 | 面・ボディ接触 |
+| **Random** | 低い（分散） | 領域全体 | ザラザラ感・面状テクスチャ感 | テクスチャ表現 |
+
+### 4.2 数式モデル・理論的背景
+
+<details>
+<summary><b>📐 各種 STM 軌道および音圧エネルギー分布の計算式（クリックで展開）</b></summary>
+
+#### A. 正円 STM 軌道計算式
+
+半径 $R$、周回周波数 $f_{\text{stm}} = 200 \mathrm{Hz}$ における時刻 $t$ での焦点座標 $\mathbf{p}_{\text{circle}}(t)$ は次式で記述されます。
+
+$$
+\mathbf{p}_{\text{circle}}(t) = \mathbf{p}_{\text{center}} + R \cos(2\pi f_{\text{stm}} t) \mathbf{u} + R \sin(2\pi f_{\text{stm}} t) \mathbf{v}
+$$
+
+| 記号 | 説明 | 単位 / 型 |
+|---|---|---|
+| $\mathbf{p}_{\text{center}}$ | クラスタの接触重心 | `Vector3` |
+| $\mathbf{u}, \mathbf{v}$ | 接触面法線に直交する正規化基底ベクトル | `Vector3` |
+| $R$ | STM 軌道半径 | $\mathrm{m}$ (`float`) |
+
+#### B. 共分散楕円 STM 軌道計算式
+
+`HCD_SpatialClusteringProcessor` から得られた主軸ベクトル $\mathbf{e}_1, \mathbf{e}_2$ および標準偏差 $\sigma_1, \sigma_2$ に基づく楕円軌道：
+
+$$
+\mathbf{p}_{\text{ellipse}}(t) = \mathbf{p}_{\text{center}} + k \sigma_1 \cos(2\pi f_{\text{stm}} t) \mathbf{e}_1 + k \sigma_2 \sin(2\pi f_{\text{stm}} t) \mathbf{e}_2
+$$
+
+</details>
 
 ---
 
 ## 5. デバッグ・留意事項
 
-* 触覚デザインのデバッグ時は `HAP_GizmoVisualizer` を使用し、意図した座標に焦点が生成されているかを Scene ビューで確認できます。
+### 5.1 留意事項
+
+* 軌道周波数 $f_{\text{stm}}$ が高すぎる場合、ハードウェアの追従限界により音圧低下が発生するため $100 \sim 200 \mathrm{Hz}$ を推奨します。
+
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+比較ログには `[Haptics]` タグが適用されます。詳細については [Logging.md](./Logging.md) を参照してください。

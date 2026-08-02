@@ -1,4 +1,4 @@
-# 衝突判定アルゴリズム比較: Native C++ vs GPU Compute Shader
+# 衝突判定アルゴリズム比較: Native C++ vs GPU Compute Shader 仕様書
 
 > 📂 **親ノード**: [Collision.md](./Collision.md) | 🏷️ **種類**: 🔬 アルゴリズム比較  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
@@ -7,77 +7,128 @@
 
 ---
 
-## 1. 概要と全体アーキテクチャの変更点
+## 1. 概要
 
-### 元パッケージ (Native C++)
-* **動作**: 毎フレーム、点群バッファを CPU に Readback（読み戻し）し、C++ DLL 側で LBVH（Linear Bounding Volume Hierarchy）を用いた距離計算や、CPU 上での空間ハッシュ（SpatialHash）によるクラスタリングを実行。
-* **課題**: 10万点という大規模な点群を扱う場合、GPU → CPU への巨大なメモリ転送と CPU 側での直列的な計算がボトルネックとなり、メインスレッドを数ミリ秒〜数十ミリ秒ブロックしてしまう問題がありました。
+本比較ドキュメントは、従来手法の CPU ベース LBVH / SpatialHash パイプラインと、新規開発された GPU Compute Shader 完全並列化パイプラインのアーキテクチャ・計算性能・数理モデルの違いを明確にするための比較仕様書です。
 
-### 本システム (GPU Compute Shader)
-* **動作**: 点群は GPU の `ComputeBuffer` に留めたまま、`Compute Shader` を直接起動し、固定長の空間ハッシュ（Voxel Grid）を用いて完全並列で計算。最終的な「数十個の重心や共分散」といった軽量な結果のみを CPU に回収します。
-* **設計思想**: 「厳密な幾何学トポロジー解析」よりも「GPUの強力な並列計算力（`InterlockedAdd`）を最大化し、Unityのメインスレッドを1ミリ秒たりとも止めないこと」を最優先にリアーキテクチャを行いました。これにより処理速度が約60倍 (`3.0ms` → `0.05ms`) に向上しました。
+### 主な特徴
 
----
-
-## 2. 設計思想・アルゴリズムの比較
-
-### 🔴 割愛・削除した点 (Omitted)
-1. **CPUでの SpatialHash および Pairwise クラスタリング**: C++ 側のロジックを全廃。
-2. **クラスタの強制分割 (ExtentSplit)**: 楕円 STM で十分表現できるため不要と判断。
-3. **LBVHベースの空間探索**: 固定長の空間ハッシュ配列を用いた探索に変更。
-4. **物理応答 (PhysicsSolver, Softbody) への出力連携**: `PR_Controller` 等で独立して管理するハイブリッド構成をとっています。
-5. **動的なモジュール・リクエストシステム (`PcaObjectData`)**: 固定の Compute Shader パイプラインへ一本化。
-
-### 🟡 変更した点 (Modified)
-1. **内外（貫通）判定アルゴリズム**: **Möller-Trumbore レイキャスト（奇偶判定）**を採用。
-2. **空間クラスタリング**: **ハイブリッド空間ハッシュ (TactileClustering)** に変更。
-3. **トラッキング**: 軽量な **最近傍マッチング (Nearest-Neighbor)** へ変更。
-
-### 🟢 追加した点 (Added)
-1. **GPU上での共分散 (Covariance) 並列蓄積**: 楕円形状 (Ellipse) 用の主成分分析 (PCA) 用の分散を GPU で並列計算。
-2. **GPU Reservoir Sampling による16点のランダム抽出**: ザラザラ感 (Random STM) のためのランダムサンプリングを GPU で実装。
+* **約 60 倍の高速化**: 10 万点の大規模点群処理において、CPU への全点群リードバックを撤廃し、GPU Compute Shader 完全並列化によって処理時間を `3.0ms` から `0.05ms` へ大幅削減しました。
+* **メモリ転送ボトルネックの解消**: GPU `ComputeBuffer` 上で直接衝突判定・ボクセル集約を行うことで、メインスレッドの同期待ちフリーズを排除しました。
+* **固定小数点並列アキュムレーション**: GPU `InterlockedAdd` を活用した固定小数点数アキュムレーションにより、並列化に伴う桁落ち・丸め誤差を防ぎます。
 
 ---
 
-## 3. 数理モデル比較
+## 2. 設計思想・アーキテクチャの比較
 
-### 3.1 空間クラスタリング (Spatial Clustering)
+### 2.1 生成ファイル・関連モジュール構造
 
-接触点群 $\mathcal{P} = \{\mathbf{p}_1, \mathbf{p}_2, \dots, \mathbf{p}_N\}$ に対し：
+```text
+Assets/Features/HapticsCollision/
+├── Scripts/
+│   ├── Processors/
+│   │   ├── HCD_DistanceProcessor.cs        # GPU 距離判定
+│   │   ├── HCD_SpatialClusteringProcessor.cs # GPU ボクセルハッシュクラスタリング
+│   │   └── HCD_ClusterTracker.cs           # CPU 最近傍マッチング追跡
+│   └── Core/
+│       └── HCD_ClusterDecoder.cs          # 固定小数点バイナリデコード
+```
 
-* **ネイティブ実装 (CPU Pairwise 連結)**:
+### 2.2 アーキテクチャ比較図
 
-  $$\|\mathbf{p}_i - \mathbf{p}_j\|^2 \leq d_{\mathrm{thresh}}^2 \implies \mathrm{Union}(i, j)$$
+```mermaid
+graph TD
+    subgraph "従来手法 (Native C++ CPU)"
+        GPU1["点群バッファ (GPU)"] --> |全点群 Readback (遅い)| CPU1["CPU LBVH 構築"]
+        CPU1 --> CPU2["CPU Pairwise クラスタリング"]
+        CPU2 --> Main1["メインスレッドブロック (3.0ms)"]
+    end
 
-* **C# / GPU 実装 (TactileClustering & 表面推定)**:
-  座標 $\mathbf{p}_i$ をボクセルサイズ $S_{\mathrm{cell}}$ で量子化 $\mathbf{q}_i = \lfloor \mathbf{p}_i / S_{\mathrm{cell}} \rfloor$ し、法線方向 $b_i$ と組み合わせたキー $h = \mathrm{Hash}(\mathbf{q}_i, b_i)$ で並列集約します。
-  
-  $$w_i = \mathrm{clamp}\left( \left( \mathrm{saturate}\left( 1 - \frac{d_i}{d_{\mathrm{thresh}}} \right) \right)^p, \, 0.05, \, 1.0 \right)$$
+    subgraph "提案手法 (HCD GPU Compute Shader)"
+        GPU2["点群バッファ (GPU)"] --> CS1["HCD Compute Shader (並列判定)"]
+        CS1 --> CS2["GPU Spatial Hash & Accumulate"]
+        CS2 --> |軽量結果のみ AsyncReadback| CPU3["HCD_ClusterTracker (0.05ms)"]
+    end
 
-  $$\mathbf{C}_h = \frac{\sum_{k=1}^{N_h} w_k \mathbf{x}_k}{\sum_{k=1}^{N_k} w_k}$$
+    style Main1 fill:#f56c6c,color:#fff
+    style CPU3 fill:#67c23a,color:#fff
+```
 
-  （※ $\mathbf{x}_k$ は `positionSource` の設定に応じてメッシュ表面投影点 $\mathbf{h}_k$ または点群実測位置 $\mathbf{p}_k$ から選択。固定小数点アキュムレーション精度は $100,000.0$ 倍とし、$\mathrm{clamp}$ により境界付近の整数切り捨て誤差（桁落ち）を防ぎます。）
+### 2.3 アーキテクチャ変更点一覧
 
-### 3.2 共分散 (Covariance) 行列
+* **割愛・削除した機能**: CPU 側 Pairwise 連結クラスタリング、LBVH 空間木構築、およびExtentSplit クラスタ強制分割を全廃。
+* **変更・改良した機能**: 内外（貫通）判定に Möller-Trumbore レイキャストを導入し、ハイブリッド空間ハッシュと EMA 最近傍追跡を採用。
+* **新規追加した機能**: GPU 上での共分散 (Covariance) 行列並列蓄積と、ザラザラ感 (Random STM) 用の Reservoir Sampling を新規追加。
 
-GPU 側で重心 $\mu$ に対し差分を並列蓄積：
+---
 
-$$\Sigma = \sum (\mathbf{p}_i - \mu)(\mathbf{p}_i - \mu)^T$$
+## 3. セットアップ・使用方法
 
-### 3.3 フレーム間追跡 (Cluster Tracking)
-
-最近傍探索 (Nearest-Neighbor) により前フレームの重心と照合し、接触強度 $F_{\mathrm{raw}}$ を EMA で平滑化：
-
-$$F^{(t)} = (1 - \alpha) F^{(t-1)} + \alpha F_{\mathrm{raw}}$$
+1. `HCD_Pipeline` をシーンオブジェクトにアタッチして実行します。
+2. ロジック比較の詳細は [Collision.md](./Collision.md) のセットアップ手順を参照してください。
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-具体的なパラメータ構成およびコンピュートシェーダーの実装箇所については [Collision.md](./Collision.md) を参照してください。
+### 4.1 数式モデル・理論的背景
+
+<details>
+<summary><b>📐 衝突判定・空間ハッシュ・EMA 平滑化の数理モデル比較（クリックで展開）</b></summary>
+
+#### A. 空間クラスタリング (Spatial Clustering) 数式
+
+接触点群 $\mathcal{P} = \{\mathbf{p}_1, \mathbf{p}_2, \dots, \mathbf{p}_N\}$ に対し、ボクセルサイズ $S_{\text{cell}}$ で量子化 $\mathbf{q}_i = \lfloor \mathbf{p}_i / S_{\text{cell}} \rfloor$ を適用し、法線方向 $\mathbf{n}_i$ と組み合わせたハッシュキー $h = \text{Hash}(\mathbf{q}_i, \mathbf{n}_i)$ で並列集約します。
+
+重み係数 $w_i$ およびクラスタ重心 $\mathbf{C}_h$ は次式で導出されます。
+
+$$
+w_i = \text{clamp}\left( \left( \text{saturate}\left( 1 - \frac{d_i}{d_{\text{thresh}}} \right) \right)^p, \, 0.05, \, 1.0 \right)
+$$
+
+$$
+\mathbf{C}_h = \frac{\sum_{k=1}^{N_h} w_k \mathbf{x}_k}{\sum_{k=1}^{N_h} w_k}
+$$
+
+| 記号 | 説明 | 単位 / 型 |
+|---|---|---|
+| $\mathbf{p}_i$ | 点群の実測 3D 空間座標 | `Vector3` |
+| $\mathbf{x}_k$ | 判定対象位置（実測点群 $\mathbf{p}_k$ またはメッシュ表面点 $\mathbf{h}_k$） | `Vector3` |
+| $d_i$ | 点群とメッシュ表面の最短距離 | $\mathrm{m}$ (`float`) |
+| $d_{\text{thresh}}$ | 接触距離閾値 (`distanceThreshold`) | $\mathrm{m}$ (`float`) |
+| $p$ | 距離減衰指数 | `float` |
+
+#### B. 共分散 (Covariance) 行列の GPU 並列蓄積
+
+クラスタ重心 $\mathbf{C}_h$ に対する共分散行列 $\mathbf{\Sigma}_h$ は、GPU `InterlockedAdd` を用いて差分積を並列蓄積します。
+
+$$
+\mathbf{\Sigma}_h = \sum_{k=1}^{N_h} (\mathbf{p}_k - \mathbf{C}_h)(\mathbf{p}_k - \mathbf{C}_h)^T
+$$
+
+#### C. フレーム間追跡と EMA 平滑化
+
+前フレームの重心との最近傍照合に基づき、接触強度 $F^{(t)}$ は指数移動平均 (EMA) で平滑化されます。
+
+$$
+F^{(t)} = (1 - \alpha) F^{(t-1)} + \alpha F_{\text{raw}}
+$$
+
+| 記号 | 説明 | 単位 / 型 |
+|---|---|---|
+| $\alpha$ | EMA 平滑化係数 ($0 < \alpha \le 1$) | `float` |
+| $F_{\text{raw}}$ | 当該フレームで算出された生の接触強度 | `float` |
+
+</details>
 
 ---
 
 ## 5. デバッグ・留意事項
 
-* Möller-Trumbore レイキャスト判定は閉じた 3D メッシュ（Manifold Mesh）を前提としています。メッシュに巨大な穴がある場合は内外判定が反転することがあります。
+### 5.1 留意事項
+
+* Möller-Trumbore レイキャスト判定は閉じた 3D メッシュ（Manifold Mesh）を前提としています。ポリゴンに巨大な穴がある形状では内外判定が反転することがあります。
+
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+比較・デバッグログには `[Collision]` グループのタグが適用されます。詳細については [Logging.md](./Logging.md) を参照してください。

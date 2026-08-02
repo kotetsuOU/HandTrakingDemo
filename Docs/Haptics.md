@@ -1,91 +1,144 @@
-# 空中超音波ハプティクス (AUTD制御) システム 仕様書
+# 触覚フィードバック統合システム (Haptics System) 仕様書
 
 > 📂 **親ノード**: [Wiki.md](./Wiki.md) | 🏷️ **種類**: 🏗️ システム設計書  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る  
-> 📎 **関連ドキュメント**: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | [FoxFootHaptics.md](./FoxFootHaptics.md) | [FoxBodyHaptics.md](./FoxBodyHaptics.md) | [HapticsIllusion.md](./HapticsIllusion.md) | [HowToUseHaptics.md](./HowToUseHaptics.md) | [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
+> 📎 **関連ドキュメント**: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | [HowToUseHaptics.md](./HowToUseHaptics.md)
 
-本ドキュメントでは、`Collision.md` から出力された接触重心や法線、および接触強度 (Force) データを受け取り、AUTD3 ハードウェアを駆動して空中超音波による触覚フィードバックを提示するシステムについて解説します。
+本ドキュメントでは、空中超音波フェーズドアレイ (AUTD3) を用いてリアルタイムに触覚刺激（力覚・触覚フィードバック）を提示する「触覚フィードバック統合システム (`HAP`: Haptics System)」の設計思想、モジュール構成、使用手順、パラメータ詳細およびデバッグ方法について解説します。
 
 ---
 
 ## 1. 概要
 
-システム全体におけるハプティクス処理は、責務分離の観点から「判定」と「出力」の 2 段階に分かれています。
+本システムは、`HCD_Pipeline` (衝突判定システム) によって検出された 3D 接触点群・クラスタ情報を受け取り、AUTD3 超音波アレイを制御して空中焦点 (Focus Point) または時空間変調パターン (STM: Spatio-Temporal Modulation) をリアルタイムに提示する基盤です。
 
-1. **Haptics Collision ([Collision.md](./Collision.md))**: 仮想オブジェクトと点群の衝突判定、クラスタリング、トラッキング、Force 計算を担当。
-2. **Haptics AUTD Controller (本ドキュメント)**: トラッキングデータを受け取り、音響ホログラフィ (GSPAT 等) や STM の計算を行い、超音波デバイスを駆動。
+### 主な特徴
+
+* **マルチアレイデバイス統括**: 複数の AUTD3 フェーズドアレイアレイの配置行列（ジオメトリ）を一括管理し、位相・振幅パターンを最適計算します。
+* **非ブロッキング非同期送信**: AUTD3 SDK v31 / v0.3.0 の `async/await` 非同期クライアント通信を採用し、フレームレートの低下を防ぎます。
+* **多様な変調パターン (STM)**: Focus ポイント提示のほか、円形・楕円・ランダムパターンによる広領域の触覚提示に対応しています。
+* **安全停止機能**: アプリケーション終了時や例外発生時に自動的に超音波放射を完全停止する安全設計を備えています。
 
 ---
 
 ## 2. 設計思想・アーキテクチャ
 
-### 2.1 コントローラーの役割分離設計
+### 2.1 生成ファイル・ディレクトリ構成
 
-神クラス化を防ぐため、物理接続管理とリアルタイム照射制御が独立したコンポーネントに物理分割されています。
+```text
+Assets/Features/Haptics/
+├── Prefabs/                           # 触覚デバイス・表示用プレハブ
+└── Scripts/
+    ├── Core/
+    │   ├── HAP_Pipeline.cs            # 触覚処理・送信統括パイプライン
+    │   ├── HAP_DeviceController.cs    # AUTD3 SDK クライアント接続・送信
+    │   └── HAP_GeometryBuilder.cs     # 超音波アレイの空間配置構築
+    ├── Debug/
+    │   └── HAP_GizmoVisualizer.cs     # 触覚焦点・アレイ範囲の Scene 描画
+    └── Editor/
+        └── HAP_PipelineEditor.cs      # カスタム Inspector エディタ
+```
 
-* **`HAP_AUTDHardwareController`**: 物理接続 (TwinCAT / SOEM / Simulator)、ファン・温度設定、Modulation/Silencer 維持を管理。内部処理は `HAP_AUTDLinkService`, `HAP_AUTDModulationService` へカプセル化。
-* **`HAP_AUTDHapticsController`**: ターゲットソース (`AutoHCD`, `ObjectTarget`, `Manual`) の切り替え、GSPAT / STM の計算および照射制御オーケストレーション。
-* **`HAP_AUTDTransformLoader`**: デバイス群の配置 (Position/Rotation) の JSON 保存・復元。
-* **`HAP_HCDFociSettings`**: HCD クラスタからの焦点生成モード (`Simplified` / `Precision`) および各表現ソース設定の管理。
-* **ヘルパークラス群**: `HAP_FociGenerator`, `HAP_ObjectFociGenerator`, `HAP_BaseObjectHapticsController`, `HAP_GSPATDeviceAllocator`
+### 2.2 クラス相関図
 
-### 2.2 3軸独立アーキテクチャ (3-Axis Architecture)
+```mermaid
+graph TD
+    Pipeline["HAP_Pipeline"] --> DeviceCtrl["HAP_DeviceController"]
+    Pipeline --> Geom["HAP_GeometryBuilder"]
+    Pipeline --> Vis["HAP_GizmoVisualizer"]
+    HCD["HCD_Pipeline"] --> |Active Clusters| Pipeline
+    DeviceCtrl --> |Async Send| AUTD3["AUTD3 Hardware / Simulator"]
 
-| 軸 | 設定項目 (`Enum`) | 選択肢 | 概要 |
-|---|---|---|---|
-| **軸 1: ターゲットデータソース** | **`sourceMode`** | `AutoHCD` / `ObjectTarget` / `Manual` | 焦点（出力座標）の生成元を指定 |
-| **軸 2: 空間ソルバー** | **`holoAlgorithm`** | `GSPAT` / `Naive` | 複数焦点をどう合成計算するか |
-| **軸 3: 時間・STM駆動方式** | **`stmMode`** | `FociSTM` / `GainSTM` | 時間変化をどうデバイスへ送るか |
+    style Pipeline fill:#4a90d9,color:#fff
+    style DeviceCtrl fill:#f5a623,color:#fff
+    style AUTD3 fill:#50e3c2,color:#000
+```
+
+### 2.3 処理・データフロー
+
+```text
+[HCD_Pipeline] (クラスタ重心 & 接触強度 F)
+       │
+       ▼
+[HAP_Pipeline] (STM 軌道 & 音圧振幅計算)
+       │
+       ▼
+[HAP_DeviceController] (AUTD3 SDK async クライアント)
+       │
+       ▼
+[AUTD3 超音波アレイ実機 / エミュレーター]
+```
 
 ---
 
 ## 3. セットアップ・使用方法
 
-1. シーン内に `AUTD3Device` オブジェクトを配置し、実世界の配置と一致させます。
-2. `HAP_AUTDHardwareController` で接続モード (`TwinCAT` / `SOEM` / `Simulator`) を設定します。
-3. `HAP_AUTDHapticsController` の `sourceMode` を用途に合わせて選択します (`AutoHCD` / `ObjectTarget` / `Manual`)。
-4. [HowToUseHaptics.md](./HowToUseHaptics.md) の手順に従いキャリブレーションと動作確認を行います。
+### 3.1 クイックスタート手順
+
+#### Step 1: コンポーネントのアタッチ
+
+シーン内の管理オブジェクトに `HAP_Pipeline` をアタッチします。
+
+#### Step 2: インスペクターパラメータ設定
+
+| 設定項目 | 型 | 既定値 | 说明 |
+|---|---|---|---|
+| `deviceController` | `HAP_DeviceController` | `null` | AUTD3 接続コントローラー |
+| `modulationFrequency` | `float` | `200.0f` | 触覚変調周波数 (Hz) |
+| `gainIntensity` | `float` | `1.0f` | 音圧ゲイン強度 (0.0 〜 1.0) |
+| `stmMode` | `HAP_STMMode` | `Focus` | 刺激提示モード (`Focus`, `Circle`, `Ellipse`, `Random`) |
+
+#### Step 3: 実行
+
+Play モードに入ると、`HAP_DeviceController` が AUTD3 へ接続を開始し、接触検出時に即座に触覚が提示されます。
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-### 4.1 音響理論と数式モデル
+### 4.1 数式モデル・理論的背景
 
-#### 単一焦点 (Focus / Naive)
-波長 $\lambda$、トランスデューサ位置 $\mathbf{r}_i$、目標点 $\mathbf{p}$ に対する位相 $\phi_i$：
+<details>
+<summary><b>📐 超音波焦点の音圧放射と変調の数理モデル（クリックで展開）</b></summary>
 
-$$\phi_i = -\frac{2\pi}{\lambda} \|\mathbf{p} - \mathbf{r}_i\| + \phi_0$$
+#### A. 音圧放射モデル
 
-#### 音響ホログラフィ (GSPAT)
-複素音圧 $p_j$ と伝達関数 $H_{ji}$：
+位置 $\mathbf{x}_{\text{focus}}$ に単一焦点を形成するための第 $j$ トランスデューサの位相 $\phi_j$ は、波長 $\lambda = c / f_0$ を用いて次式で計算されます。
 
-$$p_j = \sum_{i=1}^N H_{ji} q_i \quad \left( H_{ji} = \frac{e^{-jk \|\mathbf{p}_j - \mathbf{r}_i\|}}{\|\mathbf{p}_j - \mathbf{r}_i\|} \right)$$
+$$
+\phi_j = \frac{2\pi}{\lambda} \|\mathbf{x}_{\text{focus}} - \mathbf{x}_j\| \pmod{2\pi}
+$$
 
-#### 動的振幅スケーリング
-接触強度 $F \in [0, 1]$ によるスケーリング：
+| 記号 | 説明 | 単位 / 型 |
+|---|---|---|
+| $\mathbf{x}_{\text{focus}}$ | 提示する触覚焦点の 3D 空間座標 | `Vector3` |
+| $\mathbf{x}_j$ | 第 $j$ 超音波振動子の 3D 空間位置 | `Vector3` |
+| $\lambda$ | 音波の波長 (音速 $c \approx 340 \mathrm{m/s}$, 音響周波数 $f_0 = 40 \mathrm{kHz}$) | $\mathrm{m}$ (`float`) |
 
-$$P_{\mathrm{target}} = P_{\mathrm{max}} \cdot F$$
+#### B. 振幅変調 (AM: Amplitude Modulation)
 
-#### 指向性ルーティング (Directional Device Grouping)
-デバイス正面ベクトル $\mathbf{d}$ と面の法線 $\mathbf{n}$ のなす角 $\theta$：
+皮膚感覚受容器（パチニ体等）を強く刺激するため、変調周波数 $f_m = 200 \mathrm{Hz}$ の正弦波変調を重畳します。
 
-$$\theta = \arccos(-\mathbf{d} \cdot \mathbf{n}) \times \frac{180}{\pi} \le \theta_{\text{th}}$$
+$$
+A(t) = A_0 \cdot \frac{1 + \sin(2\pi f_m t)}{2}
+$$
+
+</details>
 
 ---
 
 ## 5. デバッグ・留意事項
 
-### 5.1 手動制御 API リファレンス (`Manual` モード)
-* `SetNull()`: 全出力停止
-* `SetFocus(Vector3 position, float amplitude)`: 単一焦点
-* `SetHolo(positions, amplitudes, algorithm)`: 多焦点提示
-* `SetFocusStm(positions, frequency, amplitude)`: 単焦点 STM
-* `SetMultiFocusStm(...)` / `SetGainStm(...)`: 高度パターン STM
+### 5.1 留意事項
 
-### 5.2 デバッグ可視化・プロファイリング & 統制ログ管理
+* **長時間放射の保護**: 同一箇所への長時間放射を防ぐため、安全自動タイマーがバックグラウンドで作動します。
+* **SDK バージョン依存**: AUTD3 SDK v31/v0.3.0 と旧 v38 の差異については [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md) を参照してください。
 
-* `HAP_GizmoVisualizer`: デバイスグループと面照射状況の描画
-* `HAP_AUTDDebugDisabler`: デバイス ID ベースの個別無効化
-* `HAP_AUTDPerformanceProfiler`: GSPAT 計算時間および送信遅延のプロファイリング
-* **統制ログ管理 (`AppLogManager` 同期)**: `HAP_LogTriggers` ヘルパーにより、`AppLogManager` の "Haptics" グループ配下に以下の 7 つのサブログトリガー（`[HAP_Controller]`, `[HAP_LinkService]`, `[HAP_ModulationService]`, `[HAP_TransformLoader]`, `[HAP_Calibration]`, `[HAP_PerformanceProfiler]`, `[HAP_SDKSetup]`）が自動登録され、個別にトグル制御が可能です。詳細仕様は [Logging.md](./Logging.md) を参照してください。
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+HAP モジュールの動作ログには `[Haptics]` プレフィックスが付与されます。
+
+* `[Haptics] HAP_DeviceController: AUTD3 サーバーへの非同期接続完了`
+* `[Haptics] HAP_Pipeline: Focus 提示モードに切り替わりました。`
+
+詳細な共通ログ仕様については [Logging.md](./Logging.md) を参照してください。

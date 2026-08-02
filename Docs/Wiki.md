@@ -1,6 +1,6 @@
 # RealTimeOcclusion システム統合 Wiki (ポータル)
 
-本プロジェクトは、Intel RealSense 等のセンサーから取得したリアルタイム点群（Point Cloud）を基盤とし、**「視覚的な遮蔽処理（オクルージョン）」**と**「物理的な接触判定・触覚提示（ハプティクス）」**という 2つのサブシステムを軸に構成されています。
+本プロジェクトは、Intel RealSense 等のセンサーから取得したリアルタイム点群（Point Cloud）を基盤とし、**「視覚的な遮蔽処理（オクルージョン）」**と**「物理的な接触判定・触覚提示（ハプティクス）」**という 2 つのサブシステムを軸に構成されています。
 
 本ドキュメントは、プロジェクト全体の構造を俯瞰し、各サブシステムの詳細ドキュメントへナビゲーションする統合ポータルです。
 
@@ -22,10 +22,11 @@ graph TD
     subgraph WIKI ["📄 統合ポータル (Wiki.md) - システム全体俯瞰"]
         direction TD
 
-        subgraph Calibration ["⚙️ 0. 基盤・初期化"]
+        subgraph Calibration ["⚙️ 0. 基盤・初期化・ログ"]
             direction LR
             InitNode["初期化とアライメント<br/>(Initialization.md)"]:::common
             DebugNode["PCV デバッグビューア<br/>(DebugPCV.md)"]:::debug
+            LogNode["統制ログ管理システム<br/>(Logging.md)"]:::common
         end
 
         PointCloudNode["📦 1. 点群ストリーミング・統合パイプライン<br/>(PointCloudPipeline.md)"]:::common
@@ -42,7 +43,7 @@ graph TD
                 HapticsAlgoNode["└ 🔬 アルゴリズム比較<br/>(HapticsAlgorithmComparison.md)"]:::sub
                 FoxFootNode["└ 🏗️ Fox足先照射<br/>(FoxFootHaptics.md)"]:::sub
                 FoxBodyNode["└ 🏗️ Fox全身体照射<br/>(FoxBodyHaptics.md)"]:::sub
-                IllusionNode["└ 🔬 触覚錯覚実験モジュール<br/>(HapticsIllusion.md)"]:::sub
+                IllusionNode["└ 🔬 触覚錯覚モジュール<br/>(HapticsIllusion.md)"]:::sub
                 HowToNode["└ 📖 使い方ガイド<br/>(HowToUseHaptics.md)"]:::sub
                 SDKNode["└ 🔧 SDK移行ガイド<br/>(AUTD3_SDK_Transition.md)"]:::sub
             end
@@ -80,49 +81,49 @@ graph TD
 | アイコン | 種類 | 説明 |
 |:---:|:---|:---|
 | 🏗️ | システム設計書 | コアアーキテクチャ・アルゴリズム詳細 |
-| 🔬 | アルゴリズム比較 | 旧実装 vs 新実装の深堀り資料 |
+| 🔬 | アルゴリズム比較 | 旧実装 vs 新実装の深掘り資料 |
 | 📖 | How-To / リファレンス | 使い方ガイド・操作一覧 |
 | 🔧 | SDK移行ガイド | SDK バージョン切り替え手順 |
 | 🧪 | 実験フレームワーク | 心理物理実験パラダイム・データ収集 |
 
-### 全ドキュメント一覧
+### 全ドキュメント一覧 (全 21 ファイル)
 
 | # | 種類 | ドキュメント | 概要 |
 |:---|:---:|:---|:---|
 | **0** | 🏗️ | [Initialization.md](./Initialization.md) | 複数カメラのアライメント・キャリブレーション |
 | | 🏗️ | [DebugPCV.md](./DebugPCV.md) | 点群データのリアルタイムプレビュー・デバッグビューア |
+| | 🏗️ | [Logging.md](./Logging.md) | 統制ログ管理システム (`AppLogManager` & `AppLogger`) |
 | **1** | 🏗️ | [PointCloudPipeline.md](./PointCloudPipeline.md) | RealSense 点群取得 → GPU 非同期マージ |
 | | 🏗️ | └── [DummyPointCloud.md](./DummyPointCloud.md) | Unity 3Dモデルからのダミー点群生成・法線ノイズ・外れ値付与 |
 | **2** | 🏗️ | [OcclusionRendering.md](./OcclusionRendering.md) | URP RenderGraph 上の点群オクルージョン処理 |
 | **3** | 🏗️ | [Collision.md](./Collision.md) | GPU 衝突判定・クラスタリング (HCD Pipeline) |
 | | 🔬 | └── [CollisionAlgorithmComparison.md](./CollisionAlgorithmComparison.md) | Native C++ vs GPU の数理モデル比較 |
 | **4** | 🏗️ | [Haptics.md](./Haptics.md) | AUTD3 超音波ハプティクス出力制御 |
-| | 🔬 | └── [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | Native C++ vs Pure C# のアルゴリズム比較 |
+| | 🔬 | └── [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | 提示アルゴリズム・STM 軌道比較 |
 | | 🏗️ | └── [FoxFootHaptics.md](./FoxFootHaptics.md) | キツネ足先・尻尾ハプティクス仕様 + カスタム拡張 |
-| | 🏗️ | └── [FoxBodyHaptics.md](./FoxBodyHaptics.md) | キツネ全身体（頭・耳・四肢・尻尾）ハプティクス仕様 |
-| | 🔬 | └── [HapticsIllusion.md](./HapticsIllusion.md) | 独立多重単焦点による触覚錯覚・保持感検証モジュール |
+| | 🏗️ | └── [FoxBodyHaptics.md](./FoxBodyHaptics.md) | キツネ胴体表面ハプティクス仕様 |
+| | 🔬 | └── [HapticsIllusion.md](./HapticsIllusion.md) | 触覚錯覚 (Apparent Movement / Phantom Sensation) モジュール |
 | | 📖 | └── [HowToUseHaptics.md](./HowToUseHaptics.md) | ハプティクスの初回セットアップ〜使い方ガイド |
 | | 🔧 | └── [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md) | AUTD3 SDK 新旧仕様比較と切り替え方法 |
 | **5** | 🏗️ | [Display3D.md](./Display3D.md) | SRDisplay 視線追跡 + ハーフミラー鏡像制御 |
 | **6** | 📖 | [AnimationControls.md](./AnimationControls.md) | キーボード操作対応表・デバッグ用ショートカット |
-| **7** | 🏗️ | [PhysicalResponse.md](./PhysicalResponse.md) | Softbody/BonePhysics パラメータ一括制御 |
+| **7** | 🏗️ | [PhysicalResponse.md](./PhysicalResponse.md) | Softbody / BonePhysics パラメータ一括制御 |
 | | 🏗️ | └── [PhysicalResponseLiftController.md](./PhysicalResponseLiftController.md) | 手の点群でキャラクターをリフト追従 |
 | **8** | 🧪 | [Experiments.md](./Experiments.md) | 被験者実験フレームワーク (2AFC / ABX / 調整法 / データ出力) |
-| **9** | 🏗️ | [Logging.md](./Logging.md) | 統制ログ管理システム (AppLogManager & AppLogger) |
 
 ---
 
 ## 3. 各サブシステム概要
 
-### ⚙️ 0. 基盤・初期化
-複数 RealSense カメラの位置合わせ（キャリブレーション）と、JSON ベースのアライメント設定の保存・復元を管理します。PCV デバッグビューアにより、点群データの即座のプレビューと GPU/CPU 描画ソースの切り替えが可能です。また、統制ログ管理システム (`AppLogManager` & `AppLogger`) により全モジュールのログトグルを一元制御します。
+### ⚙️ 0. 基盤・初期化・ログ
+複数 RealSense カメラの位置合わせ（キャリブレーション）と、JSON ベースのアライメント設定の保存・復元を管理します。PCV デバッグビューアにより点群データのプレビューが可能です。また、統制ログ管理システム (`AppLogManager` & `AppLogger`) により全モジュールのログトグルを一元制御します。
 
 📎 詳細: [Initialization.md](./Initialization.md) / [DebugPCV.md](./DebugPCV.md) / [Logging.md](./Logging.md)
 
 ---
 
 ### 📦 1. 点群ストリーミング・統合パイプライン
-RealSense からの非同期データ取得、HSV/YCbCr カラーフィルタリング（肌色抽出等）、および GPU ゼロコピー CommandBuffer マージを行います。統合された点群バッファは、オクルージョンとハプティクスの両パイプラインのデータ源として機能します。また、実機カメラなし環境向けに 3D オブジェクトからのダミー点群生成および法線方向ノイズ・外れ値付与機能 (`DummyPointCloud`) も提供します。
+RealSense からの非同期データ取得、HSV/YCbCr カラーフィルタリング、および GPU ゼロコピー CommandBuffer マージを行います。統合点群バッファはオクルージョンとハプティクスの両パイプラインへ供給されます。実機カメラなし環境向けにダミー点群生成および法線ノイズ・外れ値付与機能 (`DummyPointCloud`) も提供します。
 
 📎 詳細: [PointCloudPipeline.md](./PointCloudPipeline.md) / [DummyPointCloud.md](./DummyPointCloud.md)
 
@@ -143,17 +144,17 @@ URP RenderGraph 上で点群をスクリーン空間に投影し、仮想オブ�
 ---
 
 ### 🔊 4. 超音波ハプティクス出力
-衝突判定からの接触データを元に、GSPAT 等の音響ホログラフィを適用し AUTD3 ハードウェアを駆動します。完全な C# ネイティブ設計で旧ネイティブパッケージを置き換え、手動API（STM、GainGroup等）や触覚錯覚検証用独立多重焦点モデル（HapticsIllusion）も完備しています。
+衝突判定からの接触データを元に AUTD3 ハードウェアを駆動します。非同期 API による非ブロッキング送信、Focus 提示・各種 STM 軌道変調、および触覚錯覚生成モジュール (`HapticsIllusion`) を完備しています。
 
-📎 詳細: [Haptics.md](./Haptics.md) | 📖 使い方: [HowToUseHaptics.md](./HowToUseHaptics.md)
-📎 比較: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | 🔧 SDK: [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)
-📎 Fox足照射: [FoxFootHaptics.md](./FoxFootHaptics.md) | 📎 Fox全身照射: [FoxBodyHaptics.md](./FoxBodyHaptics.md)
+📎 詳細: [Haptics.md](./Haptics.md) | 📖 使い方: [HowToUseHaptics.md](./HowToUseHaptics.md)  
+📎 比較: [HapticsAlgorithmComparison.md](./HapticsAlgorithmComparison.md) | 🔧 SDK: [AUTD3_SDK_Transition.md](./AUTD3_SDK_Transition.md)  
+📎 Fox足照射: [FoxFootHaptics.md](./FoxFootHaptics.md) | 📎 Fox胴体照射: [FoxBodyHaptics.md](./FoxBodyHaptics.md)  
 📎 触覚錯覚モジュール: [HapticsIllusion.md](./HapticsIllusion.md)
 
 ---
 
 ### 👓 5. 3D立体視・ハーフミラー制御
-SDK標準トラッキングを完全活用し、描画空間をディスプレイ中心でX軸反転することでハーフミラー越しの正しい視差を実現します。投影行列の改変なしに鏡面世界を構築する、シンプルで堅牢なアーキテクチャです。
+SDK 標準トラッキングを完全活用し、描画空間をディスプレイ中心で X 軸反転することでハーフミラー越しの正しい視差を実現します。
 
 📎 詳細: [Display3D.md](./Display3D.md)
 
@@ -184,9 +185,9 @@ Midair Haptics の物理応答コンポーネント（Softbody, BonePhysics 等�
 
 本プロジェクトは、1秒間に数万〜数十万点の点群データをリアルタイムに処理するため、以下の最適化思想をすべての機能ノードで共通して貫いています。
 
-1.  **CPU-GPU ゼロコピー転送 & 非同期 CommandBuffer マージ**:
-    RealSense 等から出力されたバッファは CPU にコピーバックせず GPU 上で保持し、さらに CommandBuffer を用いて CPU を全くブロックせずに GPU のみで非同期に統合マージを完了します。URP の RenderGraph パスへもノンブロッキングで引き渡され、徹底したハイパフォーマンスを担保します。
-2.  **徹底的な GC（Garbage Collection）排除**:
-    毎フレームの配列確保や一時オブジェクト生成を完全に排除し、バッファリサイズ時のキャッシュ＆再利用、構造体プール等を徹底しています。
-3.  **アンマネージドネイティブ参照の厳密なライフサイクル管理**:
-    C++ ネイティブ参照のメモリリークを確実に防止するため、`using` や `Dispose()` による速やかな解放を徹底し、高頻度動作時でも安定したパフォーマンスを維持します。
+1. **CPU-GPU ゼロコピー転送 & 非同期 CommandBuffer マージ**:
+   RealSense 等から出力されたバッファは CPU にコピーバックせず GPU 上で保持し、さらに CommandBuffer を用いて CPU を全くブロックせずに GPU のみで非同期に統合マージを完了します。URP の RenderGraph パスへもノンブロッキングで引き渡され、徹底したハイパフォーマンスを担保します。
+2. **徹底的な GC（Garbage Collection）排除**:
+   毎フレームの配列確保や一時オブジェクト生成を完全に排除し、バッファリサイズ時のキャッシュ＆再利用、構造体プール等を徹底しています。
+3. **アンマネージドネイティブ参照の厳密なライフサイクル管理**:
+   C++ ネイティブ参照のメモリリークを確実に防止するため、`using` や `Dispose()` による速やかな解放を徹底し、高頻度動作時でも安定したパフォーマンスを維持します。
