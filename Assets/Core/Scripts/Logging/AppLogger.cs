@@ -82,6 +82,12 @@ namespace Core.Logging
             Debug.LogWarning($"[{prefix}] {message}", context);
         }
 
+        public static void LogWarning(string nameTag, string message, Object context = null)
+        {
+            if (!IsEnabled(nameTag)) return;
+            Debug.LogWarning($"[{nameTag}] {message}", context);
+        }
+
         public static void LogError(Object context, string message)
         {
             if (!IsEnabled(context)) return;
@@ -93,6 +99,12 @@ namespace Core.Logging
             if (!IsEnabled(context, subTag)) return;
             string prefix = !string.IsNullOrEmpty(subTag) ? subTag : (context != null ? context.GetType().Name : "Log");
             Debug.LogError($"[{prefix}] {message}", context);
+        }
+
+        public static void LogError(string nameTag, string message, Object context = null)
+        {
+            if (!IsEnabled(nameTag)) return;
+            Debug.LogError($"[{nameTag}] {message}", context);
         }
     }
 }

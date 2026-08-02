@@ -1,8 +1,9 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System.IO;
 using System;
 using System.Globalization;
+using Core.Logging;
 
 public static class PCV_Loader
 {
@@ -28,7 +29,7 @@ public static class PCV_Loader
     {
         if (!File.Exists(path))
         {
-            UnityEngine.Debug.LogError($"ファイルが見つかりません: {path}");
+            AppLogger.LogError(PCV_LogTriggers.TagLoader, $"ファイルが見つかりません: {path}");
             return;
         }
 
@@ -129,7 +130,7 @@ public static class PCV_Loader
 
             if (!isBinary)
             {
-                UnityEngine.Debug.LogError($"[PCV_Loader] ASCII形式のPLYファイルには対応していません: {path}");
+                AppLogger.LogError(PCV_LogTriggers.TagLoader, $"[PCV_Loader] ASCII形式のPLYファイルには対応していません: {path}");
                 return;
             }
 

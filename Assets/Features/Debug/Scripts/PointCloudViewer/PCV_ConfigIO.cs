@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using Core.Logging;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -29,7 +30,7 @@ public static class PCV_ConfigIO
     {
         if (settings == null)
         {
-            UnityEngine.Debug.LogError("[PCV_ConfigIO] Settings component is null.");
+            AppLogger.LogError(PCV_LogTriggers.TagConfigIO, "[PCV_ConfigIO] Settings component is null.");
             return;
         }
 
@@ -61,14 +62,14 @@ public static class PCV_ConfigIO
         {
             string json = JsonUtility.ToJson(data, true);
             File.WriteAllText(fullPath, json);
-            UnityEngine.Debug.Log($"[PCV_ConfigIO] Profile saved to: {fullPath}");
+            AppLogger.Log(settings, PCV_LogTriggers.TagConfigIO, $"[PCV_ConfigIO] Profile saved to: {fullPath}");
 #if UNITY_EDITOR
             AssetDatabase.Refresh();
 #endif
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError($"[PCV_ConfigIO] Failed to save profile: {e.Message}");
+            AppLogger.LogError(settings, PCV_LogTriggers.TagConfigIO, $"[PCV_ConfigIO] Failed to save profile: {e.Message}");
         }
     }
 
@@ -76,7 +77,7 @@ public static class PCV_ConfigIO
     {
         if (settings == null)
         {
-            UnityEngine.Debug.LogError("[PCV_ConfigIO] Settings component is null.");
+            AppLogger.LogError(PCV_LogTriggers.TagConfigIO, "[PCV_ConfigIO] Settings component is null.");
             return;
         }
 
@@ -85,7 +86,7 @@ public static class PCV_ConfigIO
 
         if (!File.Exists(fullPath))
         {
-            UnityEngine.Debug.LogError($"[PCV_ConfigIO] File not found: {fullPath}");
+            AppLogger.LogError(settings, PCV_LogTriggers.TagConfigIO, $"[PCV_ConfigIO] File not found: {fullPath}");
             return;
         }
 
@@ -96,7 +97,7 @@ public static class PCV_ConfigIO
 
             if (data == null)
             {
-                UnityEngine.Debug.LogError("[PCV_ConfigIO] Failed to parse JSON.");
+                AppLogger.LogError(settings, PCV_LogTriggers.TagConfigIO, "[PCV_ConfigIO] Failed to parse JSON.");
                 return;
             }
 
@@ -129,11 +130,11 @@ public static class PCV_ConfigIO
 #if UNITY_EDITOR
             EditorUtility.SetDirty(settings);
 #endif
-            UnityEngine.Debug.Log($"[PCV_ConfigIO] Profile loaded from: {fullPath}");
+            AppLogger.Log(settings, PCV_LogTriggers.TagConfigIO, $"[PCV_ConfigIO] Profile loaded from: {fullPath}");
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError($"[PCV_ConfigIO] Failed to load profile: {e.Message}");
+            AppLogger.LogError(settings, PCV_LogTriggers.TagConfigIO, $"[PCV_ConfigIO] Failed to load profile: {e.Message}");
         }
     }
 }
