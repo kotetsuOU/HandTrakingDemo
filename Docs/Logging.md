@@ -15,6 +15,7 @@
 
 * **自動コンテキスト識別（複数アタッチ対応）**: 同一スクリプトが複数 GameObject にアタッチされている場合（例: 複数台の RealSense カメラ）、`AppLogger.Log(this, ...)` 呼び出しによってログプレフィックスが **`[型名: GameObject名]`**（例: `[RsDevice: RealSense_Front]`）へ自動拡張され、出力元オブジェクトを即座に識別可能です。
 * **中央集中トグル管理**: モジュールカテゴリ（例: `HCD (Haptic Collision)`, `Experiment`, `PCV (PointCloudViewer)`, `PCD (Occlusion)`, `RealSense`）および個別サブトリガー（例: `[EXP_Manager]`, `[PCV_Controller]`, `[RsDevice] RealSense_Front`）単位でログ有効状態を切り替え可能です。
+* **ログ種別・重要度レベルによるフィルタリング**: グローバル最小ログレベル (`minLogLevel`) の指定、またはログ種別ごとの個別の有効/無効トグル (`enableInfoLogs`, `enableWarningLogs`, `enableErrorLogs`) により、「通常ログは非表示にし、警告 (`LogWarning`) とエラー (`LogError`) のみを表示する」といった高度なログ制御が可能です。
 * **Inspector の非汚染化**: 個別の `MonoBehaviour` に `public bool enableDebugLog` や `public bool EnableLog` などのトグル変数を定義せず、全制御を `AppLogManager` に統一します。
 * **自動スキャン・登録機能**: シーン内の `[AppLoggable]` 属性または `IAppLoggable` インターフェースを持つアクティブコンポーネントを全自動で検出・グループ化します。
 * **サブトリガーによる詳細分類**: `IAppLoggable` インターフェースを介して、単一コンポーネントから複数の機能別サブログトリガーを `AppLogManager` へ登録できます。
@@ -171,22 +172,28 @@ void Awake()
 
 ### 4.1 `AppLogger` API リファレンス
 
-| メソッド名 | 引数 | 説明 |
+| 型 / メソッド名 | 引数 / 構造 | 説明 |
 |---|---|---|
-| `IsEnabled` | `(Object context, string subTag)` | 指定したコンポーネントインスタンスおよびサブタグでログが有効か判定 |
-| `IsEnabled` | `(string nameTag)` | 指定した識別タグ名でログが有効か判定 |
-| `Log` | `(Object context, string message)` / `(Object context, string subTag, string message)` | デフォルトまたはサブタグを指定して情報ログを出力 |
-| `Log` | `(string nameTag, string message, Object context = null)` | 名前タグを指定して情報ログを出力 |
-| `LogWarning` | `(Object context, string message)` / `(Object context, string subTag, string message)` | デフォルトまたはサブタグを指定して警告ログを出力 |
-| `LogWarning` | `(string nameTag, string message, Object context = null)` | 名前タグを指定して警告ログを出力 |
-| `LogError` | `(Object context, string message)` / `(Object context, string subTag, string message)` | デフォルトまたはサブタグを指定してエラーログを出力 |
-| `LogError` | `(string nameTag, string message, Object context = null)` | 名前タグを指定してエラーログを出力 |
+| `AppLogLevel` (enum) | `Info` (0), `Warning` (1), `Error` (2) | ログメッセージの重要度レベルを表す列挙型 |
+| `IsEnabled` | `(Object context, string subTag = null)` | `Info` レベルで指定コンポーネント/サブタグのログが有効か判定 |
+| `IsEnabled` | `(Object context, AppLogLevel level, string subTag = null)` | 指定ログレベルおよびコンポーネント/サブタグのログが有効か判定 |
+| `IsEnabled` | `(string nameTag, AppLogLevel level = AppLogLevel.Info)` | 指定ログレベルおよび識別タグ名でログが有効か判定 |
+| `Log` | `(Object context, string message)` / `(Object context, string subTag, string message)` | `Info` レベルの通常情報ログを出力 |
+| `Log` | `(string nameTag, string message, Object context = null)` | `Info` レベルの名前タグ指定情報ログを出力 |
+| `LogWarning` | `(Object context, string message)` / `(Object context, string subTag, string message)` | `Warning` レベルの警告ログを出力 |
+| `LogWarning` | `(string nameTag, string message, Object context = null)` | `Warning` レベルの名前タグ指定警告ログを出力 |
+| `LogError` | `(Object context, string message)` / `(Object context, string subTag, string message)` | `Error` レベルのエラーログを出力 |
+| `LogError` | `(string nameTag, string message, Object context = null)` | `Error` レベルの名前タグ指定エラーログを出力 |
 
 ### 4.2 `AppLogManager` パラメータ・仕様
 
 | パラメータ名 | 型 | 既定値 | 説明 |
 |---|---|---|---|
 | `globalEnableLogging` | `bool` | `true` | アプリケーション全体のログ出力を統括するマスター切替トグル |
+| `minLogLevel` | `AppLogLevel` | `Info` | 表示する最小ログレベル (`Info`: 全表示, `Warning`: Warning以上, `Error`: Errorのみ) |
+| `enableInfoLogs` | `bool` | `true` | 通常情報ログ (`AppLogger.Log`) の表示有効/無効トグル |
+| `enableWarningLogs` | `bool` | `true` | 警告ログ (`AppLogger.LogWarning`) の表示有効/無効トグル |
+| `enableErrorLogs` | `bool` | `true` | エラーログ (`AppLogger.LogError`) の表示有効/無効トグル |
 | `categoryGroups` | `List<LogCategoryGroup>` | `-` | モジュールカテゴリー別にグループ化された各ログエントリーのリスト |
 
 ---

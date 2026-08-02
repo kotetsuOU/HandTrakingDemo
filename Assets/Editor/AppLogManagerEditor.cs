@@ -23,6 +23,22 @@ namespace Core.Editor
             SerializedProperty globalEnableProp = serializedObject.FindProperty("globalEnableLogging");
             EditorGUILayout.PropertyField(globalEnableProp, new GUIContent("Global Enable Logging"));
 
+            SerializedProperty minLogLevelProp = serializedObject.FindProperty("minLogLevel");
+            if (minLogLevelProp != null)
+            {
+                EditorGUILayout.PropertyField(minLogLevelProp, new GUIContent("Minimum Log Level"));
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Log Type Filters", EditorStyles.boldLabel);
+            SerializedProperty enableInfoProp = serializedObject.FindProperty("enableInfoLogs");
+            SerializedProperty enableWarningProp = serializedObject.FindProperty("enableWarningLogs");
+            SerializedProperty enableErrorProp = serializedObject.FindProperty("enableErrorLogs");
+
+            if (enableInfoProp != null) EditorGUILayout.PropertyField(enableInfoProp, new GUIContent("Enable Info Logs (Log)"));
+            if (enableWarningProp != null) EditorGUILayout.PropertyField(enableWarningProp, new GUIContent("Enable Warning Logs (LogWarning)"));
+            if (enableErrorProp != null) EditorGUILayout.PropertyField(enableErrorProp, new GUIContent("Enable Error Logs (LogError)"));
+
             EditorGUILayout.Space();
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("🔍 Scan Scene Components", GUILayout.Height(30)))

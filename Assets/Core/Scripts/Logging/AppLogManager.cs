@@ -35,6 +35,19 @@ namespace Core.Logging
         [Tooltip("全体的なログ出力の有効/無効トグル")]
         public bool globalEnableLogging = true;
 
+        [Tooltip("最小表示ログレベル (Info: すべて, Warning: Warning以上, Error: Errorのみ)")]
+        public AppLogLevel minLogLevel = AppLogLevel.Info;
+
+        [Header("Log Type Filters")]
+        [Tooltip("通常ログ (Info) の出力有効化")]
+        public bool enableInfoLogs = true;
+
+        [Tooltip("警告ログ (Warning) の出力有効化")]
+        public bool enableWarningLogs = true;
+
+        [Tooltip("エラーログ (Error) の出力有効化")]
+        public bool enableErrorLogs = true;
+
         [Header("Category Groups")]
         [Tooltip("モジュール機能ごとにグループ化されたコンポーネントターゲット")]
         public List<LogCategoryGroup> categoryGroups = new List<LogCategoryGroup>();
@@ -120,11 +133,40 @@ namespace Core.Logging
         }
 
         /// <summary>
+        /// 指定されたログレベルが出力条件を満たしているか判定
+        /// </summary>
+        public bool IsLogLevelEnabled(AppLogLevel level)
+        {
+            if (level < minLogLevel) return false;
+
+            switch (level)
+            {
+                case AppLogLevel.Info:
+                    return enableInfoLogs;
+                case AppLogLevel.Warning:
+                    return enableWarningLogs;
+                case AppLogLevel.Error:
+                    return enableErrorLogs;
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
         /// コンポーネントインスタンスおよびオプションのサブタグ指定でログが有効かどうか判定
         /// </summary>
         public bool IsLogEnabled(UnityEngine.Object targetObject, string subTag = null)
         {
+            return IsLogEnabled(targetObject, AppLogLevel.Info, subTag);
+        }
+
+        /// <summary>
+        /// コンポーネントインスタンス、ログレベル、オプションのサブタグ指定でログが有効かどうか判定
+        /// </summary>
+        public bool IsLogEnabled(UnityEngine.Object targetObject, AppLogLevel level, string subTag = null)
+        {
             if (!globalEnableLogging) return false;
+            if (!IsLogLevelEnabled(level)) return false;
 
             // サブタグ指定がある場合、ターゲット+サブタグまたはサブタグ単体でのルックアップを優先
             if (!string.IsNullOrEmpty(subTag))
@@ -159,7 +201,17 @@ namespace Core.Logging
         /// </summary>
         public bool IsLogEnabled(string nameTag)
         {
+            return IsLogEnabled(nameTag, AppLogLevel.Info);
+        }
+
+        /// <summary>
+        /// 名前/識別タグおよびログレベル指定でログが有効かどうか判定
+        /// </summary>
+        public bool IsLogEnabled(string nameTag, AppLogLevel level)
+        {
             if (!globalEnableLogging) return false;
+            if (!IsLogLevelEnabled(level)) return false;
+
             if (string.IsNullOrEmpty(nameTag)) return true;
 
             if (_nameLookup.TryGetValue(nameTag, out bool enabled))
