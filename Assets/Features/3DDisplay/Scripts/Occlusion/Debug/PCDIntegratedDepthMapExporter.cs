@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using UnityEngine;
+using Core.Logging;
 
 // 統合DepthMap（R32_UInt）を可視化画像＋可逆な生データとして保存するユーティリティ
 public static class PCDIntegratedDepthMapExporter
@@ -11,7 +12,7 @@ public static class PCDIntegratedDepthMapExporter
     {
         if (data == null || data.Length != width * height)
         {
-            Debug.LogWarning("[PCDIntegratedDepthMapExporter] Invalid depth data.");
+            AppLogger.LogWarning("PCDIntegratedDepthMapExporter", "Invalid depth data.");
             return;
         }
 
@@ -79,7 +80,7 @@ public static class PCDIntegratedDepthMapExporter
             "format=R32_UInt little-endian raw32\n";
         File.WriteAllText(metaPath, metadata);
 
-        Debug.Log($"[PCDIntegratedDepthMapExporter] Saved integrated depth maps:\nPNG: {pngPath}\nRAW: {rawPath}\nMETA: {metaPath}");
+        AppLogger.Log("PCDIntegratedDepthMapExporter", $"Saved integrated depth maps:\nPNG: {pngPath}\nRAW: {rawPath}\nMETA: {metaPath}");
     }
 
     private static Color32 EvaluateGradient(float t)

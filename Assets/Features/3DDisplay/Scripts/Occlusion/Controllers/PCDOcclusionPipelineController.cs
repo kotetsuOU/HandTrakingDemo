@@ -1,7 +1,9 @@
 using UnityEngine;
+using Core.Logging;
 using static PCDRendererFeature;
 
 [ExecuteInEditMode]
+[AppLoggable("PCD (Occlusion)")]
 public class PCDOcclusionPipelineController : MonoBehaviour
 {
     public static PCDOcclusionPipelineController Instance { get; private set; }
@@ -133,7 +135,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning($"[PCD] Duplicate PCDOcclusionPipelineController found on {gameObject.name}. Please remove it.");
+                AppLogger.LogWarning(this, $"Duplicate PCDOcclusionPipelineController found on {gameObject.name}. Please remove it.");
             }
             return;
         }

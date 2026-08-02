@@ -182,9 +182,16 @@ $$
 
 ### 5.2 統制ログシステム (AppLogManager) との同期
 
-オクルージョンパイプラインの動作ログには、プレフィックス `[OcclusionRendering]` が付与されます。
+オクルージョンパイプラインおよび PCD 関連コンポーネントのログ出力はすべて `AppLogManager` および `AppLogger` へ一元統合されています。
 
-* `[OcclusionRendering] PCDRenderPass: RenderGraph パスの構築完了`
-* `[OcclusionRendering] HoleFillingMethod が JointBilateral に変更されました。`
+* **[AppLoggable("PCD (Occlusion)")] 属性による一元管理**:
+  `PCDOcclusionPipelineController` および `PCDMeshRegistrarController` に `[AppLoggable("PCD (Occlusion)")]` 属性が付与されており、`AppLogManager` の `PCD (Occlusion)` カテゴリーグループからシーン全体・コンポーネント別にオン/オフを切り替え可能です。
+* **個別 Inspector トグルの廃止**:
+  `PCDPointBufferManager` の `EnableLog` トグルは廃止され、`AppLogger.Log("PCDPointBufferManager", ...)` 経由でログが制御されます。
+* **各コンポーネント・モジュールのログフォーマット**:
+  * `[PCDOcclusionPipelineController] Duplicate PCDOcclusionPipelineController found...`
+  * `[PCDMeshRegistrarController] Active state synced. Registered active meshes: 2 / 2`
+  * `[PCDPointBufferManager] ComputeBuffer updated with 15000 points (Static/Internal).`
+  * `[PCDDebugReadbackManager] AsyncGPUReadback success! OcclusionMap w:1920, h:1080`
 
 統制ログ仕様の詳細については [Logging.md](./Logging.md) を参照してください。

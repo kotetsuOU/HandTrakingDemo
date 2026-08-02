@@ -11,12 +11,12 @@
 
 リアルタイム処理（点群生成・オクルージョン描画・触覚衝突判定等）においては、`Update` や hot path での頻繁なログ出力や GC（Garbage Collection）の発生がパフォーマンス悪化に直結します。
 
-本システムは、各コンポーネントの Inspector を汚すことなく、シーン内の主要モジュール（`HCD`, `RealSense`, `PCD`, `Experiment`, `Haptics` 等）のログ出力を `AppLogManager` インスペクター上で一元かつ階層的に ON/OFF 制御する仕組みを提供します。
+本システムは、各コンポーネントの Inspector を汚すことなく、シーン内の主要モジュール（`HCD`, `RealSense`, `PCD`, `Experiment`, `Haptics`, `PCV` 等）のログ出力を `AppLogManager` インスペクター上で一元かつ階層的に ON/OFF 制御する仕組みを提供します。
 
 ### 主な特徴
 
-* **中央集中トグル管理**: モジュールカテゴリ（例: `HCD (Haptic Collision)`, `Experiment`）および個別サブトリガー（例: `[EXP_Manager]`, `[EXP_InputHandler]`）単位でログ有効状態を切り替え可能です。
-* **Inspector の非汚染化**: 個別の `MonoBehaviour` に `public bool enableDebugLog` などのトグル変数を定義せず、全制御を `AppLogManager` に統一します。
+* **中央集中トグル管理**: モジュールカテゴリ（例: `HCD (Haptic Collision)`, `Experiment`, `PCV (PointCloudViewer)`, `PCD (Occlusion)`）および個別サブトリガー（例: `[EXP_Manager]`, `[PCV_Controller]`, `[PCDOcclusionPipelineController]`）単位でログ有効状態を切り替え可能です。
+* **Inspector の非汚染化**: 個別の `MonoBehaviour` に `public bool enableDebugLog` や `public bool EnableLog` などのトグル変数を定義せず、全制御を `AppLogManager` に統一します。
 * **自動スキャン・登録機能**: シーン内の `[AppLoggable]` 属性または `IAppLoggable` インターフェースを持つアクティブコンポーネントを全自動で検出・グループ化します。
 * **サブトリガーによる詳細分類**: `IAppLoggable` インターフェースを介して、単一コンポーネントから複数の機能別サブログトリガーを `AppLogManager` へ登録できます。
 
@@ -33,7 +33,14 @@ Assets/Core/Scripts/Logging/
 └── (各 Feature 配下)
     ├── HCD_LogTriggers.cs             # HCD モジュール用 AppLogManager 連動トリガー
     ├── EXP_LogTriggers.cs             # Experiment モジュール用 AppLogManager 連動トリガー
-    └── HAP_LogTriggers.cs             # Haptics モジュール用 AppLogManager 連動トリガー
+    ├── HAP_LogTriggers.cs             # Haptics モジュール用 AppLogManager 連動トリガー
+    ├── DPC_LogTriggers.cs             # DummyPointCloud モジュール用 AppLogManager 連動トリガー
+    ├── PCV_LogTriggers.cs             # PointCloudViewer モジュール用 AppLogManager 連動トリガー
+    └── (PCD / 3DDisplay モジュール)
+        ├── PCDOcclusionPipelineController.cs # [AppLoggable("PCD (Occlusion)")] 属性を持つオクルージョン統括
+        ├── PCDMeshRegistrarController.cs     # [AppLoggable("PCD (Occlusion)")] 属性を持つメッシュ登録統括
+        ├── PCDPointBufferManager.cs          # AppLogger.Log 経由でログ出力するバッファマネージャー
+        └── PCDDebugReadbackManager.cs        # AppLogger 経由でログ出力する AsyncReadback マネージャー
 ```
 
 ### 2.2 クラス相関図
@@ -45,10 +52,14 @@ graph TD
     LogTriggersHCD["HCD_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
     LogTriggersEXP["EXP_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
     LogTriggersHAP["HAP_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
+    LogTriggersPCV["PCV_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
+    PCDControllers["PCD Controllers<br/>[AppLoggable]"] --> |ScanSceneComponents| AppLogManager
 
     Processors["HCD Processors / Core"] --> |AppLogger.Log| AppLogger
     EXPModules["Experiment Modules / Core"] --> |AppLogger.Log| AppLogger
     HAPModules["Haptics Modules / Core"] --> |AppLogger.Log| AppLogger
+    PCVModules["PCV Modules / Core"] --> |AppLogger.Log| AppLogger
+    PCDModules["PCD Modules / Core / Passes"] --> |AppLogger.Log| AppLogger
 
     style AppLogManager fill:#4a90d9,color:#fff
     style AppLogger fill:#f5a623,color:#fff
@@ -155,11 +166,12 @@ void Awake()
 |---|---|---|
 | `IsEnabled` | `(Object context, string subTag)` | 指定したコンポーネントインスタンスおよびサブタグでログが有効か判定 |
 | `IsEnabled` | `(string nameTag)` | 指定した識別タグ名でログが有効か判定 |
-| `Log` | `(Object context, string message)` | デフォルトタグで情報ログを出力 |
-| `Log` | `(Object context, string subTag, string message)` | サブタグを指定して情報ログを出力 |
-| `Log` | `(string nameTag, string message, Object context)` | 名前タグを指定して情報ログを出力 |
-| `LogWarning` | `(Object context, string message)` / `(Object context, string subTag, string message)` | 警告ログを出力 |
-| `LogError` | `(Object context, string message)` / `(Object context, string subTag, string message)` | エラーログを出力 |
+| `Log` | `(Object context, string message)` / `(Object context, string subTag, string message)` | デフォルトまたはサブタグを指定して情報ログを出力 |
+| `Log` | `(string nameTag, string message, Object context = null)` | 名前タグを指定して情報ログを出力 |
+| `LogWarning` | `(Object context, string message)` / `(Object context, string subTag, string message)` | デフォルトまたはサブタグを指定して警告ログを出力 |
+| `LogWarning` | `(string nameTag, string message, Object context = null)` | 名前タグを指定して警告ログを出力 |
+| `LogError` | `(Object context, string message)` / `(Object context, string subTag, string message)` | デフォルトまたはサブタグを指定してエラーログを出力 |
+| `LogError` | `(string nameTag, string message, Object context = null)` | 名前タグを指定してエラーログを出力 |
 
 ### 4.2 `AppLogManager` パラメータ・仕様
 
@@ -185,5 +197,5 @@ if (AppLogger.IsEnabled(this, HCD_Pipeline.TagDistanceProcessor) && Time.frameCo
 
 ### 5.2 留意事項
 
-* **Inspector トグル変数の個別追加禁止**: 個別の `MonoBehaviour` に `public bool enableDebugLog` などを定義することは禁止されています。必ず `AppLogManager` を経由してください。
+* **Inspector トグル変数の個別追加禁止**: 個別の `MonoBehaviour` や C# クラスに `public bool enableDebugLog` や `public bool EnableLog` などを定義することは禁止されています。必ず `AppLogManager` および `AppLogger` を経由してください（PCD モジュールもこれに従い、`PCDPointBufferManager` の `EnableLog` 変数は廃止・一元管理化されました）。
 * **直接 `Debug.Log` の使用禁止**: 各 Feature 内のプロダクションコードで直接 `Debug.Log` を呼び出すことは避け、必ず `AppLogger` を使用してください。

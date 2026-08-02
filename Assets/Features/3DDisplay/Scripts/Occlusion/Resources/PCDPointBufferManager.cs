@@ -18,6 +18,7 @@
 // =============================================================================
 using System.Collections.Generic;
 using UnityEngine;
+using Core.Logging;
 
 public class PCDPointBufferManager
 {
@@ -67,8 +68,6 @@ public class PCDPointBufferManager
     private List<Color> _tempColors = new List<Color>();
 
     // 各種プロパティへのアクセス
-    public bool EnableLog { get; set; } = false;
-    public bool enableLog { get => EnableLog; set => EnableLog = value; }
 
     public ComputeBuffer PointBuffer => _pointBuffer;
     public int PointCount => _pointCount;
@@ -101,7 +100,7 @@ public class PCDPointBufferManager
         if (prevUse != _useExternalBuffer || prevBuffer != _externalPointBuffer || prevCount != _externalPointCount)
         {
             _isDataDirty = true;
-            if (EnableLog) Debug.Log($"[PCDPointBufferManager] External buffer state changed: useExternalBuffer={_useExternalBuffer}, count={_externalPointCount}");
+            AppLogger.Log("PCDPointBufferManager", $"External buffer state changed: useExternalBuffer={_useExternalBuffer}, count={_externalPointCount}");
         }
     }
 
@@ -168,7 +167,7 @@ public class PCDPointBufferManager
             {
                 _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform });
                 _isDataDirty = true;
-                if (EnableLog) Debug.Log($"[PCDPointBufferManager] Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
+                AppLogger.Log("PCDPointBufferManager", $"Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
             }
         }
     }
@@ -180,7 +179,7 @@ public class PCDPointBufferManager
         if (removedCount > 0)
         {
             _isDataDirty = true;
-            if (EnableLog) Debug.Log($"[PCDPointBufferManager] Removed {removedCount} static mesh entry/entries.");
+            AppLogger.Log("PCDPointBufferManager", $"Removed {removedCount} static mesh entry/entries.");
         }
     }
 
@@ -314,9 +313,9 @@ public class PCDPointBufferManager
 
         // キャッシュした頂点配列のうち、有効な部分だけをGPU側へ転送
         _pointBuffer.SetData(_pointsCache, 0, 0, _pointCount);
-        if (_pointCount > 0 && _isDataDirty && EnableLog)
+        if (_pointCount > 0 && _isDataDirty)
         {
-            Debug.Log($"[PCDPointBufferManager] ComputeBuffer updated with {_pointCount} points (Static/Internal).");
+            AppLogger.Log("PCDPointBufferManager", $"ComputeBuffer updated with {_pointCount} points (Static/Internal).");
         }
         _isDataDirty = false;
     }
@@ -324,7 +323,7 @@ public class PCDPointBufferManager
     // システムの破棄時に、割り当てた全GPUバッファ(ComputeBuffer)と参照を適切に解放・クリアする
     public void Cleanup()
     {
-        if (EnableLog) Debug.Log("[PCDPointBufferManager] Cleaned up point buffers.");
+        AppLogger.Log("PCDPointBufferManager", "Cleaned up point buffers.");
 
         _pointBuffer?.Release();
         _pointBuffer = null;

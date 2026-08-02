@@ -34,7 +34,8 @@ Assets/Features/Debug/Scripts/PointCloudViewer/
 ├── PCV_Renderer.cs                    # 点群メッシュ描画 & PCDバッファ供給
 ├── PCV_MeshGenerator.cs               # Unity Mesh (Points topology) 動的生成
 ├── PCV_Settings.cs                    # インスペクター設定・プロファイルデータコンテナ
-└── PCV_ConfigIO.cs                    # JSON プロファイル保存・読み込み
+├── PCV_ConfigIO.cs                    # JSON プロファイル保存・読み込み
+└── PCV_LogTriggers.cs                # AppLogManager 連動用ログトリガー登録コンポーネント
 ```
 
 ### 2.2 クラス相関図
@@ -51,9 +52,17 @@ graph TD
     Renderer --> MeshGen["PCV_MeshGenerator"]
     Renderer --> PCD["PCDRendererFeature"]
 
+    LogTriggers["PCV_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager["AppLogManager"]
+    Controller --> |AppLogger.Log| AppLogger["AppLogger"]
+    DataMgr --> |AppLogger.Log| AppLogger
+    Loader --> |AppLogger.LogError| AppLogger
+    Renderer --> |AppLogger.LogError| AppLogger
+    ConfigIO --> |AppLogger.Log| AppLogger
+
     style Controller fill:#4a90d9,color:#fff
     style Loader fill:#f5a623,color:#fff
     style Renderer fill:#50e3c2,color:#000
+    style LogTriggers fill:#e67e22,color:#fff
 ```
 
 ### 2.3 データロード＆描画フロー
@@ -117,9 +126,14 @@ graph TD
 
 ### 5.2 統制ログシステム (AppLogManager) との同期
 
-PCV モジュールの動作ログには、プレフィックス `[DebugPCV]` が付与されます。
+PCV モジュールの全デバッグログは `AppLogger` 経由に統一されており、`PCV_LogTriggers` ヘルパーを介して `AppLogManager` の **`PCV (PointCloudViewer)`** グループ配下に以下の 5 つの機能別サブトリガーが自動登録されます。
 
-* `[DebugPCV] PCV_Loader: PLY ファイル (... 頂点) の非同期ロード完了`
-* `[DebugPCV] PCV_Controller: 姿勢補正 (ApplyTransformCorrection) を実行しました。`
+| サブトリガー名 (Tag) | 監視・制御対象クラス | 主なログ出力内容 |
+|---|---|---|
+| `PCV_Controller` | `PCV_Controller` | 描画ソース切り替え（RealSense / PCV File）、姿勢アライメント補正適用結果、コンポーネント未アタッチ警告 |
+| `PCV_DataManager` | `PCV_DataManager` | 点群データのロード完了・頂点数再構築通知、点群データ不存在警告 |
+| `PCV_Loader` | `PCV_Loader` | PLY / TXT ファイル非同期読み込みエラー、ASCII非対応エラー、ファイル非存在エラー |
+| `PCV_Renderer` | `PCV_Renderer` | メッシュ描画初期化エラー、MeshFilter / MeshRenderer 欠損警告 |
+| `PCV_ConfigIO` | `PCV_ConfigIO` | JSON プロファイル設定ファイルの保存・読み込み結果およびエラー |
 
 詳細な共通ログ規則については [Logging.md](./Logging.md) を参照してください。

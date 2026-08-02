@@ -1,12 +1,14 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Core.Logging;
 
 /// <summary>
 /// PCD（Point Cloud Display）オクルージョンパイプラインに、
 /// 複数のGameObject配下のメッシュを一括で登録・管理・更新するコントローラー。
 /// GameObjectやRendererのアアクティブ/非アクティブ状態の変更をリアルタイムに反映します。
 /// </summary>
+[AppLoggable("PCD (Occlusion)")]
 public class PCDMeshRegistrarController : MonoBehaviour
 {
     public enum LayerSelectionMode
@@ -283,7 +285,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
         if ((stateChanged || forceMarkDirty) && PCDRendererFeature.Instance != null)
         {
             PCDRendererFeature.Instance.MarkPointCloudDataDirty();
-            Debug.Log($"[PCDMeshRegistrarController] Active state synced. Registered active meshes: {registeredCount} / {_trackedItems.Count}");
+            AppLogger.Log(this, $"Active state synced. Registered active meshes: {registeredCount} / {_trackedItems.Count}");
         }
     }
 
@@ -318,7 +320,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
                 }
                 item.isCurrentlyRegistered = false;
             }
-            Debug.Log($"[PCDMeshRegistrarController] Unregistered {_trackedItems.Count} meshes.");
+            AppLogger.Log(this, $"Unregistered {_trackedItems.Count} meshes.");
         }
         _trackedItems.Clear();
         _isRegistered = false;

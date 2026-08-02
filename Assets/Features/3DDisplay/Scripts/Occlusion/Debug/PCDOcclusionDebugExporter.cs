@@ -2,13 +2,14 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using System.IO;
 using System;
+using Core.Logging;
 
 // オクルージョン値（浮動小数点数）のマップを、可視化しやすい16色のパレット形式でPNG画像として書き出すためのユーティリティ
 public static class PCDOcclusionDebugExporter
 {
     public static void ExportNeighborhoodMapFromData(int[] data, int width, int height, string savePath = "Assets/HandTrackingData/NeighborhoodMaps", string prefix = "", bool isNeighborCount = false)
     {
-        UnityEngine.Debug.Log($"[PCDOcclusionDebugExporter] Exporting Neighborhood Map from data (width={width}, height={height})...");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"Exporting Neighborhood Map from data (width={width}, height={height})...");
         if (data == null || data.Length != width * height) return;
 
 #if !UNITY_EDITOR
@@ -101,12 +102,12 @@ public static class PCDOcclusionDebugExporter
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[PCDOcclusionDebugExporter] Failed to save CSV: {ex.Message}");
+            AppLogger.LogError("PCDOcclusionDebugExporter", $"Failed to save CSV: {ex.Message}");
         }
 
         UnityEngine.Object.Destroy(tex);
-        Debug.Log($"[PCDOcclusionDebugExporter] Saved Neighborhood Map to: {fullPath}");
-        Debug.Log($"[PCDOcclusionDebugExporter] Saved Neighborhood Data (CSV) to: {csvFullPath}");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Neighborhood Map to: {fullPath}");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Neighborhood Data (CSV) to: {csvFullPath}");
     }
 
     private const float RangeMin = 0.0f;
@@ -132,7 +133,7 @@ public static class PCDOcclusionDebugExporter
     // CPU側に読み戻されたオクルージョン値の配列（data）を画像としてディスクに保存する
     public static void ExportOcclusionMap16PaletteFromData(float[] data, float[] rawData, int width, int height, string savePath = "Assets/HandTrackingData/OcclusionMaps", string prefix = "", bool preferRawValuesInCsv = false)
     {
-        UnityEngine.Debug.Log($"[PCDOcclusionDebugExporter] Exporting Occlusion Map with 16-palette from data (width={width}, height={height})...");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"Exporting Occlusion Map with 16-palette from data (width={width}, height={height})...");
         if (data == null || data.Length != width * height) return;
 
 #if !UNITY_EDITOR
@@ -215,8 +216,8 @@ public static class PCDOcclusionDebugExporter
             hist[paletteIndex]++;
         }
 
-        Debug.Log($"[PCDOcclusionDebugExporter] occlusion value range: min={minV}, max={maxV} (count={count}, virtualObj={virtualOcclusionCount}, bg={backgroundCount}, realPointVisible={realPointVisibleCount}, cyanClassCount={cyanClassCount})");
-        Debug.Log($"[PCDOcclusionDebugExporter] hist(0..1.0 step, 16bin): [{string.Join(",", hist)}]");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"occlusion value range: min={minV}, max={maxV} (count={count}, virtualObj={virtualOcclusionCount}, bg={backgroundCount}, realPointVisible={realPointVisibleCount}, cyanClassCount={cyanClassCount})");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"hist(0..1.0 step, 16bin): [{string.Join(",", hist)}]");
 
         // 画像に書き込むためのテクスチャを生成
         Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
@@ -315,12 +316,12 @@ public static class PCDOcclusionDebugExporter
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[PCDOcclusionDebugExporter] Failed to save CSV: {ex.Message}");
+            AppLogger.LogError("PCDOcclusionDebugExporter", $"Failed to save CSV: {ex.Message}");
         }
 
         // テクスチャを破棄してメモリリークを防ぐ
         UnityEngine.Object.Destroy(tex);
-        Debug.Log($"[PCDOcclusionDebugExporter] Saved Occlusion Map with 16-palette to: {fullPath}");
-        Debug.Log($"[PCDOcclusionDebugExporter] Saved Occlusion Data (CSV) to: {csvFullPath}");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Occlusion Map with 16-palette to: {fullPath}");
+        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Occlusion Data (CSV) to: {csvFullPath}");
     }
 }

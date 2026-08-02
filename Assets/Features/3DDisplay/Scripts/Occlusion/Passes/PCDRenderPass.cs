@@ -31,6 +31,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Experimental.Rendering;
+using Core.Logging;
 
 public class PCDRenderPass : ScriptableRenderPass
 {
@@ -124,7 +125,6 @@ public class PCDRenderPass : ScriptableRenderPass
     public void UpdateSettings(PCDRendererFeature.PCDRenderSettings settings)
     {
         _settings = settings;
-        _bufferManager.EnableLog = settings.enableBufferManagerLog;
     }
 
     public void SetDebugFlags(bool enablePixelTagMap, bool enableOcclusionMap)
@@ -183,7 +183,7 @@ public class PCDRenderPass : ScriptableRenderPass
         {
             if (_settings.recordOcclusionDebugMap || _settings.recordPixelTagMap || _settings.recordIntegratedDepthMap)
             {
-                Debug.LogWarning("[PCDRenderPass] Skipped rendering due to no point cloud data or depth-only mode.");
+                AppLogger.LogWarning("PCDRenderPass", "Skipped rendering due to no point cloud data or depth-only mode.");
                 if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
                 {
                     PCDRendererFeature.Instance.settings.recordOcclusionDebugMap = false;

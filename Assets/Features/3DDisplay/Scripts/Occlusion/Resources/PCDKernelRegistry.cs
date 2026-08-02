@@ -5,6 +5,7 @@
 // Initialize() で一度だけカーネルインデックスを取得し、プロパティで公開する。
 // =============================================================================
 using UnityEngine;
+using Core.Logging;
 
 /// <summary>
 /// コンピュートシェーダーの全カーネルIDを保持・初期化するレジストリ。
@@ -87,7 +88,7 @@ internal class PCDKernelRegistry
     {
         if (cs == null)
         {
-            Debug.LogError("[PCDKernelRegistry] ComputeShader is null. Initialization failed.");
+            AppLogger.LogError("PCDKernelRegistry", "ComputeShader is null. Initialization failed.");
             IsInitialized = false;
             return;
         }
