@@ -100,7 +100,7 @@ public class PCDPointBufferManager
         if (prevUse != _useExternalBuffer || prevBuffer != _externalPointBuffer || prevCount != _externalPointCount)
         {
             _isDataDirty = true;
-            AppLogger.Log("PCDPointBufferManager", $"External buffer state changed: useExternalBuffer={_useExternalBuffer}, count={_externalPointCount}");
+            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"External buffer state changed: useExternalBuffer={_useExternalBuffer}, count={_externalPointCount}");
         }
     }
 
@@ -167,7 +167,7 @@ public class PCDPointBufferManager
             {
                 _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform });
                 _isDataDirty = true;
-                AppLogger.Log("PCDPointBufferManager", $"Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
+                AppLogger.Log(PCD_LogTriggers.TagBuffer, $"Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
             }
         }
     }
@@ -179,7 +179,7 @@ public class PCDPointBufferManager
         if (removedCount > 0)
         {
             _isDataDirty = true;
-            AppLogger.Log("PCDPointBufferManager", $"Removed {removedCount} static mesh entry/entries.");
+            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"Removed {removedCount} static mesh entry/entries.");
         }
     }
 
@@ -315,7 +315,7 @@ public class PCDPointBufferManager
         _pointBuffer.SetData(_pointsCache, 0, 0, _pointCount);
         if (_pointCount > 0 && _isDataDirty)
         {
-            AppLogger.Log("PCDPointBufferManager", $"ComputeBuffer updated with {_pointCount} points (Static/Internal).");
+            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"ComputeBuffer updated with {_pointCount} points (Static/Internal).");
         }
         _isDataDirty = false;
     }
@@ -323,7 +323,7 @@ public class PCDPointBufferManager
     // システムの破棄時に、割り当てた全GPUバッファ(ComputeBuffer)と参照を適切に解放・クリアする
     public void Cleanup()
     {
-        AppLogger.Log("PCDPointBufferManager", "Cleaned up point buffers.");
+        AppLogger.Log(PCD_LogTriggers.TagBuffer, "Cleaned up point buffers.");
 
         _pointBuffer?.Release();
         _pointBuffer = null;

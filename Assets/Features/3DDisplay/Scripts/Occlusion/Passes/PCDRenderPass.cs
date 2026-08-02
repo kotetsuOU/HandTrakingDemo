@@ -183,7 +183,7 @@ public class PCDRenderPass : ScriptableRenderPass
         {
             if (_settings.recordOcclusionDebugMap || _settings.recordPixelTagMap || _settings.recordIntegratedDepthMap)
             {
-                AppLogger.LogWarning("PCDRenderPass", "Skipped rendering due to no point cloud data or depth-only mode.");
+                AppLogger.LogWarning(PCD_LogTriggers.TagPipeline, "Skipped rendering due to no point cloud data or depth-only mode.");
                 if (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.settings != null)
                 {
                     PCDRendererFeature.Instance.settings.recordOcclusionDebugMap = false;

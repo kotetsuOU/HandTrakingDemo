@@ -8,7 +8,6 @@ using Core.Logging;
 /// 複数のGameObject配下のメッシュを一括で登録・管理・更新するコントローラー。
 /// GameObjectやRendererのアアクティブ/非アクティブ状態の変更をリアルタイムに反映します。
 /// </summary>
-[AppLoggable("PCD (Occlusion)")]
 public class PCDMeshRegistrarController : MonoBehaviour
 {
     public enum LayerSelectionMode
@@ -285,7 +284,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
         if ((stateChanged || forceMarkDirty) && PCDRendererFeature.Instance != null)
         {
             PCDRendererFeature.Instance.MarkPointCloudDataDirty();
-            AppLogger.Log(this, $"Active state synced. Registered active meshes: {registeredCount} / {_trackedItems.Count}");
+            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"Active state synced. Registered active meshes: {registeredCount} / {_trackedItems.Count}");
         }
     }
 
@@ -320,7 +319,7 @@ public class PCDMeshRegistrarController : MonoBehaviour
                 }
                 item.isCurrentlyRegistered = false;
             }
-            AppLogger.Log(this, $"Unregistered {_trackedItems.Count} meshes.");
+            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"Unregistered {_trackedItems.Count} meshes.");
         }
         _trackedItems.Clear();
         _isRegistered = false;

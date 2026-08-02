@@ -12,7 +12,7 @@ public static class PCDIntegratedDepthMapExporter
     {
         if (data == null || data.Length != width * height)
         {
-            AppLogger.LogWarning("PCDIntegratedDepthMapExporter", "Invalid depth data.");
+            AppLogger.LogWarning(PCD_LogTriggers.TagExporter, "Invalid depth data.");
             return;
         }
 
@@ -80,7 +80,7 @@ public static class PCDIntegratedDepthMapExporter
             "format=R32_UInt little-endian raw32\n";
         File.WriteAllText(metaPath, metadata);
 
-        AppLogger.Log("PCDIntegratedDepthMapExporter", $"Saved integrated depth maps:\nPNG: {pngPath}\nRAW: {rawPath}\nMETA: {metaPath}");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Saved integrated depth maps:\nPNG: {pngPath}\nRAW: {rawPath}\nMETA: {metaPath}");
     }
 
     private static Color32 EvaluateGradient(float t)

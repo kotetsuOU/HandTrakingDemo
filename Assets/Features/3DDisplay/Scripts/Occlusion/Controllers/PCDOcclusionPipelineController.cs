@@ -4,7 +4,7 @@ using static PCDRendererFeature;
 
 [ExecuteInEditMode]
 [AppLoggable("PCD (Occlusion)")]
-public class PCDOcclusionPipelineController : MonoBehaviour
+public class PCDOcclusionPipelineController : MonoBehaviour, IAppLoggable
 {
     public static PCDOcclusionPipelineController Instance { get; private set; }
 
@@ -135,7 +135,7 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             }
             else
             {
-                AppLogger.LogWarning(this, $"Duplicate PCDOcclusionPipelineController found on {gameObject.name}. Please remove it.");
+                AppLogger.LogWarning(PCD_LogTriggers.TagPipeline, $"Duplicate PCDOcclusionPipelineController found on {gameObject.name}. Please remove it.");
             }
             return;
         }
@@ -239,5 +239,11 @@ public class PCDOcclusionPipelineController : MonoBehaviour
             Gizmos.DrawLine(centroid, centroid + normal * 0.05f);
 #endif
         }
+    }
+
+    public void RegisterLogTriggers(LogCategoryGroup group, System.Collections.Generic.HashSet<string> existingLabels)
+    {
+        var triggers = GetComponent<PCD_LogTriggers>() ?? gameObject.AddComponent<PCD_LogTriggers>();
+        triggers.RegisterLogTriggers(group, existingLabels);
     }
 }

@@ -9,7 +9,7 @@ public static class PCDOcclusionDebugExporter
 {
     public static void ExportNeighborhoodMapFromData(int[] data, int width, int height, string savePath = "Assets/HandTrackingData/NeighborhoodMaps", string prefix = "", bool isNeighborCount = false)
     {
-        AppLogger.Log("PCDOcclusionDebugExporter", $"Exporting Neighborhood Map from data (width={width}, height={height})...");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Exporting Neighborhood Map from data (width={width}, height={height})...");
         if (data == null || data.Length != width * height) return;
 
 #if !UNITY_EDITOR
@@ -102,12 +102,12 @@ public static class PCDOcclusionDebugExporter
         }
         catch (Exception ex)
         {
-            AppLogger.LogError("PCDOcclusionDebugExporter", $"Failed to save CSV: {ex.Message}");
+            AppLogger.LogError(PCD_LogTriggers.TagExporter, $"Failed to save CSV: {ex.Message}");
         }
 
         UnityEngine.Object.Destroy(tex);
-        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Neighborhood Map to: {fullPath}");
-        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Neighborhood Data (CSV) to: {csvFullPath}");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Saved Neighborhood Map to: {fullPath}");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Saved Neighborhood Data (CSV) to: {csvFullPath}");
     }
 
     private const float RangeMin = 0.0f;
@@ -133,7 +133,7 @@ public static class PCDOcclusionDebugExporter
     // CPU側に読み戻されたオクルージョン値の配列（data）を画像としてディスクに保存する
     public static void ExportOcclusionMap16PaletteFromData(float[] data, float[] rawData, int width, int height, string savePath = "Assets/HandTrackingData/OcclusionMaps", string prefix = "", bool preferRawValuesInCsv = false)
     {
-        AppLogger.Log("PCDOcclusionDebugExporter", $"Exporting Occlusion Map with 16-palette from data (width={width}, height={height})...");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Exporting Occlusion Map with 16-palette from data (width={width}, height={height})...");
         if (data == null || data.Length != width * height) return;
 
 #if !UNITY_EDITOR
@@ -216,8 +216,8 @@ public static class PCDOcclusionDebugExporter
             hist[paletteIndex]++;
         }
 
-        AppLogger.Log("PCDOcclusionDebugExporter", $"occlusion value range: min={minV}, max={maxV} (count={count}, virtualObj={virtualOcclusionCount}, bg={backgroundCount}, realPointVisible={realPointVisibleCount}, cyanClassCount={cyanClassCount})");
-        AppLogger.Log("PCDOcclusionDebugExporter", $"hist(0..1.0 step, 16bin): [{string.Join(",", hist)}]");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"occlusion value range: min={minV}, max={maxV} (count={count}, virtualObj={virtualOcclusionCount}, bg={backgroundCount}, realPointVisible={realPointVisibleCount}, cyanClassCount={cyanClassCount})");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"hist(0..1.0 step, 16bin): [{string.Join(",", hist)}]");
 
         // 画像に書き込むためのテクスチャを生成
         Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
@@ -316,12 +316,12 @@ public static class PCDOcclusionDebugExporter
         }
         catch (Exception ex)
         {
-            AppLogger.LogError("PCDOcclusionDebugExporter", $"Failed to save CSV: {ex.Message}");
+            AppLogger.LogError(PCD_LogTriggers.TagExporter, $"Failed to save CSV: {ex.Message}");
         }
 
         // テクスチャを破棄してメモリリークを防ぐ
         UnityEngine.Object.Destroy(tex);
-        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Occlusion Map with 16-palette to: {fullPath}");
-        AppLogger.Log("PCDOcclusionDebugExporter", $"Saved Occlusion Data (CSV) to: {csvFullPath}");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Saved Occlusion Map with 16-palette to: {fullPath}");
+        AppLogger.Log(PCD_LogTriggers.TagExporter, $"Saved Occlusion Data (CSV) to: {csvFullPath}");
     }
 }

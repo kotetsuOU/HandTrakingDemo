@@ -88,7 +88,7 @@ internal class PCDKernelRegistry
     {
         if (cs == null)
         {
-            AppLogger.LogError("PCDKernelRegistry", "ComputeShader is null. Initialization failed.");
+            AppLogger.LogError(PCD_LogTriggers.TagPipeline, "ComputeShader is null. Initialization failed.");
             IsInitialized = false;
             return;
         }

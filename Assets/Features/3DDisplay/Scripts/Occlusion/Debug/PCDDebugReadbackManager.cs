@@ -58,7 +58,7 @@ internal class PCDDebugReadbackManager
                     {
                         if (request.hasError)
                         {
-                            AppLogger.LogError("PCDDebugReadbackManager", "AsyncGPUReadback error.");
+                            AppLogger.LogError(PCD_LogTriggers.TagRecordDebug, "AsyncGPUReadback error.");
                             return;
                         }
 
@@ -75,12 +75,12 @@ internal class PCDDebugReadbackManager
 
                         if (shouldExportPixelTagMap)
                         {
-                            AppLogger.Log("PCDDebugReadbackManager", $"AsyncGPUReadback success! PixelTagMap w:{w}, h:{h}");
+                            AppLogger.Log(PCD_LogTriggers.TagRecordDebug, $"AsyncGPUReadback success! PixelTagMap w:{w}, h:{h}");
                             PCDOcclusionDebugExporter.ExportOcclusionMap16PaletteFromData(fData, fData, w, h, "Assets/HandTrackingData/PixelTagMaps", "PixelTag_" + methodPrefix);
                         }
                         if (shouldExportOcclusionMap)
                         {
-                            AppLogger.Log("PCDDebugReadbackManager", $"AsyncGPUReadback success! OcclusionMap w:{w}, h:{h}");
+                            AppLogger.Log(PCD_LogTriggers.TagRecordDebug, $"AsyncGPUReadback success! OcclusionMap w:{w}, h:{h}");
                             PCDOcclusionDebugExporter.ExportOcclusionMap16PaletteFromData(fData, rawValues, w, h, "Assets/HandTrackingData/OcclusionMaps", "Occlusion_" + methodPrefix, preferRawValuesInCsv: true);
                         }
                     });
@@ -112,7 +112,7 @@ internal class PCDDebugReadbackManager
                     {
                         if (request.hasError)
                         {
-                            AppLogger.LogError("PCDDebugReadbackManager", "AsyncGPUReadback error for IntegratedDepth.");
+                            AppLogger.LogError(PCD_LogTriggers.TagRecordDebug, "AsyncGPUReadback error for IntegratedDepth.");
                             return;
                         }
 
@@ -122,7 +122,7 @@ internal class PCDDebugReadbackManager
                         uint[] depthData = new uint[w * h];
                         rawData.CopyTo(depthData);
 
-                        AppLogger.Log("PCDDebugReadbackManager", $"AsyncGPUReadback success! IntegratedDepthMap w:{w}, h:{h}");
+                        AppLogger.Log(PCD_LogTriggers.TagRecordDebug, $"AsyncGPUReadback success! IntegratedDepthMap w:{w}, h:{h}");
                         PCDIntegratedDepthMapExporter.ExportIntegratedDepthMapFromData(depthData, w, h, "Assets/HandTrackingData/DepthMaps/Integrated", methodPrefix);
                     });
                 });
@@ -152,7 +152,7 @@ internal class PCDDebugReadbackManager
                     {
                         if (request.hasError)
                         {
-                            AppLogger.LogError("PCDDebugReadbackManager", "AsyncGPUReadback error for NeighborhoodMap.");
+                            AppLogger.LogError(PCD_LogTriggers.TagRecordDebug, "AsyncGPUReadback error for NeighborhoodMap.");
                             return;
                         }
 
@@ -162,7 +162,7 @@ internal class PCDDebugReadbackManager
                         int[] sizeData = new int[w * h];
                         rawData.CopyTo(sizeData);
 
-                        AppLogger.Log("PCDDebugReadbackManager", $"AsyncGPUReadback success! NeighborhoodMap w:{w}, h:{h}");
+                        AppLogger.Log(PCD_LogTriggers.TagRecordDebug, $"AsyncGPUReadback success! NeighborhoodMap w:{w}, h:{h}");
                         PCDOcclusionDebugExporter.ExportNeighborhoodMapFromData(sizeData, w, h, "Assets/HandTrackingData/NeighborhoodMaps", methodPrefix);
                     });
                 });
@@ -192,7 +192,7 @@ internal class PCDDebugReadbackManager
                     {
                         if (request.hasError)
                         {
-                            AppLogger.LogError("PCDDebugReadbackManager", "AsyncGPUReadback error for NeighborCountMap.");
+                            AppLogger.LogError(PCD_LogTriggers.TagRecordDebug, "AsyncGPUReadback error for NeighborCountMap.");
                             return;
                         }
 
@@ -202,7 +202,7 @@ internal class PCDDebugReadbackManager
                         int[] countData = new int[w * h];
                         for (int i = 0; i < w * h; i++) countData[i] = (int)rawData[i];
 
-                        AppLogger.Log("PCDDebugReadbackManager", $"AsyncGPUReadback success! NeighborCountMap w:{w}, h:{h}");
+                        AppLogger.Log(PCD_LogTriggers.TagRecordDebug, $"AsyncGPUReadback success! NeighborCountMap w:{w}, h:{h}");
                         PCDOcclusionDebugExporter.ExportNeighborhoodMapFromData(countData, w, h, "Assets/HandTrackingData/NeighborCountMaps", "Count_" + methodPrefix, isNeighborCount: true);
                     });
                 });
