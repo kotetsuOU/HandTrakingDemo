@@ -69,6 +69,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
 
     private void LateUpdate()
     {
+
         if (pcaMode == PCAMode.None)
         {
             ApplyToAllRenderers(r => r.IsGlobalRangeFilterEnabled = false);
@@ -114,27 +115,48 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
 
     /// <summary>
     /// 管理対象となるすべての RsPointCloudRenderer を取得するイテレータ。
-    /// リストが設定されていればそれを、設定されていなければ子オブジェクトから取得して返します。
+    /// リストが設定されていればそれを、設定されていなければ直下の子要素およびシーン全体から取得して返します。
     /// </summary>
     public IEnumerable<RsPointCloudRenderer> GetChildRenderers()
     {
+        bool hasValidRendererInList = false;
         if (renderers != null && renderers.Count > 0)
         {
             foreach (var renderer in renderers)
             {
-                if (renderer != null)
+                if (renderer != null && renderer.gameObject.activeInHierarchy && renderer.enabled)
                 {
+                    hasValidRendererInList = true;
                     yield return renderer;
                 }
             }
 
-            yield break;
+            if (hasValidRendererInList) yield break;
         }
 
+        // 直下の子オブジェクトを検索
+        bool hasChildRenderer = false;
         foreach (Transform child in transform)
         {
             var renderer = child.GetComponent<RsPointCloudRenderer>();
-            if (renderer != null)
+            if (renderer != null && renderer.gameObject.activeInHierarchy && renderer.enabled)
+            {
+                hasChildRenderer = true;
+                yield return renderer;
+            }
+        }
+
+        if (hasChildRenderer) yield break;
+
+        // シーン全体の全 RsPointCloudRenderer (RsDummyPointCloudRenderer 含む) を自動探索
+#if UNITY_2023_1_OR_NEWER
+        var allRenderers = FindObjectsByType<RsPointCloudRenderer>(FindObjectsSortMode.None);
+#else
+        var allRenderers = FindObjectsOfType<RsPointCloudRenderer>();
+#endif
+        foreach (var renderer in allRenderers)
+        {
+            if (renderer != null && renderer.gameObject.activeInHierarchy && renderer.enabled && renderer.transform.parent != transform)
             {
                 yield return renderer;
             }

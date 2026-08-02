@@ -39,6 +39,10 @@ namespace RealSense.DummyPointCloud
         [Range(0f, 50f)]
         public float noiseAmountMm = 2.0f;
 
+        [Tooltip("全点群に対するノイズの発生割合 (0.01 = 1%, 1.0 = 100%)")]
+        [Range(0f, 1f)]
+        public float noiseRatio = 1.0f;
+
         [Tooltip("ノイズの確率分布パターン")]
         public NoiseDistributionType noiseType = NoiseDistributionType.Gaussian;
 
@@ -67,6 +71,7 @@ namespace RealSense.DummyPointCloud
         private struct FixedOffset
         {
             public bool isOutlier;
+            public bool isNoise;
             public float normalOffset;        // 法線方向への乗算距離 (m)
             public float outlierSign;          // 法線方向外れ値時の符号 (-1 or 1)
             public Vector3 outlierRandomDir;   // 全方向ランダム外れ値時の単位ベクトル
@@ -80,6 +85,7 @@ namespace RealSense.DummyPointCloud
         private int _lastPointCount = -1;
         private bool _lastEnableNoise;
         private float _lastNoiseAmountMm;
+        private float _lastNoiseRatio;
         private NoiseDistributionType _lastNoiseType;
         private bool _lastEnableOutliers;
         private float _lastOutlierRatio;
@@ -120,6 +126,7 @@ namespace RealSense.DummyPointCloud
                                _lastUpdateMode != settings.updateMode ||
                                _lastEnableNoise != settings.enableNoise ||
                                !Mathf.Approximately(_lastNoiseAmountMm, settings.noiseAmountMm) ||
+                               !Mathf.Approximately(_lastNoiseRatio, settings.noiseRatio) ||
                                _lastNoiseType != settings.noiseType ||
                                _lastEnableOutliers != settings.enableOutliers ||
                                !Mathf.Approximately(_lastOutlierRatio, settings.outlierRatio) ||
@@ -134,6 +141,7 @@ namespace RealSense.DummyPointCloud
                     _lastUpdateMode = settings.updateMode;
                     _lastEnableNoise = settings.enableNoise;
                     _lastNoiseAmountMm = settings.noiseAmountMm;
+                    _lastNoiseRatio = settings.noiseRatio;
                     _lastNoiseType = settings.noiseType;
                     _lastEnableOutliers = settings.enableOutliers;
                     _lastOutlierRatio = settings.outlierRatio;
@@ -153,7 +161,7 @@ namespace RealSense.DummyPointCloud
                         Vector3 dir = settings.outlierUseRandomDirection ? offset.outlierRandomDir : (normal * offset.outlierSign);
                         pos += dir * offset.outlierDistance;
                     }
-                    else if (settings.enableNoise)
+                    else if (settings.enableNoise && offset.isNoise)
                     {
                         pos += normal * offset.normalOffset;
                     }
@@ -187,7 +195,7 @@ namespace RealSense.DummyPointCloud
                         float dist = outlierDistanceMeters * (0.8f + (float)_random.NextDouble() * 0.4f);
                         pos += dir * dist;
                     }
-                    else if (settings.enableNoise && noiseAmountMeters > 0f)
+                    else if (settings.enableNoise && noiseAmountMeters > 0f && (_random.NextDouble() < settings.noiseRatio))
                     {
                         float offset;
                         if (settings.noiseType == NoiseDistributionType.Gaussian)
@@ -248,18 +256,22 @@ namespace RealSense.DummyPointCloud
 
                     offset.outlierDistance = outlierDistanceMeters * (0.8f + (float)staticRand.NextDouble() * 0.4f);
                 }
-                else if (settings.enableNoise && noiseAmountMeters > 0f)
+                else
                 {
-                    if (settings.noiseType == NoiseDistributionType.Gaussian)
+                    offset.isNoise = settings.enableNoise && noiseAmountMeters > 0f && (staticRand.NextDouble() < settings.noiseRatio);
+                    if (offset.isNoise)
                     {
-                        double u1 = 1.0 - staticRand.NextDouble();
-                        double u2 = 1.0 - staticRand.NextDouble();
-                        double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
-                        offset.normalOffset = (float)randStdNormal * noiseAmountMeters;
-                    }
-                    else
-                    {
-                        offset.normalOffset = ((float)staticRand.NextDouble() * 2f - 1f) * noiseAmountMeters;
+                        if (settings.noiseType == NoiseDistributionType.Gaussian)
+                        {
+                            double u1 = 1.0 - staticRand.NextDouble();
+                            double u2 = 1.0 - staticRand.NextDouble();
+                            double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+                            offset.normalOffset = (float)randStdNormal * noiseAmountMeters;
+                        }
+                        else
+                        {
+                            offset.normalOffset = ((float)staticRand.NextDouble() * 2f - 1f) * noiseAmountMeters;
+                        }
                     }
                 }
 

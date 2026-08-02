@@ -46,7 +46,7 @@ internal class PCDContextBuilder
         // =========================================================================
         // 仮想接触ポイントの生成
         // =========================================================================
-        bool shouldUseExternal = PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.IsGlobalBufferMode;
+        bool shouldUseExternal = (PCDRendererFeature.Instance != null && PCDRendererFeature.Instance.IsGlobalBufferMode) || (RsGlobalPointCloudManager.Instance != null);
 
         if (settings.enableVirtualContactOcclusion && HCD_Pipeline.Instance != null)
         {

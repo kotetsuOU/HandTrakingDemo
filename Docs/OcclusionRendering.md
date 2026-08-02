@@ -184,14 +184,13 @@ $$
 
 オクルージョンパイプラインおよび PCD 関連コンポーネントのログ出力はすべて `AppLogManager` および `AppLogger` へ一元統合されています。
 
-* **[AppLoggable("PCD (Occlusion)")] 属性による一元管理**:
-  `PCDOcclusionPipelineController` および `PCDMeshRegistrarController` に `[AppLoggable("PCD (Occlusion)")]` 属性が付与されており、`AppLogManager` の `PCD (Occlusion)` カテゴリーグループからシーン全体・コンポーネント別にオン/オフを切り替え可能です。
+* **`PCD_LogTriggers` による通常ログと Record ログの個別分離**:
+  `PCDOcclusionPipelineController` に実装された `IAppLoggable` により、`AppLogManager` スキャン時に `PCD_LogTriggers` が自動連動し、`PCD (Occlusion)` カテゴリ下に以下の 4 つのサブトリガーが個別登録されます：
+  - `[PCD_Pipeline]`: パイプライン制御 (`PCDOcclusionPipelineController`), `PCDRenderPass`, `PCDKernelRegistry`
+  - `[PCD_BufferManager]`: 点群バッファ更新 (`PCDPointBufferManager`), メッシュ一括同期 (`PCDMeshRegistrarController`)
+  - `[PCD_RecordDebug]`: GPU テクスチャ AsyncReadback (`PCDDebugReadbackManager`)
+  - `[PCD_Exporter]`: PNG/CSV ファイルエクスポート (`PCDOcclusionDebugExporter`, `PCDIntegratedDepthMapExporter`)
 * **個別 Inspector トグルの廃止**:
-  `PCDPointBufferManager` の `EnableLog` トグルは廃止され、`AppLogger.Log("PCDPointBufferManager", ...)` 経由でログが制御されます。
-* **各コンポーネント・モジュールのログフォーマット**:
-  * `[PCDOcclusionPipelineController] Duplicate PCDOcclusionPipelineController found...`
-  * `[PCDMeshRegistrarController] Active state synced. Registered active meshes: 2 / 2`
-  * `[PCDPointBufferManager] ComputeBuffer updated with 15000 points (Static/Internal).`
-  * `[PCDDebugReadbackManager] AsyncGPUReadback success! OcclusionMap w:1920, h:1080`
+  `PCDPointBufferManager` の `EnableLog` トグルは廃止され、全ログ出力は `AppLogger` 経由で `AppLogManager` 上から一括/個別制御されます。
 
 統制ログ仕様の詳細については [Logging.md](./Logging.md) を参照してください。

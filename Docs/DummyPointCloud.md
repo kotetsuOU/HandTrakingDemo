@@ -14,7 +14,7 @@
 ### 主な特徴
 
 * **メッシュ面・頂点リアルタイムサンプリング**: 三角ポリゴン表面積に応じたランダムサンプリングにより、高精度なワールド座標 `Positions` とワールド法線 `Normals` を生成します。
-* **物理ノイズ & 外れ値モデリング**: ガウス分布／一様分布に基づくメッシュ法線方向オフセットノイズ、および一定割合で離脱する外れ値（Outliers）を付与可能です。
+* **物理ノイズ & 外れ値モデリング**: ガウス分布／一様分布に基づくメッシュ法線方向オフセットノイズ（発生割合 `noiseRatio` 制御対応）、および一定割合で離脱する外れ値（Outliers）を付与可能です。
 * **RealSense ソフトウェアデバイス互換**: RealSense SDK の `SoftwareDevice` 経由で `DepthFrame` ストリームを発行し、実機カメラと完全に同一のインターフェースを提供します。
 * **アロケーションフリー & GPU 高速描画**: `RsPointCloudNoiseProcessor` の内部バッファ再利用による GC フリー設計と、Procedural Instancing レンダラーによる高速描画を実現しています。
 
@@ -100,7 +100,7 @@ graph TD
 #### Step 3: ノイズおよび外れ値の調整
 
 1. `RsDummyPointCloudProvider` の **[Noise & Outliers Settings]** を開きます。
-2. `Enable Noise` を `true` にし、`Noise Amount Mm` (ノイズ振幅, mm単位) や `Noise Type` (`Gaussian` / `Uniform`) を調整します。
+2. `Enable Noise` を `true` にし、`Noise Amount Mm` (ノイズ振幅, mm単位)、`Noise Ratio` (発生割合, 0.0〜1.0)、`Noise Type` (`Gaussian` / `Uniform`) を調整します。
 3. `Enable Outliers` を `true` にし、`Outlier Ratio` (発生割合) および `Outlier Distance Mm` (離脱距離, mm単位) を調整します。
 
 ---
@@ -116,6 +116,7 @@ graph TD
 | `updateMode` | `NoiseUpdateMode` | `Dynamic` | ノイズの更新モード (`Dynamic`: フレームごと動的 / `Static`: 初回パターン固定) |
 | `enableNoise` | `bool` | `false` | メッシュ法線方向へのノイズ移動を有効化 |
 | `noiseAmountMm` | `float` | `2.0f` | 法線方向への移動ノイズ量 (mm) |
+| `noiseRatio` | `float` | `1.0f` | 全点群に対するノイズの発生割合 (0.01 = 1%, 1.0 = 100%) |
 | `noiseType` | `NoiseDistributionType` | `Gaussian` | ノイズの確率分布 (`Gaussian`: 正規分布 / `Uniform`: 一様分布) |
 | `enableOutliers` | `bool` | `false` | 外れ値（飛び値）の生成を有効化 |
 | `outlierRatio` | `float` | `0.02f` | 全点群に対する外れ値の発生割合 (0.01 = 1%) |
@@ -129,10 +130,13 @@ graph TD
 
 #### A. 法線オフセットノイズ計算式
 
-メッシュ面上の点 $\mathbf{p}_i$ に対し、ワールド単位法線ベクトル $\mathbf{n}_i$ 方向へ付与される移動後座標 $\mathbf{p}'_i$ は次式で表されます。
+メッシュ面上の点 $\mathbf{p}_i$ に対し、発生確率 $P_{\text{noise}} = \text{noiseRatio}$ の条件を満たす場合にワールド単位法線ベクトル $\mathbf{n}_i$ 方向へ付与される移動後座標 $\mathbf{p}'_i$ は次式で表されます。
 
 $$
-\mathbf{p}'_i = \mathbf{p}_i + \left( \delta_i \cdot \mathbf{n}_i \right)
+\mathbf{p}'_i = \begin{cases}
+\mathbf{p}_i + \left( \delta_i \cdot \mathbf{n}_i \right) & (\text{Random}(0, 1) < \text{noiseRatio}) \\
+\mathbf{p}_i & (\text{otherwise})
+\end{cases}
 $$
 
 ここで、ガウス分布ノイズ $\delta_i \sim \mathcal{N}(0, \sigma^2)$ の場合、Box-Muller 変換により 2 つの一様乱数 $u_1, u_2 \sim U(0, 1)$ から次のように生成されます。
@@ -146,6 +150,7 @@ $$
 | $\mathbf{p}_i$ | サンプリング点の初期ワールド座標 | `Vector3` |
 | $\mathbf{n}_i$ | メッシュのワールド単位法線ベクトル | `Vector3` |
 | $A_{\text{noise}}$ | ノイズ振幅 (`noiseAmountMm`) | $\mathrm{mm}$ (`float`) |
+| $P_{\text{noise}}$ | ノイズ付与発生割合 (`noiseRatio`) | スカラー (`float`) |
 | $\delta_i$ | 法線方向移動スカラー量 | $\mathrm{mm}$ (`float`) |
 
 #### B. 外れ値 (Outlier) 生成モデル

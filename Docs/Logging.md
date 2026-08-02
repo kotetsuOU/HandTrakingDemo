@@ -47,10 +47,13 @@ Assets/Core/Scripts/Logging/
     │   ├── RsDummyPointCloudRenderer.cs # [AppLoggable("DPC (Dummy Point Cloud)")] GPU Dirty描画レンダラー
     │   └── RsDummyProcessingPipe.cs     # [AppLoggable("DPC (Dummy Point Cloud)")] ダミーフレームパイプライン
     └── (PCD / 3DDisplay モジュール)
-        ├── PCDOcclusionPipelineController.cs # [AppLoggable("PCD (Occlusion)")] 属性を持つオクルージョン統括
-        ├── PCDMeshRegistrarController.cs     # [AppLoggable("PCD (Occlusion)")] 属性を持つメッシュ登録統括
-        ├── PCDPointBufferManager.cs          # AppLogger.Log 経由でログ出力するバッファマネージャー
-        └── PCDDebugReadbackManager.cs        # AppLogger 経由でログ出力する AsyncReadback マネージャー
+        ├── PCD_LogTriggers.cs                 # PCD モジュール用 AppLogManager 連動トリガー (通常ログ/Recordログ分離)
+        ├── PCDOcclusionPipelineController.cs # [AppLoggable / IAppLoggable] オクルージョン統括コントローラー
+        ├── PCDMeshRegistrarController.cs     # メッシュ一括登録・同期コントローラー
+        ├── PCDPointBufferManager.cs          # 点群・メッシュバッファ管理クラス (PCD_BufferManager)
+        ├── PCDDebugReadbackManager.cs        # AsyncReadback キャプチャマネージャー (PCD_RecordDebug)
+        ├── PCDOcclusionDebugExporter.cs      # オクルージョンマップ保存クラス (PCD_Exporter)
+        └── PCDIntegratedDepthMapExporter.cs  # 統合Depthマップ保存クラス (PCD_Exporter)
 ```
 
 ### 2.2 クラス相関図
@@ -63,13 +66,13 @@ graph TD
     LogTriggersEXP["EXP_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
     LogTriggersHAP["HAP_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
     LogTriggersPCV["PCV_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
-    PCDControllers["PCD Controllers<br/>[AppLoggable]"] --> |ScanSceneComponents| AppLogManager
+    LogTriggersPCD["PCD_LogTriggers<br/>[AppLoggable / IAppLoggable]"] --> |RegisterLogTriggers| AppLogManager
 
     Processors["HCD Processors / Core"] --> |AppLogger.Log| AppLogger
     EXPModules["Experiment Modules / Core"] --> |AppLogger.Log| AppLogger
     HAPModules["Haptics Modules / Core"] --> |AppLogger.Log| AppLogger
     PCVModules["PCV Modules / Core"] --> |AppLogger.Log| AppLogger
-    PCDModules["PCD Modules / Core / Passes"] --> |AppLogger.Log| AppLogger
+    PCDModules["PCD Modules / Core / Passes / Debug"] --> |AppLogger.Log| AppLogger
 
     style AppLogManager fill:#4a90d9,color:#fff
     style AppLogger fill:#f5a623,color:#fff
@@ -226,5 +229,12 @@ if (AppLogger.IsEnabled(this, HCD_Pipeline.TagDistanceProcessor) && Time.frameCo
 
 * **Inspector トグル変数の個別追加禁止**: 個別の `MonoBehaviour` や C# クラスに `public bool enableDebugLog` や `public bool EnableLog` などを定義することは禁止されています。必ず `AppLogManager` および `AppLogger` を経由してください（PCD モジュールもこれに従い、`PCDPointBufferManager` の `EnableLog` 変数は廃止・一元管理化されました）。
 * **直接 `Debug.Log` の使用禁止**: 各 Feature 内のプロダクションコードで直接 `Debug.Log` を呼び出すことは避け、必ず `AppLogger` を使用してください。
-* **`IAppLoggable` インターフェース実装の徹底**: `[AppLoggable]` 属性を持つコンポーネントは必ず `IAppLoggable` インターフェースを実装し、各種トリガー定義クラス（例: `DPC_LogTriggers`）へ委譲・登録を行ってください。未実装の場合、`AppLogManager` のコンポーネント自動スキャン時に `[型名] GameObject名` 形式の不揃いなデフォルトエントリーが生成され、重複表示の原因となります。
-* **統一ログプレフィックスの指定**: コンソールログ出力時にクラス名がプレフィックスとして冗長表示されるのを防ぐため、サブトリガーを持つコンポーネントでは `AppLogger.Log(DPC_LogTriggers.TagPipe, message, this)` のように識別タグ（`nameTag`）を第1引数に指定する形式を標準として使用してください。
+* **`IAppLoggable` インターフェース実装の徹底**: `[AppLoggable]` 属性を持つコンポーネントは必ず `IAppLoggable` インターフェースを実装し、各種トリガー定義クラス（例: `PCD_LogTriggers`, `DPC_LogTriggers`）へ委譲・登録を行ってください。未実装の場合、`AppLogManager` のコンポーネント自動スキャン時に `[型名] GameObject名` 形式の不揃いなデフォルトエントリーが生成され、重複表示やサブトリガー不完全認識の原因となります。
+* **統一ログプレフィックスの指定**: コンソールログ出力時にクラス名がプレフィックスとして冗長表示されるのを防ぐため、サブトリガーを持つコンポーネントでは `AppLogger.Log(PCD_LogTriggers.TagPipeline, message)` や `AppLogger.Log(DPC_LogTriggers.TagPipe, message, this)` のように識別タグ（`nameTag`）を第1引数に指定する形式を標準として使用してください。
+* **PCD モジュールにおける通常ログと Record ログの個別分離**:
+  `PCD_LogTriggers` により、以下の 4 つのサブトリガーが `AppLogManager` の `PCD (Occlusion)` カテゴリ下に自動配置され、通常パイプラインログとデータ記録（Record / Readback）ログを個別にトグル切替可能です：
+  - `[PCD_Pipeline]`: パイプライン制御、`PCDRenderPass`, `PCDKernelRegistry`
+  - `[PCD_BufferManager]`: 点群バッファ更新 (`PCDPointBufferManager`), メッシュ一括同期 (`PCDMeshRegistrarController`)
+  - `[PCD_RecordDebug]`: GPU テクスチャデータの AsyncReadback・キャプチャ完了通知 (`PCDDebugReadbackManager`)
+  - `[PCD_Exporter]`: PNG 画像 / CSV データファイル書き出し通知 (`PCDOcclusionDebugExporter`, `PCDIntegratedDepthMapExporter`)
+

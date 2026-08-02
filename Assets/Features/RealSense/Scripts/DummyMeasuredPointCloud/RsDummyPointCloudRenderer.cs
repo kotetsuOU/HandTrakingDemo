@@ -109,8 +109,12 @@ namespace RealSense.DummyPointCloud
             RegisterToGlobalManager();
         }
 
+        private bool _isRegisteredToGlobalManager = false;
+
         private void RegisterToGlobalManager()
         {
+            if (_isRegisteredToGlobalManager) return;
+
             var manager = RsGlobalPointCloudManager.Instance;
             if (manager != null && manager.renderers != null)
             {
@@ -119,6 +123,7 @@ namespace RealSense.DummyPointCloud
                     manager.renderers.Add(this);
                     Log("Auto-registered RsDummyPointCloudRenderer to RsGlobalPointCloudManager.");
                 }
+                _isRegisteredToGlobalManager = true;
             }
         }
 
@@ -248,6 +253,7 @@ namespace RealSense.DummyPointCloud
 
         private void LateUpdate()
         {
+            RegisterToGlobalManager();
             EnsureBufferUpdated();
 
             // 2. 静止時は一切 SetData も計算も行わず、既存の GPU バッファで 0ms 高速描画のみ実行

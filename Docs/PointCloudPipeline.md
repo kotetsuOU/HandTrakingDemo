@@ -146,8 +146,9 @@ RealSense SDK のネイティブ `Frame` インスタンスは、`using` ステ�
 
 ### 5.1 非同期点群マージ (`RsGlobalPointCloudManager`)
 
-* `_globalBuffer` (最大 300 万点) への統合マージは、CommandBuffer (`"RsPointCloud.GlobalMerge"`) を構築して `Graphics.ExecuteCommandBuffer` により GPU キューに直接投入されます。そのため CPU 側の同期待ちが発生しません。
-* マージ完了後、URP RenderGraph の `PCDRenderPass` にて `SetExternalBuffer` が呼び出され、ノンブロッキングでオクルージョン計算パスへデータが渡されます。
+* `_globalBuffer` および `_occlusionBuffer` (最大 300 万点) への統合マージは、CommandBuffer (`"RsPointCloud.GlobalMerge"`, `"RsPointCloud.OcclusionMerge"`) を構築して `Graphics.ExecuteCommandBuffer` により GPU キューに直接投入されます。そのため CPU 側の同期待ちが発生しません。
+* **自動レンダラー探索機能**: `GetChildRenderers()` は `renderers` リストや直下階層にレンダラーが見つからない場合、シーン全体の全 `RsPointCloudRenderer` / `RsDummyPointCloudRenderer` を自動検出・統合します。
+* **PCD パイプライン自動連携**: マージ完了後、`PCDContextBuilder` が `RsGlobalPointCloudManager.Instance` の存在を安全に検出し、オクルージョン計算パスへ自動的に `GetOcclusionGlobalBuffer()` を `SetExternalBuffer` 経由で供給します。
 
 ### 5.2 統制ログシステム (AppLogManager) との同期
 

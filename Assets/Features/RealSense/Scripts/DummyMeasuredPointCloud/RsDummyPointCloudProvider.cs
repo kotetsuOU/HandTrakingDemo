@@ -260,7 +260,7 @@ namespace RealSense.DummyPointCloud
                             if (isNoiseActive)
                             {
                                 AppLogger.Log(DPC_LogTriggers.TagNoiseProcessor,
-                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Mode: {noiseSettings.updateMode}, Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])", this);
+                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Mode: {noiseSettings.updateMode}, Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseRatio * 100:F1}% {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])", this);
                             }
                             else
                             {
