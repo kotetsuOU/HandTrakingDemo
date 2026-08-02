@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Core.Logging;
 using UnityEngine;
 
 namespace RealSense.DummyPointCloud
@@ -7,17 +9,15 @@ namespace RealSense.DummyPointCloud
     /// RsDummyPointCloudProvider で生成されたダミーの実測点群を「動いたら更新 (Dirty-based Update)」方式で描画する専用レンダラー。
     /// ターゲットオブジェクトが移動・変更されたフレームのみ GPU に転送し、静止時は SetData を完全に回避して 0ms 超高速描画します。
     /// </summary>
+    [AppLoggable("DummyPointCloud")]
     [RequireComponent(typeof(MeshRenderer))]
-    public class RsDummyPointCloudRenderer : RsPointCloudRenderer
+    public class RsDummyPointCloudRenderer : RsPointCloudRenderer, IAppLoggable
     {
         [Header("Dummy Dependencies")]
         [Tooltip("ダミー点群を供給する RsDummyPointCloudProvider")]
         public RsDummyPointCloudProvider dummyProvider;
 
         [Header("Debug & Gizmos Settings")]
-        [Tooltip("True にすると、描画処理やバッファ確保の動作ログをコンソールに出力します")]
-        public bool enableDebugLog = false;
-
         [Tooltip("True にすると Scene ビュー上に Gizmos のデバッグ球を重ねて表示します")]
         public bool showGizmos = false;
 
@@ -39,6 +39,12 @@ namespace RealSense.DummyPointCloud
         private System.Reflection.FieldInfo _isHalfMirrorEnabledField;
         private System.Reflection.FieldInfo _displayTransformField;
         private bool _hasLookedForCameraAdjuster = false;
+
+        public void RegisterLogTriggers(LogCategoryGroup group, HashSet<string> existingLabels)
+        {
+            var triggers = GetComponent<DPC_LogTriggers>() ?? gameObject.AddComponent<DPC_LogTriggers>();
+            triggers.RegisterLogTriggers(group, existingLabels);
+        }
 
         private bool CheckHalfMirrorSettings(out Transform displayTransform)
         {
@@ -82,10 +88,7 @@ namespace RealSense.DummyPointCloud
 
         private void Log(string message)
         {
-            if (enableDebugLog)
-            {
-                UnityEngine.Debug.Log($"[RsDummyPointCloudRenderer: {gameObject.name}] {message}");
-            }
+            AppLogger.Log(this, DPC_LogTriggers.TagRenderer, message);
         }
 
         private void OnEnable()
@@ -254,7 +257,7 @@ namespace RealSense.DummyPointCloud
                     ? dummyProvider.solidColor
                     : pointCloudColor;
 
-                if (enableDebugLog && _cachedValidPointCount != _lastLoggedPointCount)
+                if (_cachedValidPointCount != _lastLoggedPointCount)
                 {
                     _lastLoggedPointCount = _cachedValidPointCount;
                     Log($"Rendering {_cachedValidPointCount} points on GPU (Color: {drawColor}).");

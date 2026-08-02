@@ -28,6 +28,7 @@ on:
       - "Docs/HapticsIllusion.md"
       - "Docs/Experiments.md"
       - "Docs/Logging.md"
+      - "Docs/DummyPointCloud.md"
   workflow_dispatch:
 
 permissions:
@@ -48,6 +49,7 @@ jobs:
           
           cp Docs/Wiki.md temp-wiki/Home.md
           cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
+          cp Docs/DummyPointCloud.md temp-wiki/DummyPointCloud.md
           cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
           cp Docs/Collision.md temp-wiki/Collision.md
           cp Docs/CollisionAlgorithmComparison.md temp-wiki/CollisionAlgorithmComparison.md
@@ -72,6 +74,7 @@ jobs:
           mapping = {
               "Wiki.md": "Home",
               "PointCloudPipeline.md": "PointCloudPipeline",
+              "DummyPointCloud.md": "DummyPointCloud",
               "OcclusionRendering.md": "OcclusionRendering",
               "Collision.md": "Collision",
               "CollisionAlgorithmComparison.md": "CollisionAlgorithmComparison",

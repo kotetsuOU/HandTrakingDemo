@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Core.Logging;
 using Intel.RealSense;
 using UnityEngine;
 
@@ -11,8 +12,9 @@ namespace RealSense.DummyPointCloud
     /// 物理密度や色を指定してダミーの実測点群を生成し、
     /// RsProcessingPipe / RsDummyProcessingPipe の Source (RsFrameProvider) として供給するコンポーネント。
     /// </summary>
+    [AppLoggable("DummyPointCloud")]
     [DisallowMultipleComponent]
-    public class RsDummyPointCloudProvider : RsFrameProvider
+    public class RsDummyPointCloudProvider : RsFrameProvider, IAppLoggable
     {
         [Header("Target 3D Objects Settings")]
         [Tooltip("実測点群の生成元となる Unity 3D オブジェクトのリスト")]
@@ -63,10 +65,6 @@ namespace RealSense.DummyPointCloud
         [Range(1, 60)]
         public int updateFPS = 30;
 
-        [Header("Debug Log Settings")]
-        [Tooltip("True にすると、ダミー点群生成処理のログをコンソールに出力します")]
-        public bool enableDebugLog = false;
-
         public override event Action<PipelineProfile> OnStart;
         public override event Action OnStop;
         public override event Action<Frame> OnNewSample;
@@ -84,12 +82,10 @@ namespace RealSense.DummyPointCloud
         /// </summary>
         public int DataVersion { get; private set; } = 0;
 
-        private void Log(string message)
+        public void RegisterLogTriggers(LogCategoryGroup group, HashSet<string> existingLabels)
         {
-            if (enableDebugLog)
-            {
-                UnityEngine.Debug.Log($"[RsDummyPointCloudProvider: {gameObject.name}] {message}");
-            }
+            var triggers = GetComponent<DPC_LogTriggers>() ?? gameObject.AddComponent<DPC_LogTriggers>();
+            triggers.RegisterLogTriggers(group, existingLabels);
         }
 
         private void Awake()
@@ -172,7 +168,7 @@ namespace RealSense.DummyPointCloud
         {
             if (Streaming) return;
 
-            Log("Starting dummy point cloud streaming...");
+            AppLogger.Log(this, DPC_LogTriggers.TagProvider, "Starting dummy point cloud streaming...");
 
             _softwareDevice = new RsDummySoftwareDevice();
             _softwareDevice.Initialize(depthWidth, depthHeight, updateFPS);
@@ -185,14 +181,14 @@ namespace RealSense.DummyPointCloud
 
             _streamingCoroutine = StartCoroutine(StreamingLoop());
 
-            Log($"Streaming started successfully. (CameraPerspective: {useCameraPerspective}, FPS: {updateFPS})");
+            AppLogger.Log(this, DPC_LogTriggers.TagProvider, $"Streaming started successfully. (CameraPerspective: {useCameraPerspective}, FPS: {updateFPS})");
         }
 
         public void StopStreaming()
         {
             if (!Streaming) return;
 
-            Log("Stopping dummy point cloud streaming...");
+            AppLogger.Log(this, DPC_LogTriggers.TagProvider, "Stopping dummy point cloud streaming...");
 
             if (_streamingCoroutine != null)
             {
@@ -210,11 +206,13 @@ namespace RealSense.DummyPointCloud
             Streaming = false;
             OnStop?.Invoke();
 
-            Log("Streaming stopped.");
+            AppLogger.Log(this, DPC_LogTriggers.TagProvider, "Streaming stopped.");
         }
 
         private IEnumerator StreamingLoop()
         {
+            int logCounter = 0;
+
             while (Streaming)
             {
                 UpdateMaterialAndRendererColors();
@@ -223,8 +221,8 @@ namespace RealSense.DummyPointCloud
                 {
                     var prevData = LastSampledData;
 
-                    // 1. Mesh / SkinnedMesh リストから物理密度・色に応じた点群をサンプリング (動いた時のみ新データ生成)
-                    LastSampledData = _sampler.SamplePointCloud(
+                    // 1. Mesh / SkinnedMesh リストから物理密度・色に応じた点群をサンプリング
+                    var sampledData = _sampler.SamplePointCloud(
                         targetObjects,
                         includeChildren,
                         densityUnit,
@@ -233,25 +231,45 @@ namespace RealSense.DummyPointCloud
                         solidColor,
                         maxPointLimit);
 
-                    // 実際に位置やデータが更新された場合のみ DataVersion を更新
-                    if (prevData.Positions != LastSampledData.Positions || prevData.PointCount != LastSampledData.PointCount)
-                    {
-                        DataVersion++;
-                        Log($"Sampled & Updated DataVersion: {DataVersion} ({LastSampledData.PointCount} points).");
-                    }
+                    bool isNoiseActive = _noiseProcessor != null && noiseSettings != null && (noiseSettings.enableNoise || noiseSettings.enableOutliers);
 
                     // 2. ノイズ・外れ値の適用
-                    Vector3[] finalPositions = LastSampledData.Positions;
-                    if (_noiseProcessor != null && noiseSettings != null && (noiseSettings.enableNoise || noiseSettings.enableOutliers))
+                    Vector3[] finalPositions = sampledData.Positions;
+                    if (isNoiseActive && sampledData.PointCount > 0)
                     {
                         finalPositions = _noiseProcessor.ProcessPointCloud(
-                            LastSampledData.Positions,
-                            LastSampledData.Normals,
-                            LastSampledData.PointCount,
+                            sampledData.Positions,
+                            sampledData.Normals,
+                            sampledData.PointCount,
                             noiseSettings);
                     }
 
-                    // 3. SoftwareDevice 経由で RealSense DepthFrame / FrameSet として発行
+                    // 3. 描画レンダラー(RsDummyPointCloudRenderer)にノイズ適用済みデータとして引き渡すため Positions を更新
+                    sampledData.Positions = finalPositions;
+                    LastSampledData = sampledData;
+
+                    // 4. データ更新判定（ノイズ有効時は動的更新のため毎フレーム DataVersion を進める）
+                    if (isNoiseActive || prevData.Positions != LastSampledData.Positions || prevData.PointCount != LastSampledData.PointCount)
+                    {
+                        DataVersion++;
+
+                        logCounter++;
+                        if (logCounter % 60 == 0 || prevData.PointCount != LastSampledData.PointCount)
+                        {
+                            if (isNoiseActive)
+                            {
+                                AppLogger.Log(this, DPC_LogTriggers.TagNoiseProcessor,
+                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])");
+                            }
+                            else
+                            {
+                                AppLogger.Log(this, DPC_LogTriggers.TagProvider,
+                                    $"Sampled & Updated DataVersion: {DataVersion} ({LastSampledData.PointCount} points).");
+                            }
+                        }
+                    }
+
+                    // 5. SoftwareDevice 経由で RealSense DepthFrame / FrameSet として発行
                     if (_softwareDevice != null && LastSampledData.PointCount > 0)
                     {
                         Transform camXform = simulatedCameraTransform != null ? simulatedCameraTransform : transform;

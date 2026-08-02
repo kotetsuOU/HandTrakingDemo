@@ -92,6 +92,7 @@ graph TD
 | **0** | 🏗️ | [Initialization.md](./Initialization.md) | 複数カメラのアライメント・キャリブレーション |
 | | 🏗️ | [DebugPCV.md](./DebugPCV.md) | 点群データのリアルタイムプレビュー・デバッグビューア |
 | **1** | 🏗️ | [PointCloudPipeline.md](./PointCloudPipeline.md) | RealSense 点群取得 → GPU 非同期マージ |
+| | 🏗️ | └── [DummyPointCloud.md](./DummyPointCloud.md) | Unity 3Dモデルからのダミー点群生成・法線ノイズ・外れ値付与 |
 | **2** | 🏗️ | [OcclusionRendering.md](./OcclusionRendering.md) | URP RenderGraph 上の点群オクルージョン処理 |
 | **3** | 🏗️ | [Collision.md](./Collision.md) | GPU 衝突判定・クラスタリング (HCD Pipeline) |
 | | 🔬 | └── [CollisionAlgorithmComparison.md](./CollisionAlgorithmComparison.md) | Native C++ vs GPU の数理モデル比較 |
@@ -121,9 +122,9 @@ graph TD
 ---
 
 ### 📦 1. 点群ストリーミング・統合パイプライン
-RealSense からの非同期データ取得、HSV/YCbCr カラーフィルタリング（肌色抽出等）、および GPU ゼロコピー CommandBuffer マージを行います。統合された点群バッファは、オクルージョンとハプティクスの両パイプラインのデータ源として機能します。
+RealSense からの非同期データ取得、HSV/YCbCr カラーフィルタリング（肌色抽出等）、および GPU ゼロコピー CommandBuffer マージを行います。統合された点群バッファは、オクルージョンとハプティクスの両パイプラインのデータ源として機能します。また、実機カメラなし環境向けに 3D オブジェクトからのダミー点群生成および法線方向ノイズ・外れ値付与機能 (`DummyPointCloud`) も提供します。
 
-📎 詳細: [PointCloudPipeline.md](./PointCloudPipeline.md)
+📎 詳細: [PointCloudPipeline.md](./PointCloudPipeline.md) / [DummyPointCloud.md](./DummyPointCloud.md)
 
 ---
 

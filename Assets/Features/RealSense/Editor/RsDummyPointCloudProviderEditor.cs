@@ -21,7 +21,6 @@ namespace RealSense.Editor
         private SerializedProperty _depthWidthProp;
         private SerializedProperty _depthHeightProp;
         private SerializedProperty _updateFPSProp;
-        private SerializedProperty _enableDebugLogProp;
 
         private void OnEnable()
         {
@@ -39,7 +38,6 @@ namespace RealSense.Editor
             _depthWidthProp = serializedObject.FindProperty("depthWidth");
             _depthHeightProp = serializedObject.FindProperty("depthHeight");
             _updateFPSProp = serializedObject.FindProperty("updateFPS");
-            _enableDebugLogProp = serializedObject.FindProperty("enableDebugLog");
         }
 
         public override void OnInspectorGUI()
@@ -100,12 +98,6 @@ namespace RealSense.Editor
                 EditorGUILayout.HelpBox("【全方向（Omnidirectional）モード】カメラの向きや画角に関係なく、メッシュ表面全体のすべての点群をそのまま出力します。", MessageType.None);
                 EditorGUILayout.PropertyField(_updateFPSProp);
                 EditorGUI.indentLevel--;
-            }
-
-            EditorGUILayout.Space();
-            if (_enableDebugLogProp != null)
-            {
-                EditorGUILayout.PropertyField(_enableDebugLogProp, new GUIContent("Enable Debug Log", "True にすると、ダミー点群生成やストリーミング処理の動作ログをコンソールに出力します"));
             }
 
             EditorGUILayout.Space();
