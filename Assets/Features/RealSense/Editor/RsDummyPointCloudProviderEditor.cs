@@ -15,6 +15,7 @@ namespace RealSense.Editor
         private SerializedProperty _colorModeProp;
         private SerializedProperty _solidColorProp;
         private SerializedProperty _applyColorToMaterialAndRendererProp;
+        private SerializedProperty _noiseSettingsProp;
         private SerializedProperty _useCameraPerspectiveProp;
         private SerializedProperty _simulatedCameraTransformProp;
         private SerializedProperty _depthWidthProp;
@@ -32,6 +33,7 @@ namespace RealSense.Editor
             _colorModeProp = serializedObject.FindProperty("colorMode");
             _solidColorProp = serializedObject.FindProperty("solidColor");
             _applyColorToMaterialAndRendererProp = serializedObject.FindProperty("applyColorToMaterialAndRenderer");
+            _noiseSettingsProp = serializedObject.FindProperty("noiseSettings");
             _useCameraPerspectiveProp = serializedObject.FindProperty("useCameraPerspective");
             _simulatedCameraTransformProp = serializedObject.FindProperty("simulatedCameraTransform");
             _depthWidthProp = serializedObject.FindProperty("depthWidth");
@@ -71,6 +73,12 @@ namespace RealSense.Editor
                 {
                     provider.UpdateMaterialAndRendererColors();
                 }
+            }
+
+            EditorGUILayout.Space();
+            if (_noiseSettingsProp != null)
+            {
+                EditorGUILayout.PropertyField(_noiseSettingsProp, new GUIContent("Noise & Outliers Settings"), true);
             }
 
             EditorGUILayout.Space();

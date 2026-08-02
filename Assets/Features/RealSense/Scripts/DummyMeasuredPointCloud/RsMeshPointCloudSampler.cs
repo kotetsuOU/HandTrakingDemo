@@ -22,6 +22,7 @@ namespace RealSense.DummyPointCloud
     public struct SampledPointCloudData
     {
         public Vector3[] Positions; // ワールド座標
+        public Vector3[] Normals;   // ワールド法線
         public Color[] Colors;      // 各点の色
         public int PointCount;
     }
@@ -30,6 +31,7 @@ namespace RealSense.DummyPointCloud
     {
         private Mesh _sharedBakedMesh;
         private List<Vector3> _positionsCache = new List<Vector3>(100000);
+        private List<Vector3> _normalsCache = new List<Vector3>(100000);
         private List<Color> _colorsCache = new List<Color>(100000);
 
         // トランスフォーム変更検出用キャッシュ (静的メッシュの CPU サンプリング 0ms 化)
@@ -133,6 +135,7 @@ namespace RealSense.DummyPointCloud
 
             // 2. トランスフォームやパラメーター変更時のみ再計算
             _positionsCache.Clear();
+            _normalsCache.Clear();
             _colorsCache.Clear();
             _lastTransformStates.Clear();
 
@@ -191,7 +194,7 @@ namespace RealSense.DummyPointCloud
                 int rendererMaxLimit = Mathf.Max(1, Mathf.RoundToInt(maxPointLimit * areaRatio));
                 float rendererDensityValue = (densityUnit == PointDensityUnit.TotalPointCount) ? (densityValue * areaRatio) : densityValue;
 
-                SampleMeshInternal(info.mesh, info.renderer, info.localToWorld, densityUnit, rendererDensityValue, colorMode, solidColor, _positionsCache, _colorsCache, rendererMaxLimit);
+                SampleMeshInternal(info.mesh, info.renderer, info.localToWorld, densityUnit, rendererDensityValue, colorMode, solidColor, _positionsCache, _normalsCache, _colorsCache, rendererMaxLimit);
 
                 if (_positionsCache.Count >= maxPointLimit) break;
             }
@@ -209,6 +212,7 @@ namespace RealSense.DummyPointCloud
             _lastSampledResult = new SampledPointCloudData
             {
                 Positions = _positionsCache.ToArray(),
+                Normals = _normalsCache.ToArray(),
                 Colors = _colorsCache.ToArray(),
                 PointCount = _positionsCache.Count
             };
@@ -224,6 +228,7 @@ namespace RealSense.DummyPointCloud
             PointColorMode colorMode,
             Color solidColor,
             List<Vector3> outPositions,
+            List<Vector3> outNormals,
             List<Color> outColors,
             int maxPointLimit)
         {
@@ -239,7 +244,7 @@ namespace RealSense.DummyPointCloud
 #endif
 
             Matrix4x4 localToWorld = skinnedRenderer.transform.localToWorldMatrix;
-            SampleMeshInternal(_sharedBakedMesh, skinnedRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors, maxPointLimit);
+            SampleMeshInternal(_sharedBakedMesh, skinnedRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outNormals, outColors, maxPointLimit);
         }
 
         private void SampleFromStaticMesh(
@@ -250,11 +255,12 @@ namespace RealSense.DummyPointCloud
             PointColorMode colorMode,
             Color solidColor,
             List<Vector3> outPositions,
+            List<Vector3> outNormals,
             List<Color> outColors,
             int maxPointLimit)
         {
             Matrix4x4 localToWorld = meshRenderer.transform.localToWorldMatrix;
-            SampleMeshInternal(mesh, meshRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outColors, maxPointLimit);
+            SampleMeshInternal(mesh, meshRenderer, localToWorld, densityUnit, densityValue, colorMode, solidColor, outPositions, outNormals, outColors, maxPointLimit);
         }
 
         private void SampleMeshInternal(
@@ -266,16 +272,19 @@ namespace RealSense.DummyPointCloud
             PointColorMode colorMode,
             Color solidColor,
             List<Vector3> outPositions,
+            List<Vector3> outNormals,
             List<Color> outColors,
             int maxPointLimit)
         {
             Vector3[] vertices = mesh.vertices;
+            Vector3[] meshNormals = mesh.normals;
             int[] triangles = mesh.triangles;
             Color[] vertexColors = mesh.colors;
 
             if (vertices == null || vertices.Length == 0 || triangles == null || triangles.Length == 0)
                 return;
 
+            bool hasMeshNormals = meshNormals != null && meshNormals.Length == vertices.Length;
             bool hasVertexColors = vertexColors != null && vertexColors.Length == vertices.Length;
             Color baseMaterialColor = solidColor;
 
@@ -356,6 +365,12 @@ namespace RealSense.DummyPointCloud
                 Vector3 v1 = localToWorld.MultiplyPoint3x4(vertices[i1]);
                 Vector3 v2 = localToWorld.MultiplyPoint3x4(vertices[i2]);
 
+                Vector3 faceNormal = Vector3.Cross(v1 - v0, v2 - v0).normalized;
+
+                Vector3 n0 = hasMeshNormals ? localToWorld.MultiplyVector(meshNormals[i0]).normalized : faceNormal;
+                Vector3 n1 = hasMeshNormals ? localToWorld.MultiplyVector(meshNormals[i1]).normalized : faceNormal;
+                Vector3 n2 = hasMeshNormals ? localToWorld.MultiplyVector(meshNormals[i2]).normalized : faceNormal;
+
                 Color c0 = (colorMode == PointColorMode.SolidColor) ? solidColor : ((colorMode == PointColorMode.VertexColor && hasVertexColors) ? vertexColors[i0] : baseMaterialColor);
                 Color c1 = (colorMode == PointColorMode.SolidColor) ? solidColor : ((colorMode == PointColorMode.VertexColor && hasVertexColors) ? vertexColors[i1] : baseMaterialColor);
                 Color c2 = (colorMode == PointColorMode.SolidColor) ? solidColor : ((colorMode == PointColorMode.VertexColor && hasVertexColors) ? vertexColors[i2] : baseMaterialColor);
@@ -373,9 +388,12 @@ namespace RealSense.DummyPointCloud
                     float w = 1f - u - v;
 
                     Vector3 pos = u * v0 + v * v1 + w * v2;
+                    Vector3 norm = (u * n0 + v * n1 + w * n2).normalized;
+                    if (norm.sqrMagnitude < 0.001f) norm = faceNormal;
                     Color col = u * c0 + v * c1 + w * c2;
 
                     outPositions.Add(pos);
+                    outNormals?.Add(norm);
                     outColors.Add(col);
                 }
             }

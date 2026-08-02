@@ -42,6 +42,10 @@ namespace RealSense.DummyPointCloud
         [Tooltip("SolidColor 変更時にターゲットオブジェクトのマテリアルカラーおよび RsPointCloudRenderer の描画色も連動して変更するかどうか")]
         public bool applyColorToMaterialAndRenderer = true;
 
+        [Header("Noise & Outliers Settings")]
+        [Tooltip("法線方向ノイズおよび外れ値の設定")]
+        public RsPointCloudNoiseSettings noiseSettings = new RsPointCloudNoiseSettings();
+
         [Header("Camera Perspective Settings")]
         [Tooltip("true: カメラ視点・画角・オクルージョンを適用 / false: カメラの向き問わず全方向の全点群を出力")]
         public bool useCameraPerspective = true;
@@ -68,6 +72,7 @@ namespace RealSense.DummyPointCloud
         public override event Action<Frame> OnNewSample;
 
         private RsMeshPointCloudSampler _sampler;
+        private RsPointCloudNoiseProcessor _noiseProcessor;
         private RsDummySoftwareDevice _softwareDevice;
         private Coroutine _streamingCoroutine;
         private MaterialPropertyBlock _materialPropertyBlock;
@@ -90,6 +95,7 @@ namespace RealSense.DummyPointCloud
         private void Awake()
         {
             _sampler = new RsMeshPointCloudSampler();
+            _noiseProcessor = new RsPointCloudNoiseProcessor();
             _materialPropertyBlock = new MaterialPropertyBlock();
             if (simulatedCameraTransform == null)
             {
@@ -112,6 +118,7 @@ namespace RealSense.DummyPointCloud
         {
             StopStreaming();
             _sampler = null;
+            _noiseProcessor = null;
         }
 
         private void OnValidate()
@@ -233,12 +240,23 @@ namespace RealSense.DummyPointCloud
                         Log($"Sampled & Updated DataVersion: {DataVersion} ({LastSampledData.PointCount} points).");
                     }
 
-                    // 2. SoftwareDevice 経由で RealSense DepthFrame / FrameSet として発行
+                    // 2. ノイズ・外れ値の適用
+                    Vector3[] finalPositions = LastSampledData.Positions;
+                    if (_noiseProcessor != null && noiseSettings != null && (noiseSettings.enableNoise || noiseSettings.enableOutliers))
+                    {
+                        finalPositions = _noiseProcessor.ProcessPointCloud(
+                            LastSampledData.Positions,
+                            LastSampledData.Normals,
+                            LastSampledData.PointCount,
+                            noiseSettings);
+                    }
+
+                    // 3. SoftwareDevice 経由で RealSense DepthFrame / FrameSet として発行
                     if (_softwareDevice != null && LastSampledData.PointCount > 0)
                     {
                         Transform camXform = simulatedCameraTransform != null ? simulatedCameraTransform : transform;
                         _softwareDevice.PublishPointCloudAsDepthFrame(
-                            LastSampledData.Positions,
+                            finalPositions,
                             camXform,
                             useCameraPerspective);
                     }
