@@ -23,22 +23,6 @@ namespace Core.Editor
             SerializedProperty globalEnableProp = serializedObject.FindProperty("globalEnableLogging");
             EditorGUILayout.PropertyField(globalEnableProp, new GUIContent("Global Enable Logging"));
 
-            SerializedProperty minLogLevelProp = serializedObject.FindProperty("minLogLevel");
-            if (minLogLevelProp != null)
-            {
-                EditorGUILayout.PropertyField(minLogLevelProp, new GUIContent("Minimum Log Level"));
-            }
-
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Log Type Filters", EditorStyles.boldLabel);
-            SerializedProperty enableInfoProp = serializedObject.FindProperty("enableInfoLogs");
-            SerializedProperty enableWarningProp = serializedObject.FindProperty("enableWarningLogs");
-            SerializedProperty enableErrorProp = serializedObject.FindProperty("enableErrorLogs");
-
-            if (enableInfoProp != null) EditorGUILayout.PropertyField(enableInfoProp, new GUIContent("Enable Info Logs (Log)"));
-            if (enableWarningProp != null) EditorGUILayout.PropertyField(enableWarningProp, new GUIContent("Enable Warning Logs (LogWarning)"));
-            if (enableErrorProp != null) EditorGUILayout.PropertyField(enableErrorProp, new GUIContent("Enable Error Logs (LogError)"));
-
             EditorGUILayout.Space();
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("🔍 Scan Scene Components", GUILayout.Height(30)))
@@ -50,18 +34,27 @@ namespace Core.Editor
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("Enable All Groups"))
+            if (GUILayout.Button("Enable All"))
             {
                 Undo.RecordObject(manager, "Enable All");
                 manager.SetAllEnabled(true);
                 EditorUtility.SetDirty(manager);
             }
-            if (GUILayout.Button("Disable All Groups"))
+            if (GUILayout.Button("Disable All"))
             {
                 Undo.RecordObject(manager, "Disable All");
                 manager.SetAllEnabled(false);
                 EditorUtility.SetDirty(manager);
             }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Log ON", EditorStyles.miniButton)) { Undo.RecordObject(manager, "Log All ON"); manager.SetAllEnabled(true, AppLogLevel.Info); EditorUtility.SetDirty(manager); }
+            if (GUILayout.Button("Log OFF", EditorStyles.miniButton)) { Undo.RecordObject(manager, "Log All OFF"); manager.SetAllEnabled(false, AppLogLevel.Info); EditorUtility.SetDirty(manager); }
+            if (GUILayout.Button("Warn ON", EditorStyles.miniButton)) { Undo.RecordObject(manager, "Warn All ON"); manager.SetAllEnabled(true, AppLogLevel.Warning); EditorUtility.SetDirty(manager); }
+            if (GUILayout.Button("Warn OFF", EditorStyles.miniButton)) { Undo.RecordObject(manager, "Warn All OFF"); manager.SetAllEnabled(false, AppLogLevel.Warning); EditorUtility.SetDirty(manager); }
+            if (GUILayout.Button("Err ON", EditorStyles.miniButton)) { Undo.RecordObject(manager, "Err All ON"); manager.SetAllEnabled(true, AppLogLevel.Error); EditorUtility.SetDirty(manager); }
+            if (GUILayout.Button("Err OFF", EditorStyles.miniButton)) { Undo.RecordObject(manager, "Err All OFF"); manager.SetAllEnabled(false, AppLogLevel.Error); EditorUtility.SetDirty(manager); }
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
@@ -103,21 +96,57 @@ namespace Core.Editor
                     // --- Group Items ---
                     if (isExpandedProp.boolValue && entriesProp != null)
                     {
+                        EditorGUILayout.Space(2);
+                        EditorGUILayout.BeginHorizontal();
+                        GUILayout.Space(16);
+
+                        if (GUILayout.Button("Log", EditorStyles.miniButton, GUILayout.Width(28)))
+                        {
+                            Undo.RecordObject(manager, "Toggle Group Log");
+                            bool enable = ToggleGroupLevel(groupProp, "enableInfo");
+                            manager.SetGroupEnabled(catName, enable, AppLogLevel.Info);
+                            EditorUtility.SetDirty(manager);
+                        }
+                        if (GUILayout.Button("Warn", EditorStyles.miniButton, GUILayout.Width(32)))
+                        {
+                            Undo.RecordObject(manager, "Toggle Group Warn");
+                            bool enable = ToggleGroupLevel(groupProp, "enableWarning");
+                            manager.SetGroupEnabled(catName, enable, AppLogLevel.Warning);
+                            EditorUtility.SetDirty(manager);
+                        }
+                        if (GUILayout.Button("Err", EditorStyles.miniButton, GUILayout.Width(28)))
+                        {
+                            Undo.RecordObject(manager, "Toggle Group Err");
+                            bool enable = ToggleGroupLevel(groupProp, "enableError");
+                            manager.SetGroupEnabled(catName, enable, AppLogLevel.Error);
+                            EditorUtility.SetDirty(manager);
+                        }
+
+                        EditorGUILayout.LabelField("Target / Label", EditorStyles.miniBoldLabel);
+                        EditorGUILayout.EndHorizontal();
+
                         EditorGUI.indentLevel++;
                         for (int i = 0; i < entriesProp.arraySize; i++)
                         {
                             SerializedProperty entryProp = entriesProp.GetArrayElementAtIndex(i);
                             SerializedProperty labelProp = entryProp.FindPropertyRelative("label");
                             SerializedProperty targetProp = entryProp.FindPropertyRelative("target");
-                            SerializedProperty enabledProp = entryProp.FindPropertyRelative("enabled");
+                            SerializedProperty infoProp = entryProp.FindPropertyRelative("enableInfo");
+                            SerializedProperty warnProp = entryProp.FindPropertyRelative("enableWarning");
+                            SerializedProperty errProp = entryProp.FindPropertyRelative("enableError");
 
                             EditorGUILayout.BeginHorizontal();
 
                             EditorGUI.BeginChangeCheck();
-                            bool newEnabled = EditorGUILayout.Toggle(enabledProp.boolValue, GUILayout.Width(24));
+                            bool newInfo = EditorGUILayout.Toggle(infoProp?.boolValue ?? true, GUILayout.Width(28));
+                            bool newWarn = EditorGUILayout.Toggle(warnProp?.boolValue ?? true, GUILayout.Width(32));
+                            bool newErr = EditorGUILayout.Toggle(errProp?.boolValue ?? true, GUILayout.Width(28));
+
                             if (EditorGUI.EndChangeCheck())
                             {
-                                enabledProp.boolValue = newEnabled;
+                                if (infoProp != null) infoProp.boolValue = newInfo;
+                                if (warnProp != null) warnProp.boolValue = newWarn;
+                                if (errProp != null) errProp.boolValue = newErr;
                                 serializedObject.ApplyModifiedProperties();
                                 manager.BuildLookup();
                             }
@@ -126,7 +155,7 @@ namespace Core.Editor
                                 ? labelProp.stringValue
                                 : (targetProp.objectReferenceValue != null ? targetProp.objectReferenceValue.name : "Unassigned");
 
-                            EditorGUILayout.LabelField(labelText, GUILayout.MinWidth(180), GUILayout.MaxWidth(320));
+                            EditorGUILayout.LabelField(labelText, GUILayout.MinWidth(140), GUILayout.MaxWidth(280));
                             EditorGUILayout.PropertyField(targetProp, GUIContent.none);
 
                             if (GUILayout.Button("X", GUILayout.Width(24)))
@@ -155,6 +184,19 @@ namespace Core.Editor
             {
                 manager.BuildLookup();
             }
+        }
+
+        private bool ToggleGroupLevel(SerializedProperty groupProp, string propName)
+        {
+            SerializedProperty entriesProp = groupProp.FindPropertyRelative("entries");
+            if (entriesProp == null || entriesProp.arraySize == 0) return true;
+            for (int i = 0; i < entriesProp.arraySize; i++)
+            {
+                SerializedProperty entryProp = entriesProp.GetArrayElementAtIndex(i);
+                SerializedProperty p = entryProp.FindPropertyRelative(propName);
+                if (p != null && !p.boolValue) return true;
+            }
+            return false;
         }
     }
 }

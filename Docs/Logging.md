@@ -15,7 +15,7 @@
 
 * **自動コンテキスト識別（複数アタッチ対応）**: 同一スクリプトが複数 GameObject にアタッチされている場合（例: 複数台の RealSense カメラ）、`AppLogger.Log(this, ...)` 呼び出しによってログプレフィックスが **`[型名: GameObject名]`**（例: `[RsDevice: RealSense_Front]`）へ自動拡張され、出力元オブジェクトを即座に識別可能です。
 * **中央集中トグル管理**: モジュールカテゴリ（例: `HCD (Haptic Collision)`, `Experiment`, `PCV (PointCloudViewer)`, `PCD (Occlusion)`, `RealSense`）および個別サブトリガー（例: `[EXP_Manager]`, `[PCV_Controller]`, `[RsDevice] RealSense_Front`）単位でログ有効状態を切り替え可能です。
-* **ログ種別・重要度レベルによるフィルタリング**: グローバル最小ログレベル (`minLogLevel`) の指定、またはログ種別ごとの個別の有効/無効トグル (`enableInfoLogs`, `enableWarningLogs`, `enableErrorLogs`) により、「通常ログは非表示にし、警告 (`LogWarning`) とエラー (`LogError`) のみを表示する」といった高度なログ制御が可能です。
+* **モジュール・トリガー個別での 3 段階トグル制御**: 各コンポーネントおよびサブトリガーエントリーごとに、`Log` (通常情報Log)、`Warn` (警告Log)、`Err` (エラーLog) の 3 段階の有効/無効トグルを個別かつ直感的にコントロール可能です。
 * **Inspector の非汚染化**: 個別の `MonoBehaviour` に `public bool enableDebugLog` や `public bool EnableLog` などのトグル変数を定義せず、全制御を `AppLogManager` に統一します。
 * **自動スキャン・登録機能**: シーン内の `[AppLoggable]` 属性または `IAppLoggable` インターフェースを持つアクティブコンポーネントを全自動で検出・グループ化します。
 * **サブトリガーによる詳細分類**: `IAppLoggable` インターフェースを介して、単一コンポーネントから複数の機能別サブログトリガーを `AppLogManager` へ登録できます。
@@ -190,11 +190,22 @@ void Awake()
 | パラメータ名 | 型 | 既定値 | 説明 |
 |---|---|---|---|
 | `globalEnableLogging` | `bool` | `true` | アプリケーション全体のログ出力を統括するマスター切替トグル |
-| `minLogLevel` | `AppLogLevel` | `Info` | 表示する最小ログレベル (`Info`: 全表示, `Warning`: Warning以上, `Error`: Errorのみ) |
-| `enableInfoLogs` | `bool` | `true` | 通常情報ログ (`AppLogger.Log`) の表示有効/無効トグル |
-| `enableWarningLogs` | `bool` | `true` | 警告ログ (`AppLogger.LogWarning`) の表示有効/無効トグル |
-| `enableErrorLogs` | `bool` | `true` | エラーログ (`AppLogger.LogError`) の表示有効/無効トグル |
 | `categoryGroups` | `List<LogCategoryGroup>` | `-` | モジュールカテゴリー別にグループ化された各ログエントリーのリスト |
+
+#### 4.2.1 `LogInstanceEntry` (個別ログエントリー仕様)
+
+モジュールカテゴリ内の個別のコンポーネント/サブトリガーエントリーごとに、3段階のログレベル制御トグルを保有します。
+
+| パラメータ名 | UIヘッダー表記 | 型 | 既定値 | 説明 |
+|---|---|---|---|---|
+| `enableInfo` | **Log** | `bool` | `true` | 当該エントリーの通常ログ (`AppLogger.Log`) の個別有効/無効 |
+| `enableWarning` | **Warn** | `bool` | `true` | 当該エントリーの警告ログ (`AppLogger.LogWarning`) の個別有効/無効 |
+| `enableError` | **Err** | `bool` | `true` | 当該エントリーのエラーログ (`AppLogger.LogError`) の個別有効/無効 |
+
+#### 4.2.2 ログレベル別一括操作機能 (Global & Category Level)
+
+* **アプリ全体の一括制御**: Inspector 上部のボタン (`Log ON/OFF`, `Warn ON/OFF`, `Err ON/OFF`) で、全モジュールの特定ログレベルのみをワンクリックで一括 ON / 全OFF 切り替え可能です（例: `Log OFF` で通常のデバッグログを一括非表示にし、`Warn` と `Err` を保持）。
+* **カテゴリ単位の一括制御**: 各カテゴリグループ内の列見出しボタン (`Log`, `Warn`, `Err`) をクリックすることで、そのカテゴリ内の特定ログレベルのみを一括 ON / 全OFF トグル切り替え可能です。
 
 ---
 

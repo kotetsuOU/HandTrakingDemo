@@ -11,7 +11,34 @@ namespace Core.Logging
         public string label;
         public string tag;
         public UnityEngine.Object target;
-        public bool enabled;
+
+        public bool enableInfo = true;
+        public bool enableWarning = true;
+        public bool enableError = true;
+
+        public bool IsEnabled(AppLogLevel level)
+        {
+            switch (level)
+            {
+                case AppLogLevel.Info: return enableInfo;
+                case AppLogLevel.Warning: return enableWarning;
+                case AppLogLevel.Error: return enableError;
+                default: return true;
+            }
+        }
+
+        public void SetAll(bool enable)
+        {
+            enableInfo = enable;
+            enableWarning = enable;
+            enableError = enable;
+        }
+
+        public bool enabled
+        {
+            get => enableInfo && enableWarning && enableError;
+            set => SetAll(value);
+        }
     }
 
     [Serializable]
@@ -35,26 +62,13 @@ namespace Core.Logging
         [Tooltip("全体的なログ出力の有効/無効トグル")]
         public bool globalEnableLogging = true;
 
-        [Tooltip("最小表示ログレベル (Info: すべて, Warning: Warning以上, Error: Errorのみ)")]
-        public AppLogLevel minLogLevel = AppLogLevel.Info;
-
-        [Header("Log Type Filters")]
-        [Tooltip("通常ログ (Info) の出力有効化")]
-        public bool enableInfoLogs = true;
-
-        [Tooltip("警告ログ (Warning) の出力有効化")]
-        public bool enableWarningLogs = true;
-
-        [Tooltip("エラーログ (Error) の出力有効化")]
-        public bool enableErrorLogs = true;
-
         [Header("Category Groups")]
         [Tooltip("モジュール機能ごとにグループ化されたコンポーネントターゲット")]
         public List<LogCategoryGroup> categoryGroups = new List<LogCategoryGroup>();
 
         private readonly Dictionary<UnityEngine.Object, LogInstanceEntry> _objectLookup = new Dictionary<UnityEngine.Object, LogInstanceEntry>();
-        private readonly Dictionary<string, bool> _nameLookup = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, bool> _targetTagLookup = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, LogInstanceEntry> _nameLookup = new Dictionary<string, LogInstanceEntry>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, LogInstanceEntry> _targetTagLookup = new Dictionary<string, LogInstanceEntry>(StringComparer.OrdinalIgnoreCase);
 
         private void Awake()
         {
@@ -110,18 +124,18 @@ namespace Core.Logging
                         if (!string.IsNullOrEmpty(entry.tag))
                         {
                             string key = GetTargetTagKey(entry.target, entry.tag);
-                            _targetTagLookup[key] = entry.enabled;
+                            _targetTagLookup[key] = entry;
                         }
                     }
 
                     if (!string.IsNullOrEmpty(entry.tag))
                     {
-                        _nameLookup[entry.tag] = entry.enabled;
+                        _nameLookup[entry.tag] = entry;
                     }
 
                     if (!string.IsNullOrEmpty(entry.label))
                     {
-                        _nameLookup[entry.label] = entry.enabled;
+                        _nameLookup[entry.label] = entry;
                     }
                 }
             }
@@ -130,26 +144,6 @@ namespace Core.Logging
         private string GetTargetTagKey(UnityEngine.Object target, string tag)
         {
             return target != null ? $"{target.GetInstanceID()}:{tag}" : tag;
-        }
-
-        /// <summary>
-        /// 指定されたログレベルが出力条件を満たしているか判定
-        /// </summary>
-        public bool IsLogLevelEnabled(AppLogLevel level)
-        {
-            if (level < minLogLevel) return false;
-
-            switch (level)
-            {
-                case AppLogLevel.Info:
-                    return enableInfoLogs;
-                case AppLogLevel.Warning:
-                    return enableWarningLogs;
-                case AppLogLevel.Error:
-                    return enableErrorLogs;
-                default:
-                    return true;
-            }
         }
 
         /// <summary>
@@ -166,7 +160,6 @@ namespace Core.Logging
         public bool IsLogEnabled(UnityEngine.Object targetObject, AppLogLevel level, string subTag = null)
         {
             if (!globalEnableLogging) return false;
-            if (!IsLogLevelEnabled(level)) return false;
 
             // サブタグ指定がある場合、ターゲット+サブタグまたはサブタグ単体でのルックアップを優先
             if (!string.IsNullOrEmpty(subTag))
@@ -174,15 +167,15 @@ namespace Core.Logging
                 if (targetObject != null)
                 {
                     string targetTagKey = GetTargetTagKey(targetObject, subTag);
-                    if (_targetTagLookup.TryGetValue(targetTagKey, out bool targetTagEnabled))
+                    if (_targetTagLookup.TryGetValue(targetTagKey, out var targetTagEntry))
                     {
-                        return targetTagEnabled;
+                        return targetTagEntry.IsEnabled(level);
                     }
                 }
 
-                if (_nameLookup.TryGetValue(subTag, out bool tagEnabled))
+                if (_nameLookup.TryGetValue(subTag, out var tagEntry))
                 {
-                    return tagEnabled;
+                    return tagEntry.IsEnabled(level);
                 }
             }
 
@@ -190,7 +183,7 @@ namespace Core.Logging
 
             if (_objectLookup.TryGetValue(targetObject, out var entry))
             {
-                return entry.enabled;
+                return entry.IsEnabled(level);
             }
 
             return true; // 未登録コンポーネントはデフォルト表示 (ON)
@@ -210,13 +203,12 @@ namespace Core.Logging
         public bool IsLogEnabled(string nameTag, AppLogLevel level)
         {
             if (!globalEnableLogging) return false;
-            if (!IsLogLevelEnabled(level)) return false;
 
             if (string.IsNullOrEmpty(nameTag)) return true;
 
-            if (_nameLookup.TryGetValue(nameTag, out bool enabled))
+            if (_nameLookup.TryGetValue(nameTag, out var entry))
             {
-                return enabled;
+                return entry.IsEnabled(level);
             }
 
             return true; // 未登録タグはデフォルト表示 (ON)
@@ -283,7 +275,9 @@ namespace Core.Logging
                         label = $"[{typeName}] {comp.gameObject.name}",
                         tag = typeName,
                         target = comp,
-                        enabled = true
+                        enableInfo = true,
+                        enableWarning = true,
+                        enableError = true
                     });
                     existingTargets.Add(comp);
                 }
@@ -318,7 +312,7 @@ namespace Core.Logging
             return group;
         }
 
-        public void SetAllEnabled(bool enable)
+        public void SetAllEnabled(bool enable, AppLogLevel? targetLevel = null)
         {
             if (categoryGroups == null) return;
             foreach (var group in categoryGroups)
@@ -326,22 +320,39 @@ namespace Core.Logging
                 if (group?.entries == null) continue;
                 foreach (var entry in group.entries)
                 {
-                    if (entry != null) entry.enabled = enable;
+                    if (entry != null) SetEntryEnabled(entry, enable, targetLevel);
                 }
             }
             BuildLookup();
         }
 
-        public void SetGroupEnabled(string categoryName, bool enable)
+        public void SetGroupEnabled(string categoryName, bool enable, AppLogLevel? targetLevel = null)
         {
             var group = categoryGroups?.Find(g => string.Equals(g.categoryName, categoryName, StringComparison.OrdinalIgnoreCase));
             if (group?.entries != null)
             {
                 foreach (var entry in group.entries)
                 {
-                    if (entry != null) entry.enabled = enable;
+                    if (entry != null) SetEntryEnabled(entry, enable, targetLevel);
                 }
                 BuildLookup();
+            }
+        }
+
+        private void SetEntryEnabled(LogInstanceEntry entry, bool enable, AppLogLevel? targetLevel)
+        {
+            if (targetLevel.HasValue)
+            {
+                switch (targetLevel.Value)
+                {
+                    case AppLogLevel.Info: entry.enableInfo = enable; break;
+                    case AppLogLevel.Warning: entry.enableWarning = enable; break;
+                    case AppLogLevel.Error: entry.enableError = enable; break;
+                }
+            }
+            else
+            {
+                entry.SetAll(enable);
             }
         }
     }
