@@ -2,6 +2,7 @@ using Intel.RealSense;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Core.Logging;
 
 [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = false)]
 public sealed class ProcessingBlockDataAttribute : System.Attribute
@@ -22,6 +23,7 @@ public sealed class ProcessingBlockDataAttribute : System.Attribute
 /// パイプラインとして最終的な加工済みフレームを提供するコンポーネント。
 /// </summary>
 [Serializable]
+[AppLoggable("RealSense (Pipeline)")]
 public class RsProcessingPipe : RsFrameProvider
 {
     [Tooltip("フレームの元となるプロバイダー（カメラ・デバイスコントローラー本体など）")]

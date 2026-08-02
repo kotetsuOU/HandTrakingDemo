@@ -1,6 +1,8 @@
 using System;
+using System.Runtime.InteropServices;
 using Intel.RealSense;
 using UnityEngine;
+using Core.Logging;
 
 namespace RealSense.DummyPointCloud
 {
@@ -70,7 +72,7 @@ namespace RealSense.DummyPointCloud
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogError($"[RsDummySoftwareDevice] Failed to initialize SoftwareDevice: {ex.Message}");
+                AppLogger.LogError("DPC_SoftwareDevice", $"Failed to initialize SoftwareDevice: {ex.Message}");
                 Dispose();
             }
         }

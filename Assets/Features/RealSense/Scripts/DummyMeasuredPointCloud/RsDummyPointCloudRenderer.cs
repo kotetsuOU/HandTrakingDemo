@@ -9,7 +9,7 @@ namespace RealSense.DummyPointCloud
     /// RsDummyPointCloudProvider で生成されたダミーの実測点群を「動いたら更新 (Dirty-based Update)」方式で描画する専用レンダラー。
     /// ターゲットオブジェクトが移動・変更されたフレームのみ GPU に転送し、静止時は SetData を完全に回避して 0ms 超高速描画します。
     /// </summary>
-    [AppLoggable("DummyPointCloud")]
+    [AppLoggable("DPC (Dummy Point Cloud)")]
     [RequireComponent(typeof(MeshRenderer))]
     public class RsDummyPointCloudRenderer : RsPointCloudRenderer, IAppLoggable
     {
@@ -88,7 +88,7 @@ namespace RealSense.DummyPointCloud
 
         private void Log(string message)
         {
-            AppLogger.Log(this, DPC_LogTriggers.TagRenderer, message);
+            AppLogger.Log(DPC_LogTriggers.TagRenderer, message, this);
         }
 
         private void OnEnable()

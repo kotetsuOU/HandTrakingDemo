@@ -5,6 +5,7 @@ using UnityEngine.Rendering;
 using Intel.RealSense;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Core.Logging;
 
 /// <summary>
 /// ComputeShaderを利用してDepthFrameとColorFrameを合成し、
@@ -85,7 +86,7 @@ public class RsIntegratedPointCloudProcessor : IDisposable
     {
         if (calibration == null || !calibration.IsValid || calibration.DepthProfile == null)
         {
-            UnityEngine.Debug.LogWarning("[RsIntegratedPointCloudProcessor] Invalid calibration provided. Skipping initialization.");
+            AppLogger.LogWarning("RsIntegratedPointCloudProcessor", "Invalid calibration provided. Skipping initialization.");
             return;
         }
 

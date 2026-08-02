@@ -1,6 +1,7 @@
 using Intel.RealSense;
 using System;
 using UnityEngine;
+using Core.Logging;
 
 public class RsDepthToColorCalibration
 {
@@ -18,7 +19,7 @@ public class RsDepthToColorCalibration
         IsValid = false;
         if (profile == null)
         {
-            UnityEngine.Debug.LogWarning("[RsDepthToColorCalibration] PipelineProfile is null. Calibration disabled.");
+            AppLogger.LogWarning("RsDepthToColorCalibration", "PipelineProfile is null. Calibration disabled.");
             return;
         }
 
@@ -44,7 +45,7 @@ public class RsDepthToColorCalibration
                 _depthToColorRotation = extrinsics.rotation;
                 _depthToColorTranslation = extrinsics.translation;
                 IsValid = true;
-                UnityEngine.Debug.Log("[RsDepthToColorCalibration] Calibration initialized successfully.");
+                AppLogger.Log("RsDepthToColorCalibration", "Calibration initialized successfully.");
             }
             else if (DepthProfile != null)
             {
@@ -53,12 +54,12 @@ public class RsDepthToColorCalibration
                 _depthToColorRotation = new float[] { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
                 _depthToColorTranslation = new float[] { 0, 0, 0 };
                 IsValid = true;
-                UnityEngine.Debug.LogWarning("[RsDepthToColorCalibration] Color stream not found. Fallback to Depth-only calibration.");
+                AppLogger.LogWarning("RsDepthToColorCalibration", "Color stream not found. Fallback to Depth-only calibration.");
             }
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError($"[RsDepthToColorCalibration] Initialization warning/failed: {e.Message}");
+            AppLogger.LogError("RsDepthToColorCalibration", $"Initialization warning/failed: {e.Message}");
         }
     }
 

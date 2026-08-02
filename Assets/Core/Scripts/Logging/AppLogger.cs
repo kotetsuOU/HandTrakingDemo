@@ -53,13 +53,13 @@ namespace Core.Logging
         public static void Log(Object context, string message)
         {
             if (!IsEnabled(context)) return;
-            Debug.Log($"[{(context != null ? context.GetType().Name : "Log")}] {message}", context);
+            Debug.Log($"[{GetContextPrefix(context)}] {message}", context);
         }
 
         public static void Log(Object context, string subTag, string message)
         {
             if (!IsEnabled(context, subTag)) return;
-            string prefix = !string.IsNullOrEmpty(subTag) ? subTag : (context != null ? context.GetType().Name : "Log");
+            string prefix = !string.IsNullOrEmpty(subTag) ? $"{GetContextPrefix(context)} > {subTag}" : GetContextPrefix(context);
             Debug.Log($"[{prefix}] {message}", context);
         }
 
@@ -72,13 +72,13 @@ namespace Core.Logging
         public static void LogWarning(Object context, string message)
         {
             if (!IsEnabled(context)) return;
-            Debug.LogWarning($"[{(context != null ? context.GetType().Name : "Log")}] {message}", context);
+            Debug.LogWarning($"[{GetContextPrefix(context)}] {message}", context);
         }
 
         public static void LogWarning(Object context, string subTag, string message)
         {
             if (!IsEnabled(context, subTag)) return;
-            string prefix = !string.IsNullOrEmpty(subTag) ? subTag : (context != null ? context.GetType().Name : "Log");
+            string prefix = !string.IsNullOrEmpty(subTag) ? $"{GetContextPrefix(context)} > {subTag}" : GetContextPrefix(context);
             Debug.LogWarning($"[{prefix}] {message}", context);
         }
 
@@ -91,13 +91,13 @@ namespace Core.Logging
         public static void LogError(Object context, string message)
         {
             if (!IsEnabled(context)) return;
-            Debug.LogError($"[{(context != null ? context.GetType().Name : "Log")}] {message}", context);
+            Debug.LogError($"[{GetContextPrefix(context)}] {message}", context);
         }
 
         public static void LogError(Object context, string subTag, string message)
         {
             if (!IsEnabled(context, subTag)) return;
-            string prefix = !string.IsNullOrEmpty(subTag) ? subTag : (context != null ? context.GetType().Name : "Log");
+            string prefix = !string.IsNullOrEmpty(subTag) ? $"{GetContextPrefix(context)} > {subTag}" : GetContextPrefix(context);
             Debug.LogError($"[{prefix}] {message}", context);
         }
 
@@ -105,6 +105,20 @@ namespace Core.Logging
         {
             if (!IsEnabled(nameTag)) return;
             Debug.LogError($"[{nameTag}] {message}", context);
+        }
+
+        private static string GetContextPrefix(Object context)
+        {
+            if (context == null) return "Log";
+            if (context is Component comp && comp != null)
+            {
+                return $"{comp.GetType().Name}: {comp.gameObject.name}";
+            }
+            if (context is GameObject go && go != null)
+            {
+                return go.name;
+            }
+            return context.GetType().Name;
         }
     }
 }

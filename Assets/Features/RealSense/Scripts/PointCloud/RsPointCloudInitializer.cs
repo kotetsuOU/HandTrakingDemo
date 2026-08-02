@@ -2,6 +2,7 @@ using Intel.RealSense;
 using System.Diagnostics;
 using System.Linq;
 using UnityEngine;
+using Core.Logging;
 
 public class RsPointCloudInitializer
 {
@@ -59,7 +60,7 @@ public class RsPointCloudInitializer
         {
             // GPUダイレクトモードなど、他で結合されたバッファを利用する場合のサイズ取得
             (width, height) = GetDepthDimensionsFromProfile(profile);
-            UnityEngine.Debug.Log("[RsPointCloudInitializer] Using RsIntegratedPointCloud (GPU Direct Mode)");
+            AppLogger.Log("RsPointCloudInitializer", "Using RsIntegratedPointCloud (GPU Direct Mode)");
         }
         else
         {
@@ -68,13 +69,13 @@ public class RsPointCloudInitializer
             _dataProvider.Start();
             width = _dataProvider.FrameWidth;
             height = _dataProvider.FrameHeight;
-            UnityEngine.Debug.Log("[RsPointCloudInitializer] Using RsPointCloud via RsDataProvider");
+            AppLogger.Log("RsPointCloudInitializer", "Using RsPointCloud via RsDataProvider");
         }
 
         int rsLength = width * height;
         if (rsLength == 0)
         {
-            UnityEngine.Debug.LogError("[RsPointCloudInitializer] Failed to get depth stream dimensions");
+            AppLogger.LogError("RsPointCloudInitializer", "Failed to get depth stream dimensions");
             return;
         }
 
@@ -126,7 +127,7 @@ public class RsPointCloudInitializer
             {
                 _integratedPointCloud = integrated;
                 _useIntegratedPointCloud = true; // 設定が存在すれば、GPUメモリ上で結合されたバッファを適用するモードになる
-                UnityEngine.Debug.Log("[RsPointCloudInitializer] Connected to RsIntegratedPointCloud");
+                AppLogger.Log("RsPointCloudInitializer", "Connected to RsIntegratedPointCloud");
                 return;
             }
         }

@@ -1,6 +1,7 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System;
 using UnityEngine;
+using Core.Logging;
 
 [ProcessingBlockData(typeof(RsColorBasedDepthCulling))]
 [HelpURL("https://github.com/IntelRealSense/librealsense/blob/master/doc/post-processing-filters.md")]
@@ -71,7 +72,7 @@ public class RsColorBasedDepthCulling : RsProcessingBlock
         }
         else
         {
-            UnityEngine.Debug.LogWarning("[RsColorBasedDepthCulling] Compute Shader is not assigned. Fallback to CPU mode is not implemented for performance reasons.");
+            AppLogger.LogWarning("RsColorBasedDepthCulling", "Compute Shader is not assigned. Fallback to CPU mode is not implemented for performance reasons.");
         }
     }
 

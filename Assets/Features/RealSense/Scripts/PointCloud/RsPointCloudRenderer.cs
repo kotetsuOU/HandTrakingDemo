@@ -1,8 +1,10 @@
 using Intel.RealSense;
 using System.Diagnostics;
 using UnityEngine;
+using Core.Logging;
 
 [RequireComponent(typeof(MeshRenderer))]
+[AppLoggable("RealSense (Pipeline)")]
 public class RsPointCloudRenderer : MonoBehaviour
 {
     #region Inspector Fields
@@ -130,14 +132,14 @@ public class RsPointCloudRenderer : MonoBehaviour
         var compute = _initializer?.Compute;
         if (compute == null)
         {
-            UnityEngine.Debug.LogWarning("[RsPointCloudRenderer] Compute instance is null.");
+            AppLogger.LogWarning(this, "Compute instance is null.");
             return new Vector3[0];
         }
 
         int count = compute.GetLastFilteredCount();
         if (count <= 0)
         {
-            UnityEngine.Debug.LogWarning($"[RsPointCloudRenderer] Vertex count is {count}.");
+            AppLogger.LogWarning(this, $"Vertex count is {count}.");
             return new Vector3[0];
         }
 

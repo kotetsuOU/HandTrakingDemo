@@ -13,9 +13,8 @@
 
 本システムは、各コンポーネントの Inspector を汚すことなく、シーン内の主要モジュール（`HCD`, `RealSense`, `PCD`, `Experiment`, `Haptics`, `PCV` 等）のログ出力を `AppLogManager` インスペクター上で一元かつ階層的に ON/OFF 制御する仕組みを提供します。
 
-### 主な特徴
-
-* **中央集中トグル管理**: モジュールカテゴリ（例: `HCD (Haptic Collision)`, `Experiment`, `PCV (PointCloudViewer)`, `PCD (Occlusion)`）および個別サブトリガー（例: `[EXP_Manager]`, `[PCV_Controller]`, `[PCDOcclusionPipelineController]`）単位でログ有効状態を切り替え可能です。
+* **自動コンテキスト識別（複数アタッチ対応）**: 同一スクリプトが複数 GameObject にアタッチされている場合（例: 複数台の RealSense カメラ）、`AppLogger.Log(this, ...)` 呼び出しによってログプレフィックスが **`[型名: GameObject名]`**（例: `[RsDevice: RealSense_Front]`）へ自動拡張され、出力元オブジェクトを即座に識別可能です。
+* **中央集中トグル管理**: モジュールカテゴリ（例: `HCD (Haptic Collision)`, `Experiment`, `PCV (PointCloudViewer)`, `PCD (Occlusion)`, `RealSense`）および個別サブトリガー（例: `[EXP_Manager]`, `[PCV_Controller]`, `[RsDevice] RealSense_Front`）単位でログ有効状態を切り替え可能です。
 * **Inspector の非汚染化**: 個別の `MonoBehaviour` に `public bool enableDebugLog` や `public bool EnableLog` などのトグル変数を定義せず、全制御を `AppLogManager` に統一します。
 * **自動スキャン・登録機能**: シーン内の `[AppLoggable]` 属性または `IAppLoggable` インターフェースを持つアクティブコンポーネントを全自動で検出・グループ化します。
 * **サブトリガーによる詳細分類**: `IAppLoggable` インターフェースを介して、単一コンポーネントから複数の機能別サブログトリガーを `AppLogManager` へ登録できます。
@@ -34,8 +33,18 @@ Assets/Core/Scripts/Logging/
     ├── HCD_LogTriggers.cs             # HCD モジュール用 AppLogManager 連動トリガー
     ├── EXP_LogTriggers.cs             # Experiment モジュール用 AppLogManager 連動トリガー
     ├── HAP_LogTriggers.cs             # Haptics モジュール用 AppLogManager 連動トリガー
-    ├── DPC_LogTriggers.cs             # DummyPointCloud モジュール用 AppLogManager 連動トリガー
+    ├── DPC_LogTriggers.cs             # DPC (Dummy Point Cloud) モジュール用連動トリガー
     ├── PCV_LogTriggers.cs             # PointCloudViewer モジュール用 AppLogManager 連動トリガー
+    ├── (RealSense / センサーデバイス モジュール)
+    │   ├── RsDevice.cs                # [AppLoggable("RealSense (Device)")] カメラデバイス統括
+    │   ├── RsDeviceController.cs      # [AppLoggable("RealSense (Device)")] デバイス設定コントローラー
+    │   ├── RsGlobalPointCloudManager.cs # [AppLoggable("RealSense (Pipeline)")] 全カメラ統合バッファマネージャー
+    │   ├── RsProcessingPipe.cs        # [AppLoggable("RealSense (Pipeline)")] フレームパイプライン統括
+    │   └── RsIntegratedPointCloud.cs  # [AppLoggable("RealSense (Pipeline)")] 統合点群生成プロセッサ
+    ├── (DPC / ダミー実測点群 モジュール)
+    │   ├── RsDummyPointCloudProvider.cs # [AppLoggable("DPC (Dummy Point Cloud)")] ダミー点群供給プロバイダー
+    │   ├── RsDummyPointCloudRenderer.cs # [AppLoggable("DPC (Dummy Point Cloud)")] GPU Dirty描画レンダラー
+    │   └── RsDummyProcessingPipe.cs     # [AppLoggable("DPC (Dummy Point Cloud)")] ダミーフレームパイプライン
     └── (PCD / 3DDisplay モジュール)
         ├── PCDOcclusionPipelineController.cs # [AppLoggable("PCD (Occlusion)")] 属性を持つオクルージョン統括
         ├── PCDMeshRegistrarController.cs     # [AppLoggable("PCD (Occlusion)")] 属性を持つメッシュ登録統括
@@ -199,3 +208,5 @@ if (AppLogger.IsEnabled(this, HCD_Pipeline.TagDistanceProcessor) && Time.frameCo
 
 * **Inspector トグル変数の個別追加禁止**: 個別の `MonoBehaviour` や C# クラスに `public bool enableDebugLog` や `public bool EnableLog` などを定義することは禁止されています。必ず `AppLogManager` および `AppLogger` を経由してください（PCD モジュールもこれに従い、`PCDPointBufferManager` の `EnableLog` 変数は廃止・一元管理化されました）。
 * **直接 `Debug.Log` の使用禁止**: 各 Feature 内のプロダクションコードで直接 `Debug.Log` を呼び出すことは避け、必ず `AppLogger` を使用してください。
+* **`IAppLoggable` インターフェース実装の徹底**: `[AppLoggable]` 属性を持つコンポーネントは必ず `IAppLoggable` インターフェースを実装し、各種トリガー定義クラス（例: `DPC_LogTriggers`）へ委譲・登録を行ってください。未実装の場合、`AppLogManager` のコンポーネント自動スキャン時に `[型名] GameObject名` 形式の不揃いなデフォルトエントリーが生成され、重複表示の原因となります。
+* **統一ログプレフィックスの指定**: コンソールログ出力時にクラス名がプレフィックスとして冗長表示されるのを防ぐため、サブトリガーを持つコンポーネントでは `AppLogger.Log(DPC_LogTriggers.TagPipe, message, this)` のように識別タグ（`nameTag`）を第1引数に指定する形式を標準として使用してください。

@@ -177,10 +177,12 @@ $$
 
 ### 5.2 統制ログシステム (AppLogManager) との同期
 
-本モジュールの動作ログは `AppLogManager` の **`[DummyPointCloud]`** グループで一元管理されます。
+本モジュールの動作ログは `AppLogManager` の **`[DPC (Dummy Point Cloud)]`** グループで一元管理されます。
 
 * `DPC_Provider`: 点群ストリームの開始・停止およびデータ更新ログを出力します。
 * `DPC_Renderer`: GPU ComputeBuffer への転送および描画実行ログを出力します。
 * `DPC_NoiseProcessor`: ノイズおよび外れ値の適用結果（処理点数、パラメータ状態）を出力します。
+* `DPC_ProcessingPipe`: ダミーフレームパイプラインの動作状態ログを出力します。
+* `DPC_SoftwareDevice`: ソフトウェアデバイスの初期化およびデータ供給ログを出力します。
 
 詳細なログ仕様については [Logging.md](./Logging.md) を参照してください。

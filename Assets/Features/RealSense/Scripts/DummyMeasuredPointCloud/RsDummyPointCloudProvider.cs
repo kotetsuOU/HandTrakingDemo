@@ -12,7 +12,7 @@ namespace RealSense.DummyPointCloud
     /// 物理密度や色を指定してダミーの実測点群を生成し、
     /// RsProcessingPipe / RsDummyProcessingPipe の Source (RsFrameProvider) として供給するコンポーネント。
     /// </summary>
-    [AppLoggable("DummyPointCloud")]
+    [AppLoggable("DPC (Dummy Point Cloud)")]
     [DisallowMultipleComponent]
     public class RsDummyPointCloudProvider : RsFrameProvider, IAppLoggable
     {
@@ -168,7 +168,7 @@ namespace RealSense.DummyPointCloud
         {
             if (Streaming) return;
 
-            AppLogger.Log(this, DPC_LogTriggers.TagProvider, "Starting dummy point cloud streaming...");
+            AppLogger.Log(DPC_LogTriggers.TagProvider, "Starting dummy point cloud streaming...", this);
 
             _softwareDevice = new RsDummySoftwareDevice();
             _softwareDevice.Initialize(depthWidth, depthHeight, updateFPS);
@@ -181,14 +181,14 @@ namespace RealSense.DummyPointCloud
 
             _streamingCoroutine = StartCoroutine(StreamingLoop());
 
-            AppLogger.Log(this, DPC_LogTriggers.TagProvider, $"Streaming started successfully. (CameraPerspective: {useCameraPerspective}, FPS: {updateFPS})");
+            AppLogger.Log(DPC_LogTriggers.TagProvider, $"Streaming started successfully. (CameraPerspective: {useCameraPerspective}, FPS: {updateFPS})", this);
         }
 
         public void StopStreaming()
         {
             if (!Streaming) return;
 
-            AppLogger.Log(this, DPC_LogTriggers.TagProvider, "Stopping dummy point cloud streaming...");
+            AppLogger.Log(DPC_LogTriggers.TagProvider, "Stopping dummy point cloud streaming...", this);
 
             if (_streamingCoroutine != null)
             {
@@ -206,7 +206,7 @@ namespace RealSense.DummyPointCloud
             Streaming = false;
             OnStop?.Invoke();
 
-            AppLogger.Log(this, DPC_LogTriggers.TagProvider, "Streaming stopped.");
+            AppLogger.Log(DPC_LogTriggers.TagProvider, "Streaming stopped.", this);
         }
 
         private IEnumerator StreamingLoop()
@@ -259,13 +259,13 @@ namespace RealSense.DummyPointCloud
                         {
                             if (isNoiseActive)
                             {
-                                AppLogger.Log(this, DPC_LogTriggers.TagNoiseProcessor,
-                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Mode: {noiseSettings.updateMode}, Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])");
+                                AppLogger.Log(DPC_LogTriggers.TagNoiseProcessor,
+                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Mode: {noiseSettings.updateMode}, Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])", this);
                             }
                             else
                             {
-                                AppLogger.Log(this, DPC_LogTriggers.TagProvider,
-                                    $"Sampled & Updated DataVersion: {DataVersion} ({LastSampledData.PointCount} points).");
+                                AppLogger.Log(DPC_LogTriggers.TagProvider,
+                                    $"Sampled & Updated DataVersion: {DataVersion} ({LastSampledData.PointCount} points).", this);
                             }
                         }
                     }

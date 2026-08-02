@@ -246,6 +246,7 @@ namespace Core.Logging
         private string ResolveCategoryName(string typeName)
         {
             if (typeName.StartsWith("HCD", StringComparison.OrdinalIgnoreCase)) return "HCD (Haptic Collision)";
+            if (typeName.StartsWith("DPC", StringComparison.OrdinalIgnoreCase) || typeName.Contains("Dummy")) return "DPC (Dummy Point Cloud)";
             if (typeName.StartsWith("Rs", StringComparison.OrdinalIgnoreCase) || typeName.Contains("RealSense")) return "RealSense";
             if (typeName.StartsWith("PCD", StringComparison.OrdinalIgnoreCase) || typeName.Contains("Occlusion")) return "PCD (Occlusion)";
             if (typeName.StartsWith("EXP", StringComparison.OrdinalIgnoreCase) || typeName.Contains("Experiment")) return "Experiment";

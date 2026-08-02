@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Core.Logging;
 
 /// <summary>
 /// RealSenseカメラデバイスの点群を統合し、
 /// 全体に対するPCA（主成分分析）やフィルタの制御を行うグローバルマネージャクラス。
 /// </summary>
+[AppLoggable("RealSense (Pipeline)")]
 public partial class RsGlobalPointCloudManager : MonoBehaviour
 {
     public static RsGlobalPointCloudManager Instance { get; private set; }

@@ -1,6 +1,7 @@
 using System;
 using Intel.RealSense;
 using UnityEngine;
+using Core.Logging;
 
 namespace RealSense.DummyPointCloud
 {
@@ -9,26 +10,23 @@ namespace RealSense.DummyPointCloud
     /// 本体（RsProcessingPipe.cs）の基本挙動を損なわずに、ダミー点群固有の安全なハンドリングや
     /// DebugLog のオン/オフ切り替え機能を提供します。
     /// </summary>
-    public class RsDummyProcessingPipe : RsProcessingPipe
+    [AppLoggable("DPC (Dummy Point Cloud)")]
+    public class RsDummyProcessingPipe : RsProcessingPipe, IAppLoggable
     {
-        [Header("Debug Log Settings")]
-        [Tooltip("True にすると、ダミー点群パイプラインの動作ログをコンソールに出力します")]
-        public bool enableDebugLog = false;
+        public void RegisterLogTriggers(LogCategoryGroup group, System.Collections.Generic.HashSet<string> existingLabels)
+        {
+            var triggers = GetComponent<DPC_LogTriggers>() ?? gameObject.AddComponent<DPC_LogTriggers>();
+            triggers.RegisterLogTriggers(group, existingLabels);
+        }
 
         public void Log(string message)
         {
-            if (enableDebugLog)
-            {
-                UnityEngine.Debug.Log($"[RsDummyProcessingPipe: {gameObject.name}] {message}");
-            }
+            AppLogger.Log(DPC_LogTriggers.TagPipe, message, this);
         }
 
         public void LogWarning(string message)
         {
-            if (enableDebugLog)
-            {
-                UnityEngine.Debug.LogWarning($"[RsDummyProcessingPipe: {gameObject.name}] {message}");
-            }
+            AppLogger.LogWarning(DPC_LogTriggers.TagPipe, message, this);
         }
 
         /// <summary>

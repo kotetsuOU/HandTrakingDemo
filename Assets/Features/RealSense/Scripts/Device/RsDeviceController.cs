@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Core.Logging;
 
+[AppLoggable("RealSense (Device)")]
 public class RsDeviceController : MonoBehaviour, ISerializationCallbackReceiver
 {
     [SerializeField] private Vector3 scanMin = new Vector3(0.07f, 0.07f, 0.07f);
