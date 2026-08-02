@@ -232,6 +232,7 @@ namespace RealSense.DummyPointCloud
                         maxPointLimit);
 
                     bool isNoiseActive = _noiseProcessor != null && noiseSettings != null && (noiseSettings.enableNoise || noiseSettings.enableOutliers);
+                    bool isDynamicNoise = isNoiseActive && noiseSettings.updateMode == NoiseUpdateMode.Dynamic;
 
                     // 2. ノイズ・外れ値の適用
                     Vector3[] finalPositions = sampledData.Positions;
@@ -248,8 +249,8 @@ namespace RealSense.DummyPointCloud
                     sampledData.Positions = finalPositions;
                     LastSampledData = sampledData;
 
-                    // 4. データ更新判定（ノイズ有効時は動的更新のため毎フレーム DataVersion を進める）
-                    if (isNoiseActive || prevData.Positions != LastSampledData.Positions || prevData.PointCount != LastSampledData.PointCount)
+                    // 4. データ更新判定（Dynamicノイズ有効時またはサンプリングデータ変化時のみ DataVersion を進める）
+                    if (isDynamicNoise || prevData.Positions != LastSampledData.Positions || prevData.PointCount != LastSampledData.PointCount)
                     {
                         DataVersion++;
 
@@ -259,7 +260,7 @@ namespace RealSense.DummyPointCloud
                             if (isNoiseActive)
                             {
                                 AppLogger.Log(this, DPC_LogTriggers.TagNoiseProcessor,
-                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])");
+                                    $"Processed noise/outliers for {LastSampledData.PointCount} points. (Mode: {noiseSettings.updateMode}, Noise: {noiseSettings.enableNoise} [{noiseSettings.noiseAmountMm}mm {noiseSettings.noiseType}], Outliers: {noiseSettings.enableOutliers} [{noiseSettings.outlierRatio * 100:F1}% {noiseSettings.outlierDistanceMm}mm])");
                             }
                             else
                             {

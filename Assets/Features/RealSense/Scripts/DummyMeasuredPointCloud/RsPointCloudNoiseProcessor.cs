@@ -13,11 +13,24 @@ namespace RealSense.DummyPointCloud
     }
 
     /// <summary>
+    /// ノイズの更新モード
+    /// </summary>
+    public enum NoiseUpdateMode
+    {
+        Dynamic, // 毎フレーム新しいノイズパターンを更新生成 (動的に揺れる)
+        Static   // 最初に生成された固定ノイズパターンを維持 (一度決めたら固定)
+    }
+
+    /// <summary>
     /// ダミー点群に対するノイズおよび外れ値の生成パラメーター
     /// </summary>
     [Serializable]
     public class RsPointCloudNoiseSettings
     {
+        [Header("Update Mode")]
+        [Tooltip("Dynamic: フレームごとにノイズが動的に変化 / Static: 最初に生成された固定ノイズパターンを維持")]
+        public NoiseUpdateMode updateMode = NoiseUpdateMode.Dynamic;
+
         [Header("Normal Direction Noise")]
         [Tooltip("True にするとメッシュ法線方向へのノイズ移動を有効化します")]
         public bool enableNoise = false;
@@ -51,8 +64,28 @@ namespace RealSense.DummyPointCloud
     /// </summary>
     public class RsPointCloudNoiseProcessor
     {
+        private struct FixedOffset
+        {
+            public bool isOutlier;
+            public float normalOffset;        // 法線方向への乗算距離 (m)
+            public float outlierSign;          // 法線方向外れ値時の符号 (-1 or 1)
+            public Vector3 outlierRandomDir;   // 全方向ランダム外れ値時の単位ベクトル
+            public float outlierDistance;      // 外れ値の移動距離 (m)
+        }
+
         private Vector3[] _processedPositionsCache = new Vector3[0];
+        private FixedOffset[] _fixedOffsetsCache = new FixedOffset[0];
         private System.Random _random = new System.Random(42);
+
+        private int _lastPointCount = -1;
+        private bool _lastEnableNoise;
+        private float _lastNoiseAmountMm;
+        private NoiseDistributionType _lastNoiseType;
+        private bool _lastEnableOutliers;
+        private float _lastOutlierRatio;
+        private float _lastOutlierDistanceMm;
+        private bool _lastOutlierUseRandomDirection;
+        private NoiseUpdateMode _lastUpdateMode;
 
         /// <summary>
         /// ノイズおよび外れ値を適用した座標配列を取得します。
@@ -70,7 +103,6 @@ namespace RealSense.DummyPointCloud
                 return originalPositions;
             }
 
-            // 配列サイズの確保
             if (_processedPositionsCache.Length < pointCount)
             {
                 _processedPositionsCache = new Vector3[pointCount];
@@ -80,58 +112,159 @@ namespace RealSense.DummyPointCloud
             float outlierDistanceMeters = settings.outlierDistanceMm * 0.001f;
             bool hasNormals = normals != null && normals.Length >= pointCount;
 
-            for (int i = 0; i < pointCount; i++)
+            // Static モード時の固定オフセットキャッシュ構築判定
+            if (settings.updateMode == NoiseUpdateMode.Static)
             {
-                Vector3 pos = originalPositions[i];
-                Vector3 normal = hasNormals ? normals[i] : Vector3.up;
+                bool isDirty = _fixedOffsetsCache.Length < pointCount ||
+                               _lastPointCount != pointCount ||
+                               _lastUpdateMode != settings.updateMode ||
+                               _lastEnableNoise != settings.enableNoise ||
+                               !Mathf.Approximately(_lastNoiseAmountMm, settings.noiseAmountMm) ||
+                               _lastNoiseType != settings.noiseType ||
+                               _lastEnableOutliers != settings.enableOutliers ||
+                               !Mathf.Approximately(_lastOutlierRatio, settings.outlierRatio) ||
+                               !Mathf.Approximately(_lastOutlierDistanceMm, settings.outlierDistanceMm) ||
+                               _lastOutlierUseRandomDirection != settings.outlierUseRandomDirection;
 
-                // 1. 外れ値の判定と適用
-                bool isOutlier = settings.enableOutliers && (_random.NextDouble() < settings.outlierRatio);
-
-                if (isOutlier)
+                if (isDirty)
                 {
-                    Vector3 dir;
-                    if (settings.outlierUseRandomDirection)
-                    {
-                        // 球面一様ランダム方向
-                        dir = UnityEngine.Random.onUnitSphere;
-                    }
-                    else
-                    {
-                        // 法線方向（正負ランダム）
-                        float sign = (_random.NextDouble() < 0.5) ? -1f : 1f;
-                        dir = normal * sign;
-                    }
+                    RebuildStaticOffsets(pointCount, settings);
 
-                    // 指定の離脱距離 + 若干のバラつき
-                    float dist = outlierDistanceMeters * (0.8f + (float)_random.NextDouble() * 0.4f);
-                    pos += dir * dist;
-                }
-                // 2. 通常の法線方向ノイズの適用
-                else if (settings.enableNoise && noiseAmountMeters > 0f)
-                {
-                    float offset;
-                    if (settings.noiseType == NoiseDistributionType.Gaussian)
-                    {
-                        // Box-Muller 法による正規分布ノイズ生成 (平均0, 標準偏差 sigma = noiseAmountMeters)
-                        offset = GenerateGaussianNoise(0f, noiseAmountMeters);
-                    }
-                    else
-                    {
-                        // 一様分布 [-noiseAmountMeters, +noiseAmountMeters]
-                        offset = ((float)_random.NextDouble() * 2f - 1f) * noiseAmountMeters;
-                    }
-
-                    pos += normal * offset;
+                    _lastPointCount = pointCount;
+                    _lastUpdateMode = settings.updateMode;
+                    _lastEnableNoise = settings.enableNoise;
+                    _lastNoiseAmountMm = settings.noiseAmountMm;
+                    _lastNoiseType = settings.noiseType;
+                    _lastEnableOutliers = settings.enableOutliers;
+                    _lastOutlierRatio = settings.outlierRatio;
+                    _lastOutlierDistanceMm = settings.outlierDistanceMm;
+                    _lastOutlierUseRandomDirection = settings.outlierUseRandomDirection;
                 }
 
-                _processedPositionsCache[i] = pos;
+                // キャッシュされた固定パラメータを使って座標を計算
+                for (int i = 0; i < pointCount; i++)
+                {
+                    Vector3 pos = originalPositions[i];
+                    Vector3 normal = hasNormals ? normals[i] : Vector3.up;
+                    ref var offset = ref _fixedOffsetsCache[i];
+
+                    if (offset.isOutlier)
+                    {
+                        Vector3 dir = settings.outlierUseRandomDirection ? offset.outlierRandomDir : (normal * offset.outlierSign);
+                        pos += dir * offset.outlierDistance;
+                    }
+                    else if (settings.enableNoise)
+                    {
+                        pos += normal * offset.normalOffset;
+                    }
+
+                    _processedPositionsCache[i] = pos;
+                }
+            }
+            else
+            {
+                // Dynamic モード: 毎フレーム乱数で動的に位置を計算
+                for (int i = 0; i < pointCount; i++)
+                {
+                    Vector3 pos = originalPositions[i];
+                    Vector3 normal = hasNormals ? normals[i] : Vector3.up;
+
+                    bool isOutlier = settings.enableOutliers && (_random.NextDouble() < settings.outlierRatio);
+
+                    if (isOutlier)
+                    {
+                        Vector3 dir;
+                        if (settings.outlierUseRandomDirection)
+                        {
+                            dir = UnityEngine.Random.onUnitSphere;
+                        }
+                        else
+                        {
+                            float sign = (_random.NextDouble() < 0.5) ? -1f : 1f;
+                            dir = normal * sign;
+                        }
+
+                        float dist = outlierDistanceMeters * (0.8f + (float)_random.NextDouble() * 0.4f);
+                        pos += dir * dist;
+                    }
+                    else if (settings.enableNoise && noiseAmountMeters > 0f)
+                    {
+                        float offset;
+                        if (settings.noiseType == NoiseDistributionType.Gaussian)
+                        {
+                            offset = GenerateGaussianNoise(0f, noiseAmountMeters);
+                        }
+                        else
+                        {
+                            offset = ((float)_random.NextDouble() * 2f - 1f) * noiseAmountMeters;
+                        }
+
+                        pos += normal * offset;
+                    }
+
+                    _processedPositionsCache[i] = pos;
+                }
             }
 
-            // 元の点数に合わせた切りだし配列またはキャッシュ参照
             Vector3[] result = new Vector3[pointCount];
             Array.Copy(_processedPositionsCache, 0, result, 0, pointCount);
             return result;
+        }
+
+        private void RebuildStaticOffsets(int pointCount, RsPointCloudNoiseSettings settings)
+        {
+            if (_fixedOffsetsCache.Length < pointCount)
+            {
+                _fixedOffsetsCache = new FixedOffset[pointCount];
+            }
+
+            float noiseAmountMeters = settings.noiseAmountMm * 0.001f;
+            float outlierDistanceMeters = settings.outlierDistanceMm * 0.001f;
+
+            // 再現性のある決定的な乱数シードを使用
+            System.Random staticRand = new System.Random(12345);
+
+            for (int i = 0; i < pointCount; i++)
+            {
+                FixedOffset offset = new FixedOffset();
+
+                offset.isOutlier = settings.enableOutliers && (staticRand.NextDouble() < settings.outlierRatio);
+
+                if (offset.isOutlier)
+                {
+                    offset.outlierSign = (staticRand.NextDouble() < 0.5) ? -1f : 1f;
+
+                    // 全方向ランダム用の一様乱数単位ベクトル
+                    float u = (float)staticRand.NextDouble();
+                    float v = (float)staticRand.NextDouble();
+                    float theta = u * 2.0f * Mathf.PI;
+                    float phi = Mathf.Acos(2.0f * v - 1.0f);
+                    float sinPhi = Mathf.Sin(phi);
+                    offset.outlierRandomDir = new Vector3(
+                        sinPhi * Mathf.Cos(theta),
+                        sinPhi * Mathf.Sin(theta),
+                        Mathf.Cos(phi)
+                    );
+
+                    offset.outlierDistance = outlierDistanceMeters * (0.8f + (float)staticRand.NextDouble() * 0.4f);
+                }
+                else if (settings.enableNoise && noiseAmountMeters > 0f)
+                {
+                    if (settings.noiseType == NoiseDistributionType.Gaussian)
+                    {
+                        double u1 = 1.0 - staticRand.NextDouble();
+                        double u2 = 1.0 - staticRand.NextDouble();
+                        double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+                        offset.normalOffset = (float)randStdNormal * noiseAmountMeters;
+                    }
+                    else
+                    {
+                        offset.normalOffset = ((float)staticRand.NextDouble() * 2f - 1f) * noiseAmountMeters;
+                    }
+                }
+
+                _fixedOffsetsCache[i] = offset;
+            }
         }
 
         /// <summary>
@@ -139,7 +272,7 @@ namespace RealSense.DummyPointCloud
         /// </summary>
         private float GenerateGaussianNoise(float mean, float stdDev)
         {
-            double u1 = 1.0 - _random.NextDouble(); // (0, 1]
+            double u1 = 1.0 - _random.NextDouble();
             double u2 = 1.0 - _random.NextDouble();
             double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
             return mean + stdDev * (float)randStdNormal;

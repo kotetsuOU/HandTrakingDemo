@@ -89,6 +89,7 @@
 
 | パラメータ名 | 型 | 既定値 | 説明 |
 | :--- | :--- | :--- | :--- |
+| `updateMode` | `NoiseUpdateMode` | `Dynamic` | ノイズの更新モード (`Dynamic`: フレームごとに変動 / `Static`: 最初に決定したノイズパターンを固定保持) |
 | `enableNoise` | `bool` | `false` | メッシュ法線方向へのノイズ移動を有効化 |
 | `noiseAmountMm` | `float` | `2.0` | 法線方向への移動ノイズ量 (mm) |
 | `noiseType` | `NoiseDistributionType` | `Gaussian` | ノイズの確率分布 (`Gaussian`: 正規分布 / `Uniform`: 一様分布) |
