@@ -220,6 +220,14 @@ namespace RealSense.DummyPointCloud
                         _mirroredVerticesBuffer.SetData(_mirroredPositionsCache, 0, 0, count);
                         Log($"_mirroredVerticesBuffer updated with HalfMirror X-flip ({count} points).");
                     }
+                    else
+                    {
+                        if (_mirroredVerticesBuffer != null)
+                        {
+                            _mirroredVerticesBuffer.Release();
+                            _mirroredVerticesBuffer = null;
+                        }
+                    }
 
                     // Indirect Draw 引数の更新
                     _argsData[0] = (uint)count;
@@ -281,7 +289,12 @@ namespace RealSense.DummyPointCloud
         public override ComputeBuffer GetPCDSourceBuffer() { EnsureBufferUpdated(); return _verticesBuffer; }
         public override int GetPCDSourceCount() { EnsureBufferUpdated(); return _cachedValidPointCount; }
         /// <summary> オクルージョン用グローバルバッファマージ用: ハーフミラー有効時はX鏡像変換済みバッファを返す </summary>
-        public override ComputeBuffer GetOcclusionSourceBuffer() { EnsureBufferUpdated(); return (_mirroredVerticesBuffer != null && _mirroredVerticesBuffer.IsValid()) ? _mirroredVerticesBuffer : _verticesBuffer; }
+        public override ComputeBuffer GetOcclusionSourceBuffer()
+        {
+            EnsureBufferUpdated();
+            bool applyMirror = CheckHalfMirrorSettings(out _);
+            return (applyMirror && _mirroredVerticesBuffer != null && _mirroredVerticesBuffer.IsValid()) ? _mirroredVerticesBuffer : _verticesBuffer;
+        }
         public override int GetOcclusionSourceCount() { EnsureBufferUpdated(); return _cachedValidPointCount; }
 
         private void OnDisable()

@@ -35,6 +35,7 @@ namespace RealSense.DummyPointCloud
         // トランスフォーム変更検出用キャッシュ (静的メッシュの CPU サンプリング 0ms 化)
         private struct TransformState
         {
+            public Renderer renderer;
             public Vector3 position;
             public Quaternion rotation;
             public Vector3 scale;
@@ -113,7 +114,8 @@ namespace RealSense.DummyPointCloud
                 for (int i = 0; i < allRenderers.Count; i++)
                 {
                     Transform t = allRenderers[i].transform;
-                    if (t.position != _lastTransformStates[i].position ||
+                    if (allRenderers[i] != _lastTransformStates[i].renderer ||
+                        t.position != _lastTransformStates[i].position ||
                         t.rotation != _lastTransformStates[i].rotation ||
                         t.lossyScale != _lastTransformStates[i].scale)
                     {
@@ -143,6 +145,7 @@ namespace RealSense.DummyPointCloud
             {
                 _lastTransformStates.Add(new TransformState
                 {
+                    renderer = renderer,
                     position = renderer.transform.position,
                     rotation = renderer.transform.rotation,
                     scale = renderer.transform.lossyScale

@@ -81,6 +81,8 @@ public class PCDPointBufferManager
     // 外部から渡されるGPUバッファを設定する
     public void SetExternalBuffer(ComputeBuffer buffer, int count)
     {
+        ComputeBuffer prevBuffer = _externalPointBuffer;
+        int prevCount = _externalPointCount;
         bool prevUse = _useExternalBuffer;
 
         if (buffer != null && buffer.IsValid())
@@ -96,7 +98,7 @@ public class PCDPointBufferManager
             _externalPointCount = 0;
         }
 
-        if (prevUse != _useExternalBuffer)
+        if (prevUse != _useExternalBuffer || prevBuffer != _externalPointBuffer || prevCount != _externalPointCount)
         {
             _isDataDirty = true;
             if (EnableLog) Debug.Log($"[PCDPointBufferManager] External buffer state changed: useExternalBuffer={_useExternalBuffer}, count={_externalPointCount}");

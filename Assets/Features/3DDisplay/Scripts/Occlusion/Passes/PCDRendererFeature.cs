@@ -9,12 +9,20 @@ public class PCDRendererFeature : ScriptableRendererFeature
     {
         get
         {
-            if (_instance == null)
+            if (_instance == null || !_instance)
             {
+                _instance = null;
                 var features = Resources.FindObjectsOfTypeAll<PCDRendererFeature>();
                 if (features != null && features.Length > 0)
                 {
-                    _instance = features[0];
+                    foreach (var f in features)
+                    {
+                        if (f != null && f)
+                        {
+                            _instance = f;
+                            break;
+                        }
+                    }
                 }
             }
             return _instance;
