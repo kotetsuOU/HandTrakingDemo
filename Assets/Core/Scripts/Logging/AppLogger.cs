@@ -39,9 +39,43 @@ namespace Core.Logging
     /// <summary>
     /// アプリケーション全体のモジュール別統一ログ制御API。
     /// 対象コンポーネントの Inspector を一切汚さずに、AppLogManager から一括＆個別制御が可能です。
+    /// バックグラウンドスレッド（マルチスレッド）からのログ出力にもスレッドセーフに対応しています。
     /// </summary>
     public static class AppLogger
     {
+        private static int s_mainThreadId = -1;
+
+#if UNITY_EDITOR
+        [UnityEditor.InitializeOnLoadMethod]
+        private static void InitMainThreadEditor()
+        {
+            RegisterMainThread();
+        }
+#endif
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void InitMainThreadRuntime()
+        {
+            RegisterMainThread();
+        }
+
+        public static void RegisterMainThread()
+        {
+            s_mainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
+        }
+
+        public static bool IsMainThread
+        {
+            get
+            {
+                if (s_mainThreadId == -1)
+                {
+                    s_mainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                }
+                return System.Threading.Thread.CurrentThread.ManagedThreadId == s_mainThreadId;
+            }
+        }
+
         public static bool IsEnabled(Object context, string subTag = null)
         {
             return IsEnabled(context, AppLogLevel.Info, subTag);
@@ -68,71 +102,105 @@ namespace Core.Logging
         public static void Log(Object context, string message)
         {
             if (!IsEnabled(context, AppLogLevel.Info)) return;
-            Debug.Log($"[{GetContextPrefix(context)}] {message}", context);
+            DoDebugLog(AppLogLevel.Info, GetContextPrefix(context), message, context);
         }
 
         public static void Log(Object context, string subTag, string message)
         {
             if (!IsEnabled(context, AppLogLevel.Info, subTag)) return;
-            string prefix = !string.IsNullOrEmpty(subTag) ? $"{GetContextPrefix(context)} > {subTag}" : GetContextPrefix(context);
-            Debug.Log($"[{prefix}] {message}", context);
+            string prefix = GetContextPrefix(context);
+            if (!string.IsNullOrEmpty(subTag)) prefix = $"{prefix} > {subTag}";
+            DoDebugLog(AppLogLevel.Info, prefix, message, context);
         }
 
         public static void Log(string nameTag, string message, Object context = null)
         {
             if (!IsEnabled(nameTag, AppLogLevel.Info)) return;
-            Debug.Log($"[{nameTag}] {message}", context);
+            DoDebugLog(AppLogLevel.Info, nameTag, message, context);
         }
 
         public static void LogWarning(Object context, string message)
         {
             if (!IsEnabled(context, AppLogLevel.Warning)) return;
-            Debug.LogWarning($"[{GetContextPrefix(context)}] {message}", context);
+            DoDebugLog(AppLogLevel.Warning, GetContextPrefix(context), message, context);
         }
 
         public static void LogWarning(Object context, string subTag, string message)
         {
             if (!IsEnabled(context, AppLogLevel.Warning, subTag)) return;
-            string prefix = !string.IsNullOrEmpty(subTag) ? $"{GetContextPrefix(context)} > {subTag}" : GetContextPrefix(context);
-            Debug.LogWarning($"[{prefix}] {message}", context);
+            string prefix = GetContextPrefix(context);
+            if (!string.IsNullOrEmpty(subTag)) prefix = $"{prefix} > {subTag}";
+            DoDebugLog(AppLogLevel.Warning, prefix, message, context);
         }
 
         public static void LogWarning(string nameTag, string message, Object context = null)
         {
             if (!IsEnabled(nameTag, AppLogLevel.Warning)) return;
-            Debug.LogWarning($"[{nameTag}] {message}", context);
+            DoDebugLog(AppLogLevel.Warning, nameTag, message, context);
         }
 
         public static void LogError(Object context, string message)
         {
             if (!IsEnabled(context, AppLogLevel.Error)) return;
-            Debug.LogError($"[{GetContextPrefix(context)}] {message}", context);
+            DoDebugLog(AppLogLevel.Error, GetContextPrefix(context), message, context);
         }
 
         public static void LogError(Object context, string subTag, string message)
         {
             if (!IsEnabled(context, AppLogLevel.Error, subTag)) return;
-            string prefix = !string.IsNullOrEmpty(subTag) ? $"{GetContextPrefix(context)} > {subTag}" : GetContextPrefix(context);
-            Debug.LogError($"[{prefix}] {message}", context);
+            string prefix = GetContextPrefix(context);
+            if (!string.IsNullOrEmpty(subTag)) prefix = $"{prefix} > {subTag}";
+            DoDebugLog(AppLogLevel.Error, prefix, message, context);
         }
 
         public static void LogError(string nameTag, string message, Object context = null)
         {
             if (!IsEnabled(nameTag, AppLogLevel.Error)) return;
-            Debug.LogError($"[{nameTag}] {message}", context);
+            DoDebugLog(AppLogLevel.Error, nameTag, message, context);
+        }
+
+        private static void DoDebugLog(AppLogLevel level, string prefix, string message, Object context)
+        {
+            string formattedMsg = !string.IsNullOrEmpty(prefix) ? $"[{prefix}] {message}" : message;
+            Object targetContext = (IsMainThread && !ReferenceEquals(context, null)) ? context : null;
+
+            switch (level)
+            {
+                case AppLogLevel.Info:
+                    Debug.Log(formattedMsg, targetContext);
+                    break;
+                case AppLogLevel.Warning:
+                    Debug.LogWarning(formattedMsg, targetContext);
+                    break;
+                case AppLogLevel.Error:
+                    Debug.LogError(formattedMsg, targetContext);
+                    break;
+            }
         }
 
         private static string GetContextPrefix(Object context)
         {
-            if (context == null) return "Log";
-            if (context is Component comp && comp != null)
+            if (ReferenceEquals(context, null)) return "Log";
+
+            try
             {
-                return $"{comp.GetType().Name}: {comp.gameObject.name}";
+                if (IsMainThread)
+                {
+                    if (context is Component comp && comp != null)
+                    {
+                        return $"{comp.GetType().Name}: {comp.gameObject.name}";
+                    }
+                    if (context is GameObject go && go != null)
+                    {
+                        return go.name;
+                    }
+                }
             }
-            if (context is GameObject go && go != null)
+            catch (Exception)
             {
-                return go.name;
+                // バックグラウンドスレッド時または Unity オブジェクトアクセス失敗時のフォールバック
             }
+
             return context.GetType().Name;
         }
     }
