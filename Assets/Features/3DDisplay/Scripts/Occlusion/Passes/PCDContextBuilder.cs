@@ -193,25 +193,13 @@ internal class PCDContextBuilder
         if (adjuster != null && adjuster.isHalfMirrorEnabled)
         {
             isHalfMirrorEnabled = true;
-            if (adjuster.displayTransform != null)
-            {
-                Vector3 center = adjuster.displayTransform.position;
-                Quaternion rotation = adjuster.displayTransform.rotation;
-                Matrix4x4 displayTRS = Matrix4x4.TRS(center, rotation, Vector3.one);
-                Matrix4x4 flipX = Matrix4x4.Scale(new Vector3(-1, 1, 1));
-                Matrix4x4 displayInverse = displayTRS.inverse;
-                vMatrix = vMatrix * displayTRS * flipX * displayInverse;
-            }
-            else
-            {
-                vMatrix = vMatrix * Matrix4x4.Scale(new Vector3(-1, 1, 1));
-            }
         }
 
         data.IsHalfMirrorEnabled = isHalfMirrorEnabled;
         data.ViewMatrix = vMatrix;
         data.ProjectionMatrix = GL.GetGPUProjectionMatrix(data.Camera.projectionMatrix, false);
-        data.InverseProjectionMatrix = data.Camera.projectionMatrix.inverse;
+        //data.ProjectionMatrix.inverse = data.Camera.projectionMatrix.inverse;
+        data.InverseProjectionMatrix = data.ProjectionMatrix.inverse;
 
         data.ShouldSkip = false;
         return data;

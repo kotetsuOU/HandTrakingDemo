@@ -60,7 +60,16 @@ void ProjectPoints(uint3 id : SV_DispatchThreadID)
     if (clipPos.w <= 0.0)
         return; // 【重要】背後の点群が画面手前に反転ワープしてデプスバッファを埋め尽くすのを防ぐ
     
-    float3 ndc = clipPos.xyz / clipPos.w;
+    float originalNdcX = clipPos.x / clipPos.w;
+    float outputNdcX = originalNdcX;
+
+    if (_IsHalfMirrorEnabled > 0)
+    {
+        outputNdcX = -originalNdcX;
+    }
+
+    float3 ndc = float3(outputNdcX, clipPos.y / clipPos.w, clipPos.z / clipPos.w);
+    
     if (ndc.x < -1 || ndc.x > 1 || ndc.y < -1 || ndc.y > 1 || ndc.z < 0 || ndc.z > 1)
         return;
 

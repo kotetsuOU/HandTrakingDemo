@@ -79,6 +79,7 @@ void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIn
         {
             targetX = (uint)_ScreenParams.x - 1 - id.x;
         }
+        
         uint2 writeUV = uint2(targetX, id.y);
 
         // ClearMaps の代わりとして OriginMap もここでクリアしておく
@@ -107,11 +108,6 @@ void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIn
             float4 clipPos = float4(ndc.x, ndc.y, cameraDepth * 2.0 - 1.0, 1.0);
             float4 viewPos = mul(_InverseProjectionMatrix, clipPos);
             viewPos /= viewPos.w;
-
-            if (_IsHalfMirrorEnabled > 0)
-            {
-                viewPos.x = -viewPos.x;
-            }
 
             _ViewPositionMap_RW[writeUV] = float4(viewPos.xyz, cameraDepth);
             _OriginTypeMap_RW[writeUV] = 1u;

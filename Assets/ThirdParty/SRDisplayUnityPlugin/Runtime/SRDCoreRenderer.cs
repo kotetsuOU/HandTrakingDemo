@@ -76,7 +76,7 @@ namespace SRD.Core
         private bool _isCalibrationRegistered = false;
         private bool _lastIsHalfMirror = false;
 
-        private bool IsHalfMirrorActive()
+        internal bool IsHalfMirrorActive()
         {
             if (_srdManager != null)
             {
@@ -144,8 +144,8 @@ namespace SRD.Core
             
             if (!_isStereoTextureRegistered || _isCalibrationRegistered)
             {
-                var leftTex = isHalfMirror ? _eyeViewRenderer.GetRightEyeViewTexture() : _eyeViewRenderer.GetLeftEyeViewTexture();
-                var rightTex = isHalfMirror ? _eyeViewRenderer.GetLeftEyeViewTexture() : _eyeViewRenderer.GetRightEyeViewTexture();
+                var leftTex = _eyeViewRenderer.GetLeftEyeViewTexture();
+                var rightTex = _eyeViewRenderer.GetRightEyeViewTexture();
                 _stereoCompositer.RegisterSourceStereoTextures(leftTex, rightTex);
                 _isStereoTextureRegistered = true;
                 _isCalibrationRegistered = false;

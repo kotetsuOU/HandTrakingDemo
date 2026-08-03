@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2019-2025 Sony Corporation
  */
 
@@ -143,12 +143,19 @@ namespace SRD.Core
             Action<Camera> updateState = (camera) =>
             {
                 _faceTracker.GetCurrentFacePose(out _currentFacePose);
-                var eyePose = _currentFacePose.GetEyePose(type);
+                
+                EyeType sourceType = type;
+                if (_srdManager.SRDCoreRenderer != null && _srdManager.SRDCoreRenderer.IsHalfMirrorActive())
+                {
+                    sourceType = type == EyeType.Left ? EyeType.Right : EyeType.Left;
+                }
+
+                var eyePose = _currentFacePose.GetEyePose(sourceType);
                 eyeTransform.SetPositionAndRotation(eyePose.position, eyePose.rotation);
 
                 _faceTracker.GetCurrentProjMatrix(eyeCamera.nearClipPlane, eyeCamera.farClipPlane,
                                                   out _currentProjMat);
-                var projMat = _currentProjMat.GetProjectionMatrix(type);
+                var projMat = _currentProjMat.GetProjectionMatrix(sourceType);
 
                 if (!SRDHelper.HasNanOrInf(projMat))
                 {
