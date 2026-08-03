@@ -25,12 +25,11 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
     private SerializedProperty onlyTargetHandContactProp;
     private SerializedProperty handContactThresholdProp;
     
-    private SerializedProperty footTargetNormalProp;
+    private SerializedProperty footTargetTouchDirectionProp;
 
     private SerializedProperty stmModeProp;
     private SerializedProperty sequentialSTMFrequencyProp;
     private SerializedProperty trackModeProp;
-    private SerializedProperty customInnerAlgorithmProp;
 
     private SerializedProperty drawGizmosProp;
     private SerializedProperty activeColorProp;
@@ -58,12 +57,11 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         onlyTargetHandContactProp = serializedObject.FindProperty("onlyTargetHandContact");
         handContactThresholdProp = serializedObject.FindProperty("handContactThreshold");
 
-        footTargetNormalProp = serializedObject.FindProperty("footTargetNormal");
+        footTargetTouchDirectionProp = serializedObject.FindProperty("footTargetTouchDirection");
 
         stmModeProp = serializedObject.FindProperty("stmMode");
         sequentialSTMFrequencyProp = serializedObject.FindProperty("sequentialSTMFrequency");
         trackModeProp = serializedObject.FindProperty("trackMode");
-        customInnerAlgorithmProp = serializedObject.FindProperty("customInnerAlgorithm");
 
         drawGizmosProp = serializedObject.FindProperty("drawGizmos");
         activeColorProp = serializedObject.FindProperty("activeColor");
@@ -112,7 +110,7 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
             EditorGUI.indentLevel--;
         }
 
-        EditorGUILayout.PropertyField(footTargetNormalProp);
+        EditorGUILayout.PropertyField(footTargetTouchDirectionProp);
         EditorGUILayout.Space();
 
         EditorGUILayout.PropertyField(stmModeProp);
@@ -129,7 +127,6 @@ public class HAP_FoxFootHapticsControllerEditor : Editor
         {
             // GainSTM の場合のみ表示
             EditorGUILayout.PropertyField(trackModeProp);
-            EditorGUILayout.PropertyField(customInnerAlgorithmProp);
         }
         else
         {

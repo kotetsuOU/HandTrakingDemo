@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 public static partial class HAP_GizmoVisualizer
 {
-    private static void DrawVirtualObjectSurfaceMapping(GameObject obj, List<List<AUTD3Device>> deviceGroups, float directionalAngleThreshold, HAP_AUTDDebugDisabler? debugDisabler)
+    private static void DrawVirtualObjectSurfaceMapping(GameObject obj, List<List<AUTD3Device>> deviceGroups, float directionalAngleThreshold, HAP_AUTDDebugDisabler? debugDisabler, HAP_HapticsIllusionCustomController? illusionController = null)
     {
         // 余計なオブジェクトを付けず、全ての子メッシュから「仮想的なバウンディングボックス」を計算する
         var renderers = obj.GetComponentsInChildren<Renderer>();

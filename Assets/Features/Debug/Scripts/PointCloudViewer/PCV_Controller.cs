@@ -3,11 +3,13 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using System.Collections.Generic;
 using System.Collections;
+using Core.Logging;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
+[AppLoggable("PCV (PointCloudViewer)")]
 [RequireComponent(typeof(PCV_Settings), typeof(PCV_Renderer))]
 [RequireComponent(typeof(PCV_DataManager))]
 public class PCV_Controller : MonoBehaviour
@@ -49,6 +51,7 @@ public class PCV_Controller : MonoBehaviour
     {
         if (!UnityEngine.Application.isPlaying) return;
         pointCloudRenderer.UpdatePointSize(settings.pointSize);
+        ApplyRenderingSourceSettings();
         StartCoroutine(RebuildPointCloudAfterFrame());
     }
 
@@ -62,6 +65,11 @@ public class PCV_Controller : MonoBehaviour
     private void Update()
     {
         if (!UnityEngine.Application.isPlaying) return;
+
+        if (pcdRendererFeature == null)
+        {
+            ApplyRenderingSourceSettings();
+        }
 
         bool sourceChanged = settings.HasRenderingSourceChanged();
 
@@ -96,12 +104,12 @@ public class PCV_Controller : MonoBehaviour
         if (settings.renderingSource == PointCloudSource.RealSense_GPU_Global)
         {
             pcdRendererFeature.SetUseGlobalBuffer(true);
-            UnityEngine.Debug.Log("[PCV] Switched to RealSense (GPU Global Buffer) Mode.");
+            AppLogger.Log(this, PCV_LogTriggers.TagController, "[PCV] Switched to RealSense (GPU Global Buffer) Mode.");
         }
         else
         {
             pcdRendererFeature.SetUseGlobalBuffer(false);
-            UnityEngine.Debug.Log("[PCV] Switched to PCV File (CPU) Mode.");
+            AppLogger.Log(this, PCV_LogTriggers.TagController, "[PCV] Switched to PCV File (CPU) Mode.");
         }
     }
 
@@ -148,7 +156,7 @@ if (dataManager != null)
         }
         else
         {
-            UnityEngine.Debug.LogWarning("PCDRendererFeature instance is not ready yet. Data will be sent on the next update.");
+            AppLogger.LogWarning(this, PCV_LogTriggers.TagController, "PCDRendererFeature instance is not ready yet. Data will be sent on the next update.");
         }
     }
 
@@ -158,7 +166,7 @@ if (dataManager != null)
 
         if (pcdRendererFeature == null)
         {
-            UnityEngine.Debug.LogWarning("PCDRendererFeatureのインスタンスが見つかりません。アクティブなURPレンダラーにPCDRendererFeatureが追加されているか確認してください。");
+            AppLogger.LogWarning(this, PCV_LogTriggers.TagController, "PCDRendererFeatureのインスタンスが見つかりません。アクティブなURPレンダラーにPCDRendererFeatureが追加されているか確認してください。");
         }
     }
 
@@ -169,7 +177,7 @@ if (dataManager != null)
 
         if (dataManager == null || settings == null)
         {
-            UnityEngine.Debug.LogError("DataManagerまたはSettingsコンポーネントが見つかりません。");
+            AppLogger.LogError(this, PCV_LogTriggers.TagController, "DataManagerまたはSettingsコンポーネントが見つかりません。");
             return;
         }
 
@@ -199,7 +207,7 @@ if (dataManager != null)
                 targetT.SetPositionAndRotation(GetPositionFromMatrix(newMatrix), newMatrix.rotation);
 
                 appliedCount++;
-                UnityEngine.Debug.Log($"[Calibration] Applied Transform Matrix to '{file.targetObject.name}'.");
+                AppLogger.Log(this, PCV_LogTriggers.TagController, $"[Calibration] Applied Transform Matrix to '{file.targetObject.name}'.");
             }
         }
 
@@ -211,11 +219,11 @@ if (dataManager != null)
             this.transform.position = Vector3.zero;
             this.transform.rotation = Quaternion.identity;
             this.transform.localScale = Vector3.one;
-            UnityEngine.Debug.Log($"[Calibration] {appliedCount} 件のTransformを反映しました。Viewerをリセットしました。");
+            AppLogger.Log(this, PCV_LogTriggers.TagController, $"[Calibration] {appliedCount} 件のTransformを反映しました。Viewerをリセットしました。");
         }
         else
         {
-            UnityEngine.Debug.LogWarning("[Calibration] 反映対象が見つかりませんでした。");
+            AppLogger.LogWarning(this, PCV_LogTriggers.TagController, "[Calibration] 反映対象が見つかりませんでした。");
         }
     }
 

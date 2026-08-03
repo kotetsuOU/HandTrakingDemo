@@ -1,12 +1,6 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 using System.Collections.Generic;
-
-#if !USE_AUTD3_LEGACY
-using AUTD3;
-using AUTD3.Holo;
-#else
-using AUTD3Sharp;
-#endif
 
 #nullable enable
 
@@ -31,6 +25,8 @@ public struct HapticsTargetInfo
     public Transform Transform;
     public bool IsEnabled;
     public bool IsTail; // 接地判定 (disableWhenInAir) を行わない特殊部位判定
+    public Vector3 Offset; // ターゲット位置オフセット
+    public Vector3 TouchDirection; // 照射・接触向き（メッシュに向かうベクトル）
 }
 
 /// <summary>
@@ -40,8 +36,8 @@ public struct HapticsTargetInfo
 public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
 {
     [Header("Dependencies")]
-    [Tooltip("超音波を制御する HAP_AUTDController の参照。未指定の場合はシーン内から自動取得します。")]
-    public HAP_AUTDController? autdController;
+    [Tooltip("超音波を制御する HAP_AUTDHapticsController の参照。未指定の場合はシーン内から自動取得します。")]
+    public HAP_AUTDHapticsController? autdController;
 
     [Header("Animation State Settings")]
     [Tooltip("有効時、対象が空中に浮いているとき（ジャンプ中など）は触覚をオフにします。")]
@@ -57,8 +53,9 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     [Tooltip("手との接触と判定する距離のしきい値（メートル）。")]
     public float handContactThreshold = 0.1f;
 
-    [Tooltip("どのAUTDデバイスが照射するかを、方向グルーピングで判定する際のクラスタ法線。\n上面から照射するAUTD：Vector3.downを指定（展開面が下向き，ターゲットに向かって上からめがける場合）。\n下面から照射するAUTD：Vector3.upを指定。")]
-    public Vector3 footTargetNormal = Vector3.down;
+    [FormerlySerializedAs("footTargetNormal")]
+    [Tooltip("バーチャルオブジェクト（足・尻尾）が接触対象（地面や手）へ触れる/押し当てる向き（デフォルト: Vector3.down）。\n最適デバイス判定（方向グルーピング）の基準として使用されます。")]
+    public Vector3 footTargetTouchDirection = Vector3.down;
 
     [Header("Custom Mode Settings")]
     [Tooltip("STMの種類を選択。FociSTM(ハードウェア計算・単焦点)、GainSTM(CPU計算・GSPAT等の複数焦点に対応)")]
@@ -70,9 +67,6 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     [Tooltip("照射ターゲットの追跡・照射モード。\nSimultaneous: すべて同時に狙う（複数焦点）。\nSequential: 1つずつ順次切り替える（単焦点）。")]
     public HapticsTrackMode trackMode = HapticsTrackMode.Sequential;
 
-    [Tooltip("単焦点計算に使用する内部ソルバー。\nNaive: 単焦点向けに最適で素子数にO(N)。\nGSPAT: 多焦点向けの反復最適化計算で負荷が高い。")]
-    public HoloSolverAlgorithm customInnerAlgorithm = HoloSolverAlgorithm.Naive;
-
     [Header("Debug Visualization")]
     [Tooltip("Sceneビュー上にターゲットの位置を示すGizmoを描画します。")]
     public bool drawGizmos = true;
@@ -80,6 +74,19 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     public Color activeColor = Color.green;
     [Tooltip("照射対象から外れている（非アクティブまたは非接地）ターゲットのGizmo色。")]
     public Color inactiveColor = Color.red;
+
+    /// <summary>
+    /// 実験条件クラスによる刺激提示の一時抑制フラグ。
+    /// true の場合、このコントローラーからのハプティクス出力が抑制されます。
+    /// <para>
+    /// <see cref="HAP_AUTDHapticsController.bypassHaptics"/> とは独立して動作します。
+    /// bypassHaptics は SourceMode 切り替え等のグローバル制御用、
+    /// こちらは実験フロー中の刺激 ON/OFF 制御専用です。
+    /// </para>
+    /// </summary>
+    [HideInInspector]
+    [System.NonSerialized]
+    public bool experimentStimulusSuppressed = false;
 
     /// <summary>
     /// 各コントローラーが持つ照射部位（足、尻尾など）のターゲット一覧を返します。
@@ -103,13 +110,12 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
 
     /// <summary>
     /// ハプティクス照射用のターゲット座標リスト (ClusterFociData) を生成して返します。
+    /// TargetInfos からアクティブなターゲットを収集し、STMおよび追跡モードに応じた焦点データを HAP_ObjectFociGenerator 経由で組み立てます。
     /// </summary>
-    public abstract List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset);
-
-    /// <summary>
-    /// 単焦点計算に使用する内部ソルバー。
-    /// </summary>
-    public virtual HoloSolverAlgorithm CustomInnerAlgorithm => customInnerAlgorithm;
+    public virtual List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
+    {
+        return HAP_ObjectFociGenerator.Generate(this, defaultIntensityPascal, offset);
+    }
 
     /// <summary>
     /// STMの照射モード。
@@ -164,9 +170,31 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Gizmo描画を行うべき状態（drawGizmos, enabled, activeInHierarchy かつ sourceMode == ObjectTarget）であるかを判定します。
+    /// </summary>
+    protected virtual bool ShouldDrawGizmos()
+    {
+        if (!drawGizmos || !enabled || !gameObject.activeInHierarchy) return false;
+
+        HAP_AUTDHapticsController? ctrl = autdController;
+#if UNITY_EDITOR
+        if (ctrl == null)
+        {
+            ctrl = FindAnyObjectByType<HAP_AUTDHapticsController>();
+        }
+#endif
+        if (ctrl != null && ctrl.sourceMode != HapticsSourceMode.ObjectTarget)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     protected virtual void OnDrawGizmos()
     {
-        if (!drawGizmos) return;
+        if (!ShouldDrawGizmos()) return;
 
         foreach (var info in TargetInfos)
         {
@@ -178,7 +206,7 @@ public abstract class HAP_BaseObjectHapticsController : MonoBehaviour
     {
         if (info.Transform == null) return;
 
-        Vector3 pos = info.Transform.position;
+        Vector3 pos = info.Transform.position + info.Offset;
         bool isEnabled = info.IsEnabled;
         bool active = IsTargetActive(info.Transform, isEnabled, info.IsTail);
         bool isGrounded = true;

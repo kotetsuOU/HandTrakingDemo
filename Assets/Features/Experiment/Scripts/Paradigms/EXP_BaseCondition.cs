@@ -1,0 +1,102 @@
+using UnityEngine;
+
+#nullable enable
+
+/// <summary>
+/// 実験条件の基底 ScriptableObject。
+/// 実験固有の条件クラスはこのクラスを継承して実装してください。
+/// <para>
+/// 使用例:
+/// <code>
+/// [CreateAssetMenu(menuName = "EXP/Conditions/MyCondition")]
+/// public class MyCondition : EXP_BaseCondition
+/// {
+///     public float intensity = 1.0f;
+///
+///     public override void Apply(EXP_TrialData trial)
+///     {
+///         // 刺激提示処理をここに記述
+///         trial.metadata["intensity"] = intensity.ToString();
+///     }
+/// }
+/// </code>
+/// </para>
+/// </summary>
+public abstract class EXP_BaseCondition : ScriptableObject
+{
+    // =====================================================
+    // Condition Info
+    // =====================================================
+    [Header("Condition Info")]
+    [Tooltip("条件の識別名（データ記録ファイルの conditionName 列に記録されます）")]
+    public string conditionName = "Condition";
+
+    [Tooltip("この条件を試行シーケンスで何回繰り返すか")]
+    [Min(1)]
+    public int repetitions = 1;
+
+    [Tooltip("条件の説明メモ（データには出力されません）")]
+    [TextArea(2, 5)]
+    public string description = "";
+
+    /// <summary>この条件の実験パラダイム識別名（2AFC, ABX, SingleStimulus, Adjustment など）</summary>
+    public virtual string ParadigmType => "Custom";
+
+    // =====================================================
+    // Abstract Interface
+    // =====================================================
+
+    /// <summary>
+    /// この条件を1試行に適用します。刺激提示・ハプティクス起動などをここに記述してください。
+    /// EXP_ExperimentManager の Stimulus フェーズ開始時に呼ばれます。
+    /// <para>
+    /// 2AFC など複数インターバルを必要とする場合は <see cref="StimulusCoroutine"/> をオーバーライドし、
+    /// このメソッドは空実装にしてください。
+    /// </para>
+    /// </summary>
+    /// <param name="trial">現在の試行データ。metadata などを書き込めます。</param>
+    public abstract void Apply(EXP_TrialData trial);
+
+    // =====================================================
+    // Virtual Interface
+    // =====================================================
+
+    /// <summary>
+    /// 試行終了後のリセット処理。次の試行に向けた後片付けをここに記述してください。
+    /// デフォルトでは何もしません。
+    /// </summary>
+    /// <param name="trial">完了した試行データ（応答情報も含む）</param>
+    public virtual void OnTrialEnd(EXP_TrialData trial) { }
+
+    /// <summary>
+    /// 応答を受け取った直後に呼ばれます。リアルタイムな判定・後処理などに使用してください。
+    /// デフォルトでは何もしません。
+    /// </summary>
+    /// <param name="trial">応答情報が書き込まれた試行データ</param>
+    /// <returns>正誤判定結果（null = 判定なし）</returns>
+    public virtual bool? EvaluateResponse(EXP_TrialData trial) => null;
+
+    /// <summary>
+    /// 参加者の入力（"Choice1", "Z", "X" など）を、本条件における意味のある選択表現（"Interval1", "A", "Yes" など）に変換・フォーマットします。
+    /// デフォルトでは rawResponse をそのまま返します。
+    /// </summary>
+    /// <param name="trial">現在の試行データ（metadata 等へ記録も可能）</param>
+    /// <param name="rawResponse">入力ハンドラーからの生応答文字列</param>
+    /// <returns>フォーマット済みの応答結果文字列</returns>
+    public virtual string FormatResponseValue(EXP_TrialData trial, string rawResponse) => rawResponse;
+
+    /// <summary>
+    /// 2AFC など複数インターバルが必要な刺激提示をコルーチンで実装する場合にオーバーライドします。
+    /// null を返す場合（デフォルト）は <see cref="Apply"/> が代わりに呼ばれます。
+    /// <para>
+    /// このコルーチン内で <see cref="EXP_TrialData.metadata"/> への書き込みや
+    /// ハプティクスの起動・停止を制御してください。
+    /// 応答待機は EXP_ExperimentManager 側で行うため、ここには含めないでください。
+    /// </para>
+    /// </summary>
+    /// <param name="trial">現在の試行データ</param>
+    /// <param name="runner">コルーチン起動に使用する MonoBehaviour</param>
+    /// <returns>コルーチン実装がある場合は IEnumerator、ない場合は null</returns>
+    public virtual System.Collections.IEnumerator? StimulusCoroutine(
+        EXP_TrialData trial, MonoBehaviour runner) => null;
+}

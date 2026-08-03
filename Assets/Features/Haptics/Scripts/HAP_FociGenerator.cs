@@ -20,6 +20,8 @@ public static class HAP_FociGenerator
         public bool UseSTM;
         public bool IsGainSTM;
         public float STMFrequency = 150f;
+        public int AssignedDeviceIndex = -1;
+        public List<int> AssignedDeviceIndices = new List<int>();
 
         public ClusterFociData(TrackedCluster cluster)
         {
@@ -37,13 +39,17 @@ public static class HAP_FociGenerator
         HAP_HapticsEllipseSource ellipseSource,
         HAP_HapticsRandomSource randomSource,
         float focusIntensityPascal,
-        Vector3 offset)
+        Vector3 offset,
+        HapticsSTMMode stmMode = HapticsSTMMode.FociSTM,
+        float stmFrequency = 150f)
     {
         var result = new List<ClusterFociData>();
 
         foreach (var c in activeClusters)
         {
             var data = new ClusterFociData(c);
+            data.IsGainSTM = (stmMode == HapticsSTMMode.GainSTM);
+            data.STMFrequency = stmFrequency;
 
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)
@@ -183,6 +189,8 @@ public static class HAP_FociGenerator
         public bool UseSTM;
         public bool IsGainSTM;
         public float STMFrequency = 150f;
+        public int AssignedDeviceIndex = -1;
+        public List<int> AssignedDeviceIndices = new List<int>();
 
         public ClusterFociData(TrackedCluster cluster)
         {
@@ -200,13 +208,17 @@ public static class HAP_FociGenerator
         HAP_HapticsEllipseSource ellipseSource,
         HAP_HapticsRandomSource randomSource,
         float focusIntensityPascal,
-        Vector3 offset)
+        Vector3 offset,
+        HapticsSTMMode stmMode = HapticsSTMMode.FociSTM,
+        float stmFrequency = 150f)
     {
         var result = new List<ClusterFociData>();
 
         foreach (var c in activeClusters)
         {
             var data = new ClusterFociData(c);
+            data.IsGainSTM = (stmMode == HapticsSTMMode.GainSTM);
+            data.STMFrequency = stmFrequency;
 
             // 【Simplified モード】
             if (generationMode == HapticsGenerationMode.Simplified)

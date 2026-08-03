@@ -1,8 +1,9 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System;
 using System.IO;
 using UnityEngine;
 using static System.Net.Mime.MediaTypeNames;
+using Core.Logging;
 
 public static class RsCullingDebugExporter
 {
@@ -53,12 +54,12 @@ public static class RsCullingDebugExporter
             if (!Directory.Exists(resolvedPath))
             {
                 Directory.CreateDirectory(resolvedPath);
-                UnityEngine.Debug.Log($"[RsCullingDebugExporter] Created directory: {resolvedPath}");
+                AppLogger.Log("RsCullingDebugExporter", $"Created directory: {resolvedPath}");
             }
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError($"[RsCullingDebugExporter] Failed to create directory. Fallback to persistentDataPath. Error: {e.Message}");
+            AppLogger.LogError("RsCullingDebugExporter", $"Failed to create directory. Fallback to persistentDataPath. Error: {e.Message}");
             resolvedPath = UnityEngine.Application.persistentDataPath;
         }
 
@@ -78,7 +79,7 @@ public static class RsCullingDebugExporter
 
         if (bpp != 3)
         {
-            UnityEngine.Debug.LogWarning("[RsCullingDebugExporter] Supports only RGB8.");
+            AppLogger.LogWarning("RsCullingDebugExporter", "Supports only RGB8.");
             return;
         }
 
@@ -176,7 +177,7 @@ public static class RsCullingDebugExporter
 
         SaveBitmap(width, height, filteredBuffer, savePath, $"Debug_{timestamp}_5_Filtered_{mode}.bmp");
 
-        UnityEngine.Debug.Log($"[RsCullingDebugExporter] Saved debug images ({mode}, {debugMode}) to: {savePath}");
+        AppLogger.Log("RsCullingDebugExporter", $"Saved debug images ({mode}, {debugMode}) to: {savePath}");
     }
 
     private static void SetPixelBgr(byte[] buffer, int index, byte[] colorRgb)

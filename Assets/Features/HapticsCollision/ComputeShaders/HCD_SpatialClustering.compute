@@ -5,21 +5,31 @@
 
 struct PointCollisionData
 {
-    int isColliding;
-    float3 hitPoint;
-    float3 hitNormal;
+    int isColliding;     // 0: None, 1: Surface, 2: Inside
+    float distance;      // 最短距離 (m)
+    float3 pointPos;     // 点群実測座標
+    float3 hitPoint;     // メッシュ表面の投影点
+    float3 hitNormal;    // メッシュ表面法線
 };
 
-// ClusterData layout (stride = 28 bytes = 7 ints)
+// ClusterData layout (stride = 60 bytes = 15 ints)
 struct ClusterData
 {
     int count;
-    int posX;
+    int weightSum;  // fixed point x10000
+    int posX;       // fixed point x10000 (primary active position)
     int posY;
     int posZ;
-    int normalX;
+    int normalX;    // fixed point x10000
     int normalY;
     int normalZ;
+    int rawPosX;    // fixed point x10000 (raw point cloud position)
+    int rawPosY;
+    int rawPosZ;
+    int meshPosX;   // fixed point x10000 (mesh surface hit position)
+    int meshPosY;
+    int meshPosZ;
+    int minDistInt; // fixed point x1000000 for min distance
 };
 
 // Covariance & Random Data (stride = 12 ints = 48 bytes)
@@ -44,6 +54,11 @@ uint PointsCount;
 float CellSize;
 uint MaxClusters;
 uint RandomSeed;
+
+uint AggregationMode;         // 0: UnweightedCentroid, 1: DistanceWeightedCentroid, 2: NearestPoint
+uint PositionSource;          // 0: MeshSurface, 1: PointCloudRaw
+float SurfaceDistanceThreshold;
+float DistanceWeightPower;
 
 // ── Normal bin quantization ────────────────────────────────────────────────
 uint GetNormalBin(float3 n)
@@ -77,13 +92,21 @@ void ClearClusters(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= MaxClusters) return;
 
-    ClusterBuffer[id.x].count   = 0;
-    ClusterBuffer[id.x].posX    = 0;
-    ClusterBuffer[id.x].posY    = 0;
-    ClusterBuffer[id.x].posZ    = 0;
-    ClusterBuffer[id.x].normalX = 0;
-    ClusterBuffer[id.x].normalY = 0;
-    ClusterBuffer[id.x].normalZ = 0;
+    ClusterBuffer[id.x].count      = 0;
+    ClusterBuffer[id.x].weightSum  = 0;
+    ClusterBuffer[id.x].posX       = 0;
+    ClusterBuffer[id.x].posY       = 0;
+    ClusterBuffer[id.x].posZ       = 0;
+    ClusterBuffer[id.x].normalX    = 0;
+    ClusterBuffer[id.x].normalY    = 0;
+    ClusterBuffer[id.x].normalZ    = 0;
+    ClusterBuffer[id.x].rawPosX    = 0;
+    ClusterBuffer[id.x].rawPosY    = 0;
+    ClusterBuffer[id.x].rawPosZ    = 0;
+    ClusterBuffer[id.x].meshPosX   = 0;
+    ClusterBuffer[id.x].meshPosY   = 0;
+    ClusterBuffer[id.x].meshPosZ   = 0;
+    ClusterBuffer[id.x].minDistInt = 2147483647; // 0x7FFFFFFF
 }
 
 [numthreads(256, 1, 1)]
@@ -92,26 +115,72 @@ void AccumulateClusters(uint3 id : SV_DispatchThreadID)
     if (id.x >= PointsCount) return;
 
     PointCollisionData col = CollisionBuffer[id.x];
-    if (col.isColliding != 1) return; // surface contact only
+    if (col.isColliding != 1 && col.isColliding != 2) return; // Surface または Inside の接触点のみ集計
 
     int3 gridPos = (int3)floor(col.hitPoint / CellSize);
     uint normalBin = GetNormalBin(col.hitNormal);
     uint hashIndex = Hash(gridPos, normalBin);
 
-    int fx = (int)(col.hitPoint.x  * 10000.0);
-    int fy = (int)(col.hitPoint.y  * 10000.0);
-    int fz = (int)(col.hitPoint.z  * 10000.0);
-    int nx = (int)(col.hitNormal.x * 10000.0);
-    int ny = (int)(col.hitNormal.y * 10000.0);
-    int nz = (int)(col.hitNormal.z * 10000.0);
+    // Selected primary target position
+    float3 primaryPos = (PositionSource == 1) ? col.pointPos : col.hitPoint;
 
-    InterlockedAdd(ClusterBuffer[hashIndex].count,   1);
+    // Compute weight
+    float weight = 1.0;
+    if (AggregationMode == 1) // DistanceWeightedCentroid
+    {
+        float maxThresh = max(0.0001, SurfaceDistanceThreshold);
+        float normDist = saturate(col.distance / maxThresh);
+        float rawWeight = pow(saturate(1.0 - normDist), max(1.0, DistanceWeightPower));
+        weight = clamp(rawWeight, 0.05, 1.0); // 桁数(100,000)に応じた下限(0.05)・上限(1.0)クランプ
+    }
+    else if (AggregationMode == 2) // NearestPoint (sharp power weighting)
+    {
+        float maxThresh = max(0.0001, SurfaceDistanceThreshold);
+        float normDist = saturate(col.distance / maxThresh);
+        float rawWeight = pow(saturate(1.0 - normDist), 4.0);
+        weight = clamp(rawWeight, 0.05, 1.0); // 桁数(100,000)に応じた下限(0.05)・上限(1.0)クランプ
+    }
+
+    int wInt = (int)(weight * 100000.0);
+
+    int fx  = (int)(primaryPos.x   * weight * 100000.0);
+    int fy  = (int)(primaryPos.y   * weight * 100000.0);
+    int fz  = (int)(primaryPos.z   * weight * 100000.0);
+
+    int rfx = (int)(col.pointPos.x * weight * 100000.0);
+    int rfy = (int)(col.pointPos.y * weight * 100000.0);
+    int rfz = (int)(col.pointPos.z * weight * 100000.0);
+
+    int mfx = (int)(col.hitPoint.x * weight * 100000.0);
+    int mfy = (int)(col.hitPoint.y * weight * 100000.0);
+    int mfz = (int)(col.hitPoint.z * weight * 100000.0);
+
+    int nx  = (int)(col.hitNormal.x * weight * 100000.0);
+    int ny  = (int)(col.hitNormal.y * weight * 100000.0);
+    int nz  = (int)(col.hitNormal.z * weight * 100000.0);
+
+    int dInt = (int)(col.distance * 1000000.0);
+
+    InterlockedAdd(ClusterBuffer[hashIndex].count,     1);
+    InterlockedAdd(ClusterBuffer[hashIndex].weightSum, wInt);
+
     InterlockedAdd(ClusterBuffer[hashIndex].posX,    fx);
     InterlockedAdd(ClusterBuffer[hashIndex].posY,    fy);
     InterlockedAdd(ClusterBuffer[hashIndex].posZ,    fz);
+
     InterlockedAdd(ClusterBuffer[hashIndex].normalX, nx);
     InterlockedAdd(ClusterBuffer[hashIndex].normalY, ny);
     InterlockedAdd(ClusterBuffer[hashIndex].normalZ, nz);
+
+    InterlockedAdd(ClusterBuffer[hashIndex].rawPosX, rfx);
+    InterlockedAdd(ClusterBuffer[hashIndex].rawPosY, rfy);
+    InterlockedAdd(ClusterBuffer[hashIndex].rawPosZ, rfz);
+
+    InterlockedAdd(ClusterBuffer[hashIndex].meshPosX, mfx);
+    InterlockedAdd(ClusterBuffer[hashIndex].meshPosY, mfy);
+    InterlockedAdd(ClusterBuffer[hashIndex].meshPosZ, mfz);
+
+    InterlockedMin(ClusterBuffer[hashIndex].minDistInt, dInt);
 }
 
 [numthreads(256, 1, 1)]
@@ -135,7 +204,7 @@ void AccumulateCovariance(uint3 id : SV_DispatchThreadID)
     if (id.x >= PointsCount) return;
 
     PointCollisionData col = CollisionBuffer[id.x];
-    if (col.isColliding != 1) return;
+    if (col.isColliding != 1 && col.isColliding != 2) return;
 
     int3 gridPos = (int3)floor(col.hitPoint / CellSize);
     uint normalBin = GetNormalBin(col.hitNormal);
@@ -144,13 +213,14 @@ void AccumulateCovariance(uint3 id : SV_DispatchThreadID)
     int count = ClusterBuffer[hashIndex].count;
     if (count <= 1) return; // Needs at least 2 points for variance
 
-    // Compute centroid from Pass 1 results
-    float invCount = 1.0 / (count * 10000.0);
-    float3 clusterCentroid = float3(ClusterBuffer[hashIndex].posX, ClusterBuffer[hashIndex].posY, ClusterBuffer[hashIndex].posZ) * invCount;
+    int weightSum = ClusterBuffer[hashIndex].weightSum;
+    float invW = (weightSum > 0) ? (1.0 / (float)weightSum) : (1.0 / (count * 10000.0));
+    float3 clusterCentroid = float3(ClusterBuffer[hashIndex].posX, ClusterBuffer[hashIndex].posY, ClusterBuffer[hashIndex].posZ) * invW;
     
-    float3 d = col.hitPoint - clusterCentroid;
+    float3 targetPos = (PositionSource == 1) ? col.pointPos : col.hitPoint;
+    float3 d = targetPos - clusterCentroid;
 
-    // Scale by 1,000,000 for precision. Max dev ~0.05m -> sq = 0.0025. 0.0025 * 1e6 = 2500 (Fits in int well up to 800k points)
+    // Scale by 1,000,000 for precision. Max dev ~0.05m -> sq = 0.0025. 0.0025 * 1e6 = 2500
     int cXX = (int)(d.x * d.x * 1000000.0);
     int cYY = (int)(d.y * d.y * 1000000.0);
     int cZZ = (int)(d.z * d.z * 1000000.0);
@@ -165,16 +235,15 @@ void AccumulateCovariance(uint3 id : SV_DispatchThreadID)
     InterlockedAdd(PrecisionBuffer[hashIndex].covXZ, cXZ);
     InterlockedAdd(PrecisionBuffer[hashIndex].covYZ, cYZ);
 
-    // Pseudo-randomly update sample points (Reservoir sampling approximation)
+    // Pseudo-randomly update sample points
     uint rnd = Rand(RandomSeed, id.x);
     if ((rnd % count) == 0) 
     {
-        int px = (int)(col.hitPoint.x * 10000.0);
-        int py = (int)(col.hitPoint.y * 10000.0);
-        int pz = (int)(col.hitPoint.z * 10000.0);
+        int px = (int)(targetPos.x * 10000.0);
+        int py = (int)(targetPos.y * 10000.0);
+        int pz = (int)(targetPos.z * 10000.0);
         
-        // Randomly pick a slot from 0 to 15
-        uint slot = rnd & 15; // same as rnd % 16
+        uint slot = rnd & 15;
         
         InterlockedExchange(PrecisionBuffer[hashIndex].rp[slot].x, px, px);
         InterlockedExchange(PrecisionBuffer[hashIndex].rp[slot].y, py, py);

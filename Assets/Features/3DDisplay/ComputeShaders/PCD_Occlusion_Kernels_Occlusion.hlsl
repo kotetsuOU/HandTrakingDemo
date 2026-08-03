@@ -82,8 +82,13 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
     {
         float4 neighborPos = FetchPyramidPosition(level, fullResUV, sectorOffsets[s]);
 
-        // 深度プリチェック: センチネル値を排除し、近傍が対象より0.01以上手前にある場合のみ評価
-        if (neighborPos.w < 1e9 && (currentPos.w - neighborPos.w) > 0.01)
+        // 深度プリチェック: センチネル値を排除し、近傍（物理点群）が仮想オブジェクトより手前にある場合のみ評価
+        // .w は NDC深度（0=近, 1=遠）でクリップ空間変換チェーンから得られるため常に正確。
+        // 仮想オブジェクト(奥)は .w が大きく、物理点群(手前)は .w が小さい → 差は正。
+        // 【旧バグ: 閾値 0.01 は非線形NDC空間で ≈ 1m地点の10cm相当と大きすぎた（40mmで失敗）】
+        // 【修正: 1e-5 (≈ 1m地点の0.1mm相当) に縮小し小距離差も検出可能にした】
+        // .z（ビュー空間z）は _ViewMatrix の渡し方（行列転置の差異等）で正負が変わりうるため使用しない。
+        if (neighborPos.w < 1e9 && (currentPos.w - neighborPos.w) > 1e-5)
         {
             // TagOptimizationがONの場合、ピラミッド(Level>=1)は既に物理点群(0u)のみにフィルタ済。
             // しかし、Level 0 の場合はフル解像度の_ViewPositionMapから直接取得するため、
@@ -112,8 +117,12 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
 
                 if (len_y_minus_x > 0.0001 && len_x > 0.0001)
                 {
-                    float dotP = dot((y_minus_x / len_y_minus_x), (-x / len_x));
-                    occlusionValue = max(0.0, 1.0 - dotP);
+                    // dot() の結果はコサイン値で理論上 [-1,1] だが、
+                    // 点群が仮想オブジェクトのすぐ手前に来ると正規化誤差で範囲外になる場合がある。
+                    // saturate でクランプして occlusionValue が 1 を超えないよう保護する。
+                    float dotP = saturate(dot((y_minus_x / len_y_minus_x), (-x / len_x)));
+                    float val = 1.0 - dotP;
+                    occlusionValue = val > 0.0 ? max(1e-7, val) : 0.0;
                 }
             }
             else // Exponential (1) or Linear (2) or DepthOnly (4)
@@ -121,6 +130,9 @@ void ComputeOcclusion(uint3 id : SV_DispatchThreadID)
                 // 既存の関数をそのまま流用し、遮蔽度を計算
                 occlusionValue = ComputeOcclusionValue_SingleDirection(x, currentPosSq, invCurrentPosSq, y);
             }
+
+            // どのカーネルでも計算誤差等で [0,1] を超えた場合に備えてクランプ
+            occlusionValue = saturate(occlusionValue);
 
             occlusionSum += occlusionValue;
             validSectorCount++;

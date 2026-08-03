@@ -1,7 +1,8 @@
-﻿using Intel.RealSense;
+using Intel.RealSense;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Core.Logging;
 
 [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = false)]
 public sealed class ProcessingBlockDataAttribute : System.Attribute
@@ -22,6 +23,7 @@ public sealed class ProcessingBlockDataAttribute : System.Attribute
 /// パイプラインとして最終的な加工済みフレームを提供するコンポーネント。
 /// </summary>
 [Serializable]
+[AppLoggable("RealSense (Pipeline)")]
 public class RsProcessingPipe : RsFrameProvider
 {
     [Tooltip("フレームの元となるプロバイダー（カメラ・デバイスコントローラー本体など）")]
@@ -90,7 +92,7 @@ public class RsProcessingPipe : RsFrameProvider
         if (_processIntervalFrames <= 0) { _processIntervalFrames = 1; }
     }
 
-    private void OnSourceStart(PipelineProfile activeProfile)
+    protected virtual void OnSourceStart(PipelineProfile activeProfile)
     {
         if (Source != null)
         {
@@ -99,15 +101,18 @@ public class RsProcessingPipe : RsFrameProvider
 
         ActiveProfile = activeProfile;
 
-        _calibration = new RsDepthToColorCalibration(activeProfile);
-
-        if (profile != null)
+        if (activeProfile != null)
         {
-            foreach (var pb in profile._processingBlocks)
+            _calibration = new RsDepthToColorCalibration(activeProfile);
+
+            if (profile != null)
             {
-                if (pb is RsIntegratedPointCloud integratedPointCloud)
+                foreach (var pb in profile._processingBlocks)
                 {
-                    integratedPointCloud.SetCalibration(_calibration);
+                    if (pb is RsIntegratedPointCloud integratedPointCloud)
+                    {
+                        integratedPointCloud.SetCalibration(_calibration);
+                    }
                 }
             }
         }
@@ -117,7 +122,7 @@ public class RsProcessingPipe : RsFrameProvider
         OnStart?.Invoke(activeProfile);
     }
 
-    private void OnSourceStop()
+    protected virtual void OnSourceStop()
     {
         if (!Streaming)
             return;

@@ -1,6 +1,8 @@
 #if !USE_AUTD3_LEGACY
 using UnityEngine;
 using System.Collections.Generic;
+using Core.Logging;
+using Features.Haptics.Debug;
 
 /// <summary>
 /// HCD_Pipeline の結果を受け取り、配布パッケージ版の AutdController へ直接データを渡すためのブリッジスクリプト。
@@ -81,6 +83,8 @@ public class HCD_AutdControllerBridge : MonoBehaviour
 #else
 using UnityEngine;
 using System.Collections.Generic;
+using Core.Logging;
+using Features.Haptics.Debug;
 
 /// <summary>
 /// HCD_Pipeline の結果を受け取り、配布パッケージ版の AutdController へ直接データを渡すためのブリッジスクリプト。
@@ -102,7 +106,7 @@ public class HCD_AutdControllerBridge : MonoBehaviour
 
     void Start()
     {
-        Debug.LogWarning("[HCD_AutdControllerBridge] This bridge requires the new SDK (autd3-sdk). It is disabled under the legacy SDK (AUTD3Sharp).");
+        AppLogger.LogWarning(this, HAP_LogTriggers.TagController, "This bridge requires the new SDK (autd3-sdk). It is disabled under the legacy SDK (AUTD3Sharp).");
     }
 }
 

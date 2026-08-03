@@ -4,11 +4,13 @@ using UnityEngine;
 using Intel.RealSense;
 using System.Collections;
 using System.Linq;
+using Core.Logging;
 
 /// <summary>
 /// Manages streaming using a RealSense Device
 /// </summary>
 [HelpURL("https://github.com/IntelRealSense/librealsense/tree/master/wrappers/unity")]
+[AppLoggable("RealSense (Device)")]
 public class RsDevice : RsFrameProvider
 {
     /// <summary>
@@ -115,12 +117,12 @@ public class RsDevice : RsFrameProvider
 
             if (attempt < maxRetries)
             {
-                UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] Pipeline start failed (attempt {attempt}/{maxRetries}). Retrying in {retryIntervalSeconds}s...");
+                AppLogger.LogWarning(this, $"Pipeline start failed (attempt {attempt}/{maxRetries}). Retrying in {retryIntervalSeconds}s...");
                 yield return new WaitForSeconds(retryIntervalSeconds);
             }
             else
             {
-                UnityEngine.Debug.LogError($"[RsDevice: {m_deviceName}] Pipeline start failed after {maxRetries} attempts. Camera may not be connected.");
+                AppLogger.LogError(this, $"Pipeline start failed after {maxRetries} attempts. Camera may not be connected.");
             }
         }
     }
@@ -163,7 +165,7 @@ public class RsDevice : RsFrameProvider
                             }
 
                             cfg.EnableRecordToFile(finalRecordPath);
-                            UnityEngine.Debug.Log($"[RsDevice: {m_deviceName}] Setup Recording => \nRaw Input: {DeviceConfiguration.RecordPath}\nResolved: {finalRecordPath}");
+                            AppLogger.Log(this, $"Setup Recording => \nRaw Input: {DeviceConfiguration.RecordPath}\nResolved: {finalRecordPath}");
                             foreach (var p in DeviceConfiguration.Profiles)
                                 p.Apply(cfg);
                             break;
@@ -188,7 +190,7 @@ public class RsDevice : RsFrameProvider
         }
         catch (Exception ex)
         {
-            UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] Pipeline start error: {ex.Message}");
+            AppLogger.LogWarning(this, $"Pipeline start error: {ex.Message}");
             return false;
         }
     }
@@ -246,7 +248,7 @@ public class RsDevice : RsFrameProvider
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] Pipeline stop warning: {e.Message}");
+                    AppLogger.LogWarning(this, $"Pipeline stop warning: {e.Message}");
                 }
             }
             Streaming = false;
@@ -257,14 +259,14 @@ public class RsDevice : RsFrameProvider
                 if (System.IO.File.Exists(finalRecordPath))
                 {
                     var fileInfo = new System.IO.FileInfo(finalRecordPath);
-                    UnityEngine.Debug.Log($"[RsDevice: {m_deviceName}] Recording Stopped. File successfully found on disk: {finalRecordPath}\nFrames captured: {frameCount}, File Size: {fileInfo.Length} bytes.");
+                    AppLogger.Log(this, $"Recording Stopped. File successfully found on disk: {finalRecordPath}\nFrames captured: {frameCount}, File Size: {fileInfo.Length} bytes.");
 #if UNITY_EDITOR
                     UnityEditor.AssetDatabase.Refresh();
 #endif
                 }
                 else
                 {
-                    UnityEngine.Debug.LogError($"[RsDevice: {m_deviceName}] File NOT found on disk! Path: {finalRecordPath}. Frames captured: {frameCount}. Check if RealSense devices are working properly.");
+                    AppLogger.LogError(this, $"File NOT found on disk! Path: {finalRecordPath}. Frames captured: {frameCount}. Check if RealSense devices are working properly.");
                 }
             }
         }
@@ -306,11 +308,11 @@ public class RsDevice : RsFrameProvider
             catch (Exception ex)
             {
                 consecutiveErrors++;
-                UnityEngine.Debug.LogWarning($"[RsDevice: {m_deviceName}] WaitForFrames error ({consecutiveErrors}/{maxConsecutiveErrors}): {ex.Message}");
+                AppLogger.LogWarning(this, $"WaitForFrames error ({consecutiveErrors}/{maxConsecutiveErrors}): {ex.Message}");
                 
                 if (consecutiveErrors >= maxConsecutiveErrors)
                 {
-                    UnityEngine.Debug.LogError($"[RsDevice: {m_deviceName}] Too many consecutive errors. Device may be disconnected or unresponsive.");
+                    AppLogger.LogError(this, $"Too many consecutive errors. Device may be disconnected or unresponsive.");
                     break;
                 }
                 
@@ -328,7 +330,7 @@ public class RsDevice : RsFrameProvider
         {
             if (frameCount >= recordDurationInFrames)
             {
-                UnityEngine.Debug.Log($"[RsDevice] Expected recording duration reached: {frameCount}/{recordDurationInFrames} frames.");
+                AppLogger.Log(this, $"Expected recording duration reached: {frameCount}/{recordDurationInFrames} frames.");
                 StopStreaming();
                 return;
             }

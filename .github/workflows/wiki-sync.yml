@@ -5,6 +5,7 @@ on:
     branches:
       - 3DDisplay
       - AUTD
+      - newAUTD
       - main
     paths:
       - "Docs/Wiki.md"
@@ -22,7 +23,12 @@ on:
       - "Docs/AnimationControls.md"
       - "Docs/AUTD3_SDK_Transition.md"
       - "Docs/FoxFootHaptics.md"
+      - "Docs/FoxBodyHaptics.md"
       - "Docs/HowToUseHaptics.md"
+      - "Docs/HapticsIllusion.md"
+      - "Docs/Experiments.md"
+      - "Docs/Logging.md"
+      - "Docs/DummyPointCloud.md"
   workflow_dispatch:
 
 permissions:
@@ -33,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Sync to GitHub Wiki
         env:
@@ -43,6 +49,7 @@ jobs:
           
           cp Docs/Wiki.md temp-wiki/Home.md
           cp Docs/PointCloudPipeline.md temp-wiki/PointCloudPipeline.md
+          cp Docs/DummyPointCloud.md temp-wiki/DummyPointCloud.md
           cp Docs/OcclusionRendering.md temp-wiki/OcclusionRendering.md
           cp Docs/Collision.md temp-wiki/Collision.md
           cp Docs/CollisionAlgorithmComparison.md temp-wiki/CollisionAlgorithmComparison.md
@@ -56,13 +63,18 @@ jobs:
           cp Docs/AnimationControls.md temp-wiki/AnimationControls.md
           cp Docs/AUTD3_SDK_Transition.md temp-wiki/AUTD3_SDK_Transition.md
           cp Docs/FoxFootHaptics.md temp-wiki/FoxFootHaptics.md
+          cp Docs/FoxBodyHaptics.md temp-wiki/FoxBodyHaptics.md
           cp Docs/HowToUseHaptics.md temp-wiki/HowToUseHaptics.md
+          cp Docs/HapticsIllusion.md temp-wiki/HapticsIllusion.md
+          cp Docs/Experiments.md temp-wiki/Experiments.md
+          cp Docs/Logging.md temp-wiki/Logging.md
           
           python3 -c '
           import os, re
           mapping = {
               "Wiki.md": "Home",
               "PointCloudPipeline.md": "PointCloudPipeline",
+              "DummyPointCloud.md": "DummyPointCloud",
               "OcclusionRendering.md": "OcclusionRendering",
               "Collision.md": "Collision",
               "CollisionAlgorithmComparison.md": "CollisionAlgorithmComparison",
@@ -76,7 +88,11 @@ jobs:
               "AnimationControls.md": "AnimationControls",
               "AUTD3_SDK_Transition.md": "AUTD3_SDK_Transition",
               "FoxFootHaptics.md": "FoxFootHaptics",
-              "HowToUseHaptics.md": "HowToUseHaptics"
+              "FoxBodyHaptics.md": "FoxBodyHaptics",
+              "HowToUseHaptics.md": "HowToUseHaptics",
+              "HapticsIllusion.md": "HapticsIllusion",
+              "Experiments.md": "Experiments",
+              "Logging.md": "Logging"
           }
           pattern = re.compile(r"\(\s*(?:.*?/)?([^/)]+\.md)\s*\)")
           def replace_link(match):

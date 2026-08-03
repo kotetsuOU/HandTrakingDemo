@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Unity.Profiling;
 using UnityEngine;
+using Core.Logging;
+using Features.Haptics.Debug;
 
 #nullable enable
 
@@ -128,8 +130,8 @@ public class HAP_AUTDPerformanceProfiler
             {
                 _frameCounter = 0;
                 string prefix = string.IsNullOrEmpty(label) ? "" : $"{label} ";
-                UnityEngine.Debug.Log(
-                    $"[HAP_Profiler] {prefix}Total={LastTotalMs:F3}ms " +
+                AppLogger.Log(null, HAP_LogTriggers.TagPerformanceProfiler,
+                    $"{prefix}Total={LastTotalMs:F3}ms " +
                     $"(FociGen={LastFociGenerateMs:F3}ms, " +
                     $"DevAlloc={LastDeviceAllocateMs:F3}ms, " +
                     $"Send={LastSendMs:F3}ms) " +

@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using Intel.RealSense;
 using System.Diagnostics;
+using Core.Logging;
 
 /// <summary>
 /// ComputeShaderを利用してDepth画像とColor画像のマッピング及び
@@ -69,7 +70,7 @@ public class RsGpuCullingProcessor : IDisposable
     {
         if (shader == null)
         {
-            UnityEngine.Debug.LogError("[RsGpuCullingProcessor] Compute Shader is null.");
+            AppLogger.LogError("RsGpuCullingProcessor", "Compute Shader is null.");
             return;
         }
         _shader = shader;
@@ -135,7 +136,7 @@ public class RsGpuCullingProcessor : IDisposable
         }
 
         _initialized = true;
-        UnityEngine.Debug.Log("[RsGpuCullingProcessor] Initialized GPU resources.");
+        AppLogger.Log("RsGpuCullingProcessor", "Initialized GPU resources.");
     }
 
     private void AllocateResources()
@@ -173,7 +174,7 @@ public class RsGpuCullingProcessor : IDisposable
 
         if (RsUnityMainThreadDispatcher.Instance == null)
         {
-            UnityEngine.Debug.LogError("RsUnityMainThreadDispatcher instance not found in scene!");
+            AppLogger.LogError("RsGpuCullingProcessor", "RsUnityMainThreadDispatcher instance not found in scene!");
             return;
         }
 
@@ -209,8 +210,7 @@ public class RsGpuCullingProcessor : IDisposable
 
         _stopwatch.Stop();
         _lastProcessTimeMs = _stopwatch.ElapsedMilliseconds;
-
-        UnityEngine.Debug.Log($"[RsGpuCullingProcessor] Process Time: {_lastProcessTimeMs} ms.");
+        AppLogger.Log("RsGpuCullingProcessor", $"Process Time: {_lastProcessTimeMs} ms.");
     }
 
     private unsafe void CopyDepthDataToIntArray(DepthFrame frame, int[] dest)

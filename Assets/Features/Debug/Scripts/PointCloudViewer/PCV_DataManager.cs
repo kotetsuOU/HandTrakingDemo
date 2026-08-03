@@ -1,10 +1,12 @@
 using System;
 using UnityEngine;
 using System.Collections.Generic;
+using Core.Logging;
 #if UNITY_EDITOR
 using UnityEditor; 
 #endif
 
+[AppLoggable("PCV (PointCloudViewer)")]
 public class PCV_DataManager : MonoBehaviour
 {
     public PCV_Data CurrentData { get; private set; }
@@ -17,11 +19,11 @@ public class PCV_DataManager : MonoBehaviour
 
         if (loadedData != null && loadedData.PointCount > 0)
         {
-            UnityEngine.Debug.Log($"点群が {loadedData.PointCount} 点で再構築されました。");
+            AppLogger.Log(this, PCV_LogTriggers.TagDataManager, $"点群が {loadedData.PointCount} 点で再構築されました。");
         }
         else
         {
-            UnityEngine.Debug.LogWarning("読み込む点群データが存在しません。");
+            AppLogger.LogWarning(this, PCV_LogTriggers.TagDataManager, "読み込む点群データが存在しません。");
         }
     }
 

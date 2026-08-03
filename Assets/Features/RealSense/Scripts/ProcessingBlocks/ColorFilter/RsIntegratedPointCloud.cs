@@ -1,12 +1,14 @@
 using Intel.RealSense;
 using System;
 using UnityEngine;
+using Core.Logging;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
 [ProcessingBlockData(typeof(RsIntegratedPointCloud))]
+[AppLoggable("RealSense (Pipeline)")]
 /// <summary>
 /// 色ベースのフィルタリングを利用して、特定の対象（手など）のみの点群を抽出し、
 /// 指定された座標変換行列を適用して統合用の点群バッファを提供する処理ブロック。
@@ -125,7 +127,7 @@ public class RsIntegratedPointCloud : RsProcessingBlock
         // Debug log to verify matrix update
         if (SaveDebugFrames)
         {
-            Debug.Log($"[RsIntegratedPointCloud] Updated Transform Matrix:\n{matrix}");
+            AppLogger.Log("RsIntegratedPointCloud", $"Updated Transform Matrix:\n{matrix}");
         }
     }
 
@@ -153,11 +155,11 @@ public class RsIntegratedPointCloud : RsProcessingBlock
             }
 
             _gpuProcessor.Initialize(_calibration);
-            Debug.Log($"[RsIntegratedPointCloud] Initialized for {name}");
+            AppLogger.Log("RsIntegratedPointCloud", $"Initialized for {name}");
         }
         else
         {
-            Debug.LogError($"[RsIntegratedPointCloud] Compute Shader missing: {COMPUTE_SHADER_RESOURCES_PATH}");
+            AppLogger.LogError("RsIntegratedPointCloud", $"Compute Shader missing: {COMPUTE_SHADER_RESOURCES_PATH}");
         }
     }
 

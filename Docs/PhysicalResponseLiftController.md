@@ -1,69 +1,93 @@
-# キャラクターリフト・追従コントローラー (PhysicalResponseLiftController)
+# キャラクターリフト・追従コントローラー (PhysicalResponseLiftController) 仕様書
 
-> 📂 **親ノード**: [PhysicalResponse.md (物理応答パラメータ制御)](./PhysicalResponse.md) | 🏷️ **種類**: 🏗️ システム設計書
->
+> 📂 **親ノード**: [PhysicalResponse.md](./PhysicalResponse.md) | 🏷️ **種類**: 🏗️ システム設計書  
 > [RealTimeOcclusion Wiki (ポータル)](./Wiki.md) に戻る
 
-本モジュールは、`HCD_Pipeline` によって検出された現実世界の手（点群クラスタ）がキャラクターの足元に近づいた際に、キャラクター全体が手に乗って追従し、持ち上げたり下げたりできるインタラクションを提供するシステムです。
+本ドキュメントでは、`HCD_Pipeline` によって検出された現実世界の手（点群クラスタ）がキャラクターの足元に近づいた際に、キャラクター全体が手に乗って追従・持ち上げインタラクションを提供する `PR_LiftController` モジュールについて解説します。
 
 ---
 
 ## 1. 概要
 
-`PR_LiftController.cs` は、キャラクター（Fox等）の4つの足の位置から「基準となる平面（足元の面）」を計算し、その平面に対して実空間の手（点群の重心）がしきい値以内の距離に近づいた際に接触（Contact）と判定します。
-接触中は、手の移動に合わせてキャラクター全体（`targetTransform`）が上下左右に追従し、手が素早く離れたりして非接触状態になった場合は、指定の場所へ自由落下（復帰）します。
+`PR_LiftController` は、キャラクター（Fox 等）の 4 つの足の位置から基準平面（足元の面）を計算し、その平面に対して実空間の手（点群の重心）が近接した際に追従持ち上げおよび自由落下復帰を行うシステムです。
+
+### 主な特徴
+
+* **足元基準平面のリアルタイム算出**: 4 足ボーン位置から接地平面とその法線ベクトルを算出し、近接判定を行います。
+* **スムーズな追従 & 自由落下復帰**: 手の移動変位 ($\Delta \mathbf{p}$) にリアルタイム追従し、手が離れた場合は指定 `fallbackPoint` へスムーズに落下移動します。
+* **`AnimationController` 自動ターゲット連動**: 表示オブジェクト切り替え (`Tab` キー) 時にターゲット `Transform` と 4 足ボーン参照を自動的に再アサインします。
 
 ---
 
-## 2. 自動設定 (Auto Detect)
+## 2. 設計思想・アーキテクチャ
 
-* **自動バインド**: コンポーネントのアタッチ時やゲーム開始時（`Awake`、`Reset`）に、自動的にシーン内の `AnimationController` を探し、現在アクティブになっている描画対象を `targetTransform` にセットします。その後、その階層下から足のボーン（Bone）を再帰的に検索して自動で割り当てます。
-* **カスタムエディタ機能**: Inspectorの **「Auto Detect Target & Bones」** ボタンを押すことで、手動でいつでも最新のターゲットやボーン情報を再取得・再設定できます。
+### 2.1 生成ファイル・関連構造
 
----
+```text
+Assets/Features/Animation/Scripts/
+├── PR_LiftController.cs               # 持ち上げ・落下追従統括
+└── AnimationController.cs            # オブジェクト切り替え時の参照自動更新
+```
 
-## 3. インスペクター設定パラメータ
+### 2.2 状態遷移および処理フロー
 
-### Target Settings
-* **`Target Transform`**: 追従に合わせて実際に移動させる対象のRootオブジェクト。未指定時は自動でアクティブなFoxのルートが設定されます。
+```mermaid
+graph TD
+    Feet["4足ボーン位置"] --> Planar["基準平面 & 法線算出"]
+    Hand["HCD 手の点群重心"] --> Check{"距離 <= contactThreshold?"}
+    Planar --> Check
 
-### Foot Bone Transforms
-* **`Front Left / Front Right / Back Left / Back Right Foot`**: 基準平面を構成するための4つの足先のTransform。自動バインドにより自動的に設定されます。
+    Check --> |Yes (接触)| Contact["【接触中】 手の変位に追従移動"]
+    Check --> |No (離脱)| Fall["【非接触】 Fallback Point へ自由落下"]
 
-### Foot Toggles
-* **`Enable Front Left / Front Right / Back Left / Back Right`**:
-  各足を基準平面の計算に含めるかを個別に切り替えるトグルです。無効（false）にした足は、平面の重心座標や法線ベクトルの計算から除外されます。
-
-### Lift Settings
-* **`Contact Threshold`**: 接触判定のしきい値（メートル）。足元の平面と手の点群の重心との距離がこの値以下になった場合に、キャラクターが手に乗った（接触した）と判定されます。
-* **`Lift Sensitivity`**: 追従移動時の感度。手を動かした量に対するキャラクターの移動量の倍率（通常は `1.0`）。
-
-### Fall Settings
-* **`Fallback Point`**: 手が離れた際（非接触状態）に落下・復帰していく目標ポイントとなるTransform。空欄の場合は「ゲーム起動時の初期位置」が自動的に復帰目標になります。
-* **`Fall Speed`**: 落下・復帰時の移動速度（m/s）。
-
----
-
-## 4. コアロジックと状態遷移
-
-1. **平面の計算**
-   * 有効になっている足の座標の平均を原点とし、それらの位置関係から外積を用いて平面の「上向きの法線（Normal）」を算出します。
-2. **接触判定と追従 (Contacting)**
-   * `HCD_Pipeline` から取得したクラスタ群の重心と基準平面の距離が `Contact Threshold` 以下のとき、「接触中」となります。
-   * 接触中は、手の重心の毎フレームの変位（`delta`）を平面法線方向に射影し、`targetTransform` に直接加算します。これにより、持ち上げる動きだけでなく、手を下ろす動きに対してもピッタリと追従します。
-3. **接触解除 (Release) と 落下 (Fall)**
-   * 点群が消失する、手がしきい値を超えて素早く離れる、あるいはクラスタ重心が突如大きくジャンプ（0.2m以上）した場合には接触が解除されます。
-   * 接触解除後は、`Fall Speed` の速度で `Fallback Point` （または初期位置）に向かってスムーズに自由落下（MoveTowards）します。
+    style Check fill:#f5a623,color:#fff
+    style Contact fill:#50e3c2,color:#000
+    style Fall fill:#4a90d9,color:#fff
+```
 
 ---
 
-## 5. デバッグと視覚化 (Gizmos)
+## 3. セットアップ・使用方法
 
-Sceneビュー上での動作確認のため、以下のGizmoが描画されます。
+### 3.1 クイックスタート手順
 
-* **平面の輪郭線**:
-  * 有効化されている足同士を結ぶ線として描画されます。
-  * **黄色 (Yellow)**: 非接触状態（待機・落下中）。
-  * **緑色 (Green)**: 接触状態（手の点群に追従中）。
-* **平面の法線**:
-  * 平面の中心（重心）から上向きに伸びるシアン色（Cyan）の短い線で、追従の基準となる軸方向を示します。
+#### Step 1: コンポーネントのアタッチ
+
+キャラクター管理 GameObject に `PR_LiftController` をアタッチします。
+
+#### Step 2: インスペクターパラメータ設定
+
+| 設定項目 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `targetTransform` | `Transform` | `null` | 追従・移動させる対象オブジェクトの Root |
+| `contactThreshold` | `float` | `0.05f` | 接触判定とみなす距離閾値 (m) |
+| `liftSensitivity` | `float` | `1.0f` | 持ち上げ追従移動感度倍率 |
+| `fallbackPoint` | `Transform` | `null` | 手が離れた際の復帰目標 Transform (`null` 時は初期位置) |
+| `fallSpeed` | `float` | `2.0f` | 復帰移動速度 (m/s) |
+
+#### Step 3: ボーンの自動検出
+
+Inspector の **「Auto Detect Target & Bones」** ボタンをクリックして足ボーン参照を手動再取得できます。
+
+---
+
+## 4. 仕様・パラメータ詳細
+
+### 4.1 パラメータ・判定仕様
+
+* **トラッキング飛び防御**: クラスタ重心が前フレームから突如大きくジャンプ（0.2m 以上）した場合は、ノイズとして判定し自動的に接触解除・自由落下へ移行します。
+
+---
+
+## 5. デバッグ・留意事項
+
+### 5.1 Gizmo 可視化仕様
+
+* **平面輪郭線 (WireQuad)**:
+  * 黄色 (Yellow): 非接触状態（待機・落下中）
+  * 緑色 (Green): 接触状態（手の点群に追従持ち上げ中）
+* **平面法線 (Cyan Ray)**: 平面中心から垂直上向きに伸ばして視認性を確保。
+
+### 5.2 統制ログシステム (AppLogManager) との同期
+
+動作ログには `[PhysicalResponse]` プレフィックスが付与されます。詳細については [Logging.md](./Logging.md) を参照してください。

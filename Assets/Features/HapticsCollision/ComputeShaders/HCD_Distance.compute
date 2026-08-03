@@ -5,22 +5,42 @@
 
 struct PointCollisionData
 {
-    int isColliding; // 0: None, 1: Surface, 2: Inside
-    float3 hitPoint;
-    float3 hitNormal;
+    int isColliding;     // 0: None, 1: Surface, 2: Inside
+    float distance;      // メッシュ表面までの距離 (m)
+    float3 pointPos;     // 点群実測座標
+    float3 hitPoint;     // メッシュ表面の投影点
+    float3 hitNormal;    // メッシュ表面法線
 };
 
-StructuredBuffer<float4> PointCloudBuffer;
+struct PointCloudPoint
+{
+    float3 position;  // 12 bytes
+    float3 color;     // 12 bytes
+    uint   originType; //  4 bytes  (total = 28 bytes, matches RsGlobalPointCloudManager.STRIDE)
+};
+StructuredBuffer<PointCloudPoint> PointCloudBuffer;
 RWStructuredBuffer<PointCollisionData> ResultBuffer;
 
 uint PointsCount;
 
 // TransformOnly
 float3 TargetPosition;
+StructuredBuffer<float3> TargetPositionsBuffer;
+uint TargetPositionsCount;
 
 // Distance Thresholds
 float SurfaceDistanceThreshold;
 float BackfaceDistanceThreshold;
+
+// View Direction Thresholds (Visible vs Occluded)
+float VisibleSurfaceDistanceThreshold;
+float VisibleBackfaceDistanceThreshold;
+float OccludedSurfaceDistanceThreshold;
+float OccludedBackfaceDistanceThreshold;
+
+// Distance Mode Settings
+int DistanceMode; // 0: MeshSurface, 1: ViewDirection
+float3 CameraPosition;
 
 // Mesh
 StructuredBuffer<float3> MeshVerticesBuffer;
@@ -153,27 +173,117 @@ int RayTriangleHit(float3 rayO, float3 rayD, float3 a, float3 b, float3 c)
     return (t > 1e-5) ? 1 : 0;             // t > 0: forward intersection
 }
 
+// Möller-Trumbore ray-triangle intersection returning hit distance t.
+bool RayTriangleHitDist(float3 rayO, float3 rayD, float3 a, float3 b, float3 c, out float tHit)
+{
+    tHit = -1.0;
+    float3 edge1 = b - a;
+    float3 edge2 = c - a;
+    float3 h = cross(rayD, edge2);
+    float det = dot(edge1, h);
+    if (abs(det) < 1e-7) return false;
+    float invDet = 1.0 / det;
+    float3 s = rayO - a;
+    float u = invDet * dot(s, h);
+    if (u < 0.0 || u > 1.0) return false;
+    float3 q = cross(s, edge1);
+    float v = invDet * dot(rayD, q);
+    if (v < 0.0 || u + v > 1.0) return false;
+    float t = invDet * dot(edge2, q);
+    if (t > 1e-5)
+    {
+        tHit = t;
+        return true;
+    }
+    return false;
+}
+
 [numthreads(256, 1, 1)]
 void CheckCollisionTransform (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= PointsCount) return;
 
-    float3 p = PointCloudBuffer[id.x].xyz;
-    float3 diff = p - TargetPosition;
-    float dist = length(diff);
-
+    float3 p = PointCloudBuffer[id.x].position;
     PointCollisionData res;
-    if (dist <= SurfaceDistanceThreshold)
+    res.isColliding = 0;
+    res.distance = 0.0;
+    res.pointPos = p;
+    res.hitPoint = float3(0, 0, 0);
+    res.hitNormal = float3(0, 0, 0);
+
+    if (DistanceMode == 1) // ViewDirection
     {
-        res.isColliding = 1;
-        res.hitPoint = TargetPosition;
-        res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+        float3 camPos = CameraPosition;
+        float3 rayToTarget = TargetPosition - camPos;
+        float targetDist = length(rayToTarget);
+        float3 rayD = (targetDist > 0.0001) ? (rayToTarget / targetDist) : float3(0, 0, 1);
+
+        float3 rayToP = p - camPos;
+        float distP = length(rayToP);
+        float projDist = dot(rayToP, rayD);
+        float lateralDist = length(rayToP - rayD * projDist);
+
+        if (lateralDist <= SurfaceDistanceThreshold)
+        {
+            float depthDiff = distP - targetDist;
+            if (depthDiff <= 0.0 && -depthDiff <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1;
+                res.distance = abs(depthDiff);
+                res.hitPoint = TargetPosition;
+                res.hitNormal = (distP > 0.001) ? normalize(rayToP) : float3(0, 1, 0);
+            }
+            else if (depthDiff > 0.0 && depthDiff <= BackfaceDistanceThreshold)
+            {
+                res.isColliding = 2;
+                res.distance = abs(depthDiff);
+                res.hitPoint = TargetPosition;
+                res.hitNormal = (distP > 0.001) ? normalize(rayToP) : float3(0, 1, 0);
+            }
+        }
     }
-    else
+    else // MeshSurface (TransformOnly)
     {
-        res.isColliding = 0;
-        res.hitPoint = float3(0, 0, 0);
-        res.hitNormal = float3(0, 0, 0);
+        if (TargetPositionsCount > 0)
+        {
+            float minGlobalDist = 999999.0;
+            int bestIdx = -1;
+            float3 bestDiff = float3(0, 0, 0);
+
+            for (uint tIdx = 0; tIdx < TargetPositionsCount; tIdx++)
+            {
+                float3 targetPos = TargetPositionsBuffer[tIdx];
+                float3 diff = p - targetPos;
+                float dist = length(diff);
+                if (dist < minGlobalDist)
+                {
+                    minGlobalDist = dist;
+                    bestIdx = (int)tIdx;
+                    bestDiff = diff;
+                }
+            }
+
+            if (bestIdx >= 0 && minGlobalDist <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1;
+                res.distance = minGlobalDist;
+                res.hitPoint = TargetPositionsBuffer[bestIdx];
+                res.hitNormal = (minGlobalDist > 0.001) ? normalize(bestDiff) : float3(0, 1, 0);
+            }
+        }
+        else
+        {
+            float3 diff = p - TargetPosition;
+            float dist = length(diff);
+
+            if (dist <= SurfaceDistanceThreshold)
+            {
+                res.isColliding = 1;
+                res.distance = dist;
+                res.hitPoint = TargetPosition;
+                res.hitNormal = (dist > 0.001) ? normalize(diff) : float3(0,1,0);
+            }
+        }
     }
     
     ResultBuffer[id.x] = res;
@@ -184,9 +294,11 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= PointsCount) return;
 
-    float3 p = PointCloudBuffer[id.x].xyz;
+    float3 p = PointCloudBuffer[id.x].position;
     PointCollisionData res;
     res.isColliding = 0;
+    res.distance = 0.0;
+    res.pointPos = p;
     res.hitPoint = float3(0, 0, 0);
     res.hitNormal = float3(0, 0, 0);
 
@@ -203,8 +315,18 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
     float3 bestNormal = float3(0,0,0);
     float bestSignedDist = 9999999.0;
 
-    // Determine grid cells for point P
-    float maxThresh = max(SurfaceDistanceThreshold, BackfaceDistanceThreshold);
+    // Determine grid search threshold
+    float maxThresh = SurfaceDistanceThreshold;
+    if (DistanceMode == 1)
+    {
+        maxThresh = max(max(VisibleSurfaceDistanceThreshold, VisibleBackfaceDistanceThreshold),
+                        max(OccludedSurfaceDistanceThreshold, OccludedBackfaceDistanceThreshold));
+    }
+    else
+    {
+        maxThresh = max(SurfaceDistanceThreshold, BackfaceDistanceThreshold);
+    }
+
     float3 pMin = p - float3(maxThresh, maxThresh, maxThresh);
     float3 pMax = p + float3(maxThresh, maxThresh, maxThresh);
 
@@ -256,18 +378,44 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         }
     }
 
-    // Surface contact: point is outside the mesh and within SurfaceDistanceThreshold
-    if (minDistSqr < 9999999.0 && bestSignedDist > 0.0 && bestSignedDist <= SurfaceDistanceThreshold)
+    // Active threshold selection according to DistanceMode
+    float activeSurfaceThresh = SurfaceDistanceThreshold;
+    float activeBackfaceThresh = BackfaceDistanceThreshold;
+
+    if (DistanceMode == 1) // ViewDirection Mode (Normal & View Vector Dot Product)
+    {
+        float3 dirToCam = CameraPosition - bestClosestP;
+        float distToCam = length(dirToCam);
+        if (distToCam > 0.0001) dirToCam /= distToCam;
+        else dirToCam = float3(0, 0, 1);
+
+        // Positive dot product means the mesh surface normal faces towards the camera (Visible/Front-facing)
+        float dotProd = dot(bestNormal, dirToCam);
+
+        if (dotProd > 0.0)
+        {
+            activeSurfaceThresh = VisibleSurfaceDistanceThreshold;
+            activeBackfaceThresh = VisibleBackfaceDistanceThreshold;
+        }
+        else
+        {
+            activeSurfaceThresh = OccludedSurfaceDistanceThreshold;
+            activeBackfaceThresh = OccludedBackfaceDistanceThreshold;
+        }
+    }
+
+    float calculatedDist = (minDistSqr < 9999999.0) ? sqrt(minDistSqr) : 0.0;
+
+    // Surface contact: point is outside/near the mesh and within activeSurfaceThresh
+    if (minDistSqr < 9999999.0 && bestSignedDist > 0.0 && bestSignedDist <= activeSurfaceThresh)
     {
         res.isColliding = 1;
+        res.distance   = calculatedDist;
         res.hitPoint   = bestClosestP;
         res.hitNormal  = bestNormal;
     }
 
     // InsideMesh: X+ ray cast (parity test).
-    // Iterates directly over all mesh triangles to avoid indexable temp arrays.
-    // This removes register pressure and eliminates the need for deduplication.
-    // Cost: O(MeshTrianglesCount) per AABB-interior point — acceptable for <4000 triangles.
     if (res.isColliding == 0)
     {
         uint insideHits = 0u;
@@ -284,12 +432,12 @@ void CheckCollisionMesh (uint3 id : SV_DispatchThreadID)
         }
 
         // Odd intersection count → point is inside the mesh
-        // Use bitwise AND instead of modulus to avoid signed-integer division warning.
         if ((insideHits & 1u) == 1u)
         {
-            res.isColliding = 2;
-            if (minDistSqr < 9999999.0)
+            if (minDistSqr < 9999999.0 && (bestSignedDist <= 0.0 ? -bestSignedDist : sqrt(minDistSqr)) <= activeBackfaceThresh)
             {
+                res.isColliding = 2;
+                res.distance  = calculatedDist;
                 res.hitPoint  = bestClosestP;
                 res.hitNormal = bestNormal;
             }

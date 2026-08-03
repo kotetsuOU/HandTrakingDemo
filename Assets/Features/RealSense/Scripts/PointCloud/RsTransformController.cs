@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using Core.Logging;
 
 [Serializable]
 public class ChildTransformData
@@ -19,6 +20,7 @@ public class ChildTransformDataList
     public List<ChildTransformData> transforms = new List<ChildTransformData>();
 }
 
+[AppLoggable("RealSense (Device)")]
 public class RsTransformController : MonoBehaviour
 {
     [Serializable]
@@ -114,14 +116,14 @@ public class RsTransformController : MonoBehaviour
         var globalManager = GetComponent<RsGlobalPointCloudManager>();
         if (globalManager == null)
         {
-            Debug.LogError("[RsTransformController] RsGlobalPointCloudManagerが見つかりません。");
+            AppLogger.LogError(this, "RsGlobalPointCloudManagerが見つかりません。");
             return;
         }
 
         var renderers = globalManager.GetChildRenderers().ToList();
         if (renderers.Count == 0)
         {
-            Debug.LogWarning("[RsTransformController] 保存対象のレンダラーが見つかりません。");
+            AppLogger.LogWarning(this, "保存対象のレンダラーが見つかりません。");
             return;
         }
 
@@ -149,7 +151,7 @@ public class RsTransformController : MonoBehaviour
         }
         string filePath = Path.Combine(directoryPath, saveFileName);
         File.WriteAllText(filePath, json);
-        Debug.Log($"[RsTransformController] Transforms saved to {filePath}");
+        AppLogger.Log(this, $"Transforms saved to {filePath}");
     }
 
     [ContextMenu("Load Transforms from JSON")]
@@ -159,7 +161,7 @@ public class RsTransformController : MonoBehaviour
         string filePath = Path.Combine(directoryPath, saveFileName);
         if (!File.Exists(filePath))
         {
-            Debug.LogWarning($"[RsTransformController] ファイルが見つかりません: {filePath}");
+            AppLogger.LogWarning(this, $"ファイルが見つかりません: {filePath}");
             return;
         }
 
@@ -183,6 +185,6 @@ public class RsTransformController : MonoBehaviour
             }
         }
 
-        Debug.Log($"[RsTransformController] Transforms loaded from {filePath}");
+        AppLogger.Log(this, $"Transforms loaded from {filePath}");
     }
 }

@@ -1,12 +1,14 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Core.Logging;
 
 /// <summary>
 /// RealSenseカメラデバイスの点群を統合し、
 /// 全体に対するPCA（主成分分析）やフィルタの制御を行うグローバルマネージャクラス。
 /// </summary>
+[AppLoggable("RealSense (Pipeline)")]
 public partial class RsGlobalPointCloudManager : MonoBehaviour
 {
     public static RsGlobalPointCloudManager Instance { get; private set; }
@@ -46,10 +48,12 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     [Tooltip("管理対象とする点群レンダラーのリスト。空の場合は子オブジェクトから取得します。")]
     public List<RsPointCloudRenderer> renderers = new List<RsPointCloudRenderer>();
 
-    private ComputeBuffer _globalBuffer;
+    private ComputeBuffer _globalBuffer;    // HCD 接触判定用（元座標）
+    private ComputeBuffer _occlusionBuffer; // オクルージョン用（ダミーはX反転済み）
     private int _kernelMerge;
 
     public int CurrentTotalCount { get; private set; } = 0;
+    public int OcclusionTotalCount { get; private set; } = 0;
 
     public bool IsIntegratedPCAMode => pcaMode == PCAMode.Integrated;
 
@@ -59,11 +63,13 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     {
         Instance = this;
         _globalBuffer = new ComputeBuffer(maxTotalPoints, STRIDE);
+        _occlusionBuffer = new ComputeBuffer(maxTotalPoints, STRIDE);
         _kernelMerge = mergeComputeShader.FindKernel("MergePoints");
     }
 
     private void LateUpdate()
     {
+
         if (pcaMode == PCAMode.None)
         {
             ApplyToAllRenderers(r => r.IsGlobalRangeFilterEnabled = false);
@@ -73,12 +79,15 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
         {
             case OutputMode.MergeAll:
                 ProcessMergeAll();
+                ProcessOcclusionMergeAll();
                 break;
             case OutputMode.SingleCamera:
                 ProcessSingleCamera();
+                OcclusionTotalCount = 0;
                 break;
             case OutputMode.None:
                 CurrentTotalCount = 0;
+                OcclusionTotalCount = 0;
                 break;
         }
 
@@ -89,7 +98,7 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 統合されたすべての点群データ（グローバルバッファ）を取得します。
+    /// HCD 接触判定用の統合点群データ（元座標）を取得します。
     /// </summary>
     public ComputeBuffer GetGlobalBuffer()
     {
@@ -97,28 +106,57 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     }
 
     /// <summary>
+    /// オクルージョン用の統合点群データ（ダミーはX反転済み）を取得します。
+    /// </summary>
+    public ComputeBuffer GetOcclusionGlobalBuffer()
+    {
+        return _occlusionBuffer;
+    }
+
+    /// <summary>
     /// 管理対象となるすべての RsPointCloudRenderer を取得するイテレータ。
-    /// リストが設定されていればそれを、設定されていなければ子オブジェクトから取得して返します。
+    /// リストが設定されていればそれを、設定されていなければ直下の子要素およびシーン全体から取得して返します。
     /// </summary>
     public IEnumerable<RsPointCloudRenderer> GetChildRenderers()
     {
+        bool hasValidRendererInList = false;
         if (renderers != null && renderers.Count > 0)
         {
             foreach (var renderer in renderers)
             {
-                if (renderer != null)
+                if (renderer != null && renderer.gameObject.activeInHierarchy && renderer.enabled)
                 {
+                    hasValidRendererInList = true;
                     yield return renderer;
                 }
             }
 
-            yield break;
+            if (hasValidRendererInList) yield break;
         }
 
+        // 直下の子オブジェクトを検索
+        bool hasChildRenderer = false;
         foreach (Transform child in transform)
         {
             var renderer = child.GetComponent<RsPointCloudRenderer>();
-            if (renderer != null)
+            if (renderer != null && renderer.gameObject.activeInHierarchy && renderer.enabled)
+            {
+                hasChildRenderer = true;
+                yield return renderer;
+            }
+        }
+
+        if (hasChildRenderer) yield break;
+
+        // シーン全体の全 RsPointCloudRenderer (RsDummyPointCloudRenderer 含む) を自動探索
+#if UNITY_2023_1_OR_NEWER
+        var allRenderers = FindObjectsByType<RsPointCloudRenderer>(FindObjectsSortMode.None);
+#else
+        var allRenderers = FindObjectsOfType<RsPointCloudRenderer>();
+#endif
+        foreach (var renderer in allRenderers)
+        {
+            if (renderer != null && renderer.gameObject.activeInHierarchy && renderer.enabled && renderer.transform.parent != transform)
             {
                 yield return renderer;
             }
@@ -220,5 +258,6 @@ public partial class RsGlobalPointCloudManager : MonoBehaviour
     {
         // 確保されているグローバルバッファ（ComputeBuffer）を解放します
         _globalBuffer?.Release();
+        _occlusionBuffer?.Release();
     }
 }

@@ -1,6 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Core.Logging;
 
+[AppLoggable("PCV (PointCloudViewer)")]
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class PCV_Renderer : MonoBehaviour
 {
@@ -24,7 +26,7 @@ public class PCV_Renderer : MonoBehaviour
 
         if (meshFilter == null || meshRenderer == null)
         {
-            UnityEngine.Debug.LogError("PCV_Rendererに必要なMeshFilterまたはMeshRendererコンポーネントが見つかりません。");
+            AppLogger.LogError(this, PCV_LogTriggers.TagRenderer, "PCV_Rendererに必要なMeshFilterまたはMeshRendererコンポーネントが見つかりません。");
             return;
         }
 

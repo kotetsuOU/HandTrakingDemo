@@ -40,24 +40,25 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
 
     /// <summary>
     /// 各部位のターゲット情報をリストにして返します（基底クラスのGizmo描画や判定に利用）。
+    /// 時計回り（前左 -> 前右 -> 後右 -> 後左 -> 尻尾）の順で定義し、シーケンシャルSTMの周回順序に合わせます。
     /// </summary>
     public override List<HapticsTargetInfo> TargetInfos
     {
         get
         {
             var list = new List<HapticsTargetInfo>();
-            if (frontLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false });
-            if (frontRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false });
-            if (backLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false });
-            if (backRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false });
-            if (tailBone != null) list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true });
+            if (frontLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Left", Transform = frontLeftFoot, IsEnabled = enableFrontLeft, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (frontRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Front Right", Transform = frontRightFoot, IsEnabled = enableFrontRight, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (backRightFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Right", Transform = backRightFoot, IsEnabled = enableBackRight, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (backLeftFoot != null) list.Add(new HapticsTargetInfo { Name = "Back Left", Transform = backLeftFoot, IsEnabled = enableBackLeft, IsTail = false, TouchDirection = footTargetTouchDirection });
+            if (tailBone != null) list.Add(new HapticsTargetInfo { Name = "Tail", Transform = tailBone, IsEnabled = enableTail, IsTail = true, TouchDirection = footTargetTouchDirection });
             return list;
         }
     }
 
     private void Reset()
     {
-        autdController = FindAnyObjectByType<HAP_AUTDController>();
+        autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
         rootTransform = this.transform;
         AutoDetectBones();
     }
@@ -66,7 +67,7 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
     {
         if (autdController == null)
         {
-            autdController = FindAnyObjectByType<HAP_AUTDController>();
+            autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
         }
 
         if (rootTransform == null)
@@ -77,28 +78,48 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
         AutoDetectBones();
     }
 
-    private void OnEnable()
+    protected virtual void OnEnable()
     {
-        if (autdController != null)
-        {
-            autdController.objectHapticsController = this;
-        }
+        RegisterSelfToController();
     }
 
-    private void OnDisable()
+    protected virtual void OnDisable()
     {
-        if (autdController != null && autdController.objectHapticsController == this)
+        // 他のコントローラーに影響を与えずに安全に非アクティブ化
+    }
+
+    public void RegisterSelfToController()
+    {
+        if (autdController == null)
         {
-            autdController.objectHapticsController = null;
+            autdController = FindAnyObjectByType<HAP_AUTDHapticsController>();
+        }
+
+        if (autdController != null)
+        {
+            if (!autdController.objectHapticsControllers.Contains(this))
+            {
+                autdController.objectHapticsControllers.Add(this);
+            }
         }
     }
 
     /// <summary>
     /// Foxの標準的なボーン階層名から、4本の足および尻尾のTransformを自動検出してバインドします。
     /// </summary>
-    public void AutoDetectBones()
+    public virtual void AutoDetectBones(bool forceOverwrite = false)
     {
-        Transform searchRoot = rootTransform != null ? rootTransform : this.transform;
+        Transform searchRoot = rootTransform != null ? rootTransform : this.transform.root;
+        if (searchRoot == null) searchRoot = this.transform;
+
+        if (forceOverwrite)
+        {
+            frontLeftFoot = null;
+            frontRightFoot = null;
+            backLeftFoot = null;
+            backRightFoot = null;
+            tailBone = null;
+        }
 
         // Fox prefabのボーン名: Fox_F_LLegDigit11 / Fox_F_RLegDigit11 / Fox_LLegDigit11 / Fox_RLegDigit11 を対象とする
         if (frontLeftFoot == null)
@@ -130,6 +151,21 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
             backLeftFoot = FindChildRecursive(searchRoot, name => (name.Contains("LLegAnkle") && !name.Contains("F_")) || (name.ToLower().Contains("left") && (name.ToLower().Contains("ankle") && !name.ToLower().Contains("front"))));
         if (backRightFoot == null)
             backRightFoot = FindChildRecursive(searchRoot, name => (name.Contains("RLegAnkle") && !name.Contains("F_")) || (name.ToLower().Contains("right") && (name.ToLower().Contains("ankle") && !name.ToLower().Contains("front"))));
+
+        // それでも見つからない場合、親階層や別ルートの全検索
+        if (frontLeftFoot == null || frontRightFoot == null || backLeftFoot == null || backRightFoot == null || tailBone == null)
+        {
+            var allTransforms = FindObjectsByType<Transform>(FindObjectsSortMode.None);
+            foreach (var t in allTransforms)
+            {
+                string n = t.name;
+                if (frontLeftFoot == null && (n.Contains("F_LLegDigit") || (n.ToLower().Contains("front") && n.ToLower().Contains("left") && n.ToLower().Contains("digit")))) frontLeftFoot = t;
+                if (frontRightFoot == null && (n.Contains("F_RLegDigit") || (n.ToLower().Contains("front") && n.ToLower().Contains("right") && n.ToLower().Contains("digit")))) frontRightFoot = t;
+                if (backLeftFoot == null && (n.Contains("LLegDigit") && !n.Contains("F_"))) backLeftFoot = t;
+                if (backRightFoot == null && (n.Contains("RLegDigit") && !n.Contains("F_"))) backRightFoot = t;
+                if (tailBone == null && (n.Contains("Tail6") || n.Contains("Tail5"))) tailBone = t;
+            }
+        }
     }
 
     private Transform? FindChildRecursive(Transform parent, Func<string, bool> predicate)
@@ -141,116 +177,5 @@ public class HAP_FoxFootHapticsController : HAP_BaseObjectHapticsController
             if (found != null) return found;
         }
         return null;
-    }
-
-    /// <summary>
-    /// HAP_AUTDControllerが使用する、現在有効なターゲット（足・尻尾）の座標データ（ClusterFociData）のリストを構築します。
-    /// holoAlgorithm=Custom + customInnerAlgorithm=Naive のときは疑似STM（時計回り単焦点巻回）。
-    /// holoAlgorithm=Custom + customInnerAlgorithm=GSPAT のときは接地足全てに同時マルチフォーカスGSPAT。
-    /// </summary>
-    public override List<HAP_FociGenerator.ClusterFociData> GetHapticsTargets(float defaultIntensityPascal, Vector3 offset)
-    {
-        var result = new List<HAP_FociGenerator.ClusterFociData>();
-        
-        bool useCustomCycle = autdController != null 
-            && autdController.holoAlgorithm == HoloAlgorithm.Custom
-            && (stmMode == HapticsSTMMode.FociSTM || (stmMode == HapticsSTMMode.GainSTM && trackMode == HapticsTrackMode.Sequential));
-
-        if (useCustomCycle)
-        {
-            var candidates = new List<(Transform? transform, bool enabled, bool isTail)>
-            {
-                (frontLeftFoot, enableFrontLeft, false),
-                (frontRightFoot, enableFrontRight, false),
-                (backRightFoot, enableBackRight, false),
-                (backLeftFoot, enableBackLeft, false),
-                (tailBone, enableTail, true)
-            };
-
-            var activeCandidates = new List<Transform>();
-            foreach (var c in candidates)
-            {
-                bool isActive = IsTargetActive(c.transform, c.enabled, c.isTail);
-                if (c.transform != null && isActive)
-                {
-                    activeCandidates.Add(c.transform);
-                }
-            }
-
-            if (activeCandidates.Count > 0)
-            {
-                TrackedCluster dummyCluster = new TrackedCluster
-                {
-                    Centroid = activeCandidates[0].position,
-                    Normal = footTargetNormal.normalized,
-                    Force = 1.0f,
-                    IsAlive = true
-                };
-
-                var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
-                fociData.UseSTM = true;
-                fociData.IsGainSTM = (stmMode == HapticsSTMMode.GainSTM);
-                fociData.STMFrequency = sequentialSTMFrequency;
-
-                foreach (var targetFoot in activeCandidates)
-                {
-                    Vector3 pos = targetFoot.position;
-                    fociData.STMFrames.Add(new List<Vector3> { 
-                        new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z) 
-                    });
-                }
-                
-                result.Add(fociData);
-            }
-        }
-        else
-        {
-            ProcessTargetFoci(frontLeftFoot, enableFrontLeft, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(frontRightFoot, enableFrontRight, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(backRightFoot, enableBackRight, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(backLeftFoot, enableBackLeft, false, defaultIntensityPascal, offset, result);
-            ProcessTargetFoci(tailBone, enableTail, true, defaultIntensityPascal, offset, result);
-        }
-
-        return result;
-    }
-
-    private void ProcessTargetFoci(
-        Transform? targetTransform, 
-        bool isEnabled, 
-        bool isTail,
-        float defaultIntensityPascal, 
-        Vector3 offset, 
-        List<HAP_FociGenerator.ClusterFociData> resultList)
-    {
-        if (targetTransform == null) return;
-        bool isActive = IsTargetActive(targetTransform, isEnabled, isTail);
-        if (!isActive) return;
-
-        Vector3 pos = targetTransform.position;
-
-        TrackedCluster dummyCluster = new TrackedCluster
-        {
-            Centroid = pos,
-            Normal = footTargetNormal.normalized,
-            Force = 1.0f,
-            IsAlive = true
-        };
-
-        var fociData = new HAP_FociGenerator.ClusterFociData(dummyCluster);
-
-#if !USE_AUTD3_LEGACY
-        fociData.SequentialFoci.Add(new AUTD3.Holo.ControlPoint(
-            new Vector3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z),
-            Amplitude.FromPascal(defaultIntensityPascal)
-        ));
-#else
-        fociData.SequentialFoci.Add((
-            new AUTD3Sharp.Utils.Point3(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z),
-            defaultIntensityPascal * Pa
-        ));
-#endif
-
-        resultList.Add(fociData);
     }
 }

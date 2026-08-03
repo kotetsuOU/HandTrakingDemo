@@ -109,6 +109,16 @@ git lfs pull
 
 ---
 
+## 📚 ドキュメント (Documentation)
+
+プロジェクトの全体構成、描画・物理・触覚パイプライン、実験フレームワーク、統制ログシステムの詳細仕様については `Docs/` 配下の各種ドキュメントを参照してください。
+
+* **[システム統合ポータル (Wiki.md)](./Docs/Wiki.md)**: プロジェクト全体の構造と各ドキュメントへのナビゲーションポータルです。
+* **[被験者実験フレームワーク (Experiments.md)](./Docs/Experiments.md)**: 2AFC, ABX, 調整法などの心理物理実験システム仕様です。
+* **[統制ログ管理システム (Logging.md)](./Docs/Logging.md)**: `AppLogManager` および `AppLogger` による統一ログ管理の仕様と利用ガイドです。
+
+---
+
 ## 📜 ライセンス (License)
 本プロジェクト自体は [MIT License](LICENSE) の下で公開されています。
 
