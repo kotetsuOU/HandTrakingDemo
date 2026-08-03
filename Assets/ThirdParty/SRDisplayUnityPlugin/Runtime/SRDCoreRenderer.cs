@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2019,2020,2023,2024 Sony Corporation
  */
 
@@ -74,9 +74,47 @@ namespace SRD.Core
         private Texture2D _calibrationRightTex;
 
         private bool _isCalibrationRegistered = false;
+        private bool _lastIsHalfMirror = false;
+
+        private bool IsHalfMirrorActive()
+        {
+            if (_srdManager != null)
+            {
+                if (_srdManager.isHalfMirrorEnabled) return true;
+                if (_srdManager.cameraAdjusterTarget != null)
+                {
+                    var field = _srdManager.cameraAdjusterTarget.GetType().GetField("isHalfMirrorEnabled");
+                    if (field != null && field.FieldType == typeof(bool))
+                    {
+                        return (bool)field.GetValue(_srdManager.cameraAdjusterTarget);
+                    }
+                }
+            }
+
+            var monoBehaviours = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>();
+            foreach (var mb in monoBehaviours)
+            {
+                if (mb != null && mb.GetType().Name == "CameraAdjuster")
+                {
+                    var field = mb.GetType().GetField("isHalfMirrorEnabled");
+                    if (field != null && field.FieldType == typeof(bool))
+                    {
+                        return (bool)field.GetValue(mb);
+                    }
+                }
+            }
+            return false;
+        }
 
         public void Composite()
         {
+            bool isHalfMirror = IsHalfMirrorActive();
+            if (isHalfMirror != _lastIsHalfMirror)
+            {
+                _isStereoTextureRegistered = false;
+                _lastIsHalfMirror = isHalfMirror;
+            }
+
             if (_calibrationLeftTex == null)
             {
                 _calibrationLeftTex = new Texture2D(1, 1);
@@ -94,7 +132,9 @@ namespace SRD.Core
             {
                 if (!_isStereoTextureRegistered || !_isCalibrationRegistered)
                 {
-                    _stereoCompositer.RegisterSourceStereoTextures(_calibrationLeftTex, _calibrationRightTex);
+                    var leftCalib = isHalfMirror ? _calibrationRightTex : _calibrationLeftTex;
+                    var rightCalib = isHalfMirror ? _calibrationLeftTex : _calibrationRightTex;
+                    _stereoCompositer.RegisterSourceStereoTextures(leftCalib, rightCalib);
                     _isStereoTextureRegistered = true;
                     _isCalibrationRegistered = true;
                 }
@@ -102,10 +142,11 @@ namespace SRD.Core
                 return; // キャリブレーション時は以降の通常の描画をスキップ
             }
             
-            if(!_isStereoTextureRegistered || _isCalibrationRegistered)
+            if (!_isStereoTextureRegistered || _isCalibrationRegistered)
             {
-                _stereoCompositer.RegisterSourceStereoTextures(_eyeViewRenderer.GetLeftEyeViewTexture(),
-                                                               _eyeViewRenderer.GetRightEyeViewTexture());
+                var leftTex = isHalfMirror ? _eyeViewRenderer.GetRightEyeViewTexture() : _eyeViewRenderer.GetLeftEyeViewTexture();
+                var rightTex = isHalfMirror ? _eyeViewRenderer.GetLeftEyeViewTexture() : _eyeViewRenderer.GetRightEyeViewTexture();
+                _stereoCompositer.RegisterSourceStereoTextures(leftTex, rightTex);
                 _isStereoTextureRegistered = true;
                 _isCalibrationRegistered = false;
             }

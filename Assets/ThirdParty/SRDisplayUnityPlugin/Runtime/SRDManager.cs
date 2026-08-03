@@ -77,6 +77,13 @@ namespace SRD.Core
         [Tooltip("キャリブレーションモード（左目に緑、右目に赤を表示します）")]
         public bool EnableCalibrationMode = false;
 
+        [Header("Half Mirror Settings")]
+        [Tooltip("ハーフミラー環境用に左右目のテクスチャを入れ替えて合成するかどうか")]
+        public bool isHalfMirrorEnabled = false;
+
+        [Tooltip("参照用 CameraAdjuster（アタッチされている場合、その isHalfMirrorEnabled と同期します）")]
+        public MonoBehaviour cameraAdjusterTarget;
+
         [Tooltip("If this is disable, Native logs from SRDisplay Runtime will be hidden.")]
         public bool EnableNativeLog = true;
 
