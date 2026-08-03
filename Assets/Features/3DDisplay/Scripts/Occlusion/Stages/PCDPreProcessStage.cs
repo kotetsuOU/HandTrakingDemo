@@ -111,6 +111,7 @@ internal class PCDPreProcessStage : IPCDPipelineStage
 
         // リバースZバッファへの対応フラグをセット
         cmd.SetComputeIntParam(cs, Shader.PropertyToID("_IsReversedZ"), SystemInfo.usesReversedZBuffer ? 1 : 0);
+        cmd.SetComputeIntParam(cs, PCDShaderConstants.IsHalfMirrorEnabled, ctx.IsHalfMirrorEnabled ? 1 : 0);
 
         // 仮想物体における密度倍率
         uint densityMultiplier = System.Math.Max(1u, s._dynamicMultiplierRuntimeValue);

@@ -99,6 +99,7 @@ int _UseVirtualDepth;
 float4x4 _InverseProjectionMatrix;
 int _RecordOcclusionDebug;
 int _IsReversedZ;
+int _IsHalfMirrorEnabled;
 
 // Merge Buffers
 StructuredBuffer<Point> _MergeSrcBuffer;

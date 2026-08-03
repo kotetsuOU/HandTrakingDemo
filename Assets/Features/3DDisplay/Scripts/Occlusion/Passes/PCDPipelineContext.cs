@@ -72,6 +72,7 @@ internal class PCDPipelineContext
     public TextureHandle CameraColorTexture;
     public bool HasVirtualDepth;
     public bool HasVirtualObjects;
+    public bool IsHalfMirrorEnabled;
 
     // =========================================================================
     // ユーティリティ

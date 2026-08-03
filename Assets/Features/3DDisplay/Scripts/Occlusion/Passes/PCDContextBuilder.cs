@@ -28,6 +28,7 @@ internal class PCDContextBuilder
 
         public bool HasVirtualObjects;
         public bool HasVirtualDepth;
+        public bool IsHalfMirrorEnabled;
     }
 
     public PreComputeData BuildPreComputeData(
@@ -188,8 +189,10 @@ internal class PCDContextBuilder
 #else
         var adjuster = data.Camera.GetComponent<CameraAdjuster>() ?? Object.FindObjectOfType<CameraAdjuster>();
 #endif
+        bool isHalfMirrorEnabled = false;
         if (adjuster != null && adjuster.isHalfMirrorEnabled)
         {
+            isHalfMirrorEnabled = true;
             if (adjuster.displayTransform != null)
             {
                 Vector3 center = adjuster.displayTransform.position;
@@ -205,6 +208,7 @@ internal class PCDContextBuilder
             }
         }
 
+        data.IsHalfMirrorEnabled = isHalfMirrorEnabled;
         data.ViewMatrix = vMatrix;
         data.ProjectionMatrix = GL.GetGPUProjectionMatrix(data.Camera.projectionMatrix, false);
         data.InverseProjectionMatrix = data.Camera.projectionMatrix.inverse;

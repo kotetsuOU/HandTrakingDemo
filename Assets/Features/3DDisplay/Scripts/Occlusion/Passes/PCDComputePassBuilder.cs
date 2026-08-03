@@ -49,6 +49,7 @@ internal class PCDComputePassBuilder
 
             ctx.HasVirtualDepth = preData.HasVirtualDepth;
             ctx.HasVirtualObjects = preData.HasVirtualObjects;
+            ctx.IsHalfMirrorEnabled = preData.IsHalfMirrorEnabled;
             ctx.StaticMeshCounterBuffer = staticMeshCounterBuffer;
 
             // --- バッファの設定 ---

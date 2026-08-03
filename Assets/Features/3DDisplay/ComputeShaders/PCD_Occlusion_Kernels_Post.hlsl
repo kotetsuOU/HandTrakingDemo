@@ -74,26 +74,33 @@ void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIn
 
     if (id.x < (uint) _ScreenParams.x && id.y < (uint) _ScreenParams.y)
     {
+        uint targetX = id.x;
+        if (_IsHalfMirrorEnabled > 0)
+        {
+            targetX = (uint)_ScreenParams.x - 1 - id.x;
+        }
+        uint2 writeUV = uint2(targetX, id.y);
+
         // ClearMaps の代わりとして OriginMap もここでクリアしておく
-        _OriginMap_RW[id.xy] = float4(0, 0, 0, 1);
+        _OriginMap_RW[writeUV] = float4(0, 0, 0, 1);
 
         float rawDepth = _VirtualDepthMap[id.xy];
         float cameraDepth = _IsReversedZ > 0 ? (1.0 - rawDepth) : rawDepth;
 
         if (cameraDepth >= 0.9999)
         {
-            _DepthMap_RW[id.xy] = DEPTH_MAX_UINT;
-            _ColorMap_RW[id.xy] = float4(0, 0, 0, 0);
-            _ViewPositionMap_RW[id.xy] = float4(0, 0, 0, 1e9);
-            _OriginTypeMap_RW[id.xy] = 2u;
+            _DepthMap_RW[writeUV] = DEPTH_MAX_UINT;
+            _ColorMap_RW[writeUV] = float4(0, 0, 0, 0);
+            _ViewPositionMap_RW[writeUV] = float4(0, 0, 0, 1e9);
+            _OriginTypeMap_RW[writeUV] = 2u;
         }
         else
         {
             uint depth_uint = (uint) (cameraDepth * (float) DEPTH_MAX_UINT);
-            _DepthMap_RW[id.xy] = depth_uint;
+            _DepthMap_RW[writeUV] = depth_uint;
 
             float4 cameraColor = _CameraColorTexture[id.xy];
-            _ColorMap_RW[id.xy] = float4(cameraColor.rgb, 1.0);
+            _ColorMap_RW[writeUV] = float4(cameraColor.rgb, 1.0);
 
             float2 uv = float2(id.xy) / _ScreenParams.xy;
             float2 ndc = uv * 2.0 - 1.0;
@@ -101,8 +108,13 @@ void InitFromCamera(uint3 id : SV_DispatchThreadID, uint groupIndex : SV_GroupIn
             float4 viewPos = mul(_InverseProjectionMatrix, clipPos);
             viewPos /= viewPos.w;
 
-            _ViewPositionMap_RW[id.xy] = float4(viewPos.xyz, cameraDepth);
-            _OriginTypeMap_RW[id.xy] = 1u;
+            if (_IsHalfMirrorEnabled > 0)
+            {
+                viewPos.x = -viewPos.x;
+            }
+
+            _ViewPositionMap_RW[writeUV] = float4(viewPos.xyz, cameraDepth);
+            _OriginTypeMap_RW[writeUV] = 1u;
 
             local_hit = 1;
         }

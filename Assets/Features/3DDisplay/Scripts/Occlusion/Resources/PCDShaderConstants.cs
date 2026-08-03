@@ -197,6 +197,7 @@ internal static class PCDShaderConstants
     public static readonly int UseVirtualDepth = Shader.PropertyToID("_UseVirtualDepth");
     public static readonly int VirtualDepthMap = Shader.PropertyToID("_VirtualDepthMap");
     public static readonly int CameraColorTexture = Shader.PropertyToID("_CameraColorTexture");
+    public static readonly int IsHalfMirrorEnabled = Shader.PropertyToID("_IsHalfMirrorEnabled");
 
     // =====================================================================
     // モルフォロジー演算用（単一パス入出力）
