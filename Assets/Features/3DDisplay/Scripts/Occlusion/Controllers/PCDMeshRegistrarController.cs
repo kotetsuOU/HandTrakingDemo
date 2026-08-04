@@ -6,7 +6,13 @@ using Core.Logging;
 /// <summary>
 /// PCD（Point Cloud Display）オクルージョンパイプラインに、
 /// 複数のGameObject配下のメッシュを一括で登録・管理・更新するコントローラー。
-/// GameObjectやRendererのアアクティブ/非アクティブ状態の変更をリアルタイムに反映します。
+/// GameObjectやRendererのアクティブ/非アクティブ状態の変更をリアルタイムに反映します。
+/// 
+/// 【設計上の位置づけ: Legacy / Fallback Mesh Source】
+/// 標準の視覚オクルージョンでは URP の Camera Depth 由来の面深度（OriginType = 1）を使用します。
+/// そのため、通常の仮想メッシュで本コンポーネントを有効にすると「Camera Depth（面）」と「Registrar（頂点点群）」
+/// の二重登録となり、品質低下および無駄な処理負荷が発生します。
+/// 本クラスは、Camera Depth 描画対象外の特殊メッシュや比較実験用のフォールバック用途として保持されています。
 /// </summary>
 public class PCDMeshRegistrarController : MonoBehaviour
 {

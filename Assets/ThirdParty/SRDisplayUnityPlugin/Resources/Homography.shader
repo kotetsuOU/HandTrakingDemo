@@ -1,9 +1,10 @@
-﻿Shader "uHomography/Homography"
+Shader "uHomography/Homography"
 {
 
 Properties
 {
 	_MainTex ("Texture", 2D) = "white" {}
+    _FlipX ("Flip X", Float) = 0
 }
 
 CGINCLUDE
@@ -36,6 +37,7 @@ sampler2D _MainTex;
 float4 _MainTex_ST;
 float _Homography[9];
 float _InvHomography[9];
+float _FlipX;
 
 v2f_clear vert_clear(appdata_clear v)
 {
@@ -73,9 +75,16 @@ fixed4 frag_homography(v2f_homography i) : SV_Target
 #if UNITY_UV_STARTS_AT_TOP
     p.y = 1 - p.y;
 #endif
+
+    if (_FlipX > 0.5)
+    {
+        p.x = 1.0 - p.x;
+    }
+
 	float s =  _InvHomography[6] * p.x + _InvHomography[7] * p.y + _InvHomography[8];
 	float u = (_InvHomography[0] * p.x + _InvHomography[1] * p.y + _InvHomography[2]) / s;
 	float v = (_InvHomography[3] * p.x + _InvHomography[4] * p.y + _InvHomography[5]) / s;
+
 	float2 uv = float2(u, v);
 	return tex2D(_MainTex, uv);
 }

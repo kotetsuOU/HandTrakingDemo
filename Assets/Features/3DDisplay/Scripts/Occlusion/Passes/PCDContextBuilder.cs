@@ -184,18 +184,7 @@ internal class PCDContextBuilder
         }
 
         Matrix4x4 vMatrix = data.Camera.worldToCameraMatrix;
-#if UNITY_2023_1_OR_NEWER
-        var adjuster = data.Camera.GetComponent<CameraAdjuster>() ?? Object.FindFirstObjectByType<CameraAdjuster>();
-#else
-        var adjuster = data.Camera.GetComponent<CameraAdjuster>() ?? Object.FindObjectOfType<CameraAdjuster>();
-#endif
-        bool isHalfMirrorEnabled = false;
-        if (adjuster != null && adjuster.isHalfMirrorEnabled)
-        {
-            isHalfMirrorEnabled = true;
-        }
-
-        data.IsHalfMirrorEnabled = isHalfMirrorEnabled;
+        data.IsHalfMirrorEnabled = false;
         data.ViewMatrix = vMatrix;
         data.ProjectionMatrix = GL.GetGPUProjectionMatrix(data.Camera.projectionMatrix, false);
         //data.ProjectionMatrix.inverse = data.Camera.projectionMatrix.inverse;

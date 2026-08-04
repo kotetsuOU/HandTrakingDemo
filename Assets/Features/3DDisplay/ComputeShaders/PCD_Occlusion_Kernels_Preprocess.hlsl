@@ -63,11 +63,6 @@ void ProjectPoints(uint3 id : SV_DispatchThreadID)
     float originalNdcX = clipPos.x / clipPos.w;
     float outputNdcX = originalNdcX;
 
-    if (_IsHalfMirrorEnabled > 0)
-    {
-        outputNdcX = -originalNdcX;
-    }
-
     float3 ndc = float3(outputNdcX, clipPos.y / clipPos.w, clipPos.z / clipPos.w);
     
     if (ndc.x < -1 || ndc.x > 1 || ndc.y < -1 || ndc.y > 1 || ndc.z < 0 || ndc.z > 1)

@@ -108,15 +108,25 @@ sequenceDiagram
 | `holeFillingMethod` | `PCD_HoleFillingMethod` | `JointBilateral` | 穴埋め補間手法 (`None`, `JointBilateral`, `PullPush`, `Morphology_OC`, `Morphology_CO`) |
 | `occlusionFadeWidth` | `float` | `0.2f` | フェード境界幅のパラメータ |
 
-#### Step 3: 静的メッシュのオクルード登録
+#### Step 3: 仮想メッシュのオクルード登録方針（Fallback / 比較実験用）
 
-オクルージョン遮蔽の対象としたい静的 GameObject に `StaticMeshPCDRegistrar` をアタッチして自動登録を行います。
+通常、Camera Depth に描画される仮想オブジェクトは URP の Camera Depth 経路で自動的に「仮想遮蔽深度（`OriginType = 1`）」として計算されます。
+そのため、標準シーンではメッシュ登録用のコンポーネントを配置する必要はありません。
+
+Camera Depth 非対応の特殊メッシュや比較実験用に限定して、`PCDMeshRegistrarController` や `StaticMeshPCDRegistrar` を使用して頂点点群として投入するフォールバック構成（`Legacy / Fallback Mesh Source`）が用意されています。
 
 ---
 
 ## 4. 仕様・パラメータ詳細
 
-### 4.1 Compute Shader パイプライン仕様 (`PCD_Occlusion.compute`)
+### 4.1 OriginType（タグ）によるオブジェクト識別
+
+| `OriginType` 値 | 定義・対象 | 処理方針 |
+| :--- | :--- | :--- |
+| `0u` | 実世界点群 (Real-World Point Cloud) | RealSense センサー等から取得した点群。オクルージョン計算および Hole Filling 補間のメイン対象 |
+| `1u` | 仮想遮蔽深度 (Virtual Occlusion Depth) | URP Camera Depth 由来（および Registrar 由来）の仮想物体深度。背景・セルフオクルージョン判定等に使用 |
+
+### 4.2 Compute Shader パイプライン仕様 (`PCD_Occlusion.compute`)
 
 * **`ProjectPoints`**: 射影変換 $\mathbf{p}_{\text{clip}} = \mathbf{M}_{\text{VP}} \cdot \mathbf{p}_{\text{world}}$ を適用し、`InterlockedMin` で最前面頂点深度を `_DepthMap_RW` に記録。
 * **`CalculateGridZMin` & `CalculateDensity`**: $8 \times 8$ グリッドで最小 Z 値および点群密度を計算。

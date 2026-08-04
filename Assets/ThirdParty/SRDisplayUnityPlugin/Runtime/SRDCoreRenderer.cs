@@ -78,32 +78,7 @@ namespace SRD.Core
 
         internal bool IsHalfMirrorActive()
         {
-            if (_srdManager != null)
-            {
-                if (_srdManager.isHalfMirrorEnabled) return true;
-                if (_srdManager.cameraAdjusterTarget != null)
-                {
-                    var field = _srdManager.cameraAdjusterTarget.GetType().GetField("isHalfMirrorEnabled");
-                    if (field != null && field.FieldType == typeof(bool))
-                    {
-                        return (bool)field.GetValue(_srdManager.cameraAdjusterTarget);
-                    }
-                }
-            }
-
-            var monoBehaviours = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>();
-            foreach (var mb in monoBehaviours)
-            {
-                if (mb != null && mb.GetType().Name == "CameraAdjuster")
-                {
-                    var field = mb.GetType().GetField("isHalfMirrorEnabled");
-                    if (field != null && field.FieldType == typeof(bool))
-                    {
-                        return (bool)field.GetValue(mb);
-                    }
-                }
-            }
-            return false;
+            return _srdManager != null && _srdManager.isHalfMirrorEnabled;
         }
 
         public void Composite()
@@ -144,16 +119,14 @@ namespace SRD.Core
             
             if (!_isStereoTextureRegistered || _isCalibrationRegistered)
             {
-                var leftTex = _eyeViewRenderer.GetLeftEyeViewTexture();
-                var rightTex = _eyeViewRenderer.GetRightEyeViewTexture();
+                var leftTex = isHalfMirror ? _eyeViewRenderer.GetRightEyeViewTexture() : _eyeViewRenderer.GetLeftEyeViewTexture();
+                var rightTex = isHalfMirror ? _eyeViewRenderer.GetLeftEyeViewTexture() : _eyeViewRenderer.GetRightEyeViewTexture();
                 _stereoCompositer.RegisterSourceStereoTextures(leftTex, rightTex);
                 _isStereoTextureRegistered = true;
                 _isCalibrationRegistered = false;
             }
-            else
-            {
-                _stereoCompositer.RenderStereoComposition(_outputTexture);
-            }
+
+            _stereoCompositer.RenderStereoComposition(_outputTexture);
         }
 
         public void Start()
