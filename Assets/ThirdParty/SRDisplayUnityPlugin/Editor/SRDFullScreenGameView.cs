@@ -116,12 +116,12 @@ namespace SRD.Editor
             SrdXrResult result = SRDCorePlugin.GetRealDeviceNum(out var deviceCount);
             if(result != SrdXrResult.SUCCESS)
             {
-                // Menu item validation shouldn't log warnings to prevent log spam
+                Debug.LogWarning(SrdXrResultToMessage(result));
                 return false;
             }
             if(deviceCount < 1)
             {
-                // Menu item validation shouldn't log warnings to prevent log spam
+                Debug.LogWarning(SRDHelper.SRDMessages.FullscreenGameViewError);
                 return false;
             }
 
@@ -162,12 +162,11 @@ namespace SRD.Editor
                 switch(SRDProjectSettings.GetBehaviorOptionWhenNoSRDisplay())
                 {
                 case RunWithDisabled:
-                    // Avoid logging error to allow debugging without display
+                    Debug.LogWarning(msg);
                     break;
                 case ExitWithError:
                 default:
-                    // Avoid forcing termination to allow debugging without display
-                    // SRDHelper.PopupMessageAndForceToTerminate(msg);
+                    SRDHelper.PopupMessageAndForceToTerminate(msg);
                     break;
                 }
                 return false;

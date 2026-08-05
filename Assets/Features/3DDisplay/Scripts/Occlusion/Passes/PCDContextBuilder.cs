@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.Rendering.RenderGraphModule;
+using Core.Logging;
+
 /// <summary>
 /// RenderGraph のパス登録前に、毎フレーム必要なカメラ行列の計算、
 /// 点群バッファの調停、描画スキップ判定などを事前に行うビルダークラスです。
@@ -9,6 +11,12 @@ using UnityEngine.Rendering.RenderGraphModule;
 internal class PCDContextBuilder
 {
     private PCDPointBufferManager.Point[] _virtualContactPointsArray;
+
+    // デバッグログ用状態キャプチャ
+    private bool _lastShouldSkip = false;
+    private bool _lastHasVirtualObjects = false;
+    private int _lastActiveCount = -1;
+    private uint _lastPixelCount = uint.MaxValue;
 
     public struct PreComputeData
     {
@@ -161,6 +169,20 @@ internal class PCDContextBuilder
         if (!pointCloudHasData && !hasStaticMeshes)
         {
             data.ShouldSkip = true;
+
+            // スキップ時ログ
+            if (AppLogger.IsEnabled(PCD_LogTriggers.TagContextBuilder))
+            {
+                bool stateChanged = (_lastShouldSkip != data.ShouldSkip || _lastActiveCount != data.ActiveCount);
+                if (stateChanged || Time.frameCount % 120 == 0)
+                {
+                    AppLogger.Log(PCD_LogTriggers.TagContextBuilder,
+                        $"[ContextBuilder] Rendering SKIPPED: PointCloudData={pointCloudHasData} (Count={data.ActiveCount}), StaticMeshes={hasStaticMeshes}");
+                    _lastShouldSkip = data.ShouldSkip;
+                    _lastActiveCount = data.ActiveCount;
+                }
+            }
+
             return data;
         }
 
@@ -175,22 +197,56 @@ internal class PCDContextBuilder
 
         data.HasVirtualDepth = data.ResourceData.cameraDepthTexture.IsValid();
         data.HasVirtualObjects = hasStaticMeshes;
+        uint lastFramePixelCount = 0;
         if (data.HasVirtualDepth && settings.enableVirtualDepthIntegration)
         {
             if (PCDRendererFeature.Instance != null)
             {
-                data.HasVirtualObjects = data.HasVirtualObjects || (PCDRendererFeature.Instance.LastFrameVirtualMeshPixelCount > 0);
+                lastFramePixelCount = PCDRendererFeature.Instance.LastFrameVirtualMeshPixelCount;
+                data.HasVirtualObjects = data.HasVirtualObjects || (lastFramePixelCount > 0);
             }
         }
 
         Matrix4x4 vMatrix = data.Camera.worldToCameraMatrix;
         data.IsHalfMirrorEnabled = false;
         data.ViewMatrix = vMatrix;
-        data.ProjectionMatrix = GL.GetGPUProjectionMatrix(data.Camera.projectionMatrix, false);
-        //data.ProjectionMatrix.inverse = data.Camera.projectionMatrix.inverse;
+
+        Matrix4x4 origProj = data.Camera.projectionMatrix;
+        data.ProjectionMatrix = GL.GetGPUProjectionMatrix(origProj, false);
         data.InverseProjectionMatrix = data.ProjectionMatrix.inverse;
 
         data.ShouldSkip = false;
+
+        // URP入力・事前計算コンテキスト状態のログ出力
+        if (AppLogger.IsEnabled(PCD_LogTriggers.TagContextBuilder))
+        {
+            bool stateChanged = (_lastShouldSkip != data.ShouldSkip ||
+                                _lastHasVirtualObjects != data.HasVirtualObjects ||
+                                _lastActiveCount != data.ActiveCount ||
+                                _lastPixelCount != lastFramePixelCount);
+
+            if (stateChanged || Time.frameCount % 120 == 0)
+            {
+                bool isColorValid = data.ResourceData.activeColorTexture.IsValid();
+                float m00 = data.Camera.projectionMatrix.m00;
+
+                string logMsg = $"[ContextBuilder] URP Input & PreCompute State:\n" +
+                                $"  Camera: {data.Camera.name} (Res: {data.ScreenWidth}x{data.ScreenHeight}, CullingMask: 0x{data.Camera.cullingMask:X})\n" +
+                                $"  Projection m00: {m00:F4} (Negated: {m00 < 0})\n" +
+                                $"  URP Inputs: VirtualDepthTex={data.HasVirtualDepth}, ColorTex={isColorValid}\n" +
+                                $"  PointCloud: Count={data.ActiveCount}, StaticMeshes={hasStaticMeshes}\n" +
+                                $"  VirtualMesh: LastPixelCount={lastFramePixelCount}\n" +
+                                $"  Result: ShouldSkip={data.ShouldSkip}, HasVirtualObjects={data.HasVirtualObjects} (DepthIntegration={settings.enableVirtualDepthIntegration})";
+
+                AppLogger.Log(PCD_LogTriggers.TagContextBuilder, logMsg);
+
+                _lastShouldSkip = data.ShouldSkip;
+                _lastHasVirtualObjects = data.HasVirtualObjects;
+                _lastActiveCount = data.ActiveCount;
+                _lastPixelCount = lastFramePixelCount;
+            }
+        }
+
         return data;
     }
 }

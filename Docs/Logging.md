@@ -49,6 +49,7 @@ Assets/Core/Scripts/Logging/
     └── (PCD / 3DDisplay モジュール)
         ├── PCD_LogTriggers.cs                 # PCD モジュール用 AppLogManager 連動トリガー (通常ログ/Recordログ分離)
         ├── PCDOcclusionPipelineController.cs # [AppLoggable / IAppLoggable] オクルージョン統括コントローラー
+        ├── PCDContextBuilder.cs               # 事前計算コンテキスト・URP入力・検出ピクセル数ログ (PCD_ContextBuilder)
         ├── PCDMeshRegistrarController.cs     # メッシュ一括登録・同期コントローラー
         ├── PCDPointBufferManager.cs          # 点群・メッシュバッファ管理クラス (PCD_BufferManager)
         ├── PCDDebugReadbackManager.cs        # AsyncReadback キャプチャマネージャー (PCD_RecordDebug)

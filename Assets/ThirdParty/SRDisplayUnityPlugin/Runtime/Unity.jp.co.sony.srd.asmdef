@@ -1,6 +1,7 @@
-﻿{
+{
     "name": "Unity.jp.co.sony.srd",
     "references": [
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

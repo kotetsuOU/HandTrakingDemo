@@ -70,63 +70,19 @@ namespace SRD.Core
             _outputTexture = outputTexture;
         }
 
-        private Texture2D _calibrationLeftTex;
-        private Texture2D _calibrationRightTex;
-
-        private bool _isCalibrationRegistered = false;
-        private bool _lastIsHalfMirror = false;
-
-        internal bool IsHalfMirrorActive()
-        {
-            return _srdManager != null && _srdManager.isHalfMirrorEnabled;
-        }
-
         public void Composite()
         {
-            bool isHalfMirror = IsHalfMirrorActive();
-            if (isHalfMirror != _lastIsHalfMirror)
+            if(!_isStereoTextureRegistered)
             {
-                _isStereoTextureRegistered = false;
-                _lastIsHalfMirror = isHalfMirror;
-            }
-
-            if (_calibrationLeftTex == null)
-            {
-                _calibrationLeftTex = new Texture2D(1, 1);
-                _calibrationLeftTex.SetPixel(0, 0, Color.green);
-                _calibrationLeftTex.Apply();
-            }
-            if (_calibrationRightTex == null)
-            {
-                _calibrationRightTex = new Texture2D(1, 1);
-                _calibrationRightTex.SetPixel(0, 0, Color.red);
-                _calibrationRightTex.Apply();
-            }
-
-            if (_srdManager.EnableCalibrationMode)
-            {
-                if (!_isStereoTextureRegistered || !_isCalibrationRegistered)
-                {
-                    var leftCalib = isHalfMirror ? _calibrationRightTex : _calibrationLeftTex;
-                    var rightCalib = isHalfMirror ? _calibrationLeftTex : _calibrationRightTex;
-                    _stereoCompositer.RegisterSourceStereoTextures(leftCalib, rightCalib);
-                    _isStereoTextureRegistered = true;
-                    _isCalibrationRegistered = true;
-                }
-                _stereoCompositer.RenderStereoComposition(_outputTexture);
-                return; // キャリブレーション時は以降の通常の描画をスキップ
-            }
-            
-            if (!_isStereoTextureRegistered || _isCalibrationRegistered)
-            {
-                var leftTex = isHalfMirror ? _eyeViewRenderer.GetRightEyeViewTexture() : _eyeViewRenderer.GetLeftEyeViewTexture();
-                var rightTex = isHalfMirror ? _eyeViewRenderer.GetLeftEyeViewTexture() : _eyeViewRenderer.GetRightEyeViewTexture();
-                _stereoCompositer.RegisterSourceStereoTextures(leftTex, rightTex);
+                _stereoCompositer.RegisterSourceStereoTextures(
+                    _eyeViewRenderer.GetLeftEyeViewTexture(),
+                    _eyeViewRenderer.GetRightEyeViewTexture());
                 _isStereoTextureRegistered = true;
-                _isCalibrationRegistered = false;
             }
-
-            _stereoCompositer.RenderStereoComposition(_outputTexture);
+            else
+            {
+                _stereoCompositer.RenderStereoComposition(_outputTexture);
+            }
         }
 
         public void Start()

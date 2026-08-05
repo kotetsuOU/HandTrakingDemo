@@ -47,13 +47,9 @@ namespace SRD.Core
             return XRRuntimeAPI.ShowMessageBox(SRDApplicationWindow.GetSelfWindowHandle(), title, message);
         }
 
-        public static bool IsNativeLogEnabled = true;
-
         [AOT.MonoPInvokeCallback(typeof(XRRuntimeAPI.DebugLogDelegate))]
         private static void RuntimeDebugLogCallback(string message, SrdXrLogLevels logLevel)
         {
-            if (!IsNativeLogEnabled) return;
-
             switch (logLevel)
             {
                 case SrdXrLogLevels.LOG_LEVELS_TRACE:
@@ -76,14 +72,12 @@ namespace SRD.Core
 
         public static SrdXrResult ShowNativeLog()
         {
-            IsNativeLogEnabled = true;
             return XRRuntimeAPI.SetDebugLogCallback(RuntimeDebugLogCallback);
 
         }
         public static SrdXrResult HideNativeLog()
         {
-            IsNativeLogEnabled = false;
-            return SrdXrResult.SUCCESS;
+            return XRRuntimeAPI.ResetDebugLogCallback();
         }
 
         public static SrdXrResult CreateSession(UInt32 deviceIndex, out Int32 sessionId)

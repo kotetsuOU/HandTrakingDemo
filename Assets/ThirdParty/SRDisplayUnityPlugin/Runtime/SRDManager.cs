@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2019-2025 Sony Corporation
  */
 
@@ -73,18 +73,6 @@ namespace SRD.Core
         /// </remarks>
         [Tooltip("If the display such as shadows becomes strange, please try disabling it.")]
         public bool IsHighImageQualityMode = true;
-
-        [Tooltip("キャリブレーションモード（左目に緑、右目に赤を表示します）")]
-        public bool EnableCalibrationMode = false;
-
-        [Header("Half Mirror Settings")]
-        [Tooltip("ハーフミラー環境用に左右目のテクスチャを入れ替えて合成するかどうか")]
-        public bool isHalfMirrorEnabled = false;
-
-        [Tooltip("If this is disable, Native logs from SRDisplay Runtime will be hidden.")]
-        public bool EnableNativeLog = true;
-
-        private bool prevEnableNativeLog = true;
 
         private SRDSystemDescription _description;
 
@@ -360,15 +348,6 @@ namespace SRD.Core
 
         void Awake()
         {
-            if (EnableNativeLog)
-            {
-                SRDCorePlugin.ShowNativeLog();
-            }
-            else
-            {
-                SRDCorePlugin.HideNativeLog();
-            }
-
             if (!SRDSessionHandler.Instance.Active)
             {
                 this.gameObject.SetActive(false);
@@ -490,19 +469,6 @@ namespace SRD.Core
             if(!_session.CheckSystemError())
             {
                 return;
-            }
-
-            if (prevEnableNativeLog != EnableNativeLog)
-            {
-                if (EnableNativeLog)
-                {
-                    SRDCorePlugin.ShowNativeLog();
-                }
-                else
-                {
-                    SRDCorePlugin.HideNativeLog();
-                }
-                prevEnableNativeLog = EnableNativeLog;
             }
 
             if (prevIsSRRenderingActive != IsSRRenderingActive)
@@ -804,3 +770,13 @@ namespace SRD.Core
         GRADATION_CORRECTION_HIGH_PRECISE = 2,
     }
 }
+
+
+
+
+
+
+
+
+
+

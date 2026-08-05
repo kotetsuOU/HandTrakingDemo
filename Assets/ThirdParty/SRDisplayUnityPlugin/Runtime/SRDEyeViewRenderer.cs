@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2019-2025 Sony Corporation
  */
 
@@ -143,25 +143,12 @@ namespace SRD.Core
             Action<Camera> updateState = (camera) =>
             {
                 _faceTracker.GetCurrentFacePose(out _currentFacePose);
-                
-                // --- Debug: Log raw X positions ---
-                if (type == EyeType.Left && Time.frameCount % 60 == 0)
-                {
-                    float headX = _currentFacePose.HeadPose.position.x;
-                    float leftEyeX = _currentFacePose.GetEyePose(EyeType.Left).position.x;
-                    float rightEyeX = _currentFacePose.GetEyePose(EyeType.Right).position.x;
-                    UnityEngine.Debug.Log($"[FaceTracker Raw] Head.x: {headX:F4}, LeftEye.x: {leftEyeX:F4}, RightEye.x: {rightEyeX:F4}");
-                }
-                // ----------------------------------
-                
-                EyeType sourceType = type;
-
-                var eyePose = _currentFacePose.GetEyePose(sourceType);
+                var eyePose = _currentFacePose.GetEyePose(type);
                 eyeTransform.SetPositionAndRotation(eyePose.position, eyePose.rotation);
 
                 _faceTracker.GetCurrentProjMatrix(eyeCamera.nearClipPlane, eyeCamera.farClipPlane,
                                                   out _currentProjMat);
-                var projMat = _currentProjMat.GetProjectionMatrix(sourceType);
+                var projMat = _currentProjMat.GetProjectionMatrix(type);
 
                 if (!SRDHelper.HasNanOrInf(projMat))
                 {
@@ -169,10 +156,6 @@ namespace SRD.Core
                     eyeCamera.fieldOfView = CalcVerticalFoVFromProjectionMatrix(projMat);
                     eyeCamera.aspect = CalcAspectWperHFromProjectionMatrix(projMat);
                     eyeCamera.projectionMatrix = projMat;
-
-                    // Set FlipX for Homography
-                    float flipX = (_srdManager != null && _srdManager.isHalfMirrorEnabled) ? 1.0f : 0.0f;
-                    homographyMaterial.SetFloat("_FlipX", flipX);
 
                     if (_isBoxFrontClippingCache)
                     {
@@ -289,21 +272,7 @@ namespace SRD.Core
 
                             if (_srdManager.IsLensShiftEnabled)
                             {
-                                if (_srdManager.isHalfMirrorEnabled)
-                                {
-                                    var rt = RenderTexture.GetTemporary(_eyeCamera[type].targetTexture.descriptor);
-                                    Graphics.Blit(_eyeCamera[type].targetTexture, rt, new Vector2(-1, 1), new Vector2(1, 0));
-                                    if (!_srdManager.IsPerformancePriorityEnabled)
-                                    {
-                                        Graphics.Blit(rt, _eyeCamera[type].targetTexture, lowpassFilterMaterial);
-                                    }
-                                    else
-                                    {
-                                        Graphics.Blit(rt, _eyeCamera[type].targetTexture);
-                                    }
-                                    RenderTexture.ReleaseTemporary(rt);
-                                }
-                                else if (!_srdManager.IsPerformancePriorityEnabled)
+                                if (!_srdManager.IsPerformancePriorityEnabled)
                                 {
                                     var rt = RenderTexture.GetTemporary(_eyeCamera[type].targetTexture.descriptor);
                                     Graphics.Blit(_eyeCamera[type].targetTexture, rt, lowpassFilterMaterial);
@@ -345,21 +314,7 @@ namespace SRD.Core
 
                         if (_srdManager.IsLensShiftEnabled)
                         {
-                            if (_srdManager.isHalfMirrorEnabled)
-                            {
-                                var rt = RenderTexture.GetTemporary(_eyeCamera[type].targetTexture.descriptor);
-                                Graphics.Blit(_eyeCamera[type].targetTexture, rt, new Vector2(-1, 1), new Vector2(1, 0));
-                                if (!_srdManager.IsPerformancePriorityEnabled)
-                                {
-                                    Graphics.Blit(rt, _eyeCamera[type].targetTexture, lowpassFilterMaterial);
-                                }
-                                else
-                                {
-                                    Graphics.Blit(rt, _eyeCamera[type].targetTexture);
-                                }
-                                RenderTexture.ReleaseTemporary(rt);
-                            }
-                            else if (!_srdManager.IsPerformancePriorityEnabled)
+                            if (!_srdManager.IsPerformancePriorityEnabled)
                             {
                                 var rt = RenderTexture.GetTemporary(_eyeCamera[type].targetTexture.descriptor);
                                 Graphics.Blit(_eyeCamera[type].targetTexture, rt, lowpassFilterMaterial);
@@ -404,22 +359,7 @@ namespace SRD.Core
 
                 if (_srdManager.IsLensShiftEnabled)
                 {
-                    if (_srdManager.isHalfMirrorEnabled)
-                    {
-                        var rt = Shader.PropertyToID("_Temp_halfmirror");
-                        buf.GetTemporaryRT(rt, -1, -1, 0, FilterMode.Bilinear);
-                        buf.Blit(_eyeCamera[type].targetTexture, rt, new Vector2(-1, 1), new Vector2(1, 0));
-                        if (!_srdManager.IsPerformancePriorityEnabled)
-                        {
-                            buf.Blit(rt, _eyeCamera[type].targetTexture, lowpassFilterMaterial);
-                        }
-                        else
-                        {
-                            buf.Blit(rt, _eyeCamera[type].targetTexture);
-                        }
-                        buf.ReleaseTemporaryRT(rt);
-                    }
-                    else if (!_srdManager.IsPerformancePriorityEnabled)
+                    if (!_srdManager.IsPerformancePriorityEnabled)
                     {
                         var rt = Shader.PropertyToID("_Temp");
                         buf.GetTemporaryRT(rt, -1, -1, 0, FilterMode.Bilinear);

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2024 Sony Corporation
  */
 

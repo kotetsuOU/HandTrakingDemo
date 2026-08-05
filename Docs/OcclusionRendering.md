@@ -190,14 +190,27 @@ $$
 * **生リソースのバインド**: `RenderGraph.ImportTexture()` 由来の暗黙キャスト例外を防ぐため、パス内部計算には生のリソースである RTHandle を直接バインドします。
 * **DirectX / OpenGL Reversed-Z 補正**: DirectX (Reversed-Z) と OpenGL 正規空間の変換ギャップを補正するため、`ComputeShader` への `InverseProjectionMatrix` には `camera.projectionMatrix.inverse` を渡し `_IsReversedZ` を正しく評価します。
 
+<details>
+<summary><b>📹 特殊カメラ・仮想カメラ（SRD / 鏡像反転）適用時の技術的留意事項（クリックで展開）</b></summary>
+
+* **URP カメラデータ (`UniversalAdditionalCameraData`) の同期**:
+  動的に生成される仮想カメラ（`SRDVirtualCameraTester` 等）では `Camera.CopyFrom()` だけでは URP 深度・カラーテクスチャ要求が引き継がれません。`vAddData.requiresDepthOption = CameraOverrideOption.On` および `requiresColorOption = CameraOverrideOption.On` を設定し、`VirtualDepthTex` を保証する必要があります。
+* **左右反転 Projection ($m_{00} < 0$) 時の Culling 反転**:
+  $m_{00} < 0$ の反転行列を持つカメラの描画時には、頂点順序の反転に伴い `GL.invertCulling = true` を設定してメッシュがカリング消失するのを防止します。
+* **二重反転の防止**:
+  `PCDContextBuilder` が Compute Shader に渡す `ProjectionMatrix` は、カメラの Projection 行列を直接 `GL.GetGPUProjectionMatrix` へ引き渡します。手動で $m_{00}$ の符号を正反転させると、カメラ映像と点群の X 軸投影方向が食い違う「二重反転」が発生するため注意が必要です。
+
+</details>
+
 ### 5.2 統制ログシステム (AppLogManager) との同期
 
 オクルージョンパイプラインおよび PCD 関連コンポーネントのログ出力はすべて `AppLogManager` および `AppLogger` へ一元統合されています。
 
 * **`PCD_LogTriggers` による通常ログと Record ログの個別分離**:
-  `PCDOcclusionPipelineController` に実装された `IAppLoggable` により、`AppLogManager` スキャン時に `PCD_LogTriggers` が自動連動し、`PCD (Occlusion)` カテゴリ下に以下の 4 つのサブトリガーが個別登録されます：
+  `PCDOcclusionPipelineController` に実装された `IAppLoggable` により、`AppLogManager` スキャン時に `PCD_LogTriggers` が自動連動し、`PCD (Occlusion)` カテゴリ下に以下の 5 つのサブトリガーが個別登録されます：
   - `[PCD_Pipeline]`: パイプライン制御 (`PCDOcclusionPipelineController`), `PCDRenderPass`, `PCDKernelRegistry`
   - `[PCD_BufferManager]`: 点群バッファ更新 (`PCDPointBufferManager`), メッシュ一括同期 (`PCDMeshRegistrarController`)
+  - `[PCD_ContextBuilder]`: 事前計算コンテキスト (`PCDContextBuilder`), URP カメラデータ入力検証, 点群/仮想メッシュピクセル数検出ログ
   - `[PCD_RecordDebug]`: GPU テクスチャ AsyncReadback (`PCDDebugReadbackManager`)
   - `[PCD_Exporter]`: PNG/CSV ファイルエクスポート (`PCDOcclusionDebugExporter`, `PCDIntegratedDepthMapExporter`)
 * **個別 Inspector トグルの廃止**:

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using SRD.Core;
 
 namespace SRD.Sample.UI2DView

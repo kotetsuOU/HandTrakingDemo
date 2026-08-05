@@ -10,9 +10,10 @@ using Core.Logging;
 [DisallowMultipleComponent]
 public class PCD_LogTriggers : MonoBehaviour, IAppLoggable
 {
-    // 通常デバッグログ (Pipeline & Buffer Core)
+    // 通常デバッグログ (Pipeline & Buffer Core & ContextBuilder)
     public const string TagPipeline = "PCD_Pipeline";
     public const string TagBuffer = "PCD_BufferManager";
+    public const string TagContextBuilder = "PCD_ContextBuilder";
 
     // Record デバッグログ (RecordDebug & Readback & Exporter)
     public const string TagRecordDebug = "PCD_RecordDebug";
@@ -26,6 +27,7 @@ public class PCD_LogTriggers : MonoBehaviour, IAppLoggable
         // 1. 通常デバッグログ
         AddSubTriggerIfNotExists(group, targetObj, "[PCD_Pipeline] Pipeline Controller & RenderPass & Kernel", TagPipeline, existingLabels);
         AddSubTriggerIfNotExists(group, targetObj, "[PCD_BufferManager] Point Buffer & Mesh Registrar", TagBuffer, existingLabels);
+        AddSubTriggerIfNotExists(group, targetObj, "[PCD_ContextBuilder] PreCompute Data & URP Camera Input State", TagContextBuilder, existingLabels);
 
         // 2. Record（記録・エクスポート）デバッグログ
         AddSubTriggerIfNotExists(group, targetObj, "[PCD_RecordDebug] Record Debug Readback & Capture", TagRecordDebug, existingLabels);
