@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2019-2025 Sony Corporation
  */
 
@@ -239,7 +239,7 @@ namespace SRD.Core
         }
 
         internal SRDSession Session { get { return _session; } }
-        internal SRDSettings Settings { get { return _session.Settings; } }
+        public SRDSettings Settings { get { return _session != null ? _session.Settings : null; } }
 
         private bool _isPerformancePriorityEnabled = false;
         internal bool IsPerformancePriorityEnabled { get { return _isPerformancePriorityEnabled; } }

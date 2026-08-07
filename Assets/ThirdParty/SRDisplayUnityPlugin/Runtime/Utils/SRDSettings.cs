@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2019,2020,2023,2024 Sony Corporation
  */
 
@@ -9,7 +9,7 @@ using SRD.Core;
 
 namespace SRD.Utils
 {
-    internal class SRDSettings
+    public class SRDSettings
     {
         private SRDDeviceInfo _deviceInfo;
         public SRDDeviceInfo DeviceInfo { get { return _deviceInfo; } }

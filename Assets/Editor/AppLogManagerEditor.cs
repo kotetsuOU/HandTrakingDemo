@@ -148,6 +148,7 @@ namespace Core.Editor
                                 if (warnProp != null) warnProp.boolValue = newWarn;
                                 if (errProp != null) errProp.boolValue = newErr;
                                 serializedObject.ApplyModifiedProperties();
+                                EditorUtility.SetDirty(manager);
                                 manager.BuildLookup();
                             }
 

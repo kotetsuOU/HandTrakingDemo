@@ -26,7 +26,7 @@ public class PCD_LogTriggers : MonoBehaviour, IAppLoggable
 
         // 1. 通常デバッグログ
         AddSubTriggerIfNotExists(group, targetObj, "[PCD_Pipeline] Pipeline Controller & RenderPass & Kernel", TagPipeline, existingLabels);
-        AddSubTriggerIfNotExists(group, targetObj, "[PCD_BufferManager] Point Buffer & Mesh Registrar", TagBuffer, existingLabels);
+        AddSubTriggerIfNotExists(group, targetObj, "[PCD_BufferManager] Point Buffer Manager", TagBuffer, existingLabels);
         AddSubTriggerIfNotExists(group, targetObj, "[PCD_ContextBuilder] PreCompute Data & URP Camera Input State", TagContextBuilder, existingLabels);
 
         // 2. Record（記録・エクスポート）デバッグログ

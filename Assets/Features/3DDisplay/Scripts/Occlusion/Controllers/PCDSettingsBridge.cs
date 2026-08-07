@@ -5,6 +5,8 @@ public class PCDSettingsBridge
 {
     private PCDRenderSettings _fallbackSettings = new PCDRenderSettings
     {
+        cameraTargetMode = PCD_CameraTargetMode.AllValidCameras,
+        cameraNameFilter = "Virtual",
         kernelType = PCD_OcclusionKernel.Bouchiba,
         evaluationMode = PCD_OcclusionEvaluationMode.Average,
         minOccludedSectors = 1,
@@ -40,6 +42,26 @@ public class PCDSettingsBridge
     };
 
     private PCDOcclusionPipelineController Controller => PCDOcclusionPipelineController.Instance;
+
+    public PCD_CameraTargetMode cameraTargetMode
+    {
+        get => Controller != null ? Controller.cameraTargetMode : _fallbackSettings.cameraTargetMode;
+        set
+        {
+            if (Controller != null) Controller.cameraTargetMode = value;
+            else _fallbackSettings.cameraTargetMode = value;
+        }
+    }
+
+    public string cameraNameFilter
+    {
+        get => Controller != null ? Controller.cameraNameFilter : _fallbackSettings.cameraNameFilter;
+        set
+        {
+            if (Controller != null) Controller.cameraNameFilter = value;
+            else _fallbackSettings.cameraNameFilter = value;
+        }
+    }
 
     public PCD_OcclusionKernel kernelType
     {

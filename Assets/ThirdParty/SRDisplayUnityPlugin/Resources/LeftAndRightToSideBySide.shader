@@ -2,6 +2,8 @@ Shader "Custom/LeftAndRightToSideBySide" {
   Properties {
     _MainTex("Left", 2D) = "white" {}
     _RightTex("Right", 2D) = "white" {}
+    [Toggle] _FlipX("Flip RenderTexture X", Float) = 0
+    [Toggle] _SwapEyes("Swap Left and Right Eyes", Float) = 0
   }
 
   CGINCLUDE
@@ -21,6 +23,8 @@ struct appdata
 
   sampler2D _MainTex;
   sampler2D _RightTex;
+  float _FlipX;
+  float _SwapEyes;
 
   vert_to_frag vert(appdata v) {
 	vert_to_frag output;
@@ -30,20 +34,29 @@ struct appdata
   }
 
   fixed4 frag_left_and_right_to_side_by_side(vert_to_frag input) : SV_Target {
-    if (input.uv.x < 0.5) {
-      //[Half-Mirror] 元のコード: 
-      fixed2 uv = fixed2(input.uv.x * 2, input.uv.y);
-      
-      // [Half-Mirror] ハーフミラーの物理反射を補償するため X-Flip
-      //fixed2 uv = fixed2(1.0 - input.uv.x * 2, input.uv.y);
+    bool isLeftDisplay = (input.uv.x < 0.5);
+
+    // 各目の表示領域における 0.0～1.0 の UV.x 座標
+    float rawUvX = isLeftDisplay ? (input.uv.x * 2.0) : ((input.uv.x - 0.5) * 2.0);
+
+    // Step 1: RenderTexture 左右反転 (uv.x = 1 - uv.x)
+    if (_FlipX > 0.5) {
+      rawUvX = 1.0 - rawUvX;
+    }
+
+    fixed2 uv = fixed2(rawUvX, input.uv.y);
+
+    // Step 2: 左右目入れ替え
+    // 通常: LeftDisplay -> LeftTex (_MainTex), RightDisplay -> RightTex (_RightTex)
+    // Swapped: LeftDisplay -> RightTex (_RightTex), RightDisplay -> LeftTex (_MainTex)
+    bool useLeftTex = isLeftDisplay;
+    if (_SwapEyes > 0.5) {
+      useLeftTex = !useLeftTex;
+    }
+
+    if (useLeftTex) {
       return tex2D(_MainTex, uv);
-
     } else {
-      //[Half-Mirror] 元のコード: 
-      fixed2 uv = fixed2((input.uv.x - 0.5) * 2, input.uv.y);
-
-      // [Half-Mirror] ハーフミラーの物理反射を補償するため X-Flip
-      //fixed2 uv = fixed2(1.0 - (input.uv.x - 0.5) * 2, input.uv.y);
       return tex2D(_RightTex, uv);
     }
   }

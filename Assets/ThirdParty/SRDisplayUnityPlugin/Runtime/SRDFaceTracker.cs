@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2019,2020,2023,2024 Sony Corporation
  */
 
@@ -153,53 +153,59 @@ namespace SRD.Core
         public void UpdateState(Transform srdWorldOrigin)
         {
             _currentOrigin = srdWorldOrigin;
-            var deltaWheelScroll = Input.GetAxis("Mouse ScrollWheel");
-            var focusToPosition = _facePose.HeadPose.position - _focus;
-            var updatedFocusToPosition = focusToPosition * (1.0f - deltaWheelScroll);
-            if(updatedFocusToPosition.magnitude > MinFocusToPosition && updatedFocusToPosition.magnitude < MaxFocusToPosition)
+#if ENABLE_LEGACY_INPUT_MANAGER
+            try
             {
-                _facePose.HeadPose.position = _focus + updatedFocusToPosition;
-            }
-
-            if(Input.GetMouseButtonDown((int)MouseButtonDown.MBD_RIGHT))
-            {
-                _prevMousePos = Input.mousePosition;
-            }
-            if(Input.GetMouseButton((int)MouseButtonDown.MBD_RIGHT))
-            {
-                var currMousePos = Input.mousePosition;
-                var diff = currMousePos - _prevMousePos;
-                diff.z = 0f;
-                if(diff.magnitude > Vector3.kEpsilon)
+                var deltaWheelScroll = Input.GetAxis("Mouse ScrollWheel");
+                var focusToPosition = _facePose.HeadPose.position - _focus;
+                var updatedFocusToPosition = focusToPosition * (1.0f - deltaWheelScroll);
+                if(updatedFocusToPosition.magnitude > MinFocusToPosition && updatedFocusToPosition.magnitude < MaxFocusToPosition)
                 {
-                    diff /= 1000f;
-                    var posInDispCoord = _dispCenerCoordTposTrackCoord.MultiplyPoint3x4(_facePose.HeadPose.position);
-
-                    var coneAngleFromNewPos = Vector3.Angle(Vector3.forward, posInDispCoord + diff);
-                    if(Mathf.Abs(coneAngleFromNewPos) > MovableConeHalfAngleDeg)
-                    {
-                        var tangentLineInMovableCone = (new Vector2(-posInDispCoord.y, posInDispCoord.x)).normalized;
-                        var diffXY = new Vector2(diff.x, diff.y);
-                        if(Vector2.Angle(diffXY, tangentLineInMovableCone) > 90f)
-                        {
-                            tangentLineInMovableCone = -tangentLineInMovableCone;
-                        }
-                        diff = Vector2.Dot(tangentLineInMovableCone, diffXY) * tangentLineInMovableCone;
-                    }
-                    posInDispCoord += diff;
-                    var coneRadianInCurrentZ = posInDispCoord.z * Mathf.Tan(Mathf.Deg2Rad * MovableConeHalfAngleDeg);
-                    var radian = (new Vector2(posInDispCoord.x, posInDispCoord.y)).magnitude;
-                    if(radian > coneRadianInCurrentZ)
-                    {
-                        posInDispCoord.x *= (coneRadianInCurrentZ / radian);
-                        posInDispCoord.y *= (coneRadianInCurrentZ / radian);
-                    }
-                    posInDispCoord.z = Mathf.Sqrt(Mathf.Pow(updatedFocusToPosition.magnitude, 2f) - Mathf.Pow(((Vector2)posInDispCoord).magnitude, 2f));
-                    _facePose.HeadPose.position = _posTrackCoordTdispCenerCoord.MultiplyPoint3x4(posInDispCoord);
+                    _facePose.HeadPose.position = _focus + updatedFocusToPosition;
                 }
 
-                _prevMousePos = currMousePos;
+                if(Input.GetMouseButtonDown((int)MouseButtonDown.MBD_RIGHT))
+                {
+                    _prevMousePos = Input.mousePosition;
+                }
+                if(Input.GetMouseButton((int)MouseButtonDown.MBD_RIGHT))
+                {
+                    var currMousePos = Input.mousePosition;
+                    var diff = currMousePos - _prevMousePos;
+                    diff.z = 0f;
+                    if(diff.magnitude > Vector3.kEpsilon)
+                    {
+                        diff /= 1000f;
+                        var posInDispCoord = _dispCenerCoordTposTrackCoord.MultiplyPoint3x4(_facePose.HeadPose.position);
+
+                        var coneAngleFromNewPos = Vector3.Angle(Vector3.forward, posInDispCoord + diff);
+                        if(Mathf.Abs(coneAngleFromNewPos) > MovableConeHalfAngleDeg)
+                        {
+                            var tangentLineInMovableCone = (new Vector2(-posInDispCoord.y, posInDispCoord.x)).normalized;
+                            var diffXY = new Vector2(diff.x, diff.y);
+                            if(Vector2.Angle(diffXY, tangentLineInMovableCone) > 90f)
+                            {
+                                tangentLineInMovableCone = -tangentLineInMovableCone;
+                            }
+                            diff = Vector2.Dot(tangentLineInMovableCone, diffXY) * tangentLineInMovableCone;
+                        }
+                        posInDispCoord += diff;
+                        var coneRadianInCurrentZ = posInDispCoord.z * Mathf.Tan(Mathf.Deg2Rad * MovableConeHalfAngleDeg);
+                        var radian = (new Vector2(posInDispCoord.x, posInDispCoord.y)).magnitude;
+                        if(radian > coneRadianInCurrentZ)
+                        {
+                            posInDispCoord.x *= (coneRadianInCurrentZ / radian);
+                            posInDispCoord.y *= (coneRadianInCurrentZ / radian);
+                        }
+                        posInDispCoord.z = Mathf.Sqrt(Mathf.Pow(updatedFocusToPosition.magnitude, 2f) - Mathf.Pow(((Vector2)posInDispCoord).magnitude, 2f));
+                        _facePose.HeadPose.position = _posTrackCoordTdispCenerCoord.MultiplyPoint3x4(posInDispCoord);
+                    }
+
+                    _prevMousePos = currMousePos;
+                }
             }
+            catch {}
+#endif
 
             _facePose.HeadPose.rotation = Quaternion.LookRotation(_focus - _facePose.HeadPose.position, Vector3.up);
             _facePose.UpdateWithNewHeadPose(_facePose.HeadPose, _focus);

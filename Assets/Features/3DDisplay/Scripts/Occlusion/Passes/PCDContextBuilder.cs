@@ -161,12 +161,48 @@ internal class PCDContextBuilder
         }
 
         // =========================================================================
-        // スキップ判定
+        // カメラ・リソース情報の取得と行列計算
         // =========================================================================
-        bool hasStaticMeshes = bufferManager.HasStaticMeshes();
+        var cameraData = frameData.Get<UniversalCameraData>();
+        data.ResourceData = frameData.Get<UniversalResourceData>();
+        data.Camera = cameraData.camera;
+
+        // CullingMask が 0 のカメラ、またはカメラターゲットモードのフィルタ条件に合致しない場合はスキップ
+        bool isCullingMaskZero = data.Camera != null && data.Camera.cullingMask == 0;
+        bool isCameraFiltered = false;
+        if (data.Camera != null)
+        {
+            if (settings.cameraTargetMode == PCDRendererFeature.PCD_CameraTargetMode.VirtualCamerasOnly)
+            {
+                isCameraFiltered = string.IsNullOrEmpty(data.Camera.name) || !data.Camera.name.ToLowerInvariant().Contains("virtual");
+            }
+            else if (settings.cameraTargetMode == PCDRendererFeature.PCD_CameraTargetMode.CustomFilter && !string.IsNullOrEmpty(settings.cameraNameFilter))
+            {
+                isCameraFiltered = string.IsNullOrEmpty(data.Camera.name) || !data.Camera.name.ToLowerInvariant().Contains(settings.cameraNameFilter.ToLowerInvariant());
+            }
+        }
+
+        if (isCullingMaskZero || isCameraFiltered)
+        {
+            data.ShouldSkip = true;
+            if (AppLogger.IsEnabled(PCD_LogTriggers.TagContextBuilder))
+            {
+                if (_lastShouldSkip != data.ShouldSkip || Time.frameCount % 120 == 0)
+                {
+                    string reason = isCullingMaskZero ? "CullingMask is 0" : $"Camera filter mismatch ({data.Camera?.name})";
+                    AppLogger.Log(PCD_LogTriggers.TagContextBuilder, $"[ContextBuilder] Rendering SKIPPED: {reason}");
+                    _lastShouldSkip = data.ShouldSkip;
+                }
+            }
+            return data;
+        }
+
+        // =========================================================================
+        // 点群データ有無のスキップ判定
+        // =========================================================================
         bool pointCloudHasData = data.ActiveBuffer != null && data.ActiveCount > 0 && data.ActiveBuffer.IsValid();
 
-        if (!pointCloudHasData && !hasStaticMeshes)
+        if (!pointCloudHasData)
         {
             data.ShouldSkip = true;
 
@@ -177,7 +213,7 @@ internal class PCDContextBuilder
                 if (stateChanged || Time.frameCount % 120 == 0)
                 {
                     AppLogger.Log(PCD_LogTriggers.TagContextBuilder,
-                        $"[ContextBuilder] Rendering SKIPPED: PointCloudData={pointCloudHasData} (Count={data.ActiveCount}), StaticMeshes={hasStaticMeshes}");
+                        $"[ContextBuilder] Rendering SKIPPED: PointCloudData={pointCloudHasData} (Count={data.ActiveCount})");
                     _lastShouldSkip = data.ShouldSkip;
                     _lastActiveCount = data.ActiveCount;
                 }
@@ -186,24 +222,18 @@ internal class PCDContextBuilder
             return data;
         }
 
-        // =========================================================================
-        // カメラ・リソース情報の取得と行列計算
-        // =========================================================================
-        var cameraData = frameData.Get<UniversalCameraData>();
-        data.ResourceData = frameData.Get<UniversalResourceData>();
-        data.Camera = cameraData.camera;
         data.ScreenWidth = cameraData.cameraTargetDescriptor.width;
         data.ScreenHeight = cameraData.cameraTargetDescriptor.height;
 
         data.HasVirtualDepth = data.ResourceData.cameraDepthTexture.IsValid();
-        data.HasVirtualObjects = hasStaticMeshes;
+        data.HasVirtualObjects = false;
         uint lastFramePixelCount = 0;
         if (data.HasVirtualDepth && settings.enableVirtualDepthIntegration)
         {
             if (PCDRendererFeature.Instance != null)
             {
                 lastFramePixelCount = PCDRendererFeature.Instance.LastFrameVirtualMeshPixelCount;
-                data.HasVirtualObjects = data.HasVirtualObjects || (lastFramePixelCount > 0);
+                data.HasVirtualObjects = lastFramePixelCount > 0;
             }
         }
 
@@ -234,7 +264,7 @@ internal class PCDContextBuilder
                                 $"  Camera: {data.Camera.name} (Res: {data.ScreenWidth}x{data.ScreenHeight}, CullingMask: 0x{data.Camera.cullingMask:X})\n" +
                                 $"  Projection m00: {m00:F4} (Negated: {m00 < 0})\n" +
                                 $"  URP Inputs: VirtualDepthTex={data.HasVirtualDepth}, ColorTex={isColorValid}\n" +
-                                $"  PointCloud: Count={data.ActiveCount}, StaticMeshes={hasStaticMeshes}\n" +
+                                $"  PointCloud: Count={data.ActiveCount}\n" +
                                 $"  VirtualMesh: LastPixelCount={lastFramePixelCount}\n" +
                                 $"  Result: ShouldSkip={data.ShouldSkip}, HasVirtualObjects={data.HasVirtualObjects} (DepthIntegration={settings.enableVirtualDepthIntegration})";
 

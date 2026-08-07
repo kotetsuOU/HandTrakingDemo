@@ -64,9 +64,19 @@ public class PCDRendererFeature : ScriptableRendererFeature
         Grid32x32 = 32
     }
 
+    public enum PCD_CameraTargetMode
+    {
+        AllValidCameras = 0,    // CullingMask != 0 の全有効カメラ
+        VirtualCamerasOnly = 1, // 名前が "Virtual" を含むカメラのみ
+        CustomFilter = 2        // 指定キーワード (cameraNameFilter) を含むカメラのみ
+    }
+
     [System.Serializable]
     public struct PCDRenderSettings
     {
+        public PCD_CameraTargetMode cameraTargetMode;
+        public string cameraNameFilter;
+
         public PCD_OcclusionKernel kernelType;
         public PCD_OcclusionEvaluationMode evaluationMode;
         [Range(1, 8)] public int minOccludedSectors;
@@ -109,13 +119,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
         [HideInInspector] public uint _dynamicMultiplierRuntimeValue;
     }
 
-    // 登録された静的メッシュの情報を保持するためのクラス
-    private class RegisteredObject
-    {
-        public Mesh mesh;
-        public Transform transform;
-    }
-
     [Header("Required Assets")]
     public ComputeShader pointCloudCompute;
 
@@ -125,8 +128,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
 
     private bool _useGlobalBufferMode = false;
     public bool IsGlobalBufferMode => _useGlobalBufferMode;
-
-    private readonly List<RegisteredObject> _persistentObjects = new List<RegisteredObject>();
 
     public void SetUseGlobalBuffer(bool enable)
     {
@@ -162,51 +163,6 @@ public class PCDRendererFeature : ScriptableRendererFeature
         // レンダリングパスのインスタンスを生成し、実行タイミングを設定
         _scriptablePass = new PCDRenderPass(this.pointCloudCompute, GetSettings());
         _scriptablePass.renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
-
-        // パス再生成時にも既存の登録済みメッシュ情報を引き継ぐ
-        SyncPersistentObjectsToPass();
-    }
-
-    // 内部リストに保持している静的メッシュをスクリプタブルパスへ再登録する
-    private void SyncPersistentObjectsToPass()
-    {
-        if (_scriptablePass == null) return;
-
-        for (int i = _persistentObjects.Count - 1; i >= 0; i--)
-        {
-            var obj = _persistentObjects[i];
-            if (obj.mesh != null && obj.transform != null)
-            {
-                _scriptablePass.AddStaticMesh(obj.mesh, obj.transform);
-            }
-            else
-            {
-                _persistentObjects.RemoveAt(i);
-            }
-        }
-    }
-
-    // オクルージョン用の静的メッシュを追加登録する
-    public void AddStaticMesh(Mesh mesh, Transform transform)
-    {
-        if (mesh == null || transform == null) return;
-
-        // 既に登録されているか確認し、無い場合は追加
-        var existing = _persistentObjects.Find(x => x.mesh == mesh && x.transform == transform);
-        if (existing == null)
-        {
-            _persistentObjects.Add(new RegisteredObject { mesh = mesh, transform = transform });
-        }
-
-        // 実際の描画パスにもメッシュ情報を渡す
-        _scriptablePass?.AddStaticMesh(mesh, transform);
-    }
-
-    // 登録された静的メッシュを削除する
-    public void RemoveStaticMesh(Mesh mesh, Transform transform)
-    {
-        _persistentObjects.RemoveAll(x => x.mesh == null || x.transform == null || (x.mesh == mesh && (transform == null || x.transform == transform)));
-        _scriptablePass?.RemoveStaticMesh(mesh, transform);
     }
 
     // 動的オブジェクト用にデータ再構築をリクエストする
@@ -215,19 +171,42 @@ public class PCDRendererFeature : ScriptableRendererFeature
         _scriptablePass?.MarkPointCloudDataDirty();
     }
 
-    // t[??ARenderGraph?pXGL[
+    // RenderGraph パス追加
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         Instance = this;
 
-        // Sceneビューなど解像度の異なるカメラが混ざることで、RTHandleが毎フレーム破棄・再構築されるのを防ぐため、Game/VRのみ許可する
+        // 1. Sceneビューなど解像度の異なるカメラが混ざることで、RTHandleが毎フレーム破棄・再構築されるのを防ぐため、Game/VRのみ許可する
         if (renderingData.cameraData.cameraType != CameraType.Game && renderingData.cameraData.cameraType != CameraType.VR)
         {
             return;
         }
 
-        // 毎フレーム、メッシュのカリング設定やレイヤーを強制適用する
-        EnforceSettingsEveryFrame();
+        var cam = renderingData.cameraData.camera;
+
+        // 2. CullingMask チェック: 描画対象レイヤーが0のカメラ（SRD実カメラ等）は即座にスキップ
+        if (cam == null || cam.cullingMask == 0)
+        {
+            return;
+        }
+
+        // 3. カメラターゲットモードに基づくフィルタリング
+        var currentSettings = GetSettings();
+        if (currentSettings.cameraTargetMode == PCD_CameraTargetMode.VirtualCamerasOnly)
+        {
+            if (string.IsNullOrEmpty(cam.name) || !cam.name.ToLowerInvariant().Contains("virtual"))
+            {
+                return;
+            }
+        }
+        else if (currentSettings.cameraTargetMode == PCD_CameraTargetMode.CustomFilter)
+        {
+            if (!string.IsNullOrEmpty(currentSettings.cameraNameFilter) &&
+                (string.IsNullOrEmpty(cam.name) || !cam.name.ToLowerInvariant().Contains(currentSettings.cameraNameFilter.ToLowerInvariant())))
+            {
+                return;
+            }
+        }
 
         if (pointCloudCompute == null)
         {
@@ -237,7 +216,7 @@ public class PCDRendererFeature : ScriptableRendererFeature
         if (_scriptablePass != null)
         {
             // Inspectorでの変更をパスに反映
-            _scriptablePass.UpdateSettings(GetSettings());
+            _scriptablePass.UpdateSettings(currentSettings);
             if (settings == null)
             {
                 settings = new PCDSettingsBridge();
@@ -245,31 +224,13 @@ public class PCDRendererFeature : ScriptableRendererFeature
             _scriptablePass.SetDebugFlags(settings.enablePixelTagMap, settings.enableOcclusionMap);
         }
 
-        // 常時パスをエンキューし、描画をスキップするかどうかはRecordRenderGraph内や内部ロジックに委ねる
         renderer.EnqueuePass(_scriptablePass);
-    }
-
-    // 登録されたすべてのオブジェクトに対して、設定（BoundsやLayer）が正しく適用されているか確認する
-    private void EnforceSettingsEveryFrame()
-    {
-        for (int i = _persistentObjects.Count - 1; i >= 0; i--)
-        {
-            var obj = _persistentObjects[i];
-            // オブジェクトが破棄されていたらリストおよびパスから削除
-            if (obj.mesh == null || obj.transform == null)
-            {
-                _scriptablePass?.RemoveStaticMesh(obj.mesh, obj.transform);
-                _persistentObjects.RemoveAt(i);
-                continue;
-            }
-        }
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
         _scriptablePass?.Cleanup();
-        _persistentObjects.Clear();
         _useGlobalBufferMode = false;
 
         if (Instance == this)

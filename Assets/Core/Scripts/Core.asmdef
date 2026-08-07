@@ -2,7 +2,9 @@
     "name": "Core",
     "rootNamespace": "",
     "references": [
-        "Unity.ProBuilder"
+        "Unity.ProBuilder",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -8,6 +8,13 @@ public class PCDOcclusionPipelineController : MonoBehaviour, IAppLoggable
 {
     public static PCDOcclusionPipelineController Instance { get; private set; }
 
+    [Header("Camera Target & Culling Settings")]
+    [Tooltip("オクルージョン計算対象のカメラ制限（AllValidCameras: CullingMask!=0の全カメラ, VirtualCamerasOnly: 名前がVirtualを含むカメラのみ, CustomFilter: 指定キーワード）")]
+    public PCD_CameraTargetMode cameraTargetMode = PCD_CameraTargetMode.AllValidCameras;
+
+    [Tooltip("CustomFilter モード時に判定に使用するカメラ名キーワード")]
+    public string cameraNameFilter = "Virtual";
+
     [Header("Occlusion Core Settings")]
     [Tooltip("オクルージョン計算に用いるカーネル関数")]
     public PCD_OcclusionKernel kernelType = PCD_OcclusionKernel.Bouchiba;
@@ -168,6 +175,8 @@ public class PCDOcclusionPipelineController : MonoBehaviour, IAppLoggable
     {
         return new PCDRenderSettings
         {
+            cameraTargetMode = this.cameraTargetMode,
+            cameraNameFilter = this.cameraNameFilter,
             kernelType = this.kernelType,
             evaluationMode = this.evaluationMode,
             minOccludedSectors = this.minOccludedSectors,

@@ -53,6 +53,7 @@ namespace Core.Logging
     /// シーン内の各コンポーネントインスタンスおよび個別ログトリガーのON/OFFを
     /// モジュール別（HCD, RealSense, PCD, Experiment等）のグループ階層で一元集中管理する MonoBehaviour マネージャー。
     /// </summary>
+    [DefaultExecutionOrder(-1000)]
     [DisallowMultipleComponent]
     public class AppLogManager : MonoBehaviour
     {
@@ -218,6 +219,18 @@ namespace Core.Logging
         }
 
         /// <summary>
+        /// 指定されたタグが AppLogManager に登録されているか判定
+        /// </summary>
+        public bool IsTagRegistered(string tag)
+        {
+            if (string.IsNullOrEmpty(tag)) return false;
+            lock (_lock)
+            {
+                return _nameLookup.ContainsKey(tag);
+            }
+        }
+
+        /// <summary>
         /// 名前/識別タグ指定でログが有効かどうか判定
         /// </summary>
         public bool IsLogEnabled(string nameTag)
@@ -241,6 +254,14 @@ namespace Core.Logging
                     if (_nameLookup.TryGetValue(nameTag, out var entry))
                     {
                         return entry.IsEnabled(level);
+                    }
+
+                    foreach (var kvp in _nameLookup)
+                    {
+                        if (kvp.Key.IndexOf(nameTag, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            return kvp.Value.IsEnabled(level);
+                        }
                     }
                 }
                 catch (Exception)
@@ -274,6 +295,10 @@ namespace Core.Logging
                     if (!string.IsNullOrEmpty(entry?.label))
                     {
                         existingLabels.Add(entry.label);
+                    }
+                    if (!string.IsNullOrEmpty(entry?.tag))
+                    {
+                        existingLabels.Add(entry.tag);
                     }
                 }
             }
@@ -318,6 +343,48 @@ namespace Core.Logging
                         enableError = true
                     });
                     existingTargets.Add(comp);
+                }
+            }
+
+            // ScriptableObject / ScriptableRendererFeature の [AppLoggable] / IAppLoggable メモリ上全自動検出
+            UnityEngine.Object[] allScriptableObjects = Resources.FindObjectsOfTypeAll(typeof(ScriptableObject));
+            foreach (var obj in allScriptableObjects)
+            {
+                if (obj is ScriptableObject so && so != null)
+                {
+                    var loggableAttr = so.GetType().GetCustomAttribute<AppLoggableAttribute>(true);
+                    bool isLoggableInterface = so is IAppLoggable;
+
+                    if (loggableAttr == null && !isLoggableInterface)
+                    {
+                        continue;
+                    }
+
+                    string typeName = so.GetType().Name;
+                    string catName = !string.IsNullOrEmpty(loggableAttr?.CategoryName)
+                        ? loggableAttr.CategoryName
+                        : (ResolveCategoryName(typeName) ?? "Other Loggables");
+
+                    LogCategoryGroup group = GetOrCreateGroup(catName);
+
+                    if (so is IAppLoggable loggableSo)
+                    {
+                        loggableSo.RegisterLogTriggers(group, existingLabels);
+                        existingTargets.Add(so);
+                    }
+                    else if (!existingTargets.Contains(so))
+                    {
+                        group.entries.Add(new LogInstanceEntry
+                        {
+                            label = $"[{typeName}] {so.name}",
+                            tag = typeName,
+                            target = so,
+                            enableInfo = true,
+                            enableWarning = true,
+                            enableError = true
+                        });
+                        existingTargets.Add(so);
+                    }
                 }
             }
 

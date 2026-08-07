@@ -135,8 +135,6 @@ public class PCDRenderPass : ScriptableRenderPass
 
     public void SetExternalBuffer(ComputeBuffer buffer, int count) => _bufferManager.SetExternalBuffer(buffer, count);
     public void SetPointCloudData(PCV_Data data) => _bufferManager.SetPointCloudData(data);
-    public void AddStaticMesh(Mesh mesh, Transform transform) => _bufferManager.AddStaticMesh(mesh, transform);
-    public void RemoveStaticMesh(Mesh mesh, Transform transform) => _bufferManager.RemoveStaticMesh(mesh, transform);
     public void MarkPointCloudDataDirty() => _bufferManager.SetDataDirty();
 
     public Texture GetDebugDisplayMap()
@@ -150,8 +148,7 @@ public class PCDRenderPass : ScriptableRenderPass
     {
         bool hasExternalData = _bufferManager.UseExternalBuffer && _bufferManager.ExternalPointBuffer != null && _bufferManager.ExternalPointBuffer.IsValid() && _bufferManager.ExternalPointCount > 0;
         bool hasInternalData = _bufferManager.PointBuffer != null && _bufferManager.PointBuffer.IsValid() && _bufferManager.PointCount > 0;
-        bool hasStaticMeshes = _bufferManager.HasStaticMeshes();
-        return !hasExternalData && !hasInternalData && !hasStaticMeshes;
+        return !hasExternalData && !hasInternalData;
     }
 
     // =========================================================================

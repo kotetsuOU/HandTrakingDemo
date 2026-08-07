@@ -49,12 +49,10 @@ Assets/Features/PCD/
     ├── Core/
     │   ├── PCDRendererFeature.cs      # URP ScriptableRendererFeature
     │   └── PCDRenderPass.cs           # URP RenderGraph パス統括
-    ├── Pipeline/
-    │   ├── PCDContextBuilder.cs       # カメラ行列・バッファ調停コンテキスト生成
-    │   ├── PCDComputePassBuilder.cs   # Compute Shader パス構築 (AddUnsafePass)
-    │   └── PCDBlitPassBuilder.cs      # 最終画面合成パス構築 (AddRasterRenderPass)
-    └── Registrar/
-        └── StaticMeshPCDRegistrar.cs  # 静的メッシュの自動登録コンポーネント
+    └── Pipeline/
+        ├── PCDContextBuilder.cs       # カメラ行列・バッファ調停コンテキスト生成
+        ├── PCDComputePassBuilder.cs   # Compute Shader パス構築 (AddUnsafePass)
+        └── PCDBlitPassBuilder.cs      # 最終画面合成パス構築 (AddRasterRenderPass)
 ```
 
 ### 2.2 クラス相関図
@@ -102,18 +100,17 @@ sequenceDiagram
 
 | 設定項目 | 型 | 既定値 | 説明 |
 |---|---|---|---|
+| `cameraTargetMode` | `PCD_CameraTargetMode` | `AllValidCameras` | オクルージョン計算対象カメラの制限 (`AllValidCameras`, `VirtualCamerasOnly`, `CustomFilter`) |
+| `cameraNameFilter` | `string` | `"Virtual"` | `CustomFilter` モード時に判定するカメラ名キーワード |
 | `enableTagBasedOptimization` | `bool` | `true` | タグベースの最適化を有効化（セルフオクルージョン防止） |
 | `enableTypeAwareDensity` | `bool` | `true` | 点群種別に応じた密度計算補正 |
 | `enableSoftOcclusionFade` | `bool` | `true` | 境界ソフトフェード処理の有効化 |
 | `holeFillingMethod` | `PCD_HoleFillingMethod` | `JointBilateral` | 穴埋め補間手法 (`None`, `JointBilateral`, `PullPush`, `Morphology_OC`, `Morphology_CO`) |
 | `occlusionFadeWidth` | `float` | `0.2f` | フェード境界幅のパラメータ |
 
-#### Step 3: 仮想メッシュのオクルード登録方針（Fallback / 比較実験用）
+#### Step 3: 仮想メッシュのオクルード自動計算
 
-通常、Camera Depth に描画される仮想オブジェクトは URP の Camera Depth 経路で自動的に「仮想遮蔽深度（`OriginType = 1`）」として計算されます。
-そのため、標準シーンではメッシュ登録用のコンポーネントを配置する必要はありません。
-
-Camera Depth 非対応の特殊メッシュや比較実験用に限定して、`PCDMeshRegistrarController` や `StaticMeshPCDRegistrar` を使用して頂点点群として投入するフォールバック構成（`Legacy / Fallback Mesh Source`）が用意されています。
+仮想オブジェクトは URP の Camera Depth 経路で自動的に「仮想遮蔽深度（`OriginType = 1`）」として計算されます。手動で頂点登録用のコンポーネントをアタッチする必要はありません。
 
 ---
 
@@ -124,7 +121,7 @@ Camera Depth 非対応の特殊メッシュや比較実験用に限定して、`
 | `OriginType` 値 | 定義・対象 | 処理方針 |
 | :--- | :--- | :--- |
 | `0u` | 実世界点群 (Real-World Point Cloud) | RealSense センサー等から取得した点群。オクルージョン計算および Hole Filling 補間のメイン対象 |
-| `1u` | 仮想遮蔽深度 (Virtual Occlusion Depth) | URP Camera Depth 由来（および Registrar 由来）の仮想物体深度。背景・セルフオクルージョン判定等に使用 |
+| `1u` | 仮想遮蔽深度 (Virtual Occlusion Depth) | URP Camera Depth 由来の仮想物体深度。背景・セルフオクルージョン判定等に使用 |
 
 ### 4.2 Compute Shader パイプライン仕様 (`PCD_Occlusion.compute`)
 
@@ -199,6 +196,8 @@ $$
   $m_{00} < 0$ の反転行列を持つカメラの描画時には、頂点順序の反転に伴い `GL.invertCulling = true` を設定してメッシュがカリング消失するのを防止します。
 * **二重反転の防止**:
   `PCDContextBuilder` が Compute Shader に渡す `ProjectionMatrix` は、カメラの Projection 行列を直接 `GL.GetGPUProjectionMatrix` へ引き渡します。手動で $m_{00}$ の符号を正反転させると、カメラ映像と点群の X 軸投影方向が食い違う「二重反転」が発生するため注意が必要です。
+* **`cullingMask == 0` の自動スキップとカメラフィルタリング**:
+  `SRDVirtualCameraTester` 使用時、実カメラ (`LeftEyeCamera_0`, `RightEyeCamera_0`) は `cullingMask = 0` が設定されるため、`PCDRendererFeature` および `PCDContextBuilder` が自動的にオクルージョンパス実行をスキップします。これにより不要な Compute Shader 実行負荷を完全に防止します。さらに `cameraTargetMode` (`VirtualCamerasOnly` や `CustomFilter`) を指定することで、特定の仮想カメラのみを計算対象に制限可能です。
 
 </details>
 
@@ -209,7 +208,7 @@ $$
 * **`PCD_LogTriggers` による通常ログと Record ログの個別分離**:
   `PCDOcclusionPipelineController` に実装された `IAppLoggable` により、`AppLogManager` スキャン時に `PCD_LogTriggers` が自動連動し、`PCD (Occlusion)` カテゴリ下に以下の 5 つのサブトリガーが個別登録されます：
   - `[PCD_Pipeline]`: パイプライン制御 (`PCDOcclusionPipelineController`), `PCDRenderPass`, `PCDKernelRegistry`
-  - `[PCD_BufferManager]`: 点群バッファ更新 (`PCDPointBufferManager`), メッシュ一括同期 (`PCDMeshRegistrarController`)
+  - `[PCD_BufferManager]`: 点群バッファ更新 (`PCDPointBufferManager`)
   - `[PCD_ContextBuilder]`: 事前計算コンテキスト (`PCDContextBuilder`), URP カメラデータ入力検証, 点群/仮想メッシュピクセル数検出ログ
   - `[PCD_RecordDebug]`: GPU テクスチャ AsyncReadback (`PCDDebugReadbackManager`)
   - `[PCD_Exporter]`: PNG/CSV ファイルエクスポート (`PCDOcclusionDebugExporter`, `PCDIntegratedDepthMapExporter`)

@@ -30,18 +30,7 @@ public class PCDPointBufferManager
         public uint originType; // 0 = PointCloud（動的点群）, 1 = StaticMesh（静的メッシュからの頂点）
     }
 
-    // 登録された静的メッシュとトランスフォーム、処理モードを保持するクラス
-    private class MeshTransformPair
-    {
-        public Mesh mesh;
-        public Transform transform;
-
-        // 計算済みのワールド座標ポイントキャッシュ
-        public Point[] cachedPoints;
-        public Matrix4x4 lastMatrix;
-    }
-
-    // --- 内部バッファ管理 (静的メッシュ及びCPUベースの点群用) ---
+    // --- 内部バッファ管理 (CPUベースの点群用) ---
     private ComputeBuffer _pointBuffer;
     private int _pointCount = 0;
     private Point[] _pointsCache;
@@ -60,12 +49,7 @@ public class PCDPointBufferManager
     private ComputeBuffer _combinedBuffer;
 
     private PCV_Data _dynamicData; // CPU側から提供される動的点群データ
-    private List<MeshTransformPair> _staticMeshes = new List<MeshTransformPair>();
     private const int STRIDE = 28; // 1要素のデータサイズ: sizeof(float)*3 + sizeof(float)*3 + sizeof(uint)
-
-    // GC回避用の使い回しリスト
-    private List<Vector3> _tempVertices = new List<Vector3>();
-    private List<Color> _tempColors = new List<Color>();
 
     // 各種プロパティへのアクセス
 
@@ -157,40 +141,7 @@ public class PCDPointBufferManager
         }
     }
 
-    // オクルージョン干渉用の静的メッシュを追加する
-    public void AddStaticMesh(Mesh mesh, Transform transform)
-    {
-        if (mesh != null && transform != null)
-        {
-            var existing = _staticMeshes.Find(p => p.mesh == mesh && p.transform == transform);
-            if (existing == null)
-            {
-                _staticMeshes.Add(new MeshTransformPair { mesh = mesh, transform = transform });
-                _isDataDirty = true;
-                AppLogger.Log(PCD_LogTriggers.TagBuffer, $"Static mesh '{mesh.name}' added from Transform '{transform.name}'.");
-            }
-        }
-    }
-
-    // 登録されている静的メッシュを削除する
-    public void RemoveStaticMesh(Mesh mesh, Transform transform)
-    {
-        int removedCount = _staticMeshes.RemoveAll(p => p.mesh == null || p.transform == null || (p.mesh == mesh && p.transform == transform));
-        if (removedCount > 0)
-        {
-            _isDataDirty = true;
-            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"Removed {removedCount} static mesh entry/entries.");
-        }
-    }
-
-    // 登録済み静的メッシュが存在するか確認する
-    public bool HasStaticMeshes()
-    {
-        _staticMeshes.RemoveAll(p => p.mesh == null || p.transform == null);
-        return _staticMeshes.Count > 0;
-    }
-
-    // 静的メッシュの頂点と、CPU側の動的点群を一つのPoint構造体配列（キャッシュ）に統合する
+    // CPU側の動的点群と仮想接触ポイントを一つのPoint構造体配列（キャッシュ）に統合する
     private void MergeAndCachePoints()
     {
         int dataPointCount = 0;
@@ -200,17 +151,8 @@ public class PCDPointBufferManager
             dataPointCount = _dynamicData.PointCount;
         }
 
-        int totalMeshPointCount = 0;
-        // すべての静的メッシュの頂点数をカウントする
-        foreach (var pair in _staticMeshes)
-        {
-            if (pair.mesh == null || pair.transform == null || !pair.transform.gameObject.activeInHierarchy) continue;
-            if (!pair.mesh.isReadable) continue;
-            totalMeshPointCount += pair.mesh.vertexCount;
-        }
-
         // 合計の頂点数
-        _pointCount = dataPointCount + totalMeshPointCount + _virtualContactPointCount;
+        _pointCount = dataPointCount + _virtualContactPointCount;
 
         // 点数がゼロなら配列を破棄して終了
         if (_pointCount == 0)
@@ -243,47 +185,7 @@ public class PCDPointBufferManager
             }
         }
 
-        // 2. 静的メッシュの頂点情報を順番に配列へ格納
-        foreach (var pair in _staticMeshes)
-        {
-            if (pair.mesh == null || !pair.mesh.isReadable || pair.transform == null || !pair.transform.gameObject.activeInHierarchy) continue;
-
-            int meshPointCount = pair.mesh.vertexCount;
-            if (meshPointCount == 0) continue;
-
-            Matrix4x4 localToWorld = pair.transform.localToWorldMatrix;
-
-            if (_isDataDirty || pair.cachedPoints == null || pair.cachedPoints.Length != meshPointCount || pair.lastMatrix != localToWorld)
-            {
-                pair.mesh.GetVertices(_tempVertices);
-                pair.mesh.GetColors(_tempColors);
-                bool hasMeshColors = _tempColors.Count == meshPointCount;
-
-                if (pair.cachedPoints == null || pair.cachedPoints.Length != meshPointCount)
-                {
-                    pair.cachedPoints = new Point[meshPointCount];
-                }
-
-                for (int i = 0; i < meshPointCount; i++)
-                {
-                    Vector3 color = hasMeshColors ? new Vector3(_tempColors[i].r, _tempColors[i].g, _tempColors[i].b) : Vector3.one;
-                    Vector3 worldPos = localToWorld.MultiplyPoint3x4(_tempVertices[i]);
-
-                    pair.cachedPoints[i] = new Point
-                    {
-                        position = worldPos,
-                        color = color,
-                        originType = 1
-                    };
-                }
-                pair.lastMatrix = localToWorld;
-            }
-
-            System.Array.Copy(pair.cachedPoints, 0, _pointsCache, cacheIndex, meshPointCount);
-            cacheIndex += meshPointCount;
-        }
-
-        // 3. 仮想接触ポイント（CPU側で生成された面上の点群）を配列へ格納
+        // 2. 仮想接触ポイント（CPU側で生成された面上の点群）を配列へ格納
         if (_virtualContactPointCount > 0 && _virtualContactPoints != null)
         {
             System.Array.Copy(_virtualContactPoints, 0, _pointsCache, cacheIndex, _virtualContactPointCount);
@@ -315,7 +217,7 @@ public class PCDPointBufferManager
         _pointBuffer.SetData(_pointsCache, 0, 0, _pointCount);
         if (_pointCount > 0 && _isDataDirty)
         {
-            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"ComputeBuffer updated with {_pointCount} points (Static/Internal).");
+            AppLogger.Log(PCD_LogTriggers.TagBuffer, $"ComputeBuffer updated with {_pointCount} points (Internal).");
         }
         _isDataDirty = false;
     }
@@ -333,7 +235,6 @@ public class PCDPointBufferManager
 
         _pointsCache = null;
         _dynamicData = null;
-        _staticMeshes.Clear();
 
         _externalPointBuffer = null;
         _useExternalBuffer = false;

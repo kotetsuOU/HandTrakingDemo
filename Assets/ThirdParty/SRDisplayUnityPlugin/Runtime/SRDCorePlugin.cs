@@ -12,6 +12,7 @@ using UnityEngine.Rendering;
 using UnityEditor;
 
 using SRD.Utils;
+using Core.Logging;
 
 namespace SRD.Core
 {
@@ -38,6 +39,8 @@ namespace SRD.Core
 
     internal static class SRDCorePlugin
     {
+        public const string TagNativeLog = "SRD_NativeLog";
+
         public static int ShowMessageBox(string title, string message, Action<string> debugLogFunc = null)
         {
             if (debugLogFunc != null)
@@ -55,14 +58,23 @@ namespace SRD.Core
                 case SrdXrLogLevels.LOG_LEVELS_TRACE:
                 case SrdXrLogLevels.LOG_LEVELS_DEBUG:
                 case SrdXrLogLevels.LOG_LEVELS_INFO:
-                    Debug.Log(message);
+                    if (AppLogger.IsEnabled(TagNativeLog, AppLogLevel.Info))
+                    {
+                        AppLogger.Log(TagNativeLog, message);
+                    }
                     break;
                 case SrdXrLogLevels.LOG_LEVELS_WARN:
-                    Debug.LogWarning(message);
+                    if (AppLogger.IsEnabled(TagNativeLog, AppLogLevel.Warning))
+                    {
+                        AppLogger.LogWarning(TagNativeLog, message);
+                    }
                     break;
                 case SrdXrLogLevels.LOG_LEVELS_ERR:
                 case SrdXrLogLevels.LOG_LEVELS_CRITICAL:
-                    Debug.LogError(message);
+                    if (AppLogger.IsEnabled(TagNativeLog, AppLogLevel.Error))
+                    {
+                        AppLogger.LogError(TagNativeLog, message);
+                    }
                     break;
                 case SrdXrLogLevels.LOG_LEVELS_OFF:
                 default:

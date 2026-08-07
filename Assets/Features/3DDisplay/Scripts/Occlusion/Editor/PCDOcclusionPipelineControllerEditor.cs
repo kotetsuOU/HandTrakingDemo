@@ -6,6 +6,9 @@ using UnityEngine;
 [CanEditMultipleObjects]
 public class PCDOcclusionPipelineControllerEditor : Editor
 {
+    private SerializedProperty _cameraTargetMode;
+    private SerializedProperty _cameraNameFilter;
+
     private SerializedProperty _kernelType;
     private SerializedProperty _evaluationMode;
     private SerializedProperty _minOccludedSectors;
@@ -61,6 +64,9 @@ public class PCDOcclusionPipelineControllerEditor : Editor
 
     private void OnEnable()
     {
+        _cameraTargetMode = serializedObject.FindProperty("cameraTargetMode");
+        _cameraNameFilter = serializedObject.FindProperty("cameraNameFilter");
+
         _kernelType = serializedObject.FindProperty("kernelType");
         _evaluationMode = serializedObject.FindProperty("evaluationMode");
         _minOccludedSectors = serializedObject.FindProperty("minOccludedSectors");

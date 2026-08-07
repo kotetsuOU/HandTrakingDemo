@@ -81,22 +81,35 @@ namespace Core.Logging
             return IsEnabled(context, AppLogLevel.Info, subTag);
         }
 
+        private static AppLogManager GetAppLogManager()
+        {
+            if (AppLogManager.Instance != null) return AppLogManager.Instance;
+            if (IsMainThread)
+            {
+                var mgr = Object.FindFirstObjectByType<AppLogManager>();
+                if (mgr != null) return mgr;
+            }
+            return null;
+        }
+
         public static bool IsEnabled(Object context, AppLogLevel level, string subTag = null)
         {
-            if (AppLogManager.Instance != null)
+            var mgr = GetAppLogManager();
+            if (mgr != null)
             {
-                return AppLogManager.Instance.IsLogEnabled(context, level, subTag);
+                return mgr.IsLogEnabled(context, level, subTag);
             }
-            return false;
+            return true;
         }
 
         public static bool IsEnabled(string nameTag, AppLogLevel level = AppLogLevel.Info)
         {
-            if (AppLogManager.Instance != null)
+            var mgr = GetAppLogManager();
+            if (mgr != null)
             {
-                return AppLogManager.Instance.IsLogEnabled(nameTag, level);
+                return mgr.IsLogEnabled(nameTag, level);
             }
-            return false;
+            return true;
         }
 
         public static void Log(Object context, string message)
@@ -105,8 +118,9 @@ namespace Core.Logging
             DoDebugLog(AppLogLevel.Info, GetContextPrefix(context), message, context);
         }
 
-        public static void Log(Object context, string subTag, string message)
+        public static void Log(Object context, string arg2, string arg3)
         {
+            ResolveMessageAndSubTag(arg2, arg3, out string message, out string subTag);
             if (!IsEnabled(context, AppLogLevel.Info, subTag)) return;
             string prefix = GetContextPrefix(context);
             if (!string.IsNullOrEmpty(subTag)) prefix = $"{prefix} > {subTag}";
@@ -125,8 +139,9 @@ namespace Core.Logging
             DoDebugLog(AppLogLevel.Warning, GetContextPrefix(context), message, context);
         }
 
-        public static void LogWarning(Object context, string subTag, string message)
+        public static void LogWarning(Object context, string arg2, string arg3)
         {
+            ResolveMessageAndSubTag(arg2, arg3, out string message, out string subTag);
             if (!IsEnabled(context, AppLogLevel.Warning, subTag)) return;
             string prefix = GetContextPrefix(context);
             if (!string.IsNullOrEmpty(subTag)) prefix = $"{prefix} > {subTag}";
@@ -145,12 +160,32 @@ namespace Core.Logging
             DoDebugLog(AppLogLevel.Error, GetContextPrefix(context), message, context);
         }
 
-        public static void LogError(Object context, string subTag, string message)
+        public static void LogError(Object context, string arg2, string arg3)
         {
+            ResolveMessageAndSubTag(arg2, arg3, out string message, out string subTag);
             if (!IsEnabled(context, AppLogLevel.Error, subTag)) return;
             string prefix = GetContextPrefix(context);
             if (!string.IsNullOrEmpty(subTag)) prefix = $"{prefix} > {subTag}";
             DoDebugLog(AppLogLevel.Error, prefix, message, context);
+        }
+
+        private static void ResolveMessageAndSubTag(string arg2, string arg3, out string message, out string subTag)
+        {
+            if (AppLogManager.Instance != null && AppLogManager.Instance.IsTagRegistered(arg3))
+            {
+                message = arg2;
+                subTag = arg3;
+            }
+            else if (!string.IsNullOrEmpty(arg3) && (arg3.StartsWith("SRD_") || arg3.StartsWith("PCD_") || arg3.StartsWith("HCD_") || arg3.StartsWith("URP_") || arg3.StartsWith("EXP_") || arg3.StartsWith("Rs")))
+            {
+                message = arg2;
+                subTag = arg3;
+            }
+            else
+            {
+                subTag = arg2;
+                message = arg3;
+            }
         }
 
         public static void LogError(string nameTag, string message, Object context = null)
@@ -167,13 +202,13 @@ namespace Core.Logging
             switch (level)
             {
                 case AppLogLevel.Info:
-                    Debug.Log(formattedMsg, targetContext);
+                    UnityEngine.Debug.Log(formattedMsg, targetContext);
                     break;
                 case AppLogLevel.Warning:
-                    Debug.LogWarning(formattedMsg, targetContext);
+                    UnityEngine.Debug.LogWarning(formattedMsg, targetContext);
                     break;
                 case AppLogLevel.Error:
-                    Debug.LogError(formattedMsg, targetContext);
+                    UnityEngine.Debug.LogError(formattedMsg, targetContext);
                     break;
             }
         }

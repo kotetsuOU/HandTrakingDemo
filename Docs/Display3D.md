@@ -16,13 +16,17 @@
 ```text
   [SRDManager (アイトラッキング)]
                  │
+                 ├─► [SRDMirrorCamera (実カメラ鏡像幾何変換)]
+                 │      └─► [SRDMirrorDebugLogger (デバッグログ独立出力)]
+                 │
+                 ├─► [SRDMirrorCullingFeature (URP CullingMatrix 同期)]
+                 ├─► [MirrorRendererFeature (2D Screen-space 鏡像 Blit)]
+                 │
                  ▼
-     [SRDVirtualCameraTester] ── (仮想カメラ位置・姿勢・Frustum再構築)
+       [UniversalRendererData (URP Pipeline)]
                  │
-                 ├─► [GL.invertCulling (m00 < 0 時のカリング反転)]
-                 ├─► [UniversalAdditionalCameraData (Depth/Color 保持)]
-                 │
-                 ▼ (vCamRenderTexture)
+                 ├─► [URPMatrixDebugFeature (汎用 URP 行列診断)]
+                 ▼
        [PCDContextBuilder (URP RenderGraph)]
                  │ (VirtualDepthTex / LastPixelCount 検出)
                  ▼
@@ -31,10 +35,11 @@
 
 ### 主な特徴
 
+* **単一責任の原則に基づく完全な責務分離**: 鏡像視点・カリング計算を担当する `SRDMirrorCamera` と、デバッグ監視・表示を担当する `SRDMirrorDebugLogger` を完全に分離構成しています。
 * **多様な Frustum 再構築モード**: ディスプレイ四隅からの計算（`CustomProjectionFromCorners`）、行列分解・境界反転（`FrustumDeconstructAndMirror` / `FrustumDeconstructSwapLR`）、物理寸法幾何計算（`PhysicalDisplayBounds`）など、実験条件に応じた 6 種類の再構築モードをサポートします。
 * **Vector3.Reflect による完全 3D 鏡面反射**: 回転反転モード（`MirrorRotation`）により、ディスプレイ法線および右方向ベクトルに対する完全な 3D 姿勢鏡面反射を適用します。
 * **URP カメラコンポーネント自動同期**: 仮想カメラ生成時に URP 固有コンポーネント（`UniversalAdditionalCameraData`）を動的アタッチし、`requiresDepthOption = On` / `requiresColorOption = On` を強制して PCD 用の深度バッファを 100% 保証します。
-* **カリング自動補正 (`GL.invertCulling`)**: 投影行列の $m_{00} < 0$（左右反転）を検知し、仮想カメラのラスタライズ描画サイクル内で自動的に `GL.invertCulling = true` を適用してメッシュのカリング消失を防ぎます。
+* **カリング自動補正 (`SRDMirrorCullingFeature` & `GL.invertCulling`)**: 投影行列の $m_{00} < 0$（左右反転）を検知し、URP Culling ステージおよび仮想カメラのラスタライズ描画サイクル内で自動的に `GL.invertCulling = true` および `cullingMatrix` 同期を適用してメッシュのカリング消失を防ぎます。
 
 ---
 
@@ -45,40 +50,49 @@
 ```text
 Assets/ThirdParty/SRDisplayUnityPlugin/
 ├── Runtime/
-│   ├── SRDVirtualCameraTester.cs     # 仮想カメラ生成・Frustum再構築・カリング制御
+│   ├── SRDMirrorCamera.cs            # 鏡像視点・カリング行列変換コンポーネント (純粋機能)
 │   ├── SRDManager.cs                 # Sony SRDisplay SDK 統括コンポーネント
-│   └── Unity.jp.co.sony.srd.asmdef   # アセンブリ定義 (Universal.Runtime 参照含む)
-└── Features/3DDisplay/
-    └── Scripts/Occlusion/Passes/
-        └── PCDContextBuilder.cs      # 仮想カメラ深度・描画ピクセル数検出
+│   ├── MirrorRendererFeature.cs      # URP 2D Screen-space 鏡像 Blit RenderFeature
+│   ├── SRDMirrorCullingFeature.cs   # URP CullingMatrix 強制同期 RenderFeature
+│   ├── Debug/
+│   │   ├── SRDMirrorDebugLogger.cs  # 独立デバッグログ出力・監視コンポーネント
+│   │   └── SRD_LogTriggers.cs       # 互換性維持用ラッパー
+│   └── Unity.jp.co.sony.srd.asmdef   # アセンブリ定義 (Universal.Runtime / Core.Logging 参照)
+Assets/Core/Scripts/Debug/
+└── URPMatrixDebugFeature.cs         # 汎用 URP 行列・パイプライン診断 RenderFeature
 ```
 
 ### 2.2 クラス相関図
 
 ```mermaid
 graph TD
-    SRD["SRDManager<br/>(アイトラッキング)"] --> |Eye Position & Orig Matrix| Tester["SRDVirtualCameraTester<br/>(MonoBehaviour)"]
-    Tester --> |Create & Copy| VCam["VirtualLeftEyeCamera /<br/>VirtualRightEyeCamera"]
-    Tester --> |GL.invertCulling = true| URP["URP Rasterizer<br/>(Mesh Rendering)"]
-    VCam --> |vCamRT & Depth Buffer| Ctx["PCDContextBuilder"]
-    Ctx --> |LastPixelCount / HasVirtualObjects| Pass["PCDRenderPass"]
+    SRD["SRDManager<br/>(アイトラッキング)"] --> |Camera Transform| Cam["SRDMirrorCamera<br/>(幾何・カリング変換)"]
+    Cam --> |Auto AddComponent| Dbg["SRDMirrorDebugLogger<br/>[AppLoggable / IAppLoggable]"]
+    
+    RenderData["UniversalRendererData<br/>(URP Settings)"] --> MirrorFeature["MirrorRendererFeature<br/>(2D Screen Blit)"]
+    RenderData --> CullFeature["SRDMirrorCullingFeature<br/>(Culling Sync)"]
+    RenderData --> MatrixFeature["URPMatrixDebugFeature<br/>(汎用行列診断)"]
+    
+    Dbg --> |AppLogger.Log| LogMgr["AppLogManager<br/>(統制ログ一元管理)"]
+    MirrorFeature --> |AppLogger.Log| LogMgr
+    MatrixFeature --> |AppLogger.Log| LogMgr
 
     style SRD fill:#4a90d9,color:#fff
-    style Tester fill:#f5a623,color:#fff
-    style VCam fill:#50e3c2,color:#000
-    style Pass fill:#e74c3c,color:#fff
+    style Cam fill:#f5a623,color:#fff
+    style Dbg fill:#50e3c2,color:#000
+    style LogMgr fill:#9b59b6,color:#fff
 ```
 
 ### 2.3 処理フロー
 
 1. **実カメラレンダリング開始割り込み (`OnBeginCameraRendering`)**:
-   `SRDVirtualCameraTester` が `RenderPipelineManager.beginCameraRendering` を受け取り、`realCamera` から仮想カメラ `vCam` を生成・位置補正。
-2. **Frustum 再構築 & 姿勢反転**:
-   選択された `ProjectionReconstructMode` および `RotationMirrorMode` に従って `vCam.projectionMatrix` と `vCam.transform` を更新。
-3. **URP カメラデータ & カリング同期**:
-   `vCam` に `UniversalAdditionalCameraData` をアタッチし `requiresDepthOption = On` をセット。`vCam.projectionMatrix.m00 < 0` の場合は `GL.invertCulling = true` を適用。
-4. **RenderTexture 描画 & 実カメラ転送**:
-   `vCam` が 24-bit 深度バッファを持つ Temporary RenderTexture へラスタライズ描画。`OnEndCameraRendering` で実カメラのターゲットへ Blit 転送し、`GL.invertCulling = false` へ復元。
+   `SRDMirrorCamera` が `RenderPipelineManager.beginCameraRendering` を受け取り、`Case B Mirrored Basis` に従って `worldToCameraMatrix` と `cullingMatrix` を鏡像変換更新。
+2. **デバッグ視差・行列監視 (`SRDMirrorDebugLogger`)**:
+   `SRDMirrorDebugLogger` が `RenderPipelineManager` イベントを個別監視し、`AppLogManager` の `[SRD_MirrorCamDebug]` および `[SRD_ProjDetCheck]` サブトリガー状態に基づいて診断ログを `AppLogger` 経由で独立出力。
+3. **URP Culling 同期 (`SRDMirrorCullingFeature`)**:
+   URP の Culling ステージ直前 (`BeforeRenderingPrePasses`) にて `ScriptableCullingParameters.cullingMatrix` を `projectionMatrix * worldToCameraMatrix` へ一致させ、カメラ視野外オブジェクトの誤破棄を抑止。
+4. **画面空間Blit鏡像処理 (`MirrorRendererFeature`)**:
+   ポストエフェクト描画完了直後 (`AfterRenderingPostProcessing`) にて `ScreenSpaceMirror.shader` を適用し、画面全体を水平反転して出力。
 
 ---
 
@@ -89,21 +103,20 @@ graph TD
 #### Step 1: コンポーネント配置
 
 1. シーン内に `SRDManager` を配置します。
-2. `SRDManager` またはその子要素のカメラに `SRDVirtualCameraTester` をアタッチします。
+2. `SRDManager` またはその子要素のカメラに `SRDMirrorCamera` をアタッチします。(`SRDMirrorDebugLogger` が自動配置されます)
 
-#### Step 2: モードおよびパラメータ調整
+#### Step 2: URP RendererFeature の設定
 
-インスペクターから `projectionMode` と `rotationMode` を目的に合わせて設定します。
+1. 使用中の `UniversalRendererData` アセットを選択します。
+2. `MirrorRendererFeature` および必要に応じて `SRDMirrorCullingFeature`, `URPMatrixDebugFeature` を追加します。
+
+#### Step 3: モードおよびパラメータ調整
+
+インスペクターから `enableMirror` を目的に合わせて設定します。
 
 | 設定項目 | 型 | 既定値 | 説明 |
 |---|---|---|---|
-| `enableVirtualCamera` | `bool` | `true` | 仮想カメラによる運動視差テストの有効化 |
-| `projectionMode` | `ProjectionReconstructMode` | `CustomProjectionFromCorners` | Projection Matrix の再構築アルゴリズムモード |
-| `rotationMode` | `RotationMirrorMode` | `MirrorRotation` | カメラ回転姿勢の鏡面反射モード (`MirrorRotation`, `UnmodifiedRotation`) |
-
-#### Step 3: URP 描画優先度の維持
-
-仮想カメラの Priority (`vCam.depth`) は `realCamera.depth` と同期します。URP パイプライン内で深度バッファが正常に作成されるよう、実カメラの Priority は `0` 以上に維持してください。
+| `enableMirror` | `bool` | `true` | 鏡像座標系変換および RenderTexture 水平反転の有効化 |
 
 ---
 
@@ -162,17 +175,20 @@ $$
 ### 5.1 留意事項
 
 * **アセンブリ参照 (`Unity.jp.co.sony.srd.asmdef`)**:
-  `SRDVirtualCameraTester` で URP 固有データ (`UniversalAdditionalCameraData`) を扱うため、`Unity.jp.co.sony.srd.asmdef` の `"references"` に `"Unity.RenderPipelines.Universal.Runtime"` が含まれている必要があります。
+  `SRDMirrorCamera` および `SRDMirrorDebugLogger` で URP 固有データおよびログ基盤を扱うため、`Unity.jp.co.sony.srd.asmdef` の `"references"` に `"Unity.RenderPipelines.Universal.Runtime"` および `"Core.Logging"` が含まれている必要があります。
 * **二重反転の回避**:
   カメラの Projection 行列の $m_{00}$ が負（$m_{00} < 0$）の時、PCD パス（`PCDContextBuilder`）側で $m_{00}$ の符号を手動で正に反転させると、ラスタライザ描画と Compute Shader 投影の向きが一致しなくなる「二重反転」が発生します。`PCDContextBuilder` にはカメラの Projection 行列を無加工で渡す必要があります。
 
 ### 5.2 統制ログシステム (AppLogManager) との同期
 
-仮想カメラの入力状態および PCD 側の認識状況は、`AppLogManager` の **`[PCD_ContextBuilder]`** サブトリガーからリアルタイムに確認できます。
+SRD 表示および鏡像関連のデバッグログは、`AppLogManager` のインスペクター上の **`📂 SRD Display (PCD/SRD)`** および **`📂 URP / RenderPipelines`** カテゴリから個別にコントロール可能です。
 
-* `[ContextBuilder] URP Input & PreCompute State:`
-  * `Camera`: 実行中のカメラ名 (`VirtualLeftEyeCamera` など)
-  * `Projection m00`: $m_{00}$ の値および負反転フラグ (`Negated: True/False`)
-  * `VirtualMesh: LastPixelCount`: URP 深度バッファから検出された 3D メッシュのピクセル数（カリング崩れ時は 0、正常時は数万〜数百万）
+| サブトリガー名 | 担当クラス | 説明 |
+|---|---|---|
+| `[SRD_NativeLog]` | `SRDCorePlugin` / `SRDMirrorDebugLogger` | Sony SRDisplay C++ Native DLL コールバックデバッグログ (`[oz-debug-log]`) |
+| `[SRD_MirrorCamDebug]` | `SRDMirrorDebugLogger` | 鏡像視点 View/Proj 行列の分解診断および視差誤差計算 |
+| `[SRD_ProjDetCheck]` | `SRDMirrorDebugLogger` | 投影行列式(Det)および非対称性の検証ログ |
+| `[SRD_MirrorPassDebug]` | `MirrorRendererFeature` | 2D 画面空間 Blit パスの実行ログおよび視差ズレ検証 |
+| `[URP_MatrixDebug]` | `URPMatrixDebugFeature` | 汎用 URP パイプライン状態・View/Proj/CullingMatrix 全要素比較診断 |
 
 統制ログ仕様の詳細については [Logging.md](./Logging.md) および [OcclusionRendering.md](./OcclusionRendering.md) を参照してください。

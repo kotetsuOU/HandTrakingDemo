@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2019,2020,2023,2024 Sony Corporation
  */
 
@@ -20,8 +20,11 @@ namespace SRD.Core
         void RenderStereoComposition(RenderTexture backBuffer);
     }
 
-    internal class SRDStereoCompositer: ISRDStereoCompositer
+    public class SRDStereoCompositer: ISRDStereoCompositer
     {
+        public static bool FlipRenderTextureX { get; set; } = false;
+        public static bool SwapEyes { get; set; } = false;
+
         private SrdXrTexture _srdSideBySide;
         private SrdXrTexture _srdOut;
         private RenderTexture _outTexture;
@@ -90,6 +93,11 @@ namespace SRD.Core
 
         public void RenderStereoComposition(RenderTexture backBuffer)
         {
+            if (_leftAndRightToSideBySide != null)
+            {
+                _leftAndRightToSideBySide.SetFloat("_FlipX", FlipRenderTextureX ? 1.0f : 0.0f);
+                _leftAndRightToSideBySide.SetFloat("_SwapEyes", SwapEyes ? 1.0f : 0.0f);
+            }
             Graphics.Blit(_sceneLeft, _sideBySide, _leftAndRightToSideBySide);
             _srdManager.Session.EndFrame();
             Graphics.Blit(_outTexture, backBuffer);
