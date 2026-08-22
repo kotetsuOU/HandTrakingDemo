@@ -23,8 +23,11 @@ public class MultiAUTD3Controller : MonoBehaviour
 {
     Both,       // 両方出す
     UpperOnly,   // 左グループ（0,1,6,7）だけ
-    DownOnly   // 右グループ（2,3,4,5）だけ
+    DownOnly,   // 右グループ（2,3,4,5）だけ
+    None
 }
+    [Tooltip("実行中にA/S/Dキーでモード切替を許可する（実験集はオフ）")]
+    public bool enableDebugKeys = false;
 
     public enum NonCollisionBehavior
     {
@@ -100,11 +103,11 @@ public class MultiAUTD3Controller : MonoBehaviour
             _autd.Send(new Focus(pos: Target.transform.position, option: new FocusOption()));
             _oldPosition = Target.transform.position;
         }
-        else if (mode == ControlMode.IndependentFocus && Target != null || Target2 != null)
+        else if (mode == ControlMode.IndependentFocus && (Target != null || Target2 != null))
         {
-            SendIndependentFocus(Target.transform.position, Target2.transform.position);
-            _oldPosition = Target.transform.position;
-            _oldPosition2 = Target2.transform.position;
+            SendIndependentFocus(Target?.transform.position, Target2?.transform.position);
+            _oldPosition = Target?.transform.position;
+            _oldPosition2 = Target2?.transform.position;
         }
     }
 
@@ -138,6 +141,7 @@ public class MultiAUTD3Controller : MonoBehaviour
     }
         private Vector3? CurrentPos1()
     {
+        if(outputSide == OutputSide.None) return null;
         if (outputSide == OutputSide.DownOnly) return null;   // 右だけモードなら左は出さない
         if (Target == null) return null;                       // 設定し忘れ対策
         return Target.transform.position;
@@ -145,35 +149,43 @@ public class MultiAUTD3Controller : MonoBehaviour
 
     private Vector3? CurrentPos2()
     {
+        if(outputSide == OutputSide.None) return null;
         if (outputSide == OutputSide.UpperOnly) return null;    // 左だけモードなら右は出さない
         if (Target2 == null) return null;
         return Target2.transform.position;
     }
+    public void SetMode(OutputSide side)
+    {
+        outputSide = side;
+        if (_autd == null) return;
+
+        var pos1 = CurrentPos1();
+        var pos2 = CurrentPos2();
+
+        SendIndependentFocus(pos1, pos2);
+
+        _oldPosition  = pos1;
+        _oldPosition2 = pos2;
+    }
+
+    public void StopOutput()
+    {
+        SetMode(OutputSide.None);
+    }
 
     private void Update()
-{
-    if (Input.anyKeyDown) UnityEngine.Debug.Log($"何か押された: {Input.inputString}");
-            if (Input.GetKeyDown(KeyCode.A))
-            {
-                outputSide = OutputSide.UpperOnly;
-                UnityEngine.Debug.Log("AUTD: 左グループ（0,1,6,7）のみ出力");
-            }
-            if (Input.GetKeyDown(KeyCode.S))
-            {
-                outputSide = OutputSide.DownOnly;
-                UnityEngine.Debug.Log("AUTD: 右グループ（2,3,4,5）のみ出力");
-            }
-            if (Input.GetKeyDown(KeyCode.D))
-            {
-                outputSide = OutputSide.Both;
-                UnityEngine.Debug.Log("AUTD: 両グループ出力");
-            }
+    {
+        if (enableDebugKeys)
+        {
+            if (Input.GetKeyDown(KeyCode.A)) SetMode(OutputSide.UpperOnly);
+            if (Input.GetKeyDown(KeyCode.S)) SetMode(OutputSide.DownOnly);
+            if (Input.GetKeyDown(KeyCode.D)) SetMode(OutputSide.Both);
+        }
+
         if (_autd == null) return;
 
         if (mode == ControlMode.IndependentFocus)
         {
-
-
             var pos1 = CurrentPos1();
             var pos2 = CurrentPos2();
 
@@ -244,7 +256,6 @@ public class MultiAUTD3Controller : MonoBehaviour
             _oldPosition = currentFocusPos;
         }
     }
-
     private void OnApplicationQuit()
     {
         _autd?.Dispose();
