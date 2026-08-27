@@ -36,6 +36,17 @@ public class MultiAUTD3Controller : MonoBehaviour
         TurnOff             // 出力を停止する (Nullゲインなどを送る)
     }
 
+    [Header("Modulation Settings")]
+    [Tooltip("AM変調の周波数")]
+    [Range(50f, 400f)] public float modFreq = 150f;
+
+    [Header("Intensity Settings")]
+    [Tooltip("上グループの出力（255が最大）")]
+    [Range(0, 255)] public int upperIntensity = 255;
+
+    [Tooltip("下グループの出力（255が最大）")]
+    [Range(0, 255)] public int downIntensity = 255;
+
     [Header("Debug Settings")]
     [Tooltip("TwinCATなしでテストする場合はONにする（Nopリンクを使用）")]
     public bool useMock = false;
@@ -96,7 +107,7 @@ public class MultiAUTD3Controller : MonoBehaviour
             return;
         }
 
-        _autd.Send(new Sine(freq: 150 * Hz, option: new SineOption()));
+        _autd.Send(new Sine(freq: modFreq * Hz, option: new SineOption()));
 
         if (mode == ControlMode.TargetOnly && Target != null)
         {
@@ -119,9 +130,9 @@ public class MultiAUTD3Controller : MonoBehaviour
         // ① 指示書を空で作って、必要なぶんだけ入れる
         var gainMap = new Dictionary<object, IGain>();
         if (pos1.HasValue)
-            gainMap["left"] = new Focus(pos: pos1.Value, option: new FocusOption());
+            gainMap["left"] = new Focus(pos: pos1.Value, option: new FocusOption{Intensity = new Intensity((byte)upperIntensity)});
         if (pos2.HasValue)
-            gainMap["right"] = new Focus(pos: pos2.Value, option: new FocusOption());
+            gainMap["right"] = new Focus(pos: pos2.Value, option: new FocusOption{Intensity = new Intensity((byte)downIntensity)});
 
         // ② 両方ないなら全停止
         if (gainMap.Count == 0)
@@ -168,6 +179,13 @@ public class MultiAUTD3Controller : MonoBehaviour
         _oldPosition2 = pos2;
     }
 
+    public void ApplyModulation()
+    {
+        if(_autd == null) return;
+        _autd.Send(new Sine(freq: modFreq * Hz, option: new SineOption()));
+        UnityEngine.Debug.Log($"AUTD: 変調周波数を {modFreq} Hz に設定");
+    }
+
     public void StopOutput()
     {
         SetMode(OutputSide.None);
@@ -177,9 +195,10 @@ public class MultiAUTD3Controller : MonoBehaviour
     {
         if (enableDebugKeys)
         {
-            if (Input.GetKeyDown(KeyCode.A)) SetMode(OutputSide.UpperOnly);
+            if (Input.GetKeyDown(KeyCode.W)) SetMode(OutputSide.UpperOnly);
             if (Input.GetKeyDown(KeyCode.S)) SetMode(OutputSide.DownOnly);
             if (Input.GetKeyDown(KeyCode.D)) SetMode(OutputSide.Both);
+            if (Input.GetKeyDown(KeyCode.F)) ApplyModulation();
         }
 
         if (_autd == null) return;
