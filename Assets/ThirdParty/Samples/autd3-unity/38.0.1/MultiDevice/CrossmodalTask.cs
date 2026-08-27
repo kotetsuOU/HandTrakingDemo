@@ -21,6 +21,7 @@ public class CrossmodalTask : MonoBehaviour
     [SerializeField] private float stimulusDuration = 0.5f;
     [SerializeField] private float itiDuration = 1.0f;
     [SerializeField] private MultiAUTD3Controller autd;
+    [SerializeField] private float responseDeadline = 3.0f;
 
     private List<Trial> trials = new List<Trial>();
     private double onsetTime;
@@ -106,6 +107,11 @@ public class CrossmodalTask : MonoBehaviour
 
     private IEnumerator RunSession()
     {
+        Debug.Log("スペースキーで開始");
+
+        yield return new WaitUntil(() => Keyboard.current != null 
+        && Keyboard.current.spaceKey.wasPressedThisFrame);
+
         for (int i = 0; i < trials.Count; i++)
         {
             yield return StartCoroutine(RunTrial(i));
@@ -123,38 +129,42 @@ public class CrossmodalTask : MonoBehaviour
             autd.SetMode(MultiAUTD3Controller.OutputSide.DownOnly);
     }
 
-    private IEnumerator RunTrial(int index)
+private IEnumerator RunTrial(int index)
+{
+    Trial trial = trials[index];
+
+    // --- 試行間インターバル ---
+    yield return new WaitForSecondsRealtime(itiDuration);
+
+    // --- 刺激フェーズ ---
+    SetTactile(trial.tactile);
+    onsetTime = Time.realtimeSinceStartupAsDouble;
+
+    yield return new WaitForSecondsRealtime(stimulusDuration);
+
+    if (autd != null) autd.StopOutput();
+
+    // --- 応答フェーズ ---
+    Debug.Log($"[{index}] 回答してください");
+
+    Side? response = null;
+    double responseTime = 0;
+    double respStart = Time.realtimeSinceStartupAsDouble;
+
+    while (Time.realtimeSinceStartupAsDouble - respStart < responseDeadline)
     {
-        Trial trial = trials[index];
-
-        // --- 試行間インターバル ---
-        yield return new WaitForSecondsRealtime(itiDuration);
-
-        // --- 刺激オンセット ---
-        SetTactile(trial.tactile);
-        onsetTime = Time.realtimeSinceStartupAsDouble;
-
-        // --- 提示中：応答を受け付けながら待つ ---
-        Side? response = null;
-        double responseTime = 0;
-
-        while (Time.realtimeSinceStartupAsDouble - onsetTime < stimulusDuration)
+        Side? r = GetResponse();
+        if (r != null)
         {
-            Side? r = GetResponse();
-            if (r != null)
-            {
-                response = r;
-                responseTime = Time.realtimeSinceStartupAsDouble;
-                break;
-            }
-            yield return null;
+            response = r;
+            responseTime = Time.realtimeSinceStartupAsDouble;
+            break;
         }
-
-        // --- 刺激オフ ---
-        if (autd != null) autd.StopOutput();
-
-        WriteTrial(index, trial, response, responseTime);
+        yield return null;
     }
+
+    WriteTrial(index, trial, response, responseTime);
+}
 
     private void WriteTrial(int index, Trial trial, Side? response, double responseTime)
     {
