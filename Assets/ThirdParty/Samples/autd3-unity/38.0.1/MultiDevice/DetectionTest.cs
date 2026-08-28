@@ -95,10 +95,10 @@ public class DetectionTest : MonoBehaviour
 
     private IEnumerator RunTest()
     {
-        Debug.Log("スペースキーで開始");
+        Debug.Log("Enterキーで開始");
 
         yield return new WaitUntil(() => Keyboard.current != null
-                                      && Keyboard.current.spaceKey.wasPressedThisFrame);
+                                      && Keyboard.current.enterKey.wasPressedThisFrame);
 
         for (int i = 0; i < trials.Count; i++)
         {
@@ -128,31 +128,30 @@ public class DetectionTest : MonoBehaviour
 
         if (autd != null) autd.StopOutput();
 
-        // --- 応答フェーズ ---
-        Debug.Log($"[{index + 1}/{trials.Count}] ← 感じた / → 感じない");
+        Debug.Log($"[{index + 1}/{trials.Count}] 回答"); 
 
-        bool? response = null;
+        // --- 応答フェーズ ---
+        bool felt = false;
         double t0 = Time.realtimeSinceStartupAsDouble;
 
         while (Time.realtimeSinceStartupAsDouble - t0 < responseDeadline)
         {
-            if (Keyboard.current != null)
+            if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
             {
-                if (Keyboard.current.leftArrowKey.wasPressedThisFrame)  { response = true;  break; }
-                if (Keyboard.current.rightArrowKey.wasPressedThisFrame) { response = false; break; }
+                felt = true;
+                break;
             }
             yield return null;
         }
 
-        WriteTrial(index, trial, response);
+        WriteTrial(index, trial, felt);
     }
 
-    private void WriteTrial(int index, DetectTrial trial, bool? response)
+    private void WriteTrial(int index, DetectTrial trial, bool felt)
     {
-        string resp    = (response == null) ? "NA" : (response.Value ? "felt" : "notfelt");
-        string correct = (response == null) ? "NA" : (response.Value == trial.hasStimulus).ToString();
+        bool correct = (felt == trial.hasStimulus);
 
-        writer.WriteLine($"{subjectID},{testSide},{seed},{index + 1},{trial.freq},{trial.hasStimulus},{resp},{correct}");
+        writer.WriteLine($"{subjectID},{testSide},{seed},{index + 1},{trial.freq},{trial.hasStimulus},{felt},{correct}");
         writer.Flush();
     }
 }
