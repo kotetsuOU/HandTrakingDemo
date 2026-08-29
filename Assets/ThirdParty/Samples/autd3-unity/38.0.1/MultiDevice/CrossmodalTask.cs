@@ -7,7 +7,7 @@ using System.IO;
 
 public class CrossmodalTask : MonoBehaviour
 {
-    public enum Side { Upper, Down }
+    public enum Side { Upper, Down, None }
 
     public struct Trial
     {
@@ -22,6 +22,7 @@ public class CrossmodalTask : MonoBehaviour
     [SerializeField] private float itiDuration = 1.0f;
     [SerializeField] private MultiAUTD3Controller autd;
     [SerializeField] private float responseDeadline = 3.0f;
+    [SerializeField] private int catchTrialCount = 10;
 
     private List<Trial> trials = new List<Trial>();
     private double onsetTime;
@@ -74,6 +75,11 @@ public class CrossmodalTask : MonoBehaviour
             trials.Add(new Trial { tactile = Side.Down,  visual = Side.Upper });
             trials.Add(new Trial { tactile = Side.Down,  visual = Side.Down  });
         }
+        for (int i = 0; i < catchTrialCount; i++)
+        {
+            Side v = (i % 2 == 0) ? Side.Upper : Side.Down;
+            trials.Add(new Trial { tactile = Side.None, visual = v });
+        }
 
         Shuffle();
         Debug.Log($"生成直後: {trials.Count} / 設定値: {trialsPerCondition}");
@@ -98,9 +104,11 @@ public class CrossmodalTask : MonoBehaviour
 
         bool up   = Keyboard.current.upArrowKey.wasPressedThisFrame;
         bool down = Keyboard.current.downArrowKey.wasPressedThisFrame;
+        bool none = Keyboard.current.leftArrowKey.wasPressedThisFrame;
 
         if (up)   return Side.Upper;
         if (down) return Side.Down;
+        if (none) return Side.None;
 
         return null;
     }
@@ -121,12 +129,20 @@ public class CrossmodalTask : MonoBehaviour
 
     private void SetTactile(Side side)
     {
-        if(autd == null) return;
+        if (autd == null) return;
 
-        if(side == Side.Upper)
-            autd.SetMode(MultiAUTD3Controller.OutputSide.UpperOnly);
-        else
-            autd.SetMode(MultiAUTD3Controller.OutputSide.DownOnly);
+        switch (side)
+        {
+            case Side.Upper:
+                autd.SetMode(MultiAUTD3Controller.OutputSide.UpperOnly);
+                break;
+            case Side.Down:
+                autd.SetMode(MultiAUTD3Controller.OutputSide.DownOnly);
+                break;
+            case Side.None:
+                autd.StopOutput();
+                break;
+        }
     }
 
 private IEnumerator RunTrial(int index)
