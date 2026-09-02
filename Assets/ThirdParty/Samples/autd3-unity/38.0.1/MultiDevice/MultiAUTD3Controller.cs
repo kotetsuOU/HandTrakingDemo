@@ -74,6 +74,19 @@ public class MultiAUTD3Controller : MonoBehaviour
     [Tooltip("実行中に 1 / 2 / 3 キーで切り替え可能")]
     public OutputSide outputSide = OutputSide.Both; 
 
+    [Header("STM Settings")]
+    [Tooltip("ONでSTM,OFFでAM変調")]
+    public bool useSTM = false;
+
+    [Tooltip("円軌道の半径")]
+    [Range(0.001f, 0.01f)]public float stmRadius = 0.003f;
+
+    [Tooltip("周期")]
+    [Range(50f, 300f)] public float stmFreq = 150f;
+
+    [Tooltip("1周の分割")]
+    [Range(8, 64)] public int stmPoints = 20;
+
     private Controller? _autd = null;
     private Vector3? _oldPosition;
     private Vector3? _oldPosition2;
@@ -124,6 +137,18 @@ public class MultiAUTD3Controller : MonoBehaviour
 
     private void SendIndependentFocus(Vector3? pos1, Vector3? pos2)
     {
+        if (pos1 == null && pos2 == null)
+        {
+            _autd!.Send(new Null());
+            return;
+        }
+
+        if (useSTM) SendSTM(pos1, pos2);
+        else        SendStaticFocus(pos1, pos2);
+    }
+
+    private void SendStaticFocus(Vector3? pos1, Vector3? pos2)
+    {
         var leftSet = new HashSet<int>(upperDeviceIndices);
         var rightSet = new HashSet<int>(downDeviceIndices);
 
@@ -149,6 +174,40 @@ public class MultiAUTD3Controller : MonoBehaviour
             gainMap: gainMap
         );
         _autd!.Send(gain);
+    }
+
+    private void SendSTM(Vector3? pos1, Vector3? pos2)
+    {
+        var upperSet = new HashSet<int>(upperDeviceIndices);
+        var downSet  = new HashSet<int>(downDeviceIndices);
+
+        var gains = new List<IGain>();
+
+        for (int i = 0; i < stmPoints; i++)
+        {
+            float theta = 2f * Mathf.PI * i / stmPoints;
+            Vector3 offset = new Vector3(
+                stmRadius * Mathf.Cos(theta),
+                0f,
+                stmRadius * Mathf.Sin(theta));
+
+            var gainMap = new Dictionary<object, IGain>();
+            if (pos1.HasValue)
+                gainMap["left"] = new Focus(pos: pos1.Value + offset,
+                    option: new FocusOption { Intensity = new Intensity((byte)upperIntensity) });
+            if (pos2.HasValue)
+                gainMap["right"] = new Focus(pos: pos2.Value + offset,
+                    option: new FocusOption { Intensity = new Intensity((byte)downIntensity) });
+
+            gains.Add(new GainGroup(
+                keyMap: dev => tr => (pos1.HasValue && upperSet.Contains(dev.Idx())) ? "left"
+                                : (pos2.HasValue && downSet.Contains(dev.Idx())) ? "right"
+                                : null,
+                gainMap: gainMap
+            ));
+        }
+
+        _autd!.Send(new GainSTM(gains, stmFreq * Hz, new GainSTMOption()).IntoNearest());
     }
         private Vector3? CurrentPos1()
     {
@@ -181,9 +240,12 @@ public class MultiAUTD3Controller : MonoBehaviour
 
     public void ApplyModulation()
     {
-        if(_autd == null) return;
-        _autd.Send(new Sine(freq: modFreq * Hz, option: new SineOption()));
-        UnityEngine.Debug.Log($"AUTD: 変調周波数を {modFreq} Hz に設定");
+        if (_autd == null) return;
+
+        if (useSTM)
+            _autd.Send(new Static());
+        else
+            _autd.Send(new Sine(freq: modFreq * Hz, option: new SineOption()));
     }
 
     public void StopOutput()
