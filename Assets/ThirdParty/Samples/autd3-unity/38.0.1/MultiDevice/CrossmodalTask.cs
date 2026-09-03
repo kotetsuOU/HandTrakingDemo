@@ -24,6 +24,10 @@ public class CrossmodalTask : MonoBehaviour
     [SerializeField] private float responseDeadline = 3.0f;
     [SerializeField] private int catchTrialCount = 10;
 
+    [Header("Visual Stimulus")]
+    [Tooltip("掌側に出す光点。Side.Upper のとき点灯")]
+    [SerializeField] private GameObject visualUpper;
+
     private List<Trial> trials = new List<Trial>();
     private double onsetTime;
     private StreamWriter writer;
@@ -71,13 +75,13 @@ public class CrossmodalTask : MonoBehaviour
         for (int i = 0; i < trialsPerCondition; i++)
         {
             trials.Add(new Trial { tactile = Side.Upper, visual = Side.Upper });
-            trials.Add(new Trial { tactile = Side.Upper, visual = Side.Down  });
+            trials.Add(new Trial { tactile = Side.Upper, visual = Side.None  });
             trials.Add(new Trial { tactile = Side.Down,  visual = Side.Upper });
-            trials.Add(new Trial { tactile = Side.Down,  visual = Side.Down  });
+            trials.Add(new Trial { tactile = Side.Down,  visual = Side.None  });
         }
         for (int i = 0; i < catchTrialCount; i++)
         {
-            Side v = (i % 2 == 0) ? Side.Upper : Side.Down;
+            Side v = (i % 2 == 0) ? Side.Upper : Side.None;
             trials.Add(new Trial { tactile = Side.None, visual = v });
         }
 
@@ -145,6 +149,11 @@ public class CrossmodalTask : MonoBehaviour
         }
     }
 
+    private void SetVisual(Side side)
+    {
+        if(visualUpper != null) visualUpper.SetActive(side == Side.Upper);
+    }
+
 private IEnumerator RunTrial(int index)
 {
     Trial trial = trials[index];
@@ -153,11 +162,13 @@ private IEnumerator RunTrial(int index)
     yield return new WaitForSecondsRealtime(itiDuration);
 
     // --- 刺激フェーズ ---
+    SetVisual(trial.visual);
     SetTactile(trial.tactile);
     onsetTime = Time.realtimeSinceStartupAsDouble;
 
     yield return new WaitForSecondsRealtime(stimulusDuration);
 
+    SetVisual(Side.None);
     if (autd != null) autd.StopOutput();
 
     // --- 応答フェーズ ---
@@ -184,7 +195,10 @@ private IEnumerator RunTrial(int index)
 
     private void WriteTrial(int index, Trial trial, Side? response, double responseTime)
     {
-        string congruency  = (trial.tactile == trial.visual) ? "congruent" : "incongruent";
+        string congruency;
+            if (trial.visual == Side.None)          congruency = "novisual";
+            else if (trial.tactile == trial.visual) congruency = "congruent";
+            else                                     congruency = "incongruent";
         string responseStr = (response == null) ? "timeout" : response.ToString();
         string correctStr  = (response == null) ? "NA" : (response == trial.tactile).ToString();
         string rtStr       = (response == null) ? "NA" : ((responseTime - onsetTime) * 1000.0).ToString("F1");
